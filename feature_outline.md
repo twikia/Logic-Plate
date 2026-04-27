@@ -45,13 +45,19 @@
 
 ### Design System
 - **Themes:**
-  - *Primary Theme:* Dark Mode focus with warm, vibrant gradients ("Sunset Blush").
-  - *Color Palette:*
-    - **Background Gradient:** Deep Plum/Magenta fading to a warm Peach/Sunset Orange.
-    - **Surface / Card Background:** Dark, muted brownish-grey (to provide contrast and hold UI elements).
-    - **Accent / Primary Color:** Bright Coral / Salmon Orange (used for progress bars and primary actions).
-    - **Inactive / Secondary Element Color:** Muted Dark Reddish-Brown.
-    - **Text Colors:** Pure White for primary headings, light muted grey/pink for secondary text.
+  - *Primary Theme:* Dark Mode focus with warm, vibrant gradients ("Sunset Blush"). Applied to Home, Research, and Map.
+  - *Secondary Theme:* Light Mode focus with pastel gradients ("Melon Fresh"). Applied to Social and Tracking.
+  - *Color Palette (Sunset Blush):*
+    - **Background:** Deep Plum/Magenta fading to a warm Peach/Sunset Orange.
+    - **Surface / Card Background:** Dark, muted brownish-grey.
+    - **Accent / Primary Color:** Bright Coral / Salmon Orange.
+    - **Text Colors:** Pure White for headings, light muted grey/pink for secondary.
+  - *Color Palette (Melon Fresh):*
+    - **Background:** Soft pastel Melon/Peach to Mint Green gradient.
+    - **Surface / Card Background:** Very light Cream/Off-White (`#FDF8F5`).
+    - **Accent / Primary Color:** Soft Melon Orange (`#FF9F80`).
+    - **Accent 2 / Secondary Color:** Soft Mint Green (`#C1E1C1`).
+    - **Text Colors:** Dark Forest Green (`#2B422A`) for headings, muted grey/brown (`#8E837D`) for secondary.
 - **Typography & Font Styles:**
   - *Headings:* Clean, modern sans-serif (e.g., Inter, SF Pro, or Roboto) in medium to bold weights. High legibility.
   - *Body Text:* Same modern sans-serif, lighter weight, colored in secondary text color for data (like calories/macros).

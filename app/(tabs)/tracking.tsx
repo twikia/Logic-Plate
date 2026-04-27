@@ -14,16 +14,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#362436',
+    backgroundColor: '#FDF8F5', // Melon Fresh cream background
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#2B422A', // Forest Green text
   },
   subtitle: {
     fontSize: 16,
-    color: '#B59EAA',
+    color: '#8E837D', // Muted brown text
     marginTop: 8,
   },
 });

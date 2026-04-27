@@ -14,11 +14,6 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#F97352', // Sunset Blush accent
-        tabBarStyle: {
-          backgroundColor: '#3D2B3D', // Sunset Blush surface
-          borderTopWidth: 0,
-        },
         headerStyle: {
           backgroundColor: '#3D2B3D',
         },
@@ -59,6 +54,8 @@ export default function TabLayout() {
         options={{
           title: 'Research',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="magnifyingglass" color={color} />,
+          tabBarActiveTintColor: '#F97352', // Sunset Blush accent
+          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0 },
         }}
       />
       <Tabs.Screen
@@ -66,6 +63,8 @@ export default function TabLayout() {
         options={{
           title: 'Tracking',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+          tabBarActiveTintColor: '#FF9F80', // Melon Fresh accent
+          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0 }, // Melon Fresh surface
         }}
       />
       <Tabs.Screen
@@ -73,8 +72,9 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <IconSymbol size={34} name="house.fill" color={color} />,
-          // Making the center icon larger and distinctive
-          tabBarLabelStyle: { fontWeight: 'bold' }
+          tabBarLabelStyle: { fontWeight: 'bold' },
+          tabBarActiveTintColor: '#F97352',
+          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0 },
         }}
       />
       <Tabs.Screen
@@ -82,6 +82,8 @@ export default function TabLayout() {
         options={{
           title: 'Map',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
+          tabBarActiveTintColor: '#F97352',
+          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0 },
         }}
       />
       <Tabs.Screen
@@ -89,6 +91,8 @@ export default function TabLayout() {
         options={{
           title: 'Social',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.3.fill" color={color} />,
+          tabBarActiveTintColor: '#FF9F80', // Melon Fresh accent
+          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0 }, // Melon Fresh surface
         }}
       />
     </Tabs>
