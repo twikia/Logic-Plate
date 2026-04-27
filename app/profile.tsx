@@ -1,13 +1,13 @@
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 
-export default function HomeScreen() {
+export default function ProfileScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Home</Text>
-      <Text style={styles.subtitle}>Minimalistic starting point</Text>
+      <Text style={styles.title}>Profile</Text>
+      <Text style={styles.subtitle}>You are currently a Guest.</Text>
       
       <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>Quick Start</Text>
+        <Text style={styles.buttonText}>Login / Sign Up</Text>
       </TouchableOpacity>
     </View>
   );
@@ -18,22 +18,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    // Gradient placeholder color
-    backgroundColor: '#5C255C', 
+    backgroundColor: '#3D2B3D',
   },
   title: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#B59EAA',
     marginTop: 8,
+    marginBottom: 24,
   },
   button: {
-    marginTop: 30,
-    backgroundColor: '#F97352', // Sunset Blush accent
+    backgroundColor: '#F97352',
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 30,
@@ -41,6 +40,5 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFFFFF',
     fontWeight: 'bold',
-    fontSize: 16,
   }
 });

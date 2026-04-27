@@ -16,7 +16,8 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="profile" options={{ title: 'Profile', presentation: 'card' }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings', presentation: 'card' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
