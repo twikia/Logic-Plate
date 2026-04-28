@@ -6,11 +6,15 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export default function HomeScreen() {
   return (
-    <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+    <LinearGradient 
+      colors={['#422046', '#FF9A6F']} 
+      start={{ x: 0, y: 1 }} 
+      end={{ x: 1, y: 0 }} 
+      style={styles.background}
+    >
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.pageTitle}>Find your meal!</Text>
-        
         <View style={styles.buttonContainer}>
+          <Text style={styles.pageTitle}>Find your meal!</Text>
           <Link href="/feeling" asChild>
             <Pressable style={styles.giantButton}>
               <IconSymbol name="heart.fill" size={32} color="#FFFFFF" />

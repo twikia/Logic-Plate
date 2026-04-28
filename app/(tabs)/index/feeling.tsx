@@ -5,89 +5,50 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
+const LOCAL_IMAGES: Record<string, any[]> = {
+  italian: [require('../../../assets/feeling/italian_1.jpg'), require('../../../assets/feeling/italian_2.jpg'), require('../../../assets/feeling/italian_3.jpg')],
+  mexican: [require('../../../assets/feeling/mexican_1.jpg'), require('../../../assets/feeling/mexican_2.jpg'), require('../../../assets/feeling/mexican_3.jpg')],
+  japanese: [require('../../../assets/feeling/japanese_1.jpg'), require('../../../assets/feeling/japanese_2.jpg'), require('../../../assets/feeling/japanese_3.jpg')],
+  chinese: [require('../../../assets/feeling/chinese_1.jpg'), require('../../../assets/feeling/chinese_2.jpg'), require('../../../assets/feeling/chinese_3.jpg')],
+  american: [require('../../../assets/feeling/american_1.jpg'), require('../../../assets/feeling/american_2.jpg'), require('../../../assets/feeling/american_3.jpg')],
+  indian: [require('../../../assets/feeling/indian_1.jpg'), require('../../../assets/feeling/indian_2.jpg'), require('../../../assets/feeling/indian_3.jpg')],
+  thai: [require('../../../assets/feeling/thai_1.jpg'), require('../../../assets/feeling/thai_2.jpg'), require('../../../assets/feeling/thai_3.jpg')],
+  mediterranean: [require('../../../assets/feeling/mediterranean_1.jpg'), require('../../../assets/feeling/mediterranean_2.jpg'), require('../../../assets/feeling/mediterranean_3.jpg')],
+  cafe: [require('../../../assets/feeling/cafe_1.jpg'), require('../../../assets/feeling/cafe_2.jpg'), require('../../../assets/feeling/cafe_3.jpg')],
+  bars: [require('../../../assets/feeling/bars_1.jpg'), require('../../../assets/feeling/bars_2.jpg'), require('../../../assets/feeling/bars_3.jpg')],
+  smoothies: [require('../../../assets/feeling/smoothies_1.jpg'), require('../../../assets/feeling/smoothies_2.jpg'), require('../../../assets/feeling/smoothies_3.jpg')],
+  seafood: [require('../../../assets/feeling/seafood_1.jpg'), require('../../../assets/feeling/seafood_2.jpg'), require('../../../assets/feeling/seafood_3.jpg')],
+  steakhouse: [require('../../../assets/feeling/steakhouse_1.jpg'), require('../../../assets/feeling/steakhouse_2.jpg'), require('../../../assets/feeling/steakhouse_3.jpg')],
+  vegan: [require('../../../assets/feeling/vegan_1.jpg'), require('../../../assets/feeling/vegan_2.jpg'), require('../../../assets/feeling/vegan_3.jpg')],
+  pizza: [require('../../../assets/feeling/pizza_1.jpg'), require('../../../assets/feeling/pizza_2.jpg'), require('../../../assets/feeling/pizza_3.jpg')],
+  other: [require('../../../assets/feeling/other_1.jpg'), require('../../../assets/feeling/other_2.jpg'), require('../../../assets/feeling/other_3.jpg')]
+};
+
 const cuisines = [
-  { id: '1', name: 'Italian', images: [
-      'https://loremflickr.com/400/400/italian,food/all?lock=1',
-      'https://loremflickr.com/400/400/italian,food/all?lock=2',
-      'https://loremflickr.com/400/400/italian,food/all?lock=3'
-  ]},
-  { id: '2', name: 'Mexican', images: [
-      'https://loremflickr.com/400/400/mexican,food/all?lock=1',
-      'https://loremflickr.com/400/400/mexican,food/all?lock=2',
-      'https://loremflickr.com/400/400/mexican,food/all?lock=3'
-  ]},
-  { id: '3', name: 'Japanese', images: [
-      'https://loremflickr.com/400/400/japanese,food/all?lock=1',
-      'https://loremflickr.com/400/400/japanese,food/all?lock=2',
-      'https://loremflickr.com/400/400/japanese,food/all?lock=3'
-  ]},
-  { id: '4', name: 'Chinese', images: [
-      'https://loremflickr.com/400/400/chinese,food/all?lock=1',
-      'https://loremflickr.com/400/400/chinese,food/all?lock=2',
-      'https://loremflickr.com/400/400/chinese,food/all?lock=3'
-  ]},
-  { id: '5', name: 'American', images: [
-      'https://loremflickr.com/400/400/burger,food/all?lock=1',
-      'https://loremflickr.com/400/400/burger,food/all?lock=2',
-      'https://loremflickr.com/400/400/burger,food/all?lock=3'
-  ]},
-  { id: '6', name: 'Indian', images: [
-      'https://loremflickr.com/400/400/indian,food/all?lock=1',
-      'https://loremflickr.com/400/400/indian,food/all?lock=2',
-      'https://loremflickr.com/400/400/indian,food/all?lock=3'
-  ]},
-  { id: '7', name: 'Thai', images: [
-      'https://loremflickr.com/400/400/thai,food/all?lock=1',
-      'https://loremflickr.com/400/400/thai,food/all?lock=2',
-      'https://loremflickr.com/400/400/thai,food/all?lock=3'
-  ]},
-  { id: '8', name: 'Mediterranean', images: [
-      'https://loremflickr.com/400/400/mediterranean,food/all?lock=1',
-      'https://loremflickr.com/400/400/mediterranean,food/all?lock=2',
-      'https://loremflickr.com/400/400/mediterranean,food/all?lock=3'
-  ]},
-  { id: '12', name: 'Cafe', images: [
-      'https://loremflickr.com/400/400/cafe,coffee/all?lock=1',
-      'https://loremflickr.com/400/400/cafe,coffee/all?lock=2',
-      'https://loremflickr.com/400/400/cafe,coffee/all?lock=3'
-  ]},
-  { id: '14', name: 'Drinks & Smoothies', images: [
-      'https://loremflickr.com/400/400/smoothie,drink/all?lock=1',
-      'https://loremflickr.com/400/400/smoothie,drink/all?lock=2',
-      'https://loremflickr.com/400/400/smoothie,drink/all?lock=3'
-  ]},
-  { id: '9', name: 'Seafood', images: [
-      'https://loremflickr.com/400/400/seafood,food/all?lock=1',
-      'https://loremflickr.com/400/400/seafood,food/all?lock=2',
-      'https://loremflickr.com/400/400/seafood,food/all?lock=3'
-  ]},
-  { id: '10', name: 'Steakhouse', images: [
-      'https://loremflickr.com/400/400/steak,food/all?lock=1',
-      'https://loremflickr.com/400/400/steak,food/all?lock=2',
-      'https://loremflickr.com/400/400/steak,food/all?lock=3'
-  ]},
-  { id: '11', name: 'Vegan', images: [
-      'https://loremflickr.com/400/400/vegan,food/all?lock=1',
-      'https://loremflickr.com/400/400/vegan,food/all?lock=2',
-      'https://loremflickr.com/400/400/vegan,food/all?lock=3'
-  ]},
-  { id: '13', name: 'Pizza', images: [
-      'https://loremflickr.com/400/400/pizza,food/all?lock=1',
-      'https://loremflickr.com/400/400/pizza,food/all?lock=2',
-      'https://loremflickr.com/400/400/pizza,food/all?lock=3'
-  ]},
-  { id: '99', name: 'Other', images: [
-      'https://loremflickr.com/400/400/restaurant,food/all?lock=1',
-      'https://loremflickr.com/400/400/restaurant,food/all?lock=2',
-      'https://loremflickr.com/400/400/restaurant,food/all?lock=3'
-  ]}
+  { id: '1', name: 'Italian', key: 'italian' },
+  { id: '2', name: 'Mexican', key: 'mexican' },
+  { id: '3', name: 'Japanese', key: 'japanese' },
+  { id: '4', name: 'Chinese', key: 'chinese' },
+  { id: '5', name: 'American', key: 'american' },
+  { id: '6', name: 'Indian', key: 'indian' },
+  { id: '7', name: 'Thai', key: 'thai' },
+  { id: '8', name: 'Mediterranean', key: 'mediterranean' },
+  { id: '12', name: 'Cafe', key: 'cafe' },
+  { id: '14', name: 'Bars', key: 'bars' },
+  { id: '15', name: 'Smoothie Shakes', key: 'smoothies' },
+  { id: '9', name: 'Seafood', key: 'seafood' },
+  { id: '10', name: 'Steakhouse', key: 'steakhouse' },
+  { id: '11', name: 'Vegan', key: 'vegan' },
+  { id: '13', name: 'Pizza', key: 'pizza' },
+  { id: '99', name: 'Other', key: 'other' }
 ];
 
 const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
-  const randomImage = React.useMemo(() => item.images[Math.floor(Math.random() * item.images.length)], [item.images]);
+  const images = LOCAL_IMAGES[item.key as keyof typeof LOCAL_IMAGES];
+  const randomImage = React.useMemo(() => images[Math.floor(Math.random() * images.length)], [images]);
   return (
     <Pressable style={styles.card}>
-      <Image source={{ uri: randomImage }} style={styles.cardImage} />
+      <Image source={randomImage} style={styles.cardImage} />
       <Text style={styles.cardTitle}>{item.name}</Text>
       <IconSymbol name="chevron.right" size={24} color="rgba(255, 255, 255, 0.5)" />
     </Pressable>

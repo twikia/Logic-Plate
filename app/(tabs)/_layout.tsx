@@ -28,17 +28,17 @@ export default function TabLayout() {
                 {({ pressed }) => (
                   <View style={{
                     opacity: pressed ? 0.7 : 1,
-                    borderRadius: 20,
+                    borderRadius: 27,
                     overflow: 'hidden',
                     borderWidth: 2,
                     borderColor: 'rgba(255,255,255,0.5)',
                     backgroundColor: 'rgba(0,0,0,0.3)',
-                    width: 36,
-                    height: 36,
+                    width: 54,
+                    height: 54,
                     justifyContent: 'center',
                     alignItems: 'center',
                   }}>
-                    <Text style={{ fontSize: 20 }}>{icon}</Text>
+                    <Text style={{ fontSize: 30 }}>{icon}</Text>
                   </View>
                 )}
               </Pressable>
