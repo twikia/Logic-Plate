@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
+import { runCacheTests } from '../tests/cacheTest';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -77,9 +78,7 @@ export default function ProfileScreen() {
                 <Text style={styles.sectionTitle}>Developer</Text>
                 <TouchableOpacity 
                   style={[styles.menuItem, { backgroundColor: '#F97352' }]} 
-                  onPress={() => {
-                    import('../tests/cacheTest').then(module => module.runCacheTests());
-                  }}
+                  onPress={() => runCacheTests()}
                 >
                   <Text style={styles.menuItemText}>Run Cache Test</Text>
                 </TouchableOpacity>

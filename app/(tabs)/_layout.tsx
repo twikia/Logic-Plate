@@ -14,6 +14,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="index"
       screenOptions={{
         headerTransparent: true, // Let gradients show through
         headerTitle: '', // Titles are handled on the screens themselves
@@ -52,12 +53,15 @@ export default function TabLayout() {
         options={{
           tabBarActiveTintColor: '#FFFFFF',
           tabBarInactiveTintColor: '#B59EAA',
-          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0 },
+          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarIcon: ({ color, focused }) => (
             <View style={{
               backgroundColor: focused ? '#F97352' : 'transparent',
-              padding: 10,
-              borderRadius: 15,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              justifyContent: 'center',
+              alignItems: 'center',
             }}>
               <Ionicons size={24} name={focused ? 'search' : 'search-outline'} color={color} />
             </View>
@@ -71,12 +75,15 @@ export default function TabLayout() {
         options={{
           tabBarActiveTintColor: '#2B422A',
           tabBarInactiveTintColor: '#8E837D',
-          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0 },
+          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarIcon: ({ color, focused }) => (
             <View style={{
               backgroundColor: focused ? '#C1E1C1' : 'transparent',
-              padding: 10,
-              borderRadius: 15,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              justifyContent: 'center',
+              alignItems: 'center',
             }}>
               <Ionicons size={24} name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} />
             </View>
@@ -89,7 +96,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarActiveTintColor: '#FFFFFF',
-          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0 },
+          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <View style={{ flex: 1, alignItems: 'center' }}>
               <Pressable
@@ -110,10 +117,10 @@ export default function TabLayout() {
                   setLastPress(now);
                 }}
                 style={{
-                  top: -20,
-                  width: 65,
-                  height: 65,
-                  borderRadius: 35,
+                  top: -25,
+                  width: 75,
+                  height: 75,
+                  borderRadius: 40,
                   backgroundColor: '#F97352', // Sunset Blush accent
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -123,7 +130,7 @@ export default function TabLayout() {
                   shadowRadius: 5,
                   elevation: 5,
                 }}>
-                <Ionicons size={32} name="home" color="#FFFFFF" />
+                <Ionicons size={36} name="home" color="#FFFFFF" />
               </Pressable>
             </View>
           ),
@@ -136,12 +143,15 @@ export default function TabLayout() {
         options={{
           tabBarActiveTintColor: '#FFFFFF',
           tabBarInactiveTintColor: '#B59EAA',
-          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0 },
+          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarIcon: ({ color, focused }) => (
             <View style={{
               backgroundColor: focused ? '#F97352' : 'transparent',
-              padding: 10,
-              borderRadius: 15,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              justifyContent: 'center',
+              alignItems: 'center',
             }}>
               <Ionicons size={24} name={focused ? 'map' : 'map-outline'} color={color} />
             </View>
@@ -155,12 +165,15 @@ export default function TabLayout() {
         options={{
           tabBarActiveTintColor: '#2B422A',
           tabBarInactiveTintColor: '#8E837D',
-          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0 },
+          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarIcon: ({ color, focused }) => (
             <View style={{
               backgroundColor: focused ? '#FF9F80' : 'transparent',
-              padding: 10,
-              borderRadius: 15,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              justifyContent: 'center',
+              alignItems: 'center',
             }}>
               <Ionicons size={24} name={focused ? 'people' : 'people-outline'} color={color} />
             </View>

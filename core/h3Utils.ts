@@ -1,14 +1,20 @@
-import { geoToH3, h3ToGeo, kRing } from 'h3-js';
-
 /**
  * Phase 2: H3 Cell Utilities Module (Using h3-js v3 for React Native Compatibility)
  */
+
+// Hide Expo's TextDecoder from h3-js emscripten build so it falls back to JS decoding
+const originalTextDecoder = global.TextDecoder;
+(global as any).TextDecoder = undefined;
+
+const h3 = require('h3-js');
+
+(global as any).TextDecoder = originalTextDecoder;
 
 /**
  * Takes a lat/lng and returns the resolution 7 cell ID for that point.
  */
 export const getRes7CellId = (lat: number, lng: number): string => {
-  return geoToH3(lat, lng, 7);
+  return h3.geoToH3(lat, lng, 7);
 };
 
 /**
@@ -16,7 +22,7 @@ export const getRes7CellId = (lat: number, lng: number): string => {
  */
 export const getCellCenter = (cellId: string): [number, number] => {
   // h3-js v3 returns [lat, lng] array
-  const coords = h3ToGeo(cellId);
+  const coords = h3.h3ToGeo(cellId);
   return [coords[0], coords[1]];
 };
 
@@ -28,5 +34,5 @@ export const getCellCenter = (cellId: string): [number, number] => {
 export const getCellsInRadius = (lat: number, lng: number, radiusMeters: number): string[] => {
   const centerCell = getRes7CellId(lat, lng);
   const ringSize = Math.ceil(radiusMeters / 1400);
-  return kRing(centerCell, ringSize);
+  return h3.kRing(centerCell, ringSize);
 };
