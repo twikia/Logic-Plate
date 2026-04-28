@@ -54,7 +54,8 @@ export const getNearbyRestaurants = async (userLat: number, userLng: number, rad
 
     console.log(`Invoking Edge Function to fetch ${uncachedCells.length} missing cells...`);
     const { data, error } = await supabase.functions.invoke('fetch-missing-cells', {
-      body: { missingCells: missingCellsPayload }
+      body: { missingCells: missingCellsPayload },
+      headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
     });
 
     if (error) {

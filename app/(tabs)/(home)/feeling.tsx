@@ -1,8 +1,9 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
-import {  StyleSheet, Text, View, FlatList, Image, Pressable  } from "react-native";
+import { StyleSheet, Text, View, FlatList, Image } from 'react-native';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 const LOCAL_IMAGES: Record<string, any[]> = {
@@ -21,6 +22,7 @@ const LOCAL_IMAGES: Record<string, any[]> = {
   steakhouse: [require('../../../assets/feeling/steakhouse_1.jpg'), require('../../../assets/feeling/steakhouse_2.jpg'), require('../../../assets/feeling/steakhouse_3.jpg')],
   vegan: [require('../../../assets/feeling/vegan_1.jpg'), require('../../../assets/feeling/vegan_2.jpg'), require('../../../assets/feeling/vegan_3.jpg')],
   pizza: [require('../../../assets/feeling/pizza_1.jpg'), require('../../../assets/feeling/pizza_2.jpg'), require('../../../assets/feeling/pizza_3.jpg')],
+  dessert: [require('../../../assets/feeling/dessert_1.jpg'), require('../../../assets/feeling/dessert_2.jpg'), require('../../../assets/feeling/dessert_3.jpg')],
   other: [require('../../../assets/feeling/other_1.jpg'), require('../../../assets/feeling/other_2.jpg'), require('../../../assets/feeling/other_3.jpg')]
 };
 
@@ -33,6 +35,7 @@ const cuisines = [
   { id: '6', name: 'Indian', key: 'indian' },
   { id: '7', name: 'Thai', key: 'thai' },
   { id: '8', name: 'Mediterranean', key: 'mediterranean' },
+  { id: '16', name: 'Dessert', key: 'dessert' },
   { id: '12', name: 'Cafe', key: 'cafe' },
   { id: '14', name: 'Bars', key: 'bars' },
   { id: '15', name: 'Smoothie Shakes', key: 'smoothies' },
@@ -44,14 +47,18 @@ const cuisines = [
 ];
 
 const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
+  const router = useRouter();
   const images = LOCAL_IMAGES[item.key as keyof typeof LOCAL_IMAGES];
-  const randomImage = React.useMemo(() => images[Math.floor(Math.random() * images.length)], [images]);
+  const randomImage = React.useMemo(() => images?.[Math.floor(Math.random() * images.length)], [images]);
   return (
-    <Pressable style={styles.card}>
+    <AnimatedPressable
+      style={styles.card}
+      onPress={() => router.push({ pathname: '/results', params: { cuisine: item.name, cuisineKey: item.key } })}
+    >
       <Image source={randomImage} style={styles.cardImage} />
       <Text style={styles.cardTitle}>{item.name}</Text>
       <IconSymbol name="chevron.right" size={24} color="rgba(255, 255, 255, 0.5)" />
-    </Pressable>
+    </AnimatedPressable>
   );
 };
 

@@ -1,5 +1,6 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {  StyleSheet, Text, View, Pressable  } from "react-native";
+import {  StyleSheet, Text, View  } from "react-native";
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -16,24 +17,24 @@ export default function HomeScreen() {
         <View style={styles.buttonContainer}>
           <Text style={styles.pageTitle}>Find your meal!</Text>
           <Link href="/feeling" asChild>
-            <Pressable style={styles.giantButton}>
+            <AnimatedPressable style={styles.giantButton}>
               <IconSymbol name="heart.fill" size={32} color="#FFFFFF" />
               <Text style={styles.buttonText}>Feeling</Text>
-            </Pressable>
+            </AnimatedPressable>
           </Link>
           
           <Link href="/health" asChild>
-            <Pressable style={styles.giantButton}>
+            <AnimatedPressable style={styles.giantButton}>
               <IconSymbol name="leaf.fill" size={32} color="#FFFFFF" />
               <Text style={styles.buttonText}>Health</Text>
-            </Pressable>
+            </AnimatedPressable>
           </Link>
           
           <Link href="/random" asChild>
-            <Pressable style={styles.giantButton}>
+            <AnimatedPressable style={styles.giantButton}>
               <IconSymbol name="shuffle" size={32} color="#FFFFFF" />
               <Text style={styles.buttonText}>Random</Text>
-            </Pressable>
+            </AnimatedPressable>
           </Link>
         </View>
       </SafeAreaView>

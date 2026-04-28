@@ -3,13 +3,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-app-secret',
 };
 
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Validate shared secret to block unauthorized callers before hitting any external APIs
+  const expectedSecret = Deno.env.get('APP_SECRET');
+  const incomingSecret = req.headers.get('x-app-secret');
+  if (!expectedSecret || incomingSecret !== expectedSecret) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   try {
@@ -79,11 +89,20 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        const places = data.places || [];
+        const rawPlaces = data.places || [];
+
+        // Pre-build photo URLs server-side so the client never needs a Google key
+        const places = rawPlaces.map((place: any) => ({
+          ...place,
+          photos: place.photos?.slice(0, 3).map((photo: any) => ({
+            name: photo.name,
+            url: `https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=600&key=${googleMapsKey}`,
+          })) ?? [],
+        }));
         
         newlyFetchedRestaurants.push({ cellId: cell.cellId, places });
 
-        // Upsert to Supabase
+        // Upsert to Supabase using service role key (bypasses RLS)
         const { error: dbError } = await supabase
           .from('restaurant_cache')
           .upsert({
@@ -98,7 +117,6 @@ serve(async (req) => {
 
       } catch (error) {
         console.error(`Failed to fetch places for cell ${cell.cellId}:`, error);
-        // We push an empty array to indicate we tried but failed, so we don't infinitely retry
         newlyFetchedRestaurants.push({ cellId: cell.cellId, places: [] });
       }
     });
@@ -116,7 +134,7 @@ serve(async (req) => {
     }
     await Promise.all(executing);
 
-    // Return the newly fetched data
+    // Return the newly fetched data directly to the client
     return new Response(JSON.stringify({ newlyFetchedRestaurants }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

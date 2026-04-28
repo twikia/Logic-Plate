@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Pressable, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, Alert } from 'react-native';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,12 +47,12 @@ export default function ProfileScreen() {
                 <View style={{ flex: 1, paddingRight: 10 }}>
                   <Text style={styles.sectionTitle}>Account</Text>
                   <Text style={styles.subtitle}>You are currently a Guest.</Text>
-                  <TouchableOpacity style={styles.button}>
+                  <AnimatedPressable style={styles.button}>
                     <Text style={styles.buttonText}>Login / Sign Up</Text>
-                  </TouchableOpacity>
+                  </AnimatedPressable>
                 </View>
                 
-                <TouchableOpacity onPress={() => setIsSelectingIcon(true)} style={styles.profileIconWrapper}>
+                <AnimatedPressable onPress={() => setIsSelectingIcon(true)} style={styles.profileIconWrapper}>
                   <View style={styles.profileIconContainer}>
                     <Text style={{ fontSize: 40 }}>{icon}</Text>
                   </View>
@@ -59,31 +60,31 @@ export default function ProfileScreen() {
                     <Ionicons name="pencil" size={14} color="#FFFFFF" />
                   </View>
                   <Text style={styles.changeText}>Change</Text>
-                </TouchableOpacity>
+                </AnimatedPressable>
               </View>
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Settings</Text>
-                <TouchableOpacity style={styles.menuItem}>
+                <AnimatedPressable style={styles.menuItem}>
                   <Text style={styles.menuItemText}>Theme Preferences</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem}>
+                </AnimatedPressable>
+                <AnimatedPressable style={styles.menuItem}>
                   <Text style={styles.menuItemText}>Notification Settings</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem}>
+                </AnimatedPressable>
+                <AnimatedPressable style={styles.menuItem}>
                   <Text style={styles.menuItemText}>Privacy & Security</Text>
-                </TouchableOpacity>
+                </AnimatedPressable>
               </View>
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Developer</Text>
-                <TouchableOpacity 
+                <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: '#F97352' }]} 
                   onPress={() => runCacheTests()}
                 >
                   <Text style={styles.menuItemText}>Run Cache Test</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
+                </AnimatedPressable>
+                <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: '#C1E1C1', marginTop: 10 }]} 
                   onPress={async () => {
                     await clearLocalCache();
@@ -91,7 +92,7 @@ export default function ProfileScreen() {
                   }}
                 >
                   <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear Local Cache</Text>
-                </TouchableOpacity>
+                </AnimatedPressable>
               </View>
             </ScrollView>
           </SafeAreaView>
@@ -106,7 +107,7 @@ export default function ProfileScreen() {
             <Text style={styles.iconSelectionTitle}>Choose an Avatar</Text>
             <View style={styles.iconGrid}>
               {icons.map((item) => (
-                <TouchableOpacity 
+                <AnimatedPressable 
                   key={item} 
                   style={[styles.iconOption, icon === item && styles.iconOptionSelected]}
                   onPress={() => { changeIcon(item); setIsSelectingIcon(false); }}
@@ -117,7 +118,7 @@ export default function ProfileScreen() {
                       <Ionicons name="checkmark" size={14} color="#FFF" />
                     </View>
                   )}
-                </TouchableOpacity>
+                </AnimatedPressable>
               ))}
             </View>
           </Animated.View>

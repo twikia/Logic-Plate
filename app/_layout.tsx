@@ -37,6 +37,8 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }} />
+          <Stack.Screen name="results" options={{ headerShown: false, animation: 'slide_from_right' }} />
+          <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
