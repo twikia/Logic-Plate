@@ -1,46 +1,56 @@
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function HomeScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Home</Text>
-      <Text style={styles.subtitle}>Minimalistic starting point</Text>
-      
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>Quick Start</Text>
-      </TouchableOpacity>
-    </View>
+    <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+      <SafeAreaView style={styles.safeArea}>
+        <Text style={styles.pageTitle}>Home</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Minimalistic Starting Point</Text>
+          <Text style={styles.cardSubtitle}>Your central hub for restaurant discovery.</Text>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  background: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Gradient placeholder color
-    backgroundColor: '#5C255C', 
   },
-  title: {
+  safeArea: {
+    flex: 1,
+    paddingTop: 50, // Space for transparent header
+  },
+  pageTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 18,
-    color: '#B59EAA',
-    marginTop: 8,
+  card: {
+    flex: 1,
+    backgroundColor: '#3D2B3D',
+    marginHorizontal: 20,
+    marginBottom: 10,
+    borderRadius: 35, // Heavily rounded
+    padding: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
   },
-  button: {
-    marginTop: 30,
-    backgroundColor: '#F97352', // Sunset Blush accent
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-  },
-  buttonText: {
-    color: '#FFFFFF',
+  cardTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  cardSubtitle: {
     fontSize: 16,
-  }
+    color: '#B59EAA',
+  },
 });

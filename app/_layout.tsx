@@ -14,10 +14,15 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+      <Stack
+        screenOptions={{
+          headerTransparent: true, // Make header transparent globally so gradients show through
+          headerTintColor: '#FFFFFF',
+          headerTitle: '', // Hide default titles so we can use our large custom ones
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="profile" options={{ title: 'Profile', presentation: 'card' }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings', presentation: 'card' }} />
+        <Stack.Screen name="profile" options={{ presentation: 'card' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
