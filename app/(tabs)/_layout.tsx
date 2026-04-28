@@ -1,14 +1,16 @@
 import { Tabs, Link, useRouter, usePathname } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, View, Image } from 'react-native';
+import { Pressable, View, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useProfileIcon } from '@/hooks/useProfileIcon';
 
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [lastPress, setLastPress] = useState(0);
+  const { icon } = useProfileIcon();
 
   return (
     <Tabs
@@ -30,11 +32,12 @@ export default function TabLayout() {
                     borderWidth: 2,
                     borderColor: 'rgba(255,255,255,0.5)',
                     backgroundColor: 'rgba(0,0,0,0.3)',
+                    width: 36,
+                    height: 36,
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}>
-                    <Image 
-                      source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop' }} 
-                      style={{ width: 36, height: 36 }} 
-                    />
+                    <Text style={{ fontSize: 20 }}>{icon}</Text>
                   </View>
                 )}
               </Pressable>
@@ -56,7 +59,7 @@ export default function TabLayout() {
               padding: 10,
               borderRadius: 15,
             }}>
-              <IconSymbol size={24} name="magnifyingglass" color={color} />
+              <Ionicons size={24} name={focused ? 'search' : 'search-outline'} color={color} />
             </View>
           ),
         }}
@@ -75,7 +78,7 @@ export default function TabLayout() {
               padding: 10,
               borderRadius: 15,
             }}>
-              <IconSymbol size={24} name="chart.bar.fill" color={color} />
+              <Ionicons size={24} name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} />
             </View>
           ),
         }}
@@ -120,7 +123,7 @@ export default function TabLayout() {
                   shadowRadius: 5,
                   elevation: 5,
                 }}>
-                <IconSymbol size={32} name="house.fill" color="#FFFFFF" />
+                <Ionicons size={32} name="home" color="#FFFFFF" />
               </Pressable>
             </View>
           ),
@@ -140,7 +143,7 @@ export default function TabLayout() {
               padding: 10,
               borderRadius: 15,
             }}>
-              <IconSymbol size={24} name="map.fill" color={color} />
+              <Ionicons size={24} name={focused ? 'map' : 'map-outline'} color={color} />
             </View>
           ),
         }}
@@ -159,7 +162,7 @@ export default function TabLayout() {
               padding: 10,
               borderRadius: 15,
             }}>
-              <IconSymbol size={24} name="person.3.fill" color={color} />
+              <Ionicons size={24} name={focused ? 'people' : 'people-outline'} color={color} />
             </View>
           ),
         }}

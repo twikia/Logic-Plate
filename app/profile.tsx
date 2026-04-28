@@ -3,17 +3,21 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
+import { useProfileIcon } from '@/hooks/useProfileIcon';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [isClosing, setIsClosing] = useState(false);
+  const [isSelectingIcon, setIsSelectingIcon] = useState(false);
+  const { icon, changeIcon, icons } = useProfileIcon();
 
   const handleClose = () => {
     if (isClosing) return;
     setIsClosing(true);
     setTimeout(() => {
       router.back();
-    }, 125); // Faster exit animation
+    }, 125);
   };
 
   return (
@@ -36,11 +40,23 @@ export default function ProfileScreen() {
         >
           <SafeAreaView style={styles.card} edges={['top', 'bottom']}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Account</Text>
-                <Text style={styles.subtitle}>You are currently a Guest.</Text>
-                <TouchableOpacity style={styles.button}>
-                  <Text style={styles.buttonText}>Login / Sign Up</Text>
+              <View style={[styles.section, { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }]}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={styles.sectionTitle}>Account</Text>
+                  <Text style={styles.subtitle}>You are currently a Guest.</Text>
+                  <TouchableOpacity style={styles.button}>
+                    <Text style={styles.buttonText}>Login / Sign Up</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity onPress={() => setIsSelectingIcon(true)} style={styles.profileIconWrapper}>
+                  <View style={styles.profileIconContainer}>
+                    <Text style={{ fontSize: 40 }}>{icon}</Text>
+                  </View>
+                  <View style={styles.editBadge}>
+                    <Ionicons name="pencil" size={14} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.changeText}>Change</Text>
                 </TouchableOpacity>
               </View>
 
@@ -71,6 +87,32 @@ export default function ProfileScreen() {
             </ScrollView>
           </SafeAreaView>
         </Animated.View>
+      )}
+
+      {/* Icon Selection Modal */}
+      {isSelectingIcon && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100, justifyContent: 'center', alignItems: 'center' }]}>
+          <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} onPress={() => setIsSelectingIcon(false)} />
+          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={styles.iconSelectionBox}>
+            <Text style={styles.iconSelectionTitle}>Choose an Avatar</Text>
+            <View style={styles.iconGrid}>
+              {icons.map((item) => (
+                <TouchableOpacity 
+                  key={item} 
+                  style={[styles.iconOption, icon === item && styles.iconOptionSelected]}
+                  onPress={() => { changeIcon(item); setIsSelectingIcon(false); }}
+                >
+                  <Text style={{ fontSize: 32 }}>{item}</Text>
+                  {icon === item && (
+                    <View style={styles.checkBadge}>
+                      <Ionicons name="checkmark" size={14} color="#FFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
       )}
     </View>
   );
@@ -108,7 +150,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   sectionTitle: {
-    fontSize: 24, // increased to act as main header since pageTitle was removed
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
@@ -124,6 +166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 30,
     alignItems: 'center',
+    alignSelf: 'flex-start',
   },
   buttonText: {
     color: '#FFFFFF',
@@ -141,5 +184,89 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  profileIconWrapper: {
+    alignItems: 'center',
+  },
+  profileIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 20,
+    right: -5,
+    backgroundColor: '#F97352',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#3D2B3D',
+  },
+  changeText: {
+    color: '#F9A06F',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  iconSelectionBox: {
+    backgroundColor: '#3D2B3D',
+    borderRadius: 25,
+    padding: 25,
+    width: '80%',
+    maxWidth: 340,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  },
+  iconSelectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 15,
+  },
+  iconOption: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  iconOptionSelected: {
+    borderColor: '#4CD964',
+    backgroundColor: 'rgba(76, 217, 100, 0.1)',
+  },
+  checkBadge: {
+    position: 'absolute',
+    bottom: -5,
+    right: -5,
+    backgroundColor: '#4CD964',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#3D2B3D',
   }
 });

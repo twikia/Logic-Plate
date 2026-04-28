@@ -1,3 +1,8 @@
+// Polyfill document for h3-js v3 emscripten build in React Native
+if (typeof global.document === 'undefined') {
+  (global as any).document = { currentScript: null };
+}
+
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
