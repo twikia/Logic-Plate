@@ -100,7 +100,12 @@ export default function FeelingScreen() {
   );
 
   return (
-    <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+    <LinearGradient 
+      colors={['#422046', '#FF9A6F']} 
+      start={{ x: 0, y: 1 }} 
+      end={{ x: 1, y: 0 }} 
+      style={styles.background}
+    >
       <Stack.Screen 
         options={{
           headerShown: false, // We will just use the transparent back button if needed, or hide header completely since it's nested

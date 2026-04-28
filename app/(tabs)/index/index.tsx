@@ -8,27 +8,27 @@ export default function HomeScreen() {
   return (
     <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.pageTitle}>Find an awesome meal!</Text>
+        <Text style={styles.pageTitle}>Find your meal!</Text>
         
         <View style={styles.buttonContainer}>
           <Link href="/feeling" asChild>
             <Pressable style={styles.giantButton}>
-              <IconSymbol name="heart.fill" size={48} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Choose by Feeling</Text>
+              <IconSymbol name="heart.fill" size={32} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Feeling</Text>
             </Pressable>
           </Link>
           
           <Link href="/health" asChild>
             <Pressable style={styles.giantButton}>
-              <IconSymbol name="leaf.fill" size={48} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Choose by Health</Text>
+              <IconSymbol name="leaf.fill" size={32} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Health</Text>
             </Pressable>
           </Link>
           
           <Link href="/random" asChild>
             <Pressable style={styles.giantButton}>
-              <IconSymbol name="shuffle" size={48} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Choose by Random</Text>
+              <IconSymbol name="shuffle" size={32} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Random</Text>
             </Pressable>
           </Link>
         </View>
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    paddingTop: 50, // Space for transparent header
+    paddingTop: 50,
   },
   pageTitle: {
     fontSize: 32,
@@ -55,29 +55,29 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 60,
+    gap: 25,
   },
   giantButton: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Glassmorphism look
-    borderRadius: 35,
+    width: '55%',
+    backgroundColor: '#3D2B3D',
+    borderRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
     gap: 15,
   },
   buttonText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
