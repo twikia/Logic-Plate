@@ -24,6 +24,9 @@ const MAPPING = {
   'person.3.fill': 'people',
   'person.crop.circle': 'account-circle',
   'line.3.horizontal': 'menu',
+  'heart.fill': 'favorite',
+  'leaf.fill': 'eco',
+  'shuffle': 'shuffle',
 } as IconMapping;
 
 /**

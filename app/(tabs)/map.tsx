@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, SafeAreaView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {  StyleSheet, Text, View,  } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function MapScreen() {

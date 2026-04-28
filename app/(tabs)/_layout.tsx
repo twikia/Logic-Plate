@@ -1,11 +1,15 @@
-import { Tabs, Link } from 'expo-router';
-import React from 'react';
-import { Pressable, View } from 'react-native';
+import { Tabs, Link, useRouter, usePathname } from 'expo-router';
+import React, { useState } from 'react';
+import { Pressable, View, Image } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export default function TabLayout() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [lastPress, setLastPress] = useState(0);
+
   return (
     <Tabs
       screenOptions={{
@@ -20,15 +24,16 @@ export default function TabLayout() {
               <Pressable>
                 {({ pressed }) => (
                   <View style={{
-                    backgroundColor: 'rgba(0,0,0,0.3)', // Dark circle behind hamburger to ensure visibility
-                    padding: 8,
+                    opacity: pressed ? 0.7 : 1,
                     borderRadius: 20,
-                    opacity: pressed ? 0.7 : 1
+                    overflow: 'hidden',
+                    borderWidth: 2,
+                    borderColor: 'rgba(255,255,255,0.5)',
+                    backgroundColor: 'rgba(0,0,0,0.3)',
                   }}>
-                    <IconSymbol
-                      name="line.3.horizontal"
-                      size={20}
-                      color="#FFFFFF"
+                    <Image 
+                      source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150&auto=format&fit=crop' }} 
+                      style={{ width: 36, height: 36 }} 
                     />
                   </View>
                 )}
@@ -85,7 +90,22 @@ export default function TabLayout() {
           tabBarButton: (props) => (
             <View style={{ flex: 1, alignItems: 'center' }}>
               <Pressable
-                onPress={props.onPress}
+                onPress={(e) => {
+                  const now = Date.now();
+                  const DOUBLE_CLICK_DELAY = 300;
+                  const isHomeTab = pathname === '/' || pathname === '/index' || pathname.startsWith('/feeling') || pathname.startsWith('/health') || pathname.startsWith('/random');
+                  
+                  if (now - lastPress < DOUBLE_CLICK_DELAY) {
+                    // Double click: push to root explicitly
+                    router.push('/(tabs)/index');
+                  } else {
+                    // Single click: go to home tab preserving state, or do nothing if already on home tab
+                    if (!isHomeTab) {
+                      router.navigate('/(tabs)/index');
+                    }
+                  }
+                  setLastPress(now);
+                }}
                 style={{
                   top: -20,
                   width: 65,
