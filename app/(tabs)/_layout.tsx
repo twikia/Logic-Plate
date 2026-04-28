@@ -158,16 +158,19 @@ export default function TabLayout() {
         name="(home)"
         options={{
           tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
-          tabBarButton: () => (
+          tabBarButton: (props) => (
             <View style={{ flex: 1, alignItems: 'center' }}>
               <AnimatedPressable
                 onPress={() => {
                   const now = Date.now();
-                  const isHomeTab = pathname === '/' || pathname.startsWith('/feeling') || pathname.startsWith('/health') || pathname.startsWith('/random');
                   if (now - lastPress < 300) {
+                    // Double tap → hard reset to the true home root
                     router.push('/');
                   } else {
-                    if (!isHomeTab) router.navigate('/');
+                    // Single tap → Expo Router's native tab switch:
+                    // preserves the (home) stack exactly as the user left it
+                    // (feeling screen, cuisine results, random, etc.)
+                    props.onPress?.();
                   }
                   setLastPress(now);
                 }}

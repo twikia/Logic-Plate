@@ -124,3 +124,127 @@
 3. Turn on **Row Level Security (RLS)** for every table using the UI.
 4. Set up the Google OAuth provider in the **Authentication** settings.
 5. Back in React Native, we will use the `supabase.from('table_name').select()` and `.insert()` functions to interact with this data!
+
+
+## Google restaurant returns:
+id
+
+types (Array of Strings)
+
+nationalPhoneNumber
+
+formattedAddress
+
+location
+
+latitude
+
+longitude
+
+rating
+
+websiteUri
+
+regularOpeningHours
+
+openNow (Boolean)
+
+periods (Array of Objects)
+
+open
+
+day
+
+hour
+
+minute
+
+close
+
+day
+
+hour
+
+minute
+
+weekdayDescriptions (Array of Strings)
+
+nextCloseTime (Or nextOpenTime)
+
+businessStatus
+
+priceLevel
+
+userRatingCount
+
+displayName
+
+text
+
+languageCode
+
+currentOpeningHours
+
+openNow (Boolean)
+
+periods (Array of Objects)
+
+open
+
+day
+
+hour
+
+minute
+
+date
+
+year
+
+month
+
+day
+
+close
+
+day
+
+hour
+
+minute
+
+date
+
+year
+
+month
+
+day
+
+weekdayDescriptions (Array of Strings)
+
+nextCloseTime (Or nextOpenTime)
+
+primaryType
+
+photos (Array of Objects)
+
+name
+
+widthPx
+
+heightPx
+
+authorAttributions (Array of Objects)
+
+displayName
+
+uri
+
+photoUri
+
+flagContentUri
+
+googleMapsUri
+
+distanceMeters

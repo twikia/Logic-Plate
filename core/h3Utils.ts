@@ -2,13 +2,19 @@
  * Phase 2: H3 Cell Utilities Module (Using h3-js v3 for React Native Compatibility)
  */
 
-// Hide Expo's TextDecoder from h3-js emscripten build so it falls back to JS decoding
-const originalTextDecoder = global.TextDecoder;
+// Polyfill 1: h3-js emscripten build checks for document.currentScript on load
+if (typeof (global as any).document === 'undefined') {
+  (global as any).document = { currentScript: null };
+}
+
+// Polyfill 2: Temporarily hide Expo's limited TextDecoder so h3-js falls back to its own
+const _savedDecoder = (global as any).TextDecoder;
 (global as any).TextDecoder = undefined;
 
 const h3 = require('h3-js');
 
-(global as any).TextDecoder = originalTextDecoder;
+(global as any).TextDecoder = _savedDecoder;
+
 
 /**
  * Takes a lat/lng and returns the resolution 7 cell ID for that point.

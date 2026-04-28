@@ -1,15 +1,3 @@
-// Polyfill document for h3-js v3 emscripten build in React Native
-if (typeof global.document === 'undefined') {
-  (global as any).document = { currentScript: null };
-}
-
-// Polyfill TextDecoder for utf-16le support required by h3-js
-import { TextEncoder, TextDecoder } from 'text-encoding';
-if (typeof global.TextEncoder === 'undefined') {
-  global.TextEncoder = TextEncoder;
-}
-global.TextDecoder = TextDecoder as any;
-
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -30,15 +18,16 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack
           screenOptions={{
-            headerTransparent: true, // Make header transparent globally so gradients show through
+            headerTransparent: true,
             headerTintColor: '#FFFFFF',
-            headerTitle: '', // Hide default titles so we can use our large custom ones
+            headerTitle: '',
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }} />
-          <Stack.Screen name="results" options={{ headerShown: false, animation: 'slide_from_right' }} />
+          <Stack.Screen name="cuisine-results" options={{ headerShown: false, animation: 'slide_from_right' }} />
           <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
+          <Stack.Screen name="random-result" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

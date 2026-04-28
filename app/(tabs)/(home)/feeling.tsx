@@ -53,7 +53,7 @@ const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
   return (
     <AnimatedPressable
       style={styles.card}
-      onPress={() => router.push({ pathname: '/results', params: { cuisine: item.name, cuisineKey: item.key } })}
+      onPress={() => router.push({ pathname: '/cuisine-results', params: { cuisine: item.name, cuisineKey: item.key } })}
     >
       <Image source={randomImage} style={styles.cardImage} />
       <Text style={styles.cardTitle}>{item.name}</Text>

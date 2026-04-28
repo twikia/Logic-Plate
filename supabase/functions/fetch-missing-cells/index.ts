@@ -96,7 +96,7 @@ serve(async (req) => {
           ...place,
           photos: place.photos?.slice(0, 3).map((photo: any) => ({
             name: photo.name,
-            url: `https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=600&key=${googleMapsKey}`,
+            url: `https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=200&key=${googleMapsKey}`,
           })) ?? [],
         }));
         
