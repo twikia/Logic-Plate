@@ -1,6 +1,6 @@
 import { getCellsInRadius, getCellCenter } from './h3Utils';
 import { readCache, writeCache } from './cacheManager';
-import { fetchRestaurantsFromGoogle } from './googlePlaces';
+import { supabase } from './supabaseClient';
 
 /**
  * Computes the great-circle distance between two points on a sphere given their longitudes and latitudes
@@ -19,7 +19,7 @@ const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 
 /**
  * Phase 6: Cache Orchestrator
- * Master function to fetch nearby restaurants efficiently.
+ * Master function to fetch nearby restaurants efficiently using Supabase Edge Functions.
  */
 export const getNearbyRestaurants = async (userLat: number, userLng: number, radiusMeters: number) => {
   // Cap radius at 5km to avoid massive fetches
@@ -39,47 +39,37 @@ export const getNearbyRestaurants = async (userLat: number, userLng: number, rad
   const cachedCells = cacheResults.filter(r => r.data !== null);
   const uncachedCells = cacheResults.filter(r => r.data === null).map(r => r.cellId);
   
-  // 3. Fetch missing cells from Google (Concurrency limit: 3)
-  const newlyFetchedRestaurants: Record<string, any[]> = {};
-  
-  const fetchTasks = uncachedCells.map((cellId) => async () => {
-    const [cellLat, cellLng] = getCellCenter(cellId);
-    try {
-      const places = await fetchRestaurantsFromGoogle(cellLat, cellLng);
-      newlyFetchedRestaurants[cellId] = places;
-      // Write back to cache asynchronously (don't block the return)
-      writeCache(cellId, places);
-    } catch (error) {
-      console.error(`Failed to fetch places for cell ${cellId}:`, error);
-      newlyFetchedRestaurants[cellId] = []; // Fallback to empty array on failure
-    }
-  });
-
-  // Run tasks with concurrency limit of 3
-  const executing: Promise<void>[] = [];
-  for (const task of fetchTasks) {
-    const p = task().then(() => {
-      executing.splice(executing.indexOf(p), 1);
-    });
-    executing.push(p);
-    if (executing.length >= 3) {
-      await Promise.race(executing);
-    }
-  }
-  await Promise.all(executing);
-
-  // 4. Merge all arrays into one flat list
   let allRestaurants: any[] = [];
   
   cachedCells.forEach(c => {
     if (c.data) allRestaurants = allRestaurants.concat(c.data);
   });
-  
-  Object.values(newlyFetchedRestaurants).forEach(places => {
-    allRestaurants = allRestaurants.concat(places);
-  });
 
-  // 5. Deduplicate by Place ID
+  // 3. Fetch missing cells from Supabase Edge Function
+  if (uncachedCells.length > 0) {
+    const missingCellsPayload = uncachedCells.map(cellId => {
+      const [lat, lng] = getCellCenter(cellId);
+      return { cellId, lat, lng };
+    });
+
+    console.log(`Invoking Edge Function to fetch ${uncachedCells.length} missing cells...`);
+    const { data, error } = await supabase.functions.invoke('fetch-missing-cells', {
+      body: { missingCells: missingCellsPayload }
+    });
+
+    if (error) {
+      console.error('Edge Function returned an error:', error);
+    } else if (data && data.newlyFetchedRestaurants) {
+      // Edge Function returns [{ cellId, places }]
+      data.newlyFetchedRestaurants.forEach((result: { cellId: string, places: any[] }) => {
+        // Write to local cache asynchronously so next time it's fast without hitting Supabase DB
+        writeCache(result.cellId, result.places);
+        allRestaurants = allRestaurants.concat(result.places);
+      });
+    }
+  }
+
+  // 4. Deduplicate by Place ID
   const uniqueRestaurantsMap = new Map<string, any>();
   allRestaurants.forEach(place => {
     if (place.id && !uniqueRestaurantsMap.has(place.id)) {
@@ -88,7 +78,7 @@ export const getNearbyRestaurants = async (userLat: number, userLng: number, rad
   });
   const uniqueRestaurants = Array.from(uniqueRestaurantsMap.values());
 
-  // 6. Compute exact distance, filter by requested radius, and sort
+  // 5. Compute exact distance, filter by requested radius, and sort
   const finalList = uniqueRestaurants
     .map(place => {
       if (!place.location || !place.location.latitude || !place.location.longitude) {

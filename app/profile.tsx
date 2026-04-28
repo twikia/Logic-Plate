@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Pressable } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
 import { runCacheTests } from '../tests/cacheTest';
+import { clearLocalCache } from '../core/cacheManager';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -81,6 +82,15 @@ export default function ProfileScreen() {
                   onPress={() => runCacheTests()}
                 >
                   <Text style={styles.menuItemText}>Run Cache Test</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.menuItem, { backgroundColor: '#C1E1C1', marginTop: 10 }]} 
+                  onPress={async () => {
+                    await clearLocalCache();
+                    Alert.alert('Cache Cleared', 'Local AsyncStorage has been wiped.');
+                  }}
+                >
+                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear Local Cache</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>

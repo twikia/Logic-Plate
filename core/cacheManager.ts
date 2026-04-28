@@ -68,33 +68,29 @@ export const readCache = async (cellId: string): Promise<any[] | null> => {
 };
 
 /**
- * Writes to AsyncStorage and upserts into Supabase.
+ * Writes ONLY to AsyncStorage (L1). Supabase (L2) is handled by the Edge Function.
  */
 export const writeCache = async (cellId: string, restaurants: any[]) => {
   const fetchedAt = new Date().toISOString();
   const cachePayload = { restaurants, fetched_at: fetchedAt };
 
-  // 1. Write to AsyncStorage (L1)
   try {
     await AsyncStorage.setItem(`cell_${cellId}`, JSON.stringify(cachePayload));
   } catch (err) {
     console.error('AsyncStorage write error:', err);
   }
+};
 
-  // 2. Upsert to Supabase (L2)
+/**
+ * Clears the local AsyncStorage cache (useful for testing the Edge Function).
+ */
+export const clearLocalCache = async () => {
   try {
-    const { error } = await supabase
-      .from('restaurant_cache')
-      .upsert({
-        id: cellId,
-        restaurants,
-        fetched_at: fetchedAt,
-      });
-
-    if (error) {
-      console.error('Supabase write error:', error);
-    }
+    const keys = await AsyncStorage.getAllKeys();
+    const cellKeys = keys.filter(k => k.startsWith('cell_'));
+    await AsyncStorage.multiRemove(cellKeys);
+    console.log(`Cleared ${cellKeys.length} cells from local cache.`);
   } catch (err) {
-    console.error('Supabase upsert error:', err);
+    console.error('AsyncStorage clear error:', err);
   }
 };

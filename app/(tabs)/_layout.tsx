@@ -14,7 +14,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      initialRouteName="index"
+      initialRouteName="(home)"
       screenOptions={{
         headerTransparent: true, // Let gradients show through
         headerTitle: '', // Titles are handled on the screens themselves
@@ -93,7 +93,7 @@ export default function TabLayout() {
       
       {/* Sunset Blush - Home (Floating Button) */}
       <Tabs.Screen
-        name="index"
+        name="(home)"
         options={{
           tabBarActiveTintColor: '#FFFFFF',
           tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
@@ -103,7 +103,7 @@ export default function TabLayout() {
                 onPress={(e) => {
                   const now = Date.now();
                   const DOUBLE_CLICK_DELAY = 300;
-                  const isHomeTab = pathname === '/' || pathname === '/index' || pathname.startsWith('/feeling') || pathname.startsWith('/health') || pathname.startsWith('/random');
+                  const isHomeTab = pathname === '/' || pathname.startsWith('/feeling') || pathname.startsWith('/health') || pathname.startsWith('/random');
                   
                   if (now - lastPress < DOUBLE_CLICK_DELAY) {
                     // Double click: push to root explicitly
