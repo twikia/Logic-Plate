@@ -3,9 +3,9 @@ import { getNearbyRestaurants } from '../core/restaurantOrchestrator';
 export const runCacheTests = async () => {
   console.log('\n\n========== STARTING CACHE ENGINE TESTS ==========');
   
-  // Coordinates for a busy place, e.g., downtown San Francisco
-  const testLat = 37.7749;
-  const testLng = -122.4194;
+  // Center of Boulder, Colorado
+  const testLat = 40.0150;
+  const testLng = -105.2705;
   const radius = 1500; // 1.5km
   
   console.log(`\n[Test 1] Initial Fetch (Cache Miss Expected)`);

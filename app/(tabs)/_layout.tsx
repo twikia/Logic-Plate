@@ -97,11 +97,11 @@ export default function TabLayout() {
                   
                   if (now - lastPress < DOUBLE_CLICK_DELAY) {
                     // Double click: push to root explicitly
-                    router.push('/(tabs)/index');
+                    router.push('/');
                   } else {
                     // Single click: go to home tab preserving state, or do nothing if already on home tab
                     if (!isHomeTab) {
-                      router.navigate('/(tabs)/index');
+                      router.navigate('/');
                     }
                   }
                   setLastPress(now);

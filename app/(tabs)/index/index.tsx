@@ -31,13 +31,6 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Choose by Random</Text>
             </Pressable>
           </Link>
-
-          <Pressable style={[styles.giantButton, { backgroundColor: '#F97352' }]} onPress={() => {
-            import('../../../tests/cacheTest').then(module => module.runCacheTests());
-          }}>
-            <IconSymbol name="chevron.left.forwardslash.chevron.right" size={48} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Run Cache Test</Text>
-          </Pressable>
         </View>
       </SafeAreaView>
     </LinearGradient>
