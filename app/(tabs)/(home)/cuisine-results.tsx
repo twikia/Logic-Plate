@@ -30,19 +30,16 @@ const PAGE_SIZE = 10;
 const CUISINE_TYPE_MAP: Record<string, string[]> = {
   italian: ['italian_restaurant'],
   mexican: ['mexican_restaurant'],
-  japanese: ['japanese_restaurant'],
-  chinese: ['chinese_restaurant'],
+  asian: ['japanese_restaurant', 'chinese_restaurant', 'thai_restaurant', 'asian_restaurant'],
   american: ['american_restaurant', 'hamburger_restaurant'],
   indian: ['indian_restaurant'],
-  thai: ['thai_restaurant'],
   mediterranean: ['mediterranean_restaurant'],
   cafe: ['cafe', 'coffee_shop'],
   bars: ['bar'],
   smoothies: ['ice_cream_shop', 'juice_shop'],
-  seafood: ['seafood_restaurant'],
-  steakhouse: ['steak_house'],
   vegan: ['vegan_restaurant', 'vegetarian_restaurant'],
   pizza: ['pizza_restaurant'],
+  dessert: ['bakery', 'dessert_shop', 'dessert_restaurant'],
   other: [],
 };
 
@@ -307,6 +304,9 @@ export default function ResultsScreen() {
       const filtered = all.filter(p => {
         if (!isOpenNow(p)) return false;
         if (types.length === 0) return true;
+        if (cuisineKey === 'dessert') {
+          return types.includes(p.primaryType);
+        }
         return types.some((t: string) => p.primaryType === t || p.types?.includes(t));
       });
 

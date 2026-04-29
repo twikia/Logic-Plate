@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const LOCAL_IMAGES: Record<string, any[]> = {
   italian: [require('../../../assets/feeling/italian_1.jpg'), require('../../../assets/feeling/italian_2.jpg'), require('../../../assets/feeling/italian_3.jpg')],
   mexican: [require('../../../assets/feeling/mexican_1.jpg'), require('../../../assets/feeling/mexican_2.jpg'), require('../../../assets/feeling/mexican_3.jpg')],
+  asian: [require('../../../assets/feeling/japanese_1.jpg'), require('../../../assets/feeling/chinese_1.jpg'), require('../../../assets/feeling/thai_1.jpg')],
   japanese: [require('../../../assets/feeling/japanese_1.jpg'), require('../../../assets/feeling/japanese_2.jpg'), require('../../../assets/feeling/japanese_3.jpg')],
   chinese: [require('../../../assets/feeling/chinese_1.jpg'), require('../../../assets/feeling/chinese_2.jpg'), require('../../../assets/feeling/chinese_3.jpg')],
   american: [require('../../../assets/feeling/american_1.jpg'), require('../../../assets/feeling/american_2.jpg'), require('../../../assets/feeling/american_3.jpg')],
@@ -20,8 +21,6 @@ const LOCAL_IMAGES: Record<string, any[]> = {
   cafe: [require('../../../assets/feeling/cafe_1.jpg'), require('../../../assets/feeling/cafe_2.jpg'), require('../../../assets/feeling/cafe_3.jpg')],
   bars: [require('../../../assets/feeling/bars_1.jpg'), require('../../../assets/feeling/bars_2.jpg'), require('../../../assets/feeling/bars_3.jpg')],
   smoothies: [require('../../../assets/feeling/smoothies_1.jpg'), require('../../../assets/feeling/smoothies_2.jpg'), require('../../../assets/feeling/smoothies_3.jpg')],
-  seafood: [require('../../../assets/feeling/seafood_1.jpg'), require('../../../assets/feeling/seafood_2.jpg'), require('../../../assets/feeling/seafood_3.jpg')],
-  steakhouse: [require('../../../assets/feeling/steakhouse_1.jpg'), require('../../../assets/feeling/steakhouse_2.jpg'), require('../../../assets/feeling/steakhouse_3.jpg')],
   vegan: [require('../../../assets/feeling/vegan_1.jpg'), require('../../../assets/feeling/vegan_2.jpg'), require('../../../assets/feeling/vegan_3.jpg')],
   pizza: [require('../../../assets/feeling/pizza_1.jpg'), require('../../../assets/feeling/pizza_2.jpg'), require('../../../assets/feeling/pizza_3.jpg')],
   dessert: [require('../../../assets/feeling/dessert_1.jpg'), require('../../../assets/feeling/dessert_2.jpg'), require('../../../assets/feeling/dessert_3.jpg')],
@@ -29,22 +28,17 @@ const LOCAL_IMAGES: Record<string, any[]> = {
 };
 
 const cuisines = [
-  { id: '1', name: 'Italian', key: 'italian' },
   { id: '2', name: 'Mexican', key: 'mexican' },
-  { id: '3', name: 'Japanese', key: 'japanese' },
-  { id: '4', name: 'Chinese', key: 'chinese' },
   { id: '5', name: 'American', key: 'american' },
-  { id: '6', name: 'Indian', key: 'indian' },
-  { id: '7', name: 'Thai', key: 'thai' },
-  { id: '8', name: 'Mediterranean', key: 'mediterranean' },
+  { id: '13', name: 'Pizza', key: 'pizza' },
+  { id: '17', name: 'Asian', key: 'asian' },
   { id: '16', name: 'Dessert', key: 'dessert' },
+  { id: '6', name: 'Indian', key: 'indian' },
+  { id: '8', name: 'Mediterranean', key: 'mediterranean' },
+  { id: '1', name: 'Italian', key: 'italian' },
   { id: '12', name: 'Cafe', key: 'cafe' },
   { id: '14', name: 'Bars', key: 'bars' },
   { id: '15', name: 'Smoothie Shakes', key: 'smoothies' },
-  { id: '9', name: 'Seafood', key: 'seafood' },
-  { id: '10', name: 'Steakhouse', key: 'steakhouse' },
-  { id: '11', name: 'Vegan', key: 'vegan' },
-  { id: '13', name: 'Pizza', key: 'pizza' },
   { id: '99', name: 'Other', key: 'other' }
 ];
 
@@ -55,7 +49,13 @@ const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
   return (
     <AnimatedPressable
       style={styles.card}
-      onPress={() => router.push({ pathname: '/cuisine-results', params: { cuisine: item.name, cuisineKey: item.key } })}
+      onPress={() => {
+        if (item.key === 'other') {
+          router.push('/random');
+          return;
+        }
+        router.push({ pathname: '/cuisine-results', params: { cuisine: item.name, cuisineKey: item.key } });
+      }}
     >
       <Image source={randomImage} style={styles.cardImage} />
       <Text style={styles.cardTitle}>{item.name}</Text>
