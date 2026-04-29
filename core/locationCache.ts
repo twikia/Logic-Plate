@@ -16,6 +16,7 @@ const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
 let cachedCoords: { latitude: number; longitude: number } | null = null;
 let cachedAt = 0;
+let refreshInterval: NodeJS.Timeout | null = null;
 
 export const getLocation = async (
   force = false
@@ -41,10 +42,29 @@ export const getLocation = async (
 };
 
 /**
+ * Initializes the background location cache.
+ * Fetches location immediately and sets up an interval to refresh every 3 minutes.
+ */
+export const initLocationCache = () => {
+  // Initial fetch
+  getLocation(true);
+
+  if (!refreshInterval) {
+    refreshInterval = setInterval(() => {
+      getLocation(true);
+    }, CACHE_TTL_MS);
+  }
+};
+
+/**
  * Clears the in-memory location cache.
  */
 export const clearLocationCache = () => {
   cachedCoords = null;
   cachedAt = 0;
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
 };
 

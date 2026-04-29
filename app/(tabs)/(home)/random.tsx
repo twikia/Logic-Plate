@@ -22,6 +22,7 @@ import { isOpenNow } from '../../../core/isOpenNow';
 import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { setCurrentRestaurant } from '../../../core/currentSelection';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const PRICE_MAP: Record<string, string> = {
@@ -316,7 +317,8 @@ export default function RandomScreen() {
     const pool = filtered.filter(r => selected.has(r.id));
     if (pool.length === 0) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
-    router.push({ pathname: '/random-result', params: { data: JSON.stringify(pick) } });
+    setCurrentRestaurant(pick);
+    router.push('/random-result');
   };
 
   const selectedCount = filtered.filter(r => selected.has(r.id)).length;
@@ -351,7 +353,13 @@ export default function RandomScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity style={styles.radiusChip} onPress={() => setShowRadius(v => !v)}>
+          <TouchableOpacity 
+            style={styles.radiusChip} 
+            onPress={() => {
+              setShowRadius(!showRadius);
+              if (!showRadius) setShowFilters(false);
+            }}
+          >
             <Ionicons name="location" size={12} color="#F9A06F" />
             <Text style={styles.radiusChipText}>{formatLabel(radius)}</Text>
             <Ionicons name={showRadius ? 'chevron-up' : 'chevron-down'} size={12} color="rgba(255,255,255,0.4)" />
@@ -359,7 +367,10 @@ export default function RandomScreen() {
 
           <TouchableOpacity
             style={[styles.radiusChip, activeFilterCount > 0 && styles.filterChipActive]}
-            onPress={() => setShowFilters(v => !v)}
+            onPress={() => {
+              setShowFilters(!showFilters);
+              if (!showFilters) setShowRadius(false);
+            }}
           >
             <Ionicons name="options-outline" size={12} color={activeFilterCount > 0 ? '#FFFFFF' : '#F9A06F'} />
             <Text style={[styles.radiusChipText, activeFilterCount > 0 && { color: '#FFFFFF' }]}>
