@@ -1,12 +1,12 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
-import React from 'react';
-import { StyleSheet, Text, View, FlatList, Image, TouchableOpacity } from 'react-native';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import React from 'react';
+import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const LOCAL_IMAGES: Record<string, any[]> = {
   italian: [require('../../../assets/feeling/italian_1.jpg'), require('../../../assets/feeling/italian_2.jpg'), require('../../../assets/feeling/italian_3.jpg')],
@@ -72,10 +72,10 @@ export default function FeelingScreen() {
   );
 
   return (
-    <LinearGradient 
-      colors={['#422046', '#FF9A6F']} 
-      start={{ x: 0, y: 1 }} 
-      end={{ x: 1, y: 0 }} 
+    <LinearGradient
+      colors={['#422046', '#FF9A6F']}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 0 }}
       style={styles.background}
     >
       <Stack.Screen options={{ headerShown: false }} />

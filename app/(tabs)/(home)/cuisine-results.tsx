@@ -3,8 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
-import { getLocation } from '../../../core/locationCache';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -19,10 +17,11 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isOpenNow } from '../../../core/isOpenNow';
+import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
-import { isOpenNow } from '../../../core/isOpenNow';
 
 const PAGE_SIZE = 10;
 

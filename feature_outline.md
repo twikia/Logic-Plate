@@ -125,6 +125,11 @@
 4. Set up the Google OAuth provider in the **Authentication** settings.
 5. Back in React Native, we will use the `supabase.from('table_name').select()` and `.insert()` functions to interact with this data!
 
+## favorites table: 
+
+Supabase table name – we’ll create user_places. If you prefer a different name, let us know.
+Column types – the plan uses place_id (text), favorited (boolean), visits (int), note (text).
+3 Maximum recents – we’ll limit the recent list to the 10 most recent entries (by last_visited).
 
 ## Google restaurant returns:
 id

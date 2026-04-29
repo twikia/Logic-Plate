@@ -1,17 +1,17 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {  StyleSheet, Text, View  } from "react-native";
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link } from 'expo-router';
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   return (
-    <LinearGradient 
-      colors={['#422046', '#FF9A6F']} 
-      start={{ x: 0, y: 1 }} 
-      end={{ x: 1, y: 0 }} 
+    <LinearGradient
+      colors={['#422046', '#FF9A6F']}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 0 }}
       style={styles.background}
     >
       <TopProfileButton />
@@ -24,14 +24,14 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Feeling</Text>
             </AnimatedPressable>
           </Link>
-          
+
           <Link href="/health" asChild>
             <AnimatedPressable style={styles.giantButton}>
               <IconSymbol name="leaf.fill" size={32} color="#FFFFFF" />
               <Text style={styles.buttonText}>Health</Text>
             </AnimatedPressable>
           </Link>
-          
+
           <Link href="/random" asChild>
             <AnimatedPressable style={styles.giantButton}>
               <IconSymbol name="shuffle" size={32} color="#FFFFFF" />

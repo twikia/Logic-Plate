@@ -1,14 +1,14 @@
-import { Tabs, Link, useRouter, usePathname } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, View, Text } from 'react-native';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs, usePathname, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withTiming,
-  Easing,
 } from 'react-native-reanimated';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -39,7 +39,7 @@ function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimCol
       onPressOut={() => {
         scale.value = withSequence(
           withTiming(1.05, { duration: 50, easing: Easing.out(Easing.quad) }),
-          withTiming(1.0,  { duration: 65, easing: Easing.inOut(Easing.quad) })
+          withTiming(1.0, { duration: 65, easing: Easing.inOut(Easing.quad) })
         );
       }}
       style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
@@ -73,10 +73,10 @@ export default function TabLayout() {
   const [lastPress, setLastPress] = useState(0);
 
   // Derive active tab from pathname — guaranteed accurate
-  const isResearch  = pathname.startsWith('/research');
-  const isTracking  = pathname.startsWith('/tracking');
-  const isMap       = pathname.startsWith('/map');
-  const isSocial    = pathname.startsWith('/social');
+  const isResearch = pathname.startsWith('/research');
+  const isTracking = pathname.startsWith('/tracking');
+  const isMap = pathname.startsWith('/map');
+  const isSocial = pathname.startsWith('/social');
   // everything else (/, /feeling, /health, /random) belongs to home
 
   return (

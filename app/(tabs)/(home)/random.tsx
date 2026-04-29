@@ -3,10 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
-import { getLocation } from '../../../core/locationCache';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -20,10 +18,10 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isOpenNow } from '../../../core/isOpenNow';
+import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
-import { isOpenNow } from '../../../core/isOpenNow';
-import { setCurrentRestaurant } from '../../../core/currentSelection';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
