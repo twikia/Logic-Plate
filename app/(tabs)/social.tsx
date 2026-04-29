@@ -5,7 +5,7 @@ import { TopProfileButton } from '@/components/ui/TopProfileButton';
 
 export default function SocialScreen() {
   return (
-    <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+    <LinearGradient colors={['#FFB399', '#A8E6CF']} style={styles.background}>
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
         <Text style={styles.pageTitle}>Social</Text>

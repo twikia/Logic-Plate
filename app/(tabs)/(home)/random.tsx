@@ -22,6 +22,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { isOpenNow } from '../../../core/isOpenNow';
+import { setCurrentRestaurant } from '../../../core/currentSelection';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
@@ -97,7 +99,7 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
   const dist = distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`;
   const price = PRICE_MAP[item.priceLevel] || '';
   const photo = item.photos?.[0]?.url;
-  const isOpen = item.currentOpeningHours?.openNow === true || item.regularOpeningHours?.openNow === true;
+  const isOpen = isOpenNow(item);
 
   return (
     <TouchableOpacity
@@ -231,8 +233,8 @@ export default function RandomScreen() {
       const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r);
       setAllResults(all);
 
-      // Select only restaurants that are open by default
-      const initialSelected = all.filter((r: any) => r.currentOpeningHours?.openNow === true || r.regularOpeningHours?.openNow === true);
+      // Select only restaurants that are open right now (real time check)
+      const initialSelected = all.filter((r: any) => isOpenNow(r));
       setSelected(new Set(initialSelected.map((r: any) => r.id)));
     } catch (e) {
       console.error(e);

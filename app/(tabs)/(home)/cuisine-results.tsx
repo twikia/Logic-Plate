@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { isOpenNow } from '../../../core/isOpenNow';
 
 const PAGE_SIZE = 10;
 
@@ -269,8 +270,7 @@ export default function ResultsScreen() {
       const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r);
       const types = CUISINE_TYPE_MAP[cuisineKey] ?? [];
       const filtered = all.filter(p => {
-        const isOpen = p.currentOpeningHours?.openNow === true || p.regularOpeningHours?.openNow === true;
-        if (!isOpen) return false;
+        if (!isOpenNow(p)) return false;
         if (types.length === 0) return true;
         return types.some((t: string) => p.primaryType === t || p.types?.includes(t));
       });

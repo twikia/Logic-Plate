@@ -24,3 +24,14 @@ export const setCachedResults = async (cuisineKey: string, results: any[]): Prom
     console.error('resultCache write error:', e);
   }
 };
+
+export const clearResultCache = async (): Promise<void> => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const resultKeys = keys.filter(k => k.startsWith('resultscache_'));
+    await AsyncStorage.multiRemove(resultKeys);
+  } catch (e) {
+    console.error('resultCache clear error:', e);
+  }
+};
+

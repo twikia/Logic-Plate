@@ -39,3 +39,12 @@ export const getLocation = async (
   cachedAt = Date.now();
   return cachedCoords;
 };
+
+/**
+ * Clears the in-memory location cache.
+ */
+export const clearLocationCache = () => {
+  cachedCoords = null;
+  cachedAt = 0;
+};
+

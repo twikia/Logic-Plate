@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
 import { runCacheTests } from '../tests/cacheTest';
 import { clearLocalCache } from '../core/cacheManager';
+import { clearResultCache } from '../core/resultCache';
+import { clearLocationCache } from '../core/locationCache';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -82,16 +84,20 @@ export default function ProfileScreen() {
                   style={[styles.menuItem, { backgroundColor: '#F97352' }]} 
                   onPress={() => runCacheTests()}
                 >
-                  <Text style={styles.menuItemText}>Run Cache Test</Text>
+                  <Text style={styles.menuItemText}>Run All Tests</Text>
                 </AnimatedPressable>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: '#C1E1C1', marginTop: 10 }]} 
                   onPress={async () => {
-                    await clearLocalCache();
-                    Alert.alert('Cache Cleared', 'Local AsyncStorage has been wiped.');
+                    await Promise.all([
+                      clearLocalCache(),
+                      clearResultCache(),
+                      clearLocationCache()
+                    ]);
+                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, and Location) have been wiped.');
                   }}
                 >
-                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear Local Cache</Text>
+                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear All Caches</Text>
                 </AnimatedPressable>
               </View>
             </ScrollView>
