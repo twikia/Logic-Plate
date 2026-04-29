@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Dimensions,
+  InteractionManager,
   Linking, Platform,
   ScrollView,
   Share,
@@ -43,9 +44,24 @@ function openGoogleMaps(name: string, lat: number, lng: number) {
 
 // ─── Photo carousel ───────────────────────────────────────────────────────────
 
+const toHighQualityPhotoUrl = (uri: string, maxPx: number = 250) => {
+  if (!uri) return uri;
+  if (uri.includes('maxWidthPx=')) {
+    return uri.replace(/maxWidthPx=\d+/, `maxWidthPx=${maxPx}`);
+  }
+  if (uri.includes('maxHeightPx=')) {
+    return uri.replace(/maxHeightPx=\d+/, `maxHeightPx=${maxPx}`);
+  }
+  const joiner = uri.includes('?') ? '&' : '?';
+  return `${uri}${joiner}maxWidthPx=${maxPx}`;
+};
+
 function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
   const [loaded, setLoaded] = useState(false);
+  const [highLoaded, setHighLoaded] = useState(false);
+  const [loadHigh, setLoadHigh] = useState(false);
   const [startLoad, setStartLoad] = useState(false);
+  const highQualityUri = toHighQualityPhotoUrl(uri, 250);
 
   useEffect(() => {
     // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
@@ -55,6 +71,12 @@ function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri) return;
+    const task = InteractionManager.runAfterInteractions(() => setLoadHigh(true));
+    return () => task.cancel();
+  }, [highQualityUri, loadHigh, loaded, uri]);
+
   return (
     <View style={{ width, height: 240, position: 'relative' }}>
       {!loaded && (
@@ -63,14 +85,26 @@ function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
         </View>
       )}
       {startLoad && (
-        <Image
-          source={{ uri }}
-          style={[{ width: '100%', height: 240 }, !loaded && { opacity: 0 }]}
-          contentFit="cover"
-          transition={300}
-          onLoad={() => setLoaded(true)}
-          cachePolicy="memory-disk"
-        />
+        <View style={{ width: '100%', height: 240 }}>
+          <Image
+            source={{ uri }}
+            style={[{ width: '100%', height: 240 }, !loaded && { opacity: 0 }]}
+            contentFit="cover"
+            transition={300}
+            onLoad={() => setLoaded(true)}
+            cachePolicy="memory-disk"
+          />
+          {loadHigh && highQualityUri !== uri && (
+            <Image
+              source={{ uri: highQualityUri }}
+              style={[StyleSheet.absoluteFillObject, !highLoaded && { opacity: 0 }]}
+              contentFit="cover"
+              transition={250}
+              onLoad={() => setHighLoaded(true)}
+              cachePolicy="memory-disk"
+            />
+          )}
+        </View>
       )}
     </View>
   );

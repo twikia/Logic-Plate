@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  InteractionManager,
   Linking, Platform,
   RefreshControl,
   ScrollView, StyleSheet,
@@ -80,9 +81,24 @@ function SkeletonCard() {
 
 // ─── Photo with loading spinner ──────────────────────────────────────────────
 
+const toHighQualityPhotoUrl = (uri: string, maxPx: number = 250) => {
+  if (!uri) return uri;
+  if (uri.includes('maxWidthPx=')) {
+    return uri.replace(/maxWidthPx=\d+/, `maxWidthPx=${maxPx}`);
+  }
+  if (uri.includes('maxHeightPx=')) {
+    return uri.replace(/maxHeightPx=\d+/, `maxHeightPx=${maxPx}`);
+  }
+  const joiner = uri.includes('?') ? '&' : '?';
+  return `${uri}${joiner}maxWidthPx=${maxPx}`;
+};
+
 function PhotoThumb({ uri }: { uri: string }) {
   const [loaded, setLoaded] = useState(false);
+  const [highLoaded, setHighLoaded] = useState(false);
+  const [loadHigh, setLoadHigh] = useState(false);
   const [startLoad, setStartLoad] = useState(false);
+  const highQualityUri = toHighQualityPhotoUrl(uri, 250);
 
   useEffect(() => {
     // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
@@ -92,6 +108,12 @@ function PhotoThumb({ uri }: { uri: string }) {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri) return;
+    const task = InteractionManager.runAfterInteractions(() => setLoadHigh(true));
+    return () => task.cancel();
+  }, [highQualityUri, loadHigh, loaded, uri]);
+
   return (
     <View style={styles.photoWrapper}>
       {!loaded && (
@@ -100,14 +122,26 @@ function PhotoThumb({ uri }: { uri: string }) {
         </View>
       )}
       {startLoad && (
-        <Image
-          source={{ uri }}
-          style={[styles.photo, !loaded && { opacity: 0 }]}
-          contentFit="cover"
-          transition={300}
-          onLoad={() => setLoaded(true)}
-          cachePolicy="memory-disk"
-        />
+        <View style={styles.photo}>
+          <Image
+            source={{ uri }}
+            style={[styles.photo, !loaded && { opacity: 0 }]}
+            contentFit="cover"
+            transition={300}
+            onLoad={() => setLoaded(true)}
+            cachePolicy="memory-disk"
+          />
+          {loadHigh && highQualityUri !== uri && (
+            <Image
+              source={{ uri: highQualityUri }}
+              style={[StyleSheet.absoluteFillObject, !highLoaded && { opacity: 0 }]}
+              contentFit="cover"
+              transition={250}
+              onLoad={() => setHighLoaded(true)}
+              cachePolicy="memory-disk"
+            />
+          )}
+        </View>
       )}
     </View>
   );
@@ -307,6 +341,11 @@ export default function ResultsScreen() {
     setHasMore(next.length < allResults.length);
   };
 
+  const keyExtractor = React.useCallback((item: any) => item.id, []);
+  const renderItem = React.useCallback(({ item }: { item: any }) => (
+    <MemoizedRestaurantCard item={item} />
+  ), []);
+
   return (
     <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -367,11 +406,12 @@ export default function ResultsScreen() {
         ) : (
           <FlatList
             data={displayed}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <MemoizedRestaurantCard item={item} />}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
             initialNumToRender={5}
             maxToRenderPerBatch={5}
             windowSize={5}
+            removeClippedSubviews
             ListHeaderComponent={
               <Text style={styles.subtitle}>{allResults.length} open spots within {formatLabel(radius)}</Text>
             }
