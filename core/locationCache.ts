@@ -18,27 +18,48 @@ let cachedCoords: { latitude: number; longitude: number } | null = null;
 let cachedAt = 0;
 let refreshInterval: NodeJS.Timeout | null = null;
 
+let pendingLocationPromise: Promise<{ latitude: number; longitude: number } | null> | null = null;
+
 export const getLocation = async (
   force = false
 ): Promise<{ latitude: number; longitude: number } | null> => {
-  // Return cached coords if still fresh
+  // 1. If a request is already in progress, wait for it instead of starting a new one
+  if (pendingLocationPromise) {
+    console.log('GPS request already in progress, waiting for it...');
+    return pendingLocationPromise;
+  }
+
+  // 2. Return cached coords if still fresh (and not forcing)
   if (!force && cachedCoords && Date.now() - cachedAt < CACHE_TTL_MS) {
     return cachedCoords;
   }
 
-  const { status } = await Location.requestForegroundPermissionsAsync();
-  if (status !== 'granted') return null;
+  // 3. Start a new request and track it
+  pendingLocationPromise = (async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return null;
 
-  const loc = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
-  });
+      console.log('Starting fresh GPS acquisition...');
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
 
-  cachedCoords = {
-    latitude: loc.coords.latitude,
-    longitude: loc.coords.longitude,
-  };
-  cachedAt = Date.now();
-  return cachedCoords;
+      cachedCoords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+      cachedAt = Date.now();
+      return cachedCoords;
+    } catch (err) {
+      console.error('GPS acquisition failed:', err);
+      return null;
+    } finally {
+      pendingLocationPromise = null;
+    }
+  })();
+
+  return pendingLocationPromise;
 };
 
 /**

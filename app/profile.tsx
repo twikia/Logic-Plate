@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View, ScrollView, Pressable, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useAppTheme } from '@/context/ThemeContext';
 import { Themes } from '@/constants/Themes';
 
@@ -144,9 +145,11 @@ export default function ProfileScreen() {
                     await Promise.all([
                       clearLocalCache(),
                       clearResultCache(),
-                      clearLocationCache()
+                      clearLocationCache(),
+                      Image.clearMemoryCache(),
+                      Image.clearDiskCache()
                     ]);
-                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, and Location) have been wiped.');
+                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, Location, and Images) have been wiped.');
                   }}
                 >
                   <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear All Caches</Text>
