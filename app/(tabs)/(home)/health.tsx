@@ -3,14 +3,19 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, View, } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '@/context/ThemeContext';
+
 
 export default function HealthScreen() {
+  const { theme } = useAppTheme();
+
   return (
-    <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+    <LinearGradient colors={theme.gradient} style={styles.background}>
       <Stack.Screen
         options={{
           title: 'Choose by Health',
-          headerStyle: { backgroundColor: '#5C255C' },
+          headerStyle: { backgroundColor: theme.cardBackground },
+
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
           headerBackTitle: 'Back',
@@ -18,9 +23,10 @@ export default function HealthScreen() {
       />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          <Text style={styles.text}>Coming Soon!</Text>
+          <Text style={[styles.text, { color: theme.text }]}>Coming Soon!</Text>
         </View>
       </SafeAreaView>
+
     </LinearGradient>
   );
 }

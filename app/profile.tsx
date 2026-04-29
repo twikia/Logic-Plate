@@ -1,5 +1,10 @@
 import { StyleSheet, Text, View, ScrollView, Pressable, Alert } from 'react-native';
+import { useAppTheme } from '@/context/ThemeContext';
+import { Themes } from '@/constants/Themes';
+
+import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +21,9 @@ export default function ProfileScreen() {
   const [isClosing, setIsClosing] = useState(false);
   const [isSelectingIcon, setIsSelectingIcon] = useState(false);
   const { icon, changeIcon, icons } = useProfileIcon();
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const { theme, themeName, setTheme } = useAppTheme();
+
+
 
   const handleClose = () => {
     if (isClosing) return;
@@ -44,13 +51,15 @@ export default function ProfileScreen() {
           entering={SlideInRight.duration(125)}
           exiting={SlideOutRight.duration(100)}
         >
-          <SafeAreaView style={styles.card} edges={['top', 'bottom']}>
+          <SafeAreaView style={[styles.card, { backgroundColor: theme.cardBackground }]} edges={['top', 'bottom']}>
+
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
               <View style={[styles.section, { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }]}>
                 <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={styles.sectionTitle}>Account</Text>
-                  <Text style={styles.subtitle}>You are currently a Guest.</Text>
-                  <AnimatedPressable style={styles.button}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Account</Text>
+                  <Text style={[styles.subtitle, { color: theme.subtext }]}>You are currently a Guest.</Text>
+                  <AnimatedPressable style={[styles.button, { backgroundColor: theme.accent }]}>
+
                     <Text style={styles.buttonText}>Login / Sign Up</Text>
                   </AnimatedPressable>
                 </View>
@@ -62,49 +71,73 @@ export default function ProfileScreen() {
                   <View style={styles.editBadge}>
                     <Ionicons name="pencil" size={14} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.changeText}>Change</Text>
+                  <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
                 </AnimatedPressable>
+
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Settings</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
                 <AnimatedPressable 
-                  style={styles.menuItem}
+                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
                   onPress={() => router.push('/general-settings')}
                 >
+
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Text style={styles.menuItemText}>General Settings</Text>
                     <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
                   </View>
                 </AnimatedPressable>
-                <View style={[styles.menuItem, { paddingVertical: 12 }]}>
+                <View style={[styles.menuItem, { paddingVertical: 12, backgroundColor: theme.buttonBackground }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={styles.menuItemText}>Theme Preferences</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>Theme Preferences</Text>
                   </View>
-                  <View style={styles.themeSelector}>
-                    {(['light', 'dark', 'system'] as const).map((t) => (
+
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    contentContainerStyle={styles.themeSelector}
+                  >
+                    {Object.entries(Themes).map(([id, t]: [string, any]) => (
                       <Pressable 
-                        key={t}
-                        onPress={() => setTheme(t)}
-                        style={[styles.themeBtn, theme === t && styles.themeBtnActive]}
+                        key={id}
+                        onPress={() => setTheme(id)}
+                        style={[
+                          styles.themeBtn, 
+                          themeName === id && styles.themeBtnActive,
+                          { borderColor: t.accent }
+                        ]}
                       >
-                        <Text style={[styles.themeText, theme === t && styles.themeTextActive]}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}
+                        <View style={[styles.themePreview, { backgroundColor: t.gradient[0] }]}>
+                          <LinearGradient 
+                            colors={t.gradient} 
+                            style={StyleSheet.absoluteFill}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          />
+                        </View>
+                        <Text style={[
+                          styles.themeText, 
+                          themeName === id && { color: t.accent, fontWeight: 'bold' }
+                        ]}>
+                          {t.name}
                         </Text>
                       </Pressable>
                     ))}
-                  </View>
+                  </ScrollView>
+
                 </View>
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Developer</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Developer</Text>
                 <AnimatedPressable 
-                  style={[styles.menuItem, { backgroundColor: '#F97352' }]} 
+                  style={[styles.menuItem, { backgroundColor: theme.accent }]} 
                   onPress={() => runCacheTests()}
                 >
-                  <Text style={styles.menuItemText}>Run All Tests</Text>
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Run All Tests</Text>
                 </AnimatedPressable>
+
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: '#C1E1C1', marginTop: 10 }]} 
                   onPress={async () => {
@@ -128,7 +161,8 @@ export default function ProfileScreen() {
       {isSelectingIcon && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 100, justifyContent: 'center', alignItems: 'center' }]}>
           <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} onPress={() => setIsSelectingIcon(false)} />
-          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={styles.iconSelectionBox}>
+          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={[styles.iconSelectionBox, { backgroundColor: theme.cardBackground }]}>
+
             <Text style={styles.iconSelectionTitle}>Choose an Avatar</Text>
             <View style={styles.iconGrid}>
               {icons.map((item) => (
@@ -177,6 +211,16 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 35,
     borderBottomLeftRadius: 35,
   },
+  themePreview: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+
   scrollContent: {
     padding: 24,
     paddingTop: 30,
@@ -222,19 +266,24 @@ const styles = StyleSheet.create({
   },
   themeSelector: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  themeBtn: {
-    paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+  },
+
+  themeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#5C255C',
+    marginRight: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   themeBtnActive: {
-    borderColor: '#F97352',
-    backgroundColor: 'rgba(249, 115, 82, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
+
   themeText: {
     color: '#B59EAA',
     fontSize: 11,
@@ -278,6 +327,7 @@ const styles = StyleSheet.create({
   iconSelectionBox: {
     backgroundColor: '#3D2B3D',
     borderRadius: 25,
+
     padding: 25,
     width: '80%',
     maxWidth: 340,

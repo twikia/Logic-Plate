@@ -56,12 +56,31 @@ const toHighQualityPhotoUrl = (uri: string, maxPx: number = 250) => {
   return `${uri}${joiner}maxWidthPx=${maxPx}`;
 };
 
-function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
+const resolvePhotoUri = (photo: any): string | null => {
+  if (!photo) return null;
+  if (typeof photo === 'string') return photo;
+  if (typeof photo.url === 'string' && photo.url.length > 0) return photo.url;
+  if (typeof photo.uri === 'string' && photo.uri.length > 0) return photo.uri;
+  return null;
+};
+
+function CarouselPhoto({ uris, width }: { uris: string[]; width: number }) {
   const [loaded, setLoaded] = useState(false);
   const [highLoaded, setHighLoaded] = useState(false);
   const [loadHigh, setLoadHigh] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [startLoad, setStartLoad] = useState(false);
-  const highQualityUri = toHighQualityPhotoUrl(uri, 250);
+  const [uriIndex, setUriIndex] = useState(0);
+  const uri = uris[uriIndex];
+  const highQualityUri = uri ? toHighQualityPhotoUrl(uri, 250) : '';
+
+  useEffect(() => {
+    setUriIndex(0);
+    setLoaded(false);
+    setHighLoaded(false);
+    setLoadHigh(false);
+    setFailed(false);
+  }, [uris]);
 
   useEffect(() => {
     // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
@@ -72,35 +91,54 @@ function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
   }, []);
 
   useEffect(() => {
-    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri) return;
+    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri || failed) return;
     const task = InteractionManager.runAfterInteractions(() => setLoadHigh(true));
     return () => task.cancel();
-  }, [highQualityUri, loadHigh, loaded, uri]);
+  }, [failed, highQualityUri, loadHigh, loaded, uri]);
+
+  const handleBaseError = () => {
+    const nextIndex = uriIndex + 1;
+    if (nextIndex < uris.length) {
+      setUriIndex(nextIndex);
+      setLoaded(false);
+      setHighLoaded(false);
+      setLoadHigh(false);
+      return;
+    }
+    setFailed(true);
+  };
 
   return (
     <View style={{ width, height: 240, position: 'relative' }}>
-      {!loaded && (
+      {!loaded && !failed && (
         <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+        </View>
+      )}
+      {failed && (
+        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+          <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.35)" />
         </View>
       )}
       {startLoad && (
         <View style={{ width: '100%', height: 240 }}>
           <Image
             source={{ uri }}
-            style={[{ width: '100%', height: 240 }, !loaded && { opacity: 0 }]}
+            style={[{ width: '100%', height: 240 }, (!loaded || failed) && { opacity: 0 }]}
             contentFit="cover"
             transition={300}
             onLoad={() => setLoaded(true)}
+            onError={handleBaseError}
             cachePolicy="memory-disk"
           />
-          {loadHigh && highQualityUri !== uri && (
+          {loadHigh && !failed && highQualityUri !== uri && (
             <Image
               source={{ uri: highQualityUri }}
               style={[StyleSheet.absoluteFillObject, !highLoaded && { opacity: 0 }]}
               contentFit="cover"
               transition={250}
               onLoad={() => setHighLoaded(true)}
+              onError={() => setHighLoaded(false)}
               cachePolicy="memory-disk"
             />
           )}
@@ -113,8 +151,10 @@ function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
 function PhotoCarousel({ photos }: { photos: any[] }) {
   const [active, setActive] = useState(0);
   const screenWidth = Dimensions.get('window').width;
+  const uriPool = (photos || []).map(resolvePhotoUri).filter((u): u is string => Boolean(u));
+  const slideCount = Math.min(5, uriPool.length);
 
-  if (!photos?.length) {
+  if (!slideCount) {
     return (
       <View style={styles.photoEmpty}>
         <Ionicons name="restaurant-outline" size={48} color="rgba(255,255,255,0.15)" />
@@ -132,13 +172,17 @@ function PhotoCarousel({ photos }: { photos: any[] }) {
           setActive(idx);
         }}
       >
-        {photos.slice(0, 5).map((photo: any, i: number) => (
-          <CarouselPhoto key={i} uri={photo.url} width={screenWidth} />
-        ))}
+        {Array.from({ length: slideCount }, (_, i) => {
+          const slideUris = [];
+          for (let idx = i; idx < uriPool.length; idx += slideCount) {
+            slideUris.push(uriPool[idx]);
+          }
+          return <CarouselPhoto key={i} uris={slideUris} width={screenWidth} />;
+        })}
       </ScrollView>
       {/* Dots */}
       <View style={styles.dotRow}>
-        {photos.slice(0, 5).map((_: any, i: number) => (
+        {Array.from({ length: slideCount }, (_, i) => (
           <View key={i} style={[styles.dot, i === active && styles.dotActive]} />
         ))}
       </View>

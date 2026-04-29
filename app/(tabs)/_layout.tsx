@@ -12,6 +12,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useAppTheme } from '@/context/ThemeContext';
+
 
 // ─── Animated Tab Icon ──────────────────────────────────────────────────────
 // Self-contained: owns its own animation AND its own highlight based on isActive.
@@ -71,6 +73,8 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [lastPress, setLastPress] = useState(0);
+  const { theme } = useAppTheme();
+
 
   // Derive active tab from pathname — guaranteed accurate
   const isResearch = pathname.startsWith('/research');
@@ -93,45 +97,47 @@ export default function TabLayout() {
       <Tabs.Screen
         name="research"
         options={{
-          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
+          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}
               isActive={isResearch}
               iconOn="search"
               iconOff="search-outline"
-              iconColor="#FFFFFF"
-              dimColor="#B59EAA"
-              highlightBg="#F97352"
+              iconColor={theme.text}
+              dimColor={theme.subtext}
+              highlightBg={theme.accent}
             />
           ),
         }}
       />
 
+
       {/* Tracking */}
       <Tabs.Screen
         name="tracking"
         options={{
-          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0, height: 85, paddingBottom: 20 },
+          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}
               isActive={isTracking}
               iconOn="stats-chart"
               iconOff="stats-chart-outline"
-              iconColor="#2B422A"
-              dimColor="#8E837D"
-              highlightBg="#C1E1C1"
+              iconColor={theme.text}
+              dimColor={theme.subtext}
+              highlightBg={theme.accent}
             />
           ),
         }}
       />
 
+
       {/* Home (Floating Button) */}
       <Tabs.Screen
         name="(home)"
         options={{
-          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
+          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <View style={{ flex: 1, alignItems: 'center' }}>
               <AnimatedPressable
@@ -157,7 +163,7 @@ export default function TabLayout() {
                   width: 75,
                   height: 75,
                   borderRadius: 40,
-                  backgroundColor: '#F97352',
+                  backgroundColor: theme.accent,
                   justifyContent: 'center',
                   alignItems: 'center',
                   shadowColor: '#000',
@@ -166,50 +172,53 @@ export default function TabLayout() {
                   shadowRadius: 5,
                   elevation: 5,
                 }}>
-                <Ionicons size={36} name="home" color="#FFFFFF" />
+                <Ionicons size={36} name="home" color={theme.text} />
               </AnimatedPressable>
             </View>
           ),
         }}
       />
 
+
       {/* Map */}
       <Tabs.Screen
         name="map"
         options={{
-          tabBarStyle: { backgroundColor: '#3D2B3D', borderTopWidth: 0, height: 85, paddingBottom: 20 },
+          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}
               isActive={isMap}
               iconOn="map"
               iconOff="map-outline"
-              iconColor="#FFFFFF"
-              dimColor="#B59EAA"
-              highlightBg="#F97352"
+              iconColor={theme.text}
+              dimColor={theme.subtext}
+              highlightBg={theme.accent}
             />
           ),
         }}
       />
 
+
       {/* Social */}
       <Tabs.Screen
         name="social"
         options={{
-          tabBarStyle: { backgroundColor: '#FDF8F5', borderTopWidth: 0, height: 85, paddingBottom: 20 },
+          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}
               isActive={isSocial}
               iconOn="people"
               iconOff="people-outline"
-              iconColor="#2B422A"
-              dimColor="#8E837D"
-              highlightBg="#FF9F80"
+              iconColor={theme.text}
+              dimColor={theme.subtext}
+              highlightBg={theme.accent}
             />
           ),
         }}
       />
+
     </Tabs>
   );
 }

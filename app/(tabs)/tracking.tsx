@@ -2,21 +2,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {  StyleSheet, Text, View,  } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
+import { useAppTheme } from '@/context/ThemeContext';
+
 
 export default function TrackingScreen() {
+  const { theme } = useAppTheme();
+
   return (
-    <LinearGradient colors={['#FFB399', '#A8E6CF']} style={styles.background}>
+    <LinearGradient colors={theme.gradient} style={styles.background}>
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.pageTitle}>Tracking</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Macros & Finance</Text>
-          <Text style={styles.cardSubtitle}>Log your calories and keep track of your dining budget.</Text>
+        <Text style={[styles.pageTitle, { color: theme.text }]}>Tracking</Text>
+        <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Macros & Finance</Text>
+          <Text style={[styles.cardSubtitle, { color: theme.subtext }]}>Log your calories and keep track of your dining budget.</Text>
         </View>
       </SafeAreaView>
     </LinearGradient>
   );
 }
+
 
 const styles = StyleSheet.create({
   background: {

@@ -94,7 +94,7 @@ serve(async (req) => {
         // Pre-build photo URLs server-side so the client never needs a Google key
         const places = rawPlaces.map((place: any) => ({
           ...place,
-          photos: place.photos?.slice(0, 3).map((photo: any) => ({
+          photos: place.photos?.slice(0, 10).map((photo: any) => ({
             name: photo.name,
             url: `https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=80&key=${googleMapsKey}`,
           })) ?? [],

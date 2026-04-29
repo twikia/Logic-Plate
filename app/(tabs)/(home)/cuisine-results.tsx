@@ -24,6 +24,8 @@ import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
+import { useAppTheme } from '@/context/ThemeContext';
+
 
 const PAGE_SIZE = 10;
 
@@ -90,12 +92,31 @@ const toHighQualityPhotoUrl = (uri: string, maxPx: number = 250) => {
   return `${uri}${joiner}maxWidthPx=${maxPx}`;
 };
 
-function PhotoThumb({ uri }: { uri: string }) {
+const resolvePhotoUri = (photo: any): string | null => {
+  if (!photo) return null;
+  if (typeof photo === 'string') return photo;
+  if (typeof photo.url === 'string' && photo.url.length > 0) return photo.url;
+  if (typeof photo.uri === 'string' && photo.uri.length > 0) return photo.uri;
+  return null;
+};
+
+function PhotoThumb({ uris }: { uris: string[] }) {
   const [loaded, setLoaded] = useState(false);
   const [highLoaded, setHighLoaded] = useState(false);
   const [loadHigh, setLoadHigh] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [startLoad, setStartLoad] = useState(false);
-  const highQualityUri = toHighQualityPhotoUrl(uri, 250);
+  const [uriIndex, setUriIndex] = useState(0);
+  const uri = uris[uriIndex];
+  const highQualityUri = uri ? toHighQualityPhotoUrl(uri, 250) : '';
+
+  useEffect(() => {
+    setUriIndex(0);
+    setLoaded(false);
+    setHighLoaded(false);
+    setLoadHigh(false);
+    setFailed(false);
+  }, [uris]);
 
   useEffect(() => {
     // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
@@ -106,35 +127,54 @@ function PhotoThumb({ uri }: { uri: string }) {
   }, []);
 
   useEffect(() => {
-    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri) return;
+    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri || failed) return;
     const task = InteractionManager.runAfterInteractions(() => setLoadHigh(true));
     return () => task.cancel();
-  }, [highQualityUri, loadHigh, loaded, uri]);
+  }, [failed, highQualityUri, loadHigh, loaded, uri]);
+
+  const handleBaseError = () => {
+    const nextIndex = uriIndex + 1;
+    if (nextIndex < uris.length) {
+      setUriIndex(nextIndex);
+      setLoaded(false);
+      setHighLoaded(false);
+      setLoadHigh(false);
+      return;
+    }
+    setFailed(true);
+  };
 
   return (
     <View style={styles.photoWrapper}>
-      {!loaded && (
+      {!loaded && !failed && (
         <View style={styles.photoPlaceholder}>
           <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+        </View>
+      )}
+      {failed && (
+        <View style={styles.photoPlaceholder}>
+          <Ionicons name="image-outline" size={20} color="rgba(255,255,255,0.35)" />
         </View>
       )}
       {startLoad && (
         <View style={styles.photo}>
           <Image
             source={{ uri }}
-            style={[styles.photo, !loaded && { opacity: 0 }]}
+            style={[styles.photo, (!loaded || failed) && { opacity: 0 }]}
             contentFit="cover"
             transition={300}
             onLoad={() => setLoaded(true)}
+            onError={handleBaseError}
             cachePolicy="memory-disk"
           />
-          {loadHigh && highQualityUri !== uri && (
+          {loadHigh && !failed && highQualityUri !== uri && (
             <Image
               source={{ uri: highQualityUri }}
               style={[StyleSheet.absoluteFillObject, !highLoaded && { opacity: 0 }]}
               contentFit="cover"
               transition={250}
               onLoad={() => setHighLoaded(true)}
+              onError={() => setHighLoaded(false)}
               cachePolicy="memory-disk"
             />
           )}
@@ -145,18 +185,26 @@ function PhotoThumb({ uri }: { uri: string }) {
 }
 
 function PhotoStrip({ photos }: { photos: any[] }) {
-  if (!photos?.length) {
+  const uriPool = (photos || []).map(resolvePhotoUri).filter((u): u is string => Boolean(u));
+  if (!uriPool.length) {
     return (
       <View style={styles.photoPlaceholderFull}>
         <Ionicons name="restaurant-outline" size={36} color="rgba(255,255,255,0.12)" />
       </View>
     );
   }
+
+  const slotCount = Math.min(3, uriPool.length);
+
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      {photos.slice(0, 3).map((photo: any, i: number) => (
-        <PhotoThumb key={i} uri={photo.url} />
-      ))}
+      {Array.from({ length: slotCount }, (_, i) => {
+        const slotUris = [];
+        for (let idx = i; idx < uriPool.length; idx += slotCount) {
+          slotUris.push(uriPool[idx]);
+        }
+        return <PhotoThumb key={i} uris={slotUris} />;
+      })}
     </ScrollView>
   );
 }
@@ -253,6 +301,8 @@ export default function ResultsScreen() {
   const { cuisine, cuisineKey } = useLocalSearchParams<{ cuisine: string; cuisineKey: string }>();
   const router = useRouter();
   const navigation = useNavigation();
+  const { theme } = useAppTheme();
+
 
   const [allResults, setAllResults] = useState<any[]>([]);
   const [displayed, setDisplayed] = useState<any[]>([]);
@@ -347,22 +397,25 @@ export default function ResultsScreen() {
   ), []);
 
   return (
-    <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
+    <LinearGradient colors={theme.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
+
       <SafeAreaView style={styles.safe} edges={['top']}>
 
         {/* Header */}
         <View style={styles.header}>
           <AnimatedPressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
           </AnimatedPressable>
-          <Text style={styles.title}>{cuisine}</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{cuisine}</Text>
+
           <View style={{ width: 40 }} />
         </View>
 
         {/* Radius bar */}
         <TouchableOpacity style={styles.radiusBar} onPress={() => setShowRadiusPicker(v => !v)}>
-          <Ionicons name="location" size={14} color="#F9A06F" />
+          <Ionicons name="location" size={14} color={theme.accent} />
           <Text style={styles.radiusBarText}>Within {formatLabel(radius)}</Text>
+
           <Ionicons name={showRadiusPicker ? 'chevron-up' : 'chevron-down'} size={14} color="rgba(255,255,255,0.5)" />
         </TouchableOpacity>
 

@@ -5,15 +5,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '@/context/ThemeContext';
+
 
 export default function HomeScreen() {
+  const { theme } = useAppTheme();
+
   return (
     <LinearGradient
-      colors={['#422046', '#FF9A6F']}
+      colors={theme.gradient}
       start={{ x: 0, y: 1 }}
       end={{ x: 1, y: 0 }}
       style={styles.background}
     >
+
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.buttonContainer}>
@@ -22,29 +27,36 @@ export default function HomeScreen() {
             <Text style={[styles.emoji, { top: 30, right: 10, transform: [{ rotate: '20deg' }] }]}>🍔</Text>
             <Text style={[styles.emoji, { bottom: -35, left: 60, transform: [{ rotate: '10deg' }] }]}>🥗</Text>
             <Text style={[styles.emoji, { top: -20, right: 50, transform: [{ rotate: '-10deg' }] }]}>🍣</Text>
-            <Text style={styles.pageTitle}>Find your meal!</Text>
+
+            <Text style={[styles.pageTitle, { color: theme.text }]}>Find your meal!</Text>
           </View>
 
           <Link href="/feeling" asChild>
-            <AnimatedPressable style={styles.giantButton}>
+            <AnimatedPressable style={[styles.giantButton, { backgroundColor: theme.cardBackground, flexDirection: 'row' }]}>
               <IconSymbol name="heart.fill" size={32} color="#FF8C00" />
-              <Text style={styles.buttonText}>Feeling</Text>
+              <Text style={[styles.buttonText, { color: theme.text }]}>Feeling</Text>
             </AnimatedPressable>
           </Link>
+
+
 
           <Link href="/health" asChild>
-            <AnimatedPressable style={styles.giantButton}>
+            <AnimatedPressable style={[styles.giantButton, { backgroundColor: theme.cardBackground, flexDirection: 'row' }]}>
               <IconSymbol name="leaf.fill" size={32} color="#4CAF50" />
-              <Text style={styles.buttonText}>Health</Text>
+              <Text style={[styles.buttonText, { color: theme.text }]}>Health</Text>
             </AnimatedPressable>
           </Link>
 
+
+
           <Link href="/random" asChild>
-            <AnimatedPressable style={styles.giantButton}>
+            <AnimatedPressable style={[styles.giantButton, { backgroundColor: theme.cardBackground, flexDirection: 'row' }]}>
               <IconSymbol name="shuffle" size={32} color="#00D2FF" />
-              <Text style={styles.buttonText}>Select</Text>
+              <Text style={[styles.buttonText, { color: theme.text }]}>Select</Text>
             </AnimatedPressable>
           </Link>
+
+
         </View>
       </SafeAreaView>
     </LinearGradient>

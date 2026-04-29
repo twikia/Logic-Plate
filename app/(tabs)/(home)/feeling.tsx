@@ -7,6 +7,8 @@ import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '@/context/ThemeContext';
+
 
 const LOCAL_IMAGES: Record<string, any[]> = {
   italian: [require('../../../assets/feeling/italian_1.jpg'), require('../../../assets/feeling/italian_2.jpg'), require('../../../assets/feeling/italian_3.jpg')],
@@ -44,11 +46,13 @@ const cuisines = [
 
 const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
   const router = useRouter();
+  const { theme } = useAppTheme();
   const images = LOCAL_IMAGES[item.key as keyof typeof LOCAL_IMAGES];
   const randomImage = React.useMemo(() => images?.[Math.floor(Math.random() * images.length)], [images]);
   return (
     <AnimatedPressable
-      style={styles.card}
+      style={[styles.card, { backgroundColor: theme.glassBackground, borderColor: 'rgba(255, 255, 255, 0.1)' }]}
+
       onPress={() => {
         if (item.key === 'other') {
           router.push('/random');
@@ -58,35 +62,39 @@ const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
       }}
     >
       <Image source={randomImage} style={styles.cardImage} />
-      <Text style={styles.cardTitle}>{item.name}</Text>
-      <IconSymbol name="chevron.right" size={24} color="rgba(255, 255, 255, 0.5)" />
+      <Text style={[styles.cardTitle, { color: theme.text }]}>{item.name}</Text>
+      <IconSymbol name="chevron.right" size={24} color={theme.subtext} />
     </AnimatedPressable>
   );
 };
 
+
 export default function FeelingScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const { theme } = useAppTheme();
   const renderItem = ({ item }: { item: typeof cuisines[0] }) => (
     <CuisineCard item={item} />
   );
 
   return (
     <LinearGradient
-      colors={['#422046', '#FF9A6F']}
+      colors={theme.gradient}
       start={{ x: 0, y: 1 }}
       end={{ x: 1, y: 0 }}
       style={styles.background}
     >
+
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
         {/* Header with back button */}
         <View style={styles.header}>
           <AnimatedPressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
           </AnimatedPressable>
-          <Text style={styles.headerText}>What are you craving?</Text>
+          <Text style={[styles.headerText, { color: theme.text }]}>What are you craving?</Text>
         </View>
+
         <FlatList
           data={cuisines}
           keyExtractor={(item) => item.id}
@@ -142,6 +150,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
+
   cardImage: {
     width: 80,
     height: 80,

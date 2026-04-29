@@ -4,11 +4,15 @@ const RADIUS_KEY = 'search_radius_meters';
 const DISTANCE_UNIT_KEY = 'distance_unit';
 const AUDIO_VOLUME_KEY = 'audio_volume';
 const HAPTICS_KEY = 'haptics_enabled';
+const THEME_KEY = 'app_theme';
+
 
 const DEFAULT_RADIUS = 4000;
 const DEFAULT_UNIT = 'km';
 const DEFAULT_VOLUME = 0.5;
 const DEFAULT_HAPTICS = true;
+const DEFAULT_THEME = 'sunset_blush';
+
 
 export type DistanceUnit = 'km' | 'mi';
 
@@ -64,3 +68,17 @@ export const getHapticsEnabled = async (): Promise<boolean> => {
 export const setHapticsEnabled = async (enabled: boolean): Promise<void> => {
   await AsyncStorage.setItem(HAPTICS_KEY, String(enabled));
 };
+
+export const getTheme = async (): Promise<string> => {
+  try {
+    const val = await AsyncStorage.getItem(THEME_KEY);
+    return val || DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+};
+
+export const setTheme = async (theme: string): Promise<void> => {
+  await AsyncStorage.setItem(THEME_KEY, theme);
+};
+
