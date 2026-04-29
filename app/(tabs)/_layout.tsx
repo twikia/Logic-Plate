@@ -139,7 +139,11 @@ export default function TabLayout() {
                   const now = Date.now();
                   if (now - lastPress < 300) {
                     // Double tap → hard reset to the true home root
-                    router.push('/');
+                    if (router.canDismiss()) {
+                      router.dismissAll();
+                    } else {
+                      router.navigate('/(tabs)/(home)/');
+                    }
                   } else {
                     // Single tap → Expo Router's native tab switch:
                     // preserves the (home) stack exactly as the user left it

@@ -1,5 +1,5 @@
 import { getCellsInRadius, getCellCenter } from './h3Utils';
-import { readCache, writeCache } from './cacheManager';
+import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
 
 /**
@@ -18,34 +18,27 @@ const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 /**
- * Phase 6: Cache Orchestrator
+ * Phase 6: Cache Orchestrator — Optimized with bulk cache reads.
  * Master function to fetch nearby restaurants efficiently using Supabase Edge Functions.
  */
 export const getNearbyRestaurants = async (userLat: number, userLng: number, radiusMeters: number) => {
   // Cap radius at 5km to avoid massive fetches
   const safeRadius = Math.min(radiusMeters, 5000);
-  
+
   // 1. Get all overlapping H3 cells
   const cellIds = getCellsInRadius(userLat, userLng, safeRadius);
-  
-  // 2. Read from Cache in parallel
-  const cachePromises = cellIds.map(async (cellId) => {
-    const cachedData = await readCache(cellId);
-    return { cellId, data: cachedData };
-  });
-  
-  const cacheResults = await Promise.all(cachePromises);
-  
-  const cachedCells = cacheResults.filter(r => r.data !== null);
-  const uncachedCells = cacheResults.filter(r => r.data === null).map(r => r.cellId);
-  
+
+  // 2. Bulk-read ALL cells from cache in two operations:
+  //    - One AsyncStorage.multiGet (single JS bridge crossing) for L1
+  //    - One Supabase .in() query for any L2 misses
+  const { hits, misses: uncachedCells } = await readCacheBulk(cellIds);
+
   let allRestaurants: any[] = [];
-  
-  cachedCells.forEach(c => {
-    if (c.data) allRestaurants = allRestaurants.concat(c.data);
+  hits.forEach(restaurants => {
+    allRestaurants = allRestaurants.concat(restaurants);
   });
 
-  // 3. Fetch missing cells from Supabase Edge Function
+  // 3. Fetch still-missing cells from Supabase Edge Function
   if (uncachedCells.length > 0) {
     const missingCellsPayload = uncachedCells.map(cellId => {
       const [lat, lng] = getCellCenter(cellId);
@@ -70,31 +63,33 @@ export const getNearbyRestaurants = async (userLat: number, userLng: number, rad
     }
   }
 
-  // 4. Deduplicate by Place ID
+  // 4. Deduplicate by Place ID using a Map (O(n), not O(n²))
   const uniqueRestaurantsMap = new Map<string, any>();
-  allRestaurants.forEach(place => {
+  for (const place of allRestaurants) {
     if (place.id && !uniqueRestaurantsMap.has(place.id)) {
       uniqueRestaurantsMap.set(place.id, place);
     }
-  });
-  const uniqueRestaurants = Array.from(uniqueRestaurantsMap.values());
+  }
 
   // 5. Compute exact distance, filter by requested radius, and sort
-  const finalList = uniqueRestaurants
+  const finalList = Array.from(uniqueRestaurantsMap.values())
     .map(place => {
-      if (!place.location || !place.location.latitude || !place.location.longitude) {
+      if (!place.location?.latitude || !place.location?.longitude) {
         return { ...place, distanceMeters: Infinity };
       }
-      const distance = haversineDistance(
-        userLat,
-        userLng,
-        place.location.latitude,
-        place.location.longitude
-      );
-      return { ...place, distanceMeters: distance };
+      return {
+        ...place,
+        distanceMeters: haversineDistance(
+          userLat, userLng,
+          place.location.latitude,
+          place.location.longitude
+        ),
+      };
     })
     .filter(place => place.distanceMeters <= safeRadius)
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
   return finalList;
 };
+
+

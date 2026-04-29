@@ -1,16 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  Animated, ActivityIndicator, TextInput, Platform, RefreshControl,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 
@@ -84,10 +92,10 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
 
   const name = item.displayName?.text || 'Unknown';
   const rating = item.rating?.toFixed(1);
-  const distM  = Math.round(item.distanceMeters ?? 0);
-  const dist   = distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`;
-  const price  = PRICE_MAP[item.priceLevel] || '';
-  const photo  = item.photos?.[0]?.url;
+  const distM = Math.round(item.distanceMeters ?? 0);
+  const dist = distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`;
+  const price = PRICE_MAP[item.priceLevel] || '';
+  const photo = item.photos?.[0]?.url;
   const isOpen = item.currentOpeningHours?.openNow === true || item.regularOpeningHours?.openNow === true;
 
   return (
@@ -159,26 +167,26 @@ export default function RandomScreen() {
   const router = useRouter();
   const navigation = useNavigation();
 
-  const [allResults, setAllResults]   = useState<any[]>([]);
-  const [isLoading, setIsLoading]     = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
-  const [errorMsg, setErrorMsg]       = useState<string | null>(null);
-  const [selected, setSelected]       = useState<Set<string>>(new Set());
-  const [filter, setFilter]           = useState('');
-  const [radius, setRadius]           = useState(4000);
-  const [showRadius, setShowRadius]   = useState(false);
+  const [allResults, setAllResults] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [radius, setRadius] = useState(4000);
+  const [showRadius, setShowRadius] = useState(false);
 
   // ── Filter state ──
-  const [showFilters, setShowFilters]     = useState(false);
-  const [openOnly, setOpenOnly]           = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [openOnly, setOpenOnly] = useState(true);
   const [selectedPrices, setSelectedPrices] = useState<Set<string>>(new Set());
-  const [minRating, setMinRating]         = useState(0);
+  const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
 
   const PRICE_LEVELS = [
     { key: 'PRICE_LEVEL_INEXPENSIVE', label: '$' },
-    { key: 'PRICE_LEVEL_MODERATE',    label: '$$' },
-    { key: 'PRICE_LEVEL_EXPENSIVE',   label: '$$$' },
+    { key: 'PRICE_LEVEL_MODERATE', label: '$$' },
+    { key: 'PRICE_LEVEL_EXPENSIVE', label: '$$$' },
     { key: 'PRICE_LEVEL_VERY_EXPENSIVE', label: '$$$$' },
   ];
   const RATING_OPTS = [0, 3.0, 3.5, 4.0, 4.5];
@@ -221,7 +229,7 @@ export default function RandomScreen() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const all = await getNearbyRestaurants(loc.coords.latitude, loc.coords.longitude, r);
       setAllResults(all);
-      
+
       // Select only restaurants that are open by default
       const initialSelected = all.filter((r: any) => r.currentOpeningHours?.openNow === true || r.regularOpeningHours?.openNow === true);
       setSelected(new Set(initialSelected.map((r: any) => r.id)));
@@ -512,7 +520,7 @@ export default function RandomScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  bg:   { flex: 1 },
+  bg: { flex: 1 },
   safe: { flex: 1 },
 
   header: {
@@ -567,7 +575,7 @@ const styles = StyleSheet.create({
   countText: { fontSize: 12, color: 'rgba(255,255,255,0.45)' },
 
   subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 10 },
-  list:     { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
+  list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -580,7 +588,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(249,115,82,0.1)',
   },
   thumbWrap: { width: 56, height: 56, borderRadius: 12, overflow: 'hidden' },
-  thumb:     { width: 56, height: 56 },
+  thumb: { width: 56, height: 56 },
   skeletonThumb: {
     width: 56, height: 56, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.08)',

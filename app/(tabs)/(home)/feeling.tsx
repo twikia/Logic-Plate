@@ -66,6 +66,7 @@ const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
 
 export default function FeelingScreen() {
   const navigation = useNavigation();
+  const router = useRouter();
   const renderItem = ({ item }: { item: typeof cuisines[0] }) => (
     <CuisineCard item={item} />
   );

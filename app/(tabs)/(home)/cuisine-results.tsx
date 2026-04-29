@@ -1,20 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, FlatList, ScrollView, StyleSheet,
-  TouchableOpacity, Animated, ActivityIndicator,
-  Linking, Platform, Alert, RefreshControl,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Linking, Platform,
+  RefreshControl,
+  ScrollView, StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
-import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
+import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 
 const PAGE_SIZE = 10;
 

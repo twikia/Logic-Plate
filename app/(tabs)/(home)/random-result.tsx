@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Linking, Platform, Share, ActivityIndicator, Dimensions,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator, Dimensions,
+  Linking, Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { getCurrentRestaurant } from '../../../core/currentSelection';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
@@ -153,29 +160,30 @@ function HoursSection({ weekdays }: { weekdays: string[] }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RandomResultScreen() {
-  const { data } = useLocalSearchParams<{ data: string }>();
   const router = useRouter();
   const navigation = useNavigation();
 
-  const place = JSON.parse(data || '{}');
+  // Read the selected restaurant from memory — avoids the expensive JSON.parse
+  // of a large URL param which was blocking the screen mount on every navigation.
+  const place = getCurrentRestaurant() ?? {};
 
-  const name    = place.displayName?.text || 'Unknown';
+  const name = place.displayName?.text || 'Unknown';
   const address = place.formattedAddress || '';
-  const phone   = place.nationalPhoneNumber || '';
+  const phone = place.nationalPhoneNumber || '';
   const website = place.websiteUri || '';
-  const rating  = place.rating?.toFixed(1);
+  const rating = place.rating?.toFixed(1);
   const reviews = place.userRatingCount;
-  const price   = PRICE_MAP[place.priceLevel] || '';
-  const type    = place.primaryType?.replace(/_/g, ' ') || '';
-  const lat     = place.location?.latitude;
-  const lng     = place.location?.longitude;
-  const distM   = Math.round(place.distanceMeters ?? 0);
-  const dist    = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
-  const isOpen  = place.currentOpeningHours?.openNow ?? place.businessStatus === 'OPERATIONAL';
+  const price = PRICE_MAP[place.priceLevel] || '';
+  const type = place.primaryType?.replace(/_/g, ' ') || '';
+  const lat = place.location?.latitude;
+  const lng = place.location?.longitude;
+  const distM = Math.round(place.distanceMeters ?? 0);
+  const dist = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+  const isOpen = place.currentOpeningHours?.openNow ?? place.businessStatus === 'OPERATIONAL';
   const weekdays = place.currentOpeningHours?.weekdayDescriptions
     ?? place.regularOpeningHours?.weekdayDescriptions
     ?? [];
-  const photos  = place.photos || [];
+  const photos = place.photos || [];
 
   const handleShare = async () => {
     try {
@@ -183,7 +191,7 @@ export default function RandomResultScreen() {
         message: `Check out ${name}!\n${address}\n${website || ''}`,
         title: name,
       });
-    } catch {}
+    } catch { }
   };
 
   return (
@@ -353,7 +361,7 @@ export default function RandomResultScreen() {
 const SCREEN_WIDTH = 390; // approximate, image fills full width
 
 const styles = StyleSheet.create({
-  bg:   { flex: 1 },
+  bg: { flex: 1 },
   safe: { flex: 1 },
   scroll: { paddingBottom: 20 },
 

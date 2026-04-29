@@ -9,62 +9,96 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * Reads from AsyncStorage first (7 days). If miss, reads from Supabase (30 days).
- * On Supabase hit, backfills AsyncStorage. Returns null on total miss/stale.
+ * BULK cache reader. Fetches all requested cell IDs using:
+ *  - ONE AsyncStorage.multiGet call  (single JS bridge crossing for L1)
+ *  - ONE Supabase .in() query        (single network round-trip for L2 misses)
+ *
+ * Returns a map of { cellId -> restaurants[] } for all valid hits.
+ * Cell IDs with no valid/fresh cache entry appear in `misses`.
+ */
+export const readCacheBulk = async (
+  cellIds: string[]
+): Promise<{ hits: Map<string, any[]>; misses: string[] }> => {
+  const now = Date.now();
+  const hits = new Map<string, any[]>();
+  const l1MissCells: string[] = [];
+
+  // ── L1: Single multiGet across the JS bridge ──────────────────────────────
+  try {
+    const storageKeys = cellIds.map(id => `cell_${id}`);
+    const pairs = await AsyncStorage.multiGet(storageKeys);
+
+    for (const [key, value] of pairs) {
+      const cellId = key.replace('cell_', '');
+      if (!value) {
+        l1MissCells.push(cellId);
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(value);
+        const fetchedAt = new Date(parsed.fetched_at).getTime();
+        if (now - fetchedAt < SEVEN_DAYS_MS) {
+          hits.set(cellId, parsed.restaurants);
+        } else {
+          l1MissCells.push(cellId);
+        }
+      } catch {
+        l1MissCells.push(cellId);
+      }
+    }
+  } catch (err) {
+    console.error('AsyncStorage multiGet error:', err);
+    cellIds.filter(id => !hits.has(id)).forEach(id => l1MissCells.push(id));
+  }
+
+  // ── L2: Single Supabase .in() query for all L1 misses ────────────────────
+  if (l1MissCells.length > 0) {
+    try {
+      const { data, error } = await supabase
+        .from('restaurant_cache')
+        .select('id, restaurants, fetched_at')
+        .in('id', l1MissCells);
+
+      if (error) {
+        console.error('Supabase bulk read error:', error);
+      }
+
+      if (data && data.length > 0) {
+        const backfillPairs: [string, string][] = [];
+
+        for (const row of data) {
+          const fetchedAt = new Date(row.fetched_at).getTime();
+          if (now - fetchedAt < THIRTY_DAYS_MS) {
+            hits.set(row.id, row.restaurants);
+            backfillPairs.push([
+              `cell_${row.id}`,
+              JSON.stringify({ restaurants: row.restaurants, fetched_at: row.fetched_at }),
+            ]);
+          }
+        }
+
+        // Single multiSet to backfill AsyncStorage — fire and forget
+        if (backfillPairs.length > 0) {
+          AsyncStorage.multiSet(backfillPairs).catch(e =>
+            console.error('AsyncStorage multiSet backfill error:', e)
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Supabase bulk fetch error:', err);
+    }
+  }
+
+  const misses = cellIds.filter(id => !hits.has(id));
+  return { hits, misses };
+};
+
+/**
+ * Single-cell read (kept for legacy/edge use — prefer readCacheBulk for batches).
  */
 export const readCache = async (cellId: string): Promise<any[] | null> => {
-  const now = Date.now();
-
-  // 1. Check AsyncStorage (L1 Cache)
-  try {
-    const localData = await AsyncStorage.getItem(`cell_${cellId}`);
-    if (localData) {
-      const parsed = JSON.parse(localData);
-      const fetchedAt = new Date(parsed.fetched_at).getTime();
-      if (now - fetchedAt < SEVEN_DAYS_MS) {
-        return parsed.restaurants;
-      }
-    }
-  } catch (err) {
-    console.error('AsyncStorage read error:', err);
-  }
-
-  // 2. Check Supabase (L2 Cache)
-  try {
-    const { data, error } = await supabase
-      .from('restaurant_cache')
-      .select('restaurants, fetched_at')
-      .eq('id', cellId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows returned"
-      console.error('Supabase read error:', error);
-    }
-
-    if (data) {
-      const fetchedAt = new Date(data.fetched_at).getTime();
-      if (now - fetchedAt < THIRTY_DAYS_MS) {
-        // Backfill AsyncStorage
-        try {
-          await AsyncStorage.setItem(
-            `cell_${cellId}`,
-            JSON.stringify({
-              restaurants: data.restaurants,
-              fetched_at: data.fetched_at,
-            })
-          );
-        } catch (e) {
-          console.error('AsyncStorage backfill error:', e);
-        }
-        return data.restaurants;
-      }
-    }
-  } catch (err) {
-    console.error('Supabase fetch error:', err);
-  }
-
-  // Miss or completely stale
-  return null;
+  const { hits } = await readCacheBulk([cellId]);
+  return hits.get(cellId) ?? null;
 };
 
 /**
