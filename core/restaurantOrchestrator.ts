@@ -22,8 +22,8 @@ const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
  * Master function to fetch nearby restaurants efficiently using Supabase Edge Functions.
  */
 export const getNearbyRestaurants = async (userLat: number, userLng: number, radiusMeters: number) => {
-  // Cap radius at 5km to avoid massive fetches
-  const safeRadius = Math.min(radiusMeters, 5000);
+  // Cap radius at 8km to avoid massive fetches
+  const safeRadius = Math.min(radiusMeters, 8000);
 
   // 1. Get all overlapping H3 cells
   const cellIds = getCellsInRadius(userLat, userLng, safeRadius);

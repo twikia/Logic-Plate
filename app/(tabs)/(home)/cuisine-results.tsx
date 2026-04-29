@@ -22,6 +22,7 @@ import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const PAGE_SIZE = 10;
 
@@ -52,10 +53,6 @@ const PRICE_MAP: Record<string, string> = {
 };
 
 const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
-const RADIUS_LABELS: Record<number, string> = {
-  1000: '1km', 1500: '1.5km', 2000: '2km',
-  2500: '2.5km', 3000: '3km', 4000: '4km', 5000: '5km', 6000: '6km', 8000: '8km',
-};
 
 // ─── Skeleton ───────────────────────────────────────────────────────────────
 
@@ -151,11 +148,12 @@ function openMaps(name: string, lat: number, lng: number) {
 // ─── Restaurant Card ─────────────────────────────────────────────────────────
 
 function RestaurantCard({ item }: { item: any }) {
+  const { formatDistance } = useDistanceFormatter();
   const name = item.displayName?.text || 'Unknown';
   const price = PRICE_MAP[item.priceLevel] || '';
   const rating = item.rating?.toFixed(1);
   const distM = Math.round(item.distanceMeters ?? 0);
-  const distance = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+  const distance = `${formatDistance(distM)} away`;
   const lat = item.location?.latitude;
   const lng = item.location?.longitude;
 
@@ -217,6 +215,9 @@ function RestaurantCard({ item }: { item: any }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+const MemoizedRestaurantCard = React.memo(RestaurantCard);
+
+
 export default function ResultsScreen() {
   const { cuisine, cuisineKey } = useLocalSearchParams<{ cuisine: string; cuisineKey: string }>();
   const router = useRouter();
@@ -230,6 +231,7 @@ export default function ResultsScreen() {
   const [radius, setRadius] = useState(4000);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const { formatLabel } = useDistanceFormatter();
 
   useEffect(() => {
     getSearchRadius().then(setRadius);
@@ -321,7 +323,7 @@ export default function ResultsScreen() {
         {/* Radius bar */}
         <TouchableOpacity style={styles.radiusBar} onPress={() => setShowRadiusPicker(v => !v)}>
           <Ionicons name="location" size={14} color="#F9A06F" />
-          <Text style={styles.radiusBarText}>Within {RADIUS_LABELS[radius]}</Text>
+          <Text style={styles.radiusBarText}>Within {formatLabel(radius)}</Text>
           <Ionicons name={showRadiusPicker ? 'chevron-up' : 'chevron-down'} size={14} color="rgba(255,255,255,0.5)" />
         </TouchableOpacity>
 
@@ -334,7 +336,7 @@ export default function ResultsScreen() {
                 onPress={() => changeRadius(s)}
               >
                 <Text style={[styles.radiusOptionText, radius === s && styles.radiusOptionTextActive]}>
-                  {RADIUS_LABELS[s]}
+                  {formatLabel(s)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -357,7 +359,7 @@ export default function ResultsScreen() {
         ) : allResults.length === 0 ? (
           <View style={styles.centerBox}>
             <Ionicons name="restaurant-outline" size={64} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.errorText}>No open {cuisine} restaurants found within {RADIUS_LABELS[radius]}.</Text>
+            <Text style={styles.errorText}>No open {cuisine} restaurants found within {formatLabel(radius)}.</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => setShowRadiusPicker(true)}>
               <Text style={styles.retryText}>Expand Search Radius</Text>
             </TouchableOpacity>
@@ -366,9 +368,12 @@ export default function ResultsScreen() {
           <FlatList
             data={displayed}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <RestaurantCard item={item} />}
+            renderItem={({ item }) => <MemoizedRestaurantCard item={item} />}
+            initialNumToRender={5}
+            maxToRenderPerBatch={5}
+            windowSize={5}
             ListHeaderComponent={
-              <Text style={styles.subtitle}>{allResults.length} open spots within {RADIUS_LABELS[radius]}</Text>
+              <Text style={styles.subtitle}>{allResults.length} open spots within {formatLabel(radius)}</Text>
             }
             ListFooterComponent={
               hasMore ? (

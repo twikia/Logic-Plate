@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentRestaurant } from '../../../core/currentSelection';
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
@@ -177,8 +178,9 @@ export default function RandomResultScreen() {
   const type = place.primaryType?.replace(/_/g, ' ') || '';
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
+  const { formatDistance } = useDistanceFormatter();
   const distM = Math.round(place.distanceMeters ?? 0);
-  const dist = distM < 1000 ? `${distM}m away` : `${(distM / 1000).toFixed(1)}km away`;
+  const dist = `${formatDistance(distM)} away`;
   const isOpen = place.currentOpeningHours?.openNow ?? place.businessStatus === 'OPERATIONAL';
   const weekdays = place.currentOpeningHours?.weekdayDescriptions
     ?? place.regularOpeningHours?.weekdayDescriptions

@@ -16,6 +16,7 @@ export default function ProfileScreen() {
   const [isClosing, setIsClosing] = useState(false);
   const [isSelectingIcon, setIsSelectingIcon] = useState(false);
   const { icon, changeIcon, icons } = useProfileIcon();
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
 
   const handleClose = () => {
     if (isClosing) return;
@@ -67,15 +68,33 @@ export default function ProfileScreen() {
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Settings</Text>
-                <AnimatedPressable style={styles.menuItem}>
-                  <Text style={styles.menuItemText}>Theme Preferences</Text>
+                <AnimatedPressable 
+                  style={styles.menuItem}
+                  onPress={() => router.push('/general-settings')}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.menuItemText}>General Settings</Text>
+                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
+                  </View>
                 </AnimatedPressable>
-                <AnimatedPressable style={styles.menuItem}>
-                  <Text style={styles.menuItemText}>Notification Settings</Text>
-                </AnimatedPressable>
-                <AnimatedPressable style={styles.menuItem}>
-                  <Text style={styles.menuItemText}>Privacy & Security</Text>
-                </AnimatedPressable>
+                <View style={[styles.menuItem, { paddingVertical: 12 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={styles.menuItemText}>Theme Preferences</Text>
+                  </View>
+                  <View style={styles.themeSelector}>
+                    {(['light', 'dark', 'system'] as const).map((t) => (
+                      <Pressable 
+                        key={t}
+                        onPress={() => setTheme(t)}
+                        style={[styles.themeBtn, theme === t && styles.themeBtnActive]}
+                      >
+                        <Text style={[styles.themeText, theme === t && styles.themeTextActive]}>
+                          {t.charAt(0).toUpperCase() + t.slice(1)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
               </View>
 
               <View style={styles.section}>
@@ -200,6 +219,29 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#5C255C',
+  },
+  themeBtnActive: {
+    borderColor: '#F97352',
+    backgroundColor: 'rgba(249, 115, 82, 0.1)',
+  },
+  themeText: {
+    color: '#B59EAA',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  themeTextActive: {
+    color: '#F97352',
   },
   profileIconWrapper: {
     alignItems: 'center',

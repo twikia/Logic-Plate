@@ -39,6 +39,8 @@ export const getCellCenter = (cellId: string): [number, number] => {
  */
 export const getCellsInRadius = (lat: number, lng: number, radiusMeters: number): string[] => {
   const centerCell = getRes7CellId(lat, lng);
-  const ringSize = Math.ceil(radiusMeters / 1400);
+  // Res 7 cell spacing is ~2.1km. ringSize 1 covers ~3.3km from center.
+  // Using 2100 as divisor ensures we cover the radius without excessive over-fetching.
+  const ringSize = Math.ceil(radiusMeters / 2100);
   return h3.kRing(centerCell, ringSize);
 };

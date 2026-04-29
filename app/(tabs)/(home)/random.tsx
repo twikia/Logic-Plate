@@ -22,6 +22,7 @@ import { isOpenNow } from '../../../core/isOpenNow';
 import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
@@ -50,10 +51,6 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
 };
 
 const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
-const RADIUS_LABELS: Record<number, string> = {
-  1000: '1km', 1500: '1.5km', 2000: '2km',
-  2500: '2.5km', 3000: '3km', 4000: '4km', 5000: '5km', 6000: '6km', 8000: '8km',
-};
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -81,6 +78,7 @@ function SkeletonRow() {
 // ─── Selectable Restaurant Row ────────────────────────────────────────────────
 
 function RestaurantRow({ item, selected, onToggle }: { item: any; selected: boolean; onToggle: () => void }) {
+  const { formatDistance } = useDistanceFormatter();
   const [startLoad, setStartLoad] = useState(false);
 
   useEffect(() => {
@@ -94,7 +92,7 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
   const name = item.displayName?.text || 'Unknown';
   const rating = item.rating?.toFixed(1);
   const distM = Math.round(item.distanceMeters ?? 0);
-  const dist = distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`;
+  const dist = formatDistance(distM);
   const price = PRICE_MAP[item.priceLevel] || '';
   const photo = item.photos?.[0]?.url;
   const isOpen = isOpenNow(item);
@@ -176,6 +174,7 @@ export default function RandomScreen() {
   const [filter, setFilter] = useState('');
   const [radius, setRadius] = useState(4000);
   const [showRadius, setShowRadius] = useState(false);
+  const { formatLabel } = useDistanceFormatter();
 
   // ── Filter state ──
   const [showFilters, setShowFilters] = useState(false);
@@ -183,6 +182,7 @@ export default function RandomScreen() {
   const [selectedPrices, setSelectedPrices] = useState<Set<string>>(new Set());
   const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
 
   const PRICE_LEVELS = [
     { key: 'PRICE_LEVEL_INEXPENSIVE', label: '$' },
@@ -217,7 +217,8 @@ export default function RandomScreen() {
     });
   }, []);
 
-  const loadResults = async (r: number, isRefresh = false) => {
+  const loadResults = async (r?: number, isRefresh = false) => {
+    const searchRadius = r ?? radius;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     try {
@@ -228,7 +229,7 @@ export default function RandomScreen() {
         setIsLoading(false);
         return;
       }
-      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r);
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius);
       setAllResults(all);
 
       // Select only restaurants that are open right now (real time check)
@@ -258,8 +259,7 @@ export default function RandomScreen() {
   const filtered = allResults.filter(r => {
     if (!((r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
     if (openOnly) {
-      const isOpen = r.currentOpeningHours?.openNow === true || r.regularOpeningHours?.openNow === true;
-      if (!isOpen) return false;
+      if (!isOpenNow(r)) return false;
     }
     if (selectedPrices.size > 0 && r.priceLevel && !selectedPrices.has(r.priceLevel)) return false;
     if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
@@ -273,6 +273,22 @@ export default function RandomScreen() {
       if (!hasMatch) return false;
     }
     return true;
+  }).sort((a, b) => {
+    if (sortBy === 'distance') {
+      return (a.distanceMeters || 0) - (b.distanceMeters || 0);
+    } else if (sortBy === 'rating') {
+      return (b.rating || 0) - (a.rating || 0);
+    } else if (sortBy === 'price') {
+      const priceLevels = ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE', 'PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE'];
+      const priceA = a.priceLevel ? priceLevels.indexOf(a.priceLevel) : -1;
+      const priceB = b.priceLevel ? priceLevels.indexOf(b.priceLevel) : -1;
+      const aVal = priceA === -1 ? 999 : priceA;
+      const bVal = priceB === -1 ? 999 : priceB;
+      return aVal - bVal;
+    } else if (sortBy === 'health') {
+      return (b.healthScore || 0) - (a.healthScore || 0);
+    }
+    return 0;
   });
 
   const allSelectedInView = filtered.length > 0 && filtered.every(r => selected.has(r.id));
@@ -337,7 +353,7 @@ export default function RandomScreen() {
           </View>
           <TouchableOpacity style={styles.radiusChip} onPress={() => setShowRadius(v => !v)}>
             <Ionicons name="location" size={12} color="#F9A06F" />
-            <Text style={styles.radiusChipText}>{RADIUS_LABELS[radius]}</Text>
+            <Text style={styles.radiusChipText}>{formatLabel(radius)}</Text>
             <Ionicons name={showRadius ? 'chevron-up' : 'chevron-down'} size={12} color="rgba(255,255,255,0.4)" />
           </TouchableOpacity>
 
@@ -361,7 +377,7 @@ export default function RandomScreen() {
                 onPress={() => changeRadius(s)}
               >
                 <Text style={[styles.radiusOptionText, radius === s && styles.radiusOptionTextActive]}>
-                  {RADIUS_LABELS[s]}
+                  {formatLabel(s)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -371,7 +387,7 @@ export default function RandomScreen() {
         {showFilters && (
           <View style={styles.filterPanel}>
             {/* Open Now toggle */}
-            <View style={styles.filterRow}>
+            <View style={[styles.filterRow, { justifyContent: 'flex-start', gap: 12 }]}>
               <Text style={styles.filterLabel}>Open Now</Text>
               <TouchableOpacity
                 style={[styles.filterToggle, openOnly && styles.filterToggleOn]}
@@ -437,6 +453,35 @@ export default function RandomScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+
+            {/* Sort filter */}
+            <Text style={styles.filterSubLabel}>Sort By</Text>
+            <View style={styles.filterPills}>
+              <TouchableOpacity
+                style={[styles.filterPill, sortBy === 'distance' && styles.filterPillActive]}
+                onPress={() => setSortBy('distance')}
+              >
+                <Text style={[styles.filterPillText, sortBy === 'distance' && styles.filterPillTextActive]}>Distance</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterPill, sortBy === 'price' && styles.filterPillActive]}
+                onPress={() => setSortBy('price')}
+              >
+                <Text style={[styles.filterPillText, sortBy === 'price' && styles.filterPillTextActive]}>Price</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterPill, sortBy === 'health' && styles.filterPillActive]}
+                onPress={() => setSortBy('health')}
+              >
+                <Text style={[styles.filterPillText, sortBy === 'health' && styles.filterPillTextActive]}>Health Score</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterPill, sortBy === 'rating' && styles.filterPillActive]}
+                onPress={() => setSortBy('rating')}
+              >
+                <Text style={[styles.filterPillText, sortBy === 'rating' && styles.filterPillTextActive]}>Rating</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -472,7 +517,7 @@ export default function RandomScreen() {
         ) : allResults.length === 0 ? (
           <View style={styles.centerBox}>
             <Ionicons name="restaurant-outline" size={64} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.errorText}>No restaurants found within {RADIUS_LABELS[radius]}.</Text>
+            <Text style={styles.errorText}>No restaurants found within {formatLabel(radius)}.</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => setShowRadius(true)}>
               <Text style={styles.retryText}>Expand Radius</Text>
             </TouchableOpacity>
