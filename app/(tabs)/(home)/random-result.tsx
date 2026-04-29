@@ -1,13 +1,11 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator, Dimensions,
-  InteractionManager,
+  Dimensions,
   Linking, Platform,
   ScrollView,
   Share,
@@ -18,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentRestaurant } from '../../../core/currentSelection';
+import { RestaurantImage } from '../../../core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const PRICE_MAP: Record<string, string> = {
@@ -42,131 +41,12 @@ function openGoogleMaps(name: string, lat: number, lng: number) {
   }
 }
 
-// ─── Photo carousel ───────────────────────────────────────────────────────────
+// ─── Photo carousel (uses decoupled RestaurantImage) ────────────────────────────────────
 
-const toHighQualityPhotoUrl = (uri: string, maxPx: number = 800) => {
-  if (!uri) return uri;
-  // Handle both New API (maxWidthPx) and Old API (maxwidth)
-  if (uri.includes('maxWidthPx=')) {
-    return uri.replace(/maxWidthPx=\d+/, `maxWidthPx=${maxPx}`);
-  }
-  if (uri.includes('maxwidth=')) {
-    return uri.replace(/maxwidth=\d+/, `maxwidth=${maxPx}`);
-  }
-  if (uri.includes('maxHeightPx=')) {
-    return uri.replace(/maxHeightPx=\d+/, `maxHeightPx=${maxPx}`);
-  }
-  if (uri.includes('maxheight=')) {
-    return uri.replace(/maxheight=\d+/, `maxheight=${maxPx}`);
-  }
-  const joiner = uri.includes('?') ? '&' : '?';
-  return `${uri}${joiner}maxWidthPx=${maxPx}`;
-};
-
-const resolvePhotoUri = (photo: any): string | null => {
-  if (!photo) return null;
-  if (typeof photo === 'string') return photo;
-  if (typeof photo.url === 'string' && photo.url.length > 0) return photo.url;
-  if (typeof photo.uri === 'string' && photo.uri.length > 0) return photo.uri;
-  if (typeof photo.photoUri === 'string' && photo.photoUri.length > 0) return photo.photoUri;
-  // Fallback for any other string property that looks like a URL
-  for (const key in photo) {
-    if (typeof photo[key] === 'string' && (photo[key].startsWith('http') || photo[key].startsWith('https'))) {
-      return photo[key];
-    }
-  }
-  return null;
-};
-
-function CarouselPhoto({ uris, width }: { uris: string[]; width: number }) {
-  const [loaded, setLoaded] = useState(false);
-  const [highLoaded, setHighLoaded] = useState(false);
-  const [loadHigh, setLoadHigh] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [startLoad, setStartLoad] = useState(false);
-  const [uriIndex, setUriIndex] = useState(0);
-  const uri = uris[uriIndex];
-  const highQualityUri = uri ? toHighQualityPhotoUrl(uri, 250) : '';
-
-  useEffect(() => {
-    setUriIndex(0);
-    setLoaded(false);
-    setHighLoaded(false);
-    setLoadHigh(false);
-    setFailed(false);
-  }, [uris]);
-
-  useEffect(() => {
-    // Reduced delay for faster perceived loading
-    const timer = setTimeout(() => {
-      setStartLoad(true);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri || failed) return;
-    const task = InteractionManager.runAfterInteractions(() => setLoadHigh(true));
-    return () => task.cancel();
-  }, [failed, highQualityUri, loadHigh, loaded, uri]);
-
-  const handleBaseError = () => {
-    const nextIndex = uriIndex + 1;
-    if (nextIndex < uris.length) {
-      setUriIndex(nextIndex);
-      setLoaded(false);
-      setHighLoaded(false);
-      setLoadHigh(false);
-      return;
-    }
-    setFailed(true);
-  };
-
-  return (
-    <View style={{ width, height: 240, position: 'relative' }}>
-      {!loaded && !failed && (
-        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
-        </View>
-      )}
-      {failed && (
-        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
-          <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.35)" />
-        </View>
-      )}
-      {startLoad && (
-        <View style={{ width: '100%', height: 240 }}>
-          <Image
-            source={{ uri }}
-            style={[{ width: '100%', height: 240 }, (!loaded || failed) && { opacity: 0 }]}
-            contentFit="cover"
-            transition={300}
-            onLoad={() => setLoaded(true)}
-            onError={handleBaseError}
-            cachePolicy="memory-disk"
-          />
-          {loadHigh && !failed && highQualityUri !== uri && (
-            <Image
-              source={{ uri: highQualityUri }}
-              style={[StyleSheet.absoluteFillObject, !highLoaded && { opacity: 0 }]}
-              contentFit="cover"
-              transition={250}
-              onLoad={() => setHighLoaded(true)}
-              onError={() => setHighLoaded(false)}
-              cachePolicy="memory-disk"
-            />
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function PhotoCarousel({ photos }: { photos: any[] }) {
+function PhotoCarousel({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
   const [active, setActive] = useState(0);
   const screenWidth = Dimensions.get('window').width;
-  const uriPool = (photos || []).map(resolvePhotoUri).filter((u): u is string => Boolean(u));
-  const slideCount = Math.min(5, uriPool.length);
+  const slideCount = Math.min(5, (photos || []).length);
 
   if (!slideCount) {
     return (
@@ -175,6 +55,7 @@ function PhotoCarousel({ photos }: { photos: any[] }) {
       </View>
     );
   }
+
   return (
     <View style={styles.carouselWrap}>
       <ScrollView
@@ -187,11 +68,19 @@ function PhotoCarousel({ photos }: { photos: any[] }) {
         }}
       >
         {Array.from({ length: slideCount }, (_, i) => {
-          const slideUris = [];
-          for (let idx = i; idx < uriPool.length; idx += slideCount) {
-            slideUris.push(uriPool[idx]);
-          }
-          return <CarouselPhoto key={i} uris={slideUris} width={screenWidth} />;
+          // Each slide gets a single photo — RestaurantImage handles fallback internally
+          const slidePhoto = photos[i] ? [photos[i]] : [];
+          return (
+            <RestaurantImage
+              key={`${restaurantId}_slide_${i}`}
+              restaurantId={`${restaurantId}_slide_${i}`}
+              photos={slidePhoto}
+              width={screenWidth}
+              height={240}
+              quality={800}
+              loadDelay={i === 0 ? 100 : 300}
+            />
+          );
         })}
       </ScrollView>
       {/* Dots */}
@@ -306,7 +195,7 @@ export default function RandomResultScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
           {/* Photo carousel */}
-          <PhotoCarousel photos={photos} />
+          <PhotoCarousel restaurantId={place.id || 'unknown'} photos={photos} />
 
           {/* Name + type badge */}
           <View style={styles.nameRow}>

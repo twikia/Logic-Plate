@@ -16,6 +16,7 @@ import { runCacheTests } from '../tests/cacheTest';
 import { clearLocalCache } from '../core/cacheManager';
 import { clearResultCache } from '../core/resultCache';
 import { clearLocationCache } from '../core/locationCache';
+import { clearImageCache } from '../core/images';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -146,6 +147,7 @@ export default function ProfileScreen() {
                       clearLocalCache(),
                       clearResultCache(),
                       clearLocationCache(),
+                      clearImageCache(),
                       Image.clearMemoryCache(),
                       Image.clearDiskCache()
                     ]);

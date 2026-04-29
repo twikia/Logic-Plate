@@ -1,18 +1,15 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   FlatList,
-  InteractionManager,
   Linking, Platform,
   RefreshControl,
-  ScrollView, StyleSheet,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View
@@ -23,6 +20,7 @@ import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { RestaurantImage } from '../../../core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { useAppTheme } from '@/context/ThemeContext';
 
@@ -78,150 +76,7 @@ function SkeletonCard() {
   );
 }
 
-// ─── Photo with loading spinner ──────────────────────────────────────────────
 
-const toHighQualityPhotoUrl = (uri: string, maxPx: number = 600) => {
-  if (!uri) return uri;
-  // Handle both New API (maxWidthPx) and Old API (maxwidth)
-  if (uri.includes('maxWidthPx=')) {
-    return uri.replace(/maxWidthPx=\d+/, `maxWidthPx=${maxPx}`);
-  }
-  if (uri.includes('maxwidth=')) {
-    return uri.replace(/maxwidth=\d+/, `maxwidth=${maxPx}`);
-  }
-  if (uri.includes('maxHeightPx=')) {
-    return uri.replace(/maxHeightPx=\d+/, `maxHeightPx=${maxPx}`);
-  }
-  if (uri.includes('maxheight=')) {
-    return uri.replace(/maxheight=\d+/, `maxheight=${maxPx}`);
-  }
-  const joiner = uri.includes('?') ? '&' : '?';
-  return `${uri}${joiner}maxWidthPx=${maxPx}`;
-};
-
-const resolvePhotoUri = (photo: any): string | null => {
-  if (!photo) return null;
-  if (typeof photo === 'string') return photo;
-  if (typeof photo.url === 'string' && photo.url.length > 0) return photo.url;
-  if (typeof photo.uri === 'string' && photo.uri.length > 0) return photo.uri;
-  if (typeof photo.photoUri === 'string' && photo.photoUri.length > 0) return photo.photoUri;
-  // Fallback for any other string property that looks like a URL
-  for (const key in photo) {
-    if (typeof photo[key] === 'string' && (photo[key].startsWith('http') || photo[key].startsWith('https'))) {
-      return photo[key];
-    }
-  }
-  return null;
-};
-
-function PhotoThumb({ uris }: { uris: string[] }) {
-  const [loaded, setLoaded] = useState(false);
-  const [highLoaded, setHighLoaded] = useState(false);
-  const [loadHigh, setLoadHigh] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [startLoad, setStartLoad] = useState(false);
-  const [uriIndex, setUriIndex] = useState(0);
-  const uri = uris[uriIndex];
-  const highQualityUri = uri ? toHighQualityPhotoUrl(uri, 250) : '';
-
-  useEffect(() => {
-    setUriIndex(0);
-    setLoaded(false);
-    setHighLoaded(false);
-    setLoadHigh(false);
-    setFailed(false);
-  }, [uris]);
-
-  useEffect(() => {
-    // Reduced delay for faster perceived loading
-    const timer = setTimeout(() => {
-      setStartLoad(true);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!loaded || loadHigh || !highQualityUri || highQualityUri === uri || failed) return;
-    const task = InteractionManager.runAfterInteractions(() => setLoadHigh(true));
-    return () => task.cancel();
-  }, [failed, highQualityUri, loadHigh, loaded, uri]);
-
-  const handleBaseError = () => {
-    const nextIndex = uriIndex + 1;
-    if (nextIndex < uris.length) {
-      setUriIndex(nextIndex);
-      setLoaded(false);
-      setHighLoaded(false);
-      setLoadHigh(false);
-      return;
-    }
-    setFailed(true);
-  };
-
-  return (
-    <View style={styles.photoWrapper}>
-      {!loaded && !failed && (
-        <View style={styles.photoPlaceholder}>
-          <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
-        </View>
-      )}
-      {failed && (
-        <View style={styles.photoPlaceholder}>
-          <Ionicons name="image-outline" size={20} color="rgba(255,255,255,0.35)" />
-        </View>
-      )}
-      {startLoad && (
-        <View style={styles.photo}>
-          <Image
-            source={{ uri }}
-            style={[styles.photo, (!loaded || failed) && { opacity: 0 }]}
-            contentFit="cover"
-            transition={300}
-            onLoad={() => setLoaded(true)}
-            onError={handleBaseError}
-            cachePolicy="memory-disk"
-          />
-          {loadHigh && !failed && highQualityUri !== uri && (
-            <Image
-              source={{ uri: highQualityUri }}
-              style={[StyleSheet.absoluteFillObject, !highLoaded && { opacity: 0 }]}
-              contentFit="cover"
-              transition={250}
-              onLoad={() => setHighLoaded(true)}
-              onError={() => setHighLoaded(false)}
-              cachePolicy="memory-disk"
-            />
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function PhotoStrip({ photos }: { photos: any[] }) {
-  const uriPool = (photos || []).map(resolvePhotoUri).filter((u): u is string => Boolean(u));
-  if (!uriPool.length) {
-    return (
-      <View style={styles.photoPlaceholderFull}>
-        <Ionicons name="restaurant-outline" size={36} color="rgba(255,255,255,0.12)" />
-      </View>
-    );
-  }
-
-  const slotCount = Math.min(3, uriPool.length);
-
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      {Array.from({ length: slotCount }, (_, i) => {
-        const slotUris = [];
-        for (let idx = i; idx < uriPool.length; idx += slotCount) {
-          slotUris.push(uriPool[idx]);
-        }
-        return <PhotoThumb key={i} uris={slotUris} />;
-      })}
-    </ScrollView>
-  );
-}
 
 // ─── Maps helper ─────────────────────────────────────────────────────────────
 
@@ -238,6 +93,44 @@ function openMaps(name: string, lat: number, lng: number) {
   }
 }
 
+// ─── Photo Strip (Horizontal scroll of images) ────────────────────────────────
+
+function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
+  if (!photos || photos.length === 0) {
+    return (
+      <View style={[styles.photoEmpty, { height: 120 }]}>
+        <Ionicons name="restaurant-outline" size={32} color="rgba(255,255,255,0.15)" />
+      </View>
+    );
+  }
+
+  // Show up to 5 photos in the strip
+  const displayPhotos = photos.slice(0, 5);
+
+  return (
+    <ScrollView 
+      horizontal 
+      showsHorizontalScrollIndicator={false} 
+      style={styles.photoStrip}
+      contentContainerStyle={styles.photoStripContent}
+    >
+      {displayPhotos.map((photo, index) => (
+        <View key={`${restaurantId}_thumb_${index}`} style={styles.thumbContainer}>
+          <RestaurantImage
+            restaurantId={`${restaurantId}_p${index}`}
+            photos={[photo]}
+            width={180}
+            height={120}
+            quality={400}
+            loadDelay={100 + (index * 150)} // Staggered loading
+            borderRadius={12}
+          />
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
 // ─── Restaurant Card ─────────────────────────────────────────────────────────
 
 function RestaurantCard({ item }: { item: any }) {
@@ -252,7 +145,8 @@ function RestaurantCard({ item }: { item: any }) {
 
   return (
     <View style={styles.card}>
-      <PhotoStrip photos={item.photos || []} />
+      {/* Photo Strip — restored 3-card carousel functionality using decoupled images */}
+      <PhotoStrip restaurantId={item.id} photos={item.photos || []} />
       <View style={styles.cardContent}>
 
         <View style={styles.cardHeader}>
@@ -538,21 +432,34 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 12 },
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 },
   card: {
-    backgroundColor: 'rgba(30,15,30,0.65)', borderRadius: 20,
-    marginBottom: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(30,15,30,0.6)',
+    borderRadius: 24,
+    marginBottom: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  photoWrapper: { width: 180, height: 120, position: 'relative' },
-  photoPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    justifyContent: 'center', alignItems: 'center',
+  photoStrip: {
+    height: 120,
   },
-  photoPlaceholderFull: {
-    height: 120, backgroundColor: 'rgba(255,255,255,0.04)',
-    justifyContent: 'center', alignItems: 'center',
+  photoStripContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 10,
   },
-  photo: { width: 180, height: 120 },
+  thumbContainer: {
+    width: 180,
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  photoEmpty: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+
   cardContent: { padding: 14 },
   cardHeader: {
     flexDirection: 'row', alignItems: 'flex-start',

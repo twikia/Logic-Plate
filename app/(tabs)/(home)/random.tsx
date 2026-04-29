@@ -1,12 +1,10 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   FlatList,
   RefreshControl,
@@ -23,6 +21,7 @@ import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { setCurrentRestaurant } from '../../../core/currentSelection';
+import { RestaurantImage } from '../../../core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const PRICE_MAP: Record<string, string> = {
@@ -80,22 +79,12 @@ function SkeletonRow() {
 
 function RestaurantRow({ item, selected, onToggle }: { item: any; selected: boolean; onToggle: () => void }) {
   const { formatDistance } = useDistanceFormatter();
-  const [startLoad, setStartLoad] = useState(false);
-
-  useEffect(() => {
-    // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
-    const timer = setTimeout(() => {
-      setStartLoad(true);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
 
   const name = item.displayName?.text || 'Unknown';
   const rating = item.rating?.toFixed(1);
   const distM = Math.round(item.distanceMeters ?? 0);
   const dist = formatDistance(distM);
   const price = PRICE_MAP[item.priceLevel] || '';
-  const photo = item.photos?.[0]?.url;
   const isOpen = isOpenNow(item);
 
   return (
@@ -104,21 +93,17 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
       onPress={onToggle}
       style={[styles.row, selected && styles.rowSelected]}
     >
-      {/* Thumb */}
+      {/* Thumb — RestaurantImage handles spinner, fallback, and caching */}
       <View style={styles.thumbWrap}>
-        {photo ? (
-          startLoad ? (
-            <Image source={{ uri: photo }} style={styles.thumb} contentFit="cover" cachePolicy="memory-disk" />
-          ) : (
-            <View style={[styles.thumb, { backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }]}>
-              <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
-            </View>
-          )
-        ) : (
-          <View style={[styles.thumb, { backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }]}>
-            <Ionicons name="restaurant-outline" size={20} color="rgba(255,255,255,0.2)" />
-          </View>
-        )}
+        <RestaurantImage
+          restaurantId={item.id}
+          photos={item.photos || []}
+          width={56}
+          height={56}
+          quality={200}
+          loadDelay={400}
+          borderRadius={12}
+        />
       </View>
 
       {/* Info */}
