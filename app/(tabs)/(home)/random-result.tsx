@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Linking, Platform, Share,
+  Linking, Platform, Share, ActivityIndicator, Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
@@ -33,8 +35,43 @@ function openGoogleMaps(name: string, lat: number, lng: number) {
 
 // ─── Photo carousel ───────────────────────────────────────────────────────────
 
+function CarouselPhoto({ uri, width }: { uri: string; width: number }) {
+  const [loaded, setLoaded] = useState(false);
+  const [startLoad, setStartLoad] = useState(false);
+
+  useEffect(() => {
+    // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
+    const timer = setTimeout(() => {
+      setStartLoad(true);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <View style={{ width, height: 240, position: 'relative' }}>
+      {!loaded && (
+        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+        </View>
+      )}
+      {startLoad && (
+        <Image
+          source={{ uri }}
+          style={[{ width: '100%', height: 240 }, !loaded && { opacity: 0 }]}
+          contentFit="cover"
+          transition={300}
+          onLoad={() => setLoaded(true)}
+          cachePolicy="memory-disk"
+        />
+      )}
+    </View>
+  );
+}
+
 function PhotoCarousel({ photos }: { photos: any[] }) {
   const [active, setActive] = useState(0);
+  const screenWidth = Dimensions.get('window').width;
+
   if (!photos?.length) {
     return (
       <View style={styles.photoEmpty}>
@@ -54,13 +91,7 @@ function PhotoCarousel({ photos }: { photos: any[] }) {
         }}
       >
         {photos.slice(0, 5).map((photo: any, i: number) => (
-          <Image
-            key={i}
-            source={{ uri: photo.url }}
-            style={styles.carouselImage}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-          />
+          <CarouselPhoto key={i} uri={photo.url} width={screenWidth} />
         ))}
       </ScrollView>
       {/* Dots */}
@@ -124,6 +155,7 @@ function HoursSection({ weekdays }: { weekdays: string[] }) {
 export default function RandomResultScreen() {
   const { data } = useLocalSearchParams<{ data: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
 
   const place = JSON.parse(data || '{}');
 
@@ -160,9 +192,9 @@ export default function RandomResultScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+          <AnimatedPressable style={styles.iconBtn} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          </AnimatedPressable>
           <Text style={styles.headerTitle} numberOfLines={1}>Your Pick</Text>
           <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
             <Ionicons name="share-outline" size={22} color="#FFFFFF" />
@@ -265,7 +297,7 @@ export default function RandomResultScreen() {
           {/* Health Score placeholder */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="leaf-outline" size={16} color="#A8D5A2" />
+              <Ionicons name="heart-outline" size={16} color="#A8D5A2" />
               <Text style={[styles.sectionTitle, { color: '#A8D5A2' }]}>Health Score</Text>
               <View style={styles.soonBadge}><Text style={styles.soonText}>Coming Soon</Text></View>
             </View>
@@ -302,7 +334,7 @@ export default function RandomResultScreen() {
 
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnGhost]}
-              onPress={() => router.back()}
+              onPress={() => navigation.goBack()}
             >
               <Ionicons name="shuffle" size={16} color="rgba(255,255,255,0.6)" />
               <Text style={[styles.actionBtnText, { color: 'rgba(255,255,255,0.6)' }]}>Pick Again</Text>

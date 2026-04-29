@@ -4,6 +4,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { TopProfileButton } from '@/components/ui/TopProfileButton';
 
 export default function HomeScreen() {
   return (
@@ -13,6 +14,7 @@ export default function HomeScreen() {
       end={{ x: 1, y: 0 }} 
       style={styles.background}
     >
+      <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.buttonContainer}>
           <Text style={styles.pageTitle}>Find your meal!</Text>

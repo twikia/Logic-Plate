@@ -1,9 +1,11 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
-import { StyleSheet, Text, View, FlatList, Image } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Image, TouchableOpacity } from 'react-native';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 const LOCAL_IMAGES: Record<string, any[]> = {
@@ -63,6 +65,7 @@ const CuisineCard = ({ item }: { item: typeof cuisines[0] }) => {
 };
 
 export default function FeelingScreen() {
+  const navigation = useNavigation();
   const renderItem = ({ item }: { item: typeof cuisines[0] }) => (
     <CuisineCard item={item} />
   );
@@ -74,13 +77,15 @@ export default function FeelingScreen() {
       end={{ x: 1, y: 0 }} 
       style={styles.background}
     >
-      <Stack.Screen 
-        options={{
-          headerShown: false, // We will just use the transparent back button if needed, or hide header completely since it's nested
-        }} 
-      />
+      <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.headerText}>What are you craving?</Text>
+        {/* Header with back button */}
+        <View style={styles.header}>
+          <AnimatedPressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </AnimatedPressable>
+          <Text style={styles.headerText}>What are you craving?</Text>
+        </View>
         <FlatList
           data={cuisines}
           keyExtractor={(item) => item.id}
@@ -100,13 +105,27 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerText: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingVertical: 12,
   },
   listContent: {
     paddingHorizontal: 20,

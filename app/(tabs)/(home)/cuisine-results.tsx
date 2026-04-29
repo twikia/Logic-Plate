@@ -2,17 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, ScrollView, StyleSheet,
   TouchableOpacity, Animated, ActivityIndicator,
-  Linking, Platform, Alert,
+  Linking, Platform, Alert, RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import * as Location from 'expo-location';
-import { getNearbyRestaurants } from '../core/restaurantOrchestrator';
-import { getSearchRadius, setSearchRadius } from '../core/userSettings';
-import { getCachedResults, setCachedResults } from '../core/resultCache';
+import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
+import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 
 const PAGE_SIZE = 10;
 
@@ -42,10 +44,10 @@ const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
 };
 
-const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000];
+const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 const RADIUS_LABELS: Record<number, string> = {
   1000: '1km', 1500: '1.5km', 2000: '2km',
-  2500: '2.5km', 3000: '3km', 4000: '4km', 5000: '5km',
+  2500: '2.5km', 3000: '3km', 4000: '4km', 5000: '5km', 6000: '6km', 8000: '8km',
 };
 
 // ─── Skeleton ───────────────────────────────────────────────────────────────
@@ -76,6 +78,16 @@ function SkeletonCard() {
 
 function PhotoThumb({ uri }: { uri: string }) {
   const [loaded, setLoaded] = useState(false);
+  const [startLoad, setStartLoad] = useState(false);
+
+  useEffect(() => {
+    // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
+    const timer = setTimeout(() => {
+      setStartLoad(true);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <View style={styles.photoWrapper}>
       {!loaded && (
@@ -83,14 +95,16 @@ function PhotoThumb({ uri }: { uri: string }) {
           <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
         </View>
       )}
-      <Image
-        source={{ uri }}
-        style={[styles.photo, !loaded && { opacity: 0 }]}
-        contentFit="cover"
-        transition={200}
-        onLoad={() => setLoaded(true)}
-        cachePolicy="memory-disk"
-      />
+      {startLoad && (
+        <Image
+          source={{ uri }}
+          style={[styles.photo, !loaded && { opacity: 0 }]}
+          contentFit="cover"
+          transition={300}
+          onLoad={() => setLoaded(true)}
+          cachePolicy="memory-disk"
+        />
+      )}
     </View>
   );
 }
@@ -169,7 +183,7 @@ function RestaurantCard({ item }: { item: any }) {
 
         {/* Health score — placeholder */}
         <View style={styles.healthRow}>
-          <Ionicons name="leaf-outline" size={13} color="#A8D5A2" />
+          <Ionicons name="heart-outline" size={13} color="#A8D5A2" />
           <Text style={styles.healthLabel}>Health Score</Text>
           <View style={styles.healthBar}>
             <View style={[styles.healthFill, { width: '0%' }]} />
@@ -199,22 +213,24 @@ function RestaurantCard({ item }: { item: any }) {
 export default function ResultsScreen() {
   const { cuisine, cuisineKey } = useLocalSearchParams<{ cuisine: string; cuisineKey: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
 
   const [allResults, setAllResults] = useState<any[]>([]);
   const [displayed, setDisplayed] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [radius, setRadius] = useState(2000);
+  const [radius, setRadius] = useState(4000);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     getSearchRadius().then(setRadius);
     loadResults();
   }, []);
 
-  const loadResults = async (forceRefetch = false) => {
-    setIsLoading(true);
+  const loadResults = async (forceRefetch = false, isRefresh = false) => {
+    if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
 
     // Try result cache first (skip if user manually changed radius)
@@ -243,7 +259,10 @@ export default function ResultsScreen() {
       ]);
 
       const all = await getNearbyRestaurants(loc.coords.latitude, loc.coords.longitude, r);
-      const openNow = all.filter(p => p.currentOpeningHours?.openNow === true || p.businessStatus === 'OPERATIONAL');
+      const openNow = all.filter(p =>
+        p.currentOpeningHours?.openNow === true ||
+        p.regularOpeningHours?.openNow === true
+      );
       const types = CUISINE_TYPE_MAP[cuisineKey] ?? [];
       const filtered = types.length === 0
         ? openNow
@@ -268,6 +287,12 @@ export default function ResultsScreen() {
     loadResults(true);
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadResults(true, true);
+    setRefreshing(false);
+  };
+
   const loadMore = () => {
     const next = allResults.slice(0, displayed.length + PAGE_SIZE);
     setDisplayed(next);
@@ -280,9 +305,9 @@ export default function ResultsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <AnimatedPressable onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          </AnimatedPressable>
           <Text style={styles.title}>{cuisine}</Text>
           <View style={{ width: 40 }} />
         </View>
@@ -349,6 +374,7 @@ export default function ResultsScreen() {
             }
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
           />
         )}
       </SafeAreaView>

@@ -6,17 +6,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getSearchRadius, setSearchRadius } from '../core/userSettings';
+import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 
-const STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000];
+const STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 const LABELS: Record<number, string> = {
   1000: '1 km', 1500: '1.5 km', 2000: '2 km',
-  2500: '2.5 km', 3000: '3 km', 4000: '4 km', 5000: '5 km',
+  2500: '2.5 km', 3000: '3 km', 4000: '4 km', 5000: '5 km', 6000: '6 km', 8000: '8 km',
 };
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [radius, setRadius] = useState(2000);
+  const [radius, setRadius] = useState(4000);
 
   useEffect(() => {
     getSearchRadius().then(setRadius);

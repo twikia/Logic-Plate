@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RADIUS_KEY = 'search_radius_meters';
-const DEFAULT_RADIUS = 2000;
+const DEFAULT_RADIUS = 4000;
 
 export const getSearchRadius = async (): Promise<number> => {
   try {
@@ -13,6 +13,6 @@ export const getSearchRadius = async (): Promise<number> => {
 };
 
 export const setSearchRadius = async (meters: number): Promise<void> => {
-  const clamped = Math.max(1000, Math.min(5000, meters));
+  const clamped = Math.max(1000, Math.min(8000, meters));
   await AsyncStorage.setItem(RADIUS_KEY, String(clamped));
 };

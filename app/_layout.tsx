@@ -17,17 +17,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack
-          screenOptions={{
-            headerTransparent: true,
-            headerTintColor: '#FFFFFF',
-            headerTitle: '',
-          }}
+          screenOptions={{ headerShown: false }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* profile stays as root-level modal so it overlays the tab bar */}
           <Stack.Screen name="profile" options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }} />
-          <Stack.Screen name="cuisine-results" options={{ headerShown: false, animation: 'slide_from_right' }} />
-          <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
-          <Stack.Screen name="random-result" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

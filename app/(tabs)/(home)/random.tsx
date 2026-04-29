@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  Animated, ActivityIndicator, TextInput, Platform,
+  Animated, ActivityIndicator, TextInput, Platform, RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import * as Location from 'expo-location';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
@@ -19,10 +21,29 @@ const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
 };
 
-const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000];
+const CUISINE_TYPE_MAP: Record<string, string[]> = {
+  italian: ['italian_restaurant'],
+  mexican: ['mexican_restaurant'],
+  japanese: ['japanese_restaurant'],
+  chinese: ['chinese_restaurant'],
+  american: ['american_restaurant', 'hamburger_restaurant'],
+  indian: ['indian_restaurant'],
+  thai: ['thai_restaurant'],
+  mediterranean: ['mediterranean_restaurant'],
+  cafe: ['cafe', 'coffee_shop'],
+  bars: ['bar'],
+  smoothies: ['ice_cream_shop', 'juice_shop'],
+  seafood: ['seafood_restaurant'],
+  steakhouse: ['steak_house'],
+  vegan: ['vegan_restaurant', 'vegetarian_restaurant'],
+  pizza: ['pizza_restaurant'],
+  dessert: ['bakery', 'dessert_shop', 'dessert_restaurant'],
+};
+
+const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 const RADIUS_LABELS: Record<number, string> = {
   1000: '1km', 1500: '1.5km', 2000: '2km',
-  2500: '2.5km', 3000: '3km', 4000: '4km', 5000: '5km',
+  2500: '2.5km', 3000: '3km', 4000: '4km', 5000: '5km', 6000: '6km', 8000: '8km',
 };
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -51,13 +72,23 @@ function SkeletonRow() {
 // ─── Selectable Restaurant Row ────────────────────────────────────────────────
 
 function RestaurantRow({ item, selected, onToggle }: { item: any; selected: boolean; onToggle: () => void }) {
+  const [startLoad, setStartLoad] = useState(false);
+
+  useEffect(() => {
+    // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
+    const timer = setTimeout(() => {
+      setStartLoad(true);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
   const name = item.displayName?.text || 'Unknown';
   const rating = item.rating?.toFixed(1);
   const distM  = Math.round(item.distanceMeters ?? 0);
   const dist   = distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`;
   const price  = PRICE_MAP[item.priceLevel] || '';
   const photo  = item.photos?.[0]?.url;
-  const isOpen = item.currentOpeningHours?.openNow ?? item.businessStatus === 'OPERATIONAL';
+  const isOpen = item.currentOpeningHours?.openNow === true || item.regularOpeningHours?.openNow === true;
 
   return (
     <TouchableOpacity
@@ -68,7 +99,13 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
       {/* Thumb */}
       <View style={styles.thumbWrap}>
         {photo ? (
-          <Image source={{ uri: photo }} style={styles.thumb} contentFit="cover" cachePolicy="memory-disk" />
+          startLoad ? (
+            <Image source={{ uri: photo }} style={styles.thumb} contentFit="cover" cachePolicy="memory-disk" />
+          ) : (
+            <View style={[styles.thumb, { backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }]}>
+              <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+            </View>
+          )
         ) : (
           <View style={[styles.thumb, { backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="restaurant-outline" size={20} color="rgba(255,255,255,0.2)" />
@@ -120,22 +157,59 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
 
 export default function RandomScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
 
   const [allResults, setAllResults]   = useState<any[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
+  const [refreshing, setRefreshing]   = useState(false);
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
   const [selected, setSelected]       = useState<Set<string>>(new Set());
   const [filter, setFilter]           = useState('');
-  const [radius, setRadius]           = useState(2000);
+  const [radius, setRadius]           = useState(4000);
   const [showRadius, setShowRadius]   = useState(false);
 
+  // ── Filter state ──
+  const [showFilters, setShowFilters]     = useState(false);
+  const [openOnly, setOpenOnly]           = useState(true);
+  const [selectedPrices, setSelectedPrices] = useState<Set<string>>(new Set());
+  const [minRating, setMinRating]         = useState(0);
+  const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
+
+  const PRICE_LEVELS = [
+    { key: 'PRICE_LEVEL_INEXPENSIVE', label: '$' },
+    { key: 'PRICE_LEVEL_MODERATE',    label: '$$' },
+    { key: 'PRICE_LEVEL_EXPENSIVE',   label: '$$$' },
+    { key: 'PRICE_LEVEL_VERY_EXPENSIVE', label: '$$$$' },
+  ];
+  const RATING_OPTS = [0, 3.0, 3.5, 4.0, 4.5];
+
+  const togglePrice = (key: string) => {
+    const next = new Set(selectedPrices);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    setSelectedPrices(next);
+  };
+
+  const toggleCuisine = (key: string) => {
+    const next = new Set(selectedCuisines);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    setSelectedCuisines(next);
+  };
+
+  const activeFilterCount =
+    (openOnly ? 1 : 0) +
+    (selectedPrices.size > 0 ? 1 : 0) +
+    (minRating > 0 ? 1 : 0) +
+    (selectedCuisines.size > 0 ? 1 : 0);
+
   useEffect(() => {
-    getSearchRadius().then(setRadius);
-    loadResults();
+    getSearchRadius().then(r => {
+      setRadius(r);
+      loadResults(r);
+    });
   }, []);
 
-  const loadResults = async (forceRadius?: number) => {
-    setIsLoading(true);
+  const loadResults = async (r: number, isRefresh = false) => {
+    if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -144,21 +218,25 @@ export default function RandomScreen() {
         setIsLoading(false);
         return;
       }
-      const [loc, r] = await Promise.all([
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-        getSearchRadius(),
-      ]);
-      const effectiveRadius = forceRadius ?? r;
-      const all = await getNearbyRestaurants(loc.coords.latitude, loc.coords.longitude, effectiveRadius);
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const all = await getNearbyRestaurants(loc.coords.latitude, loc.coords.longitude, r);
       setAllResults(all);
-      // Start with everything selected
-      setSelected(new Set(all.map((r: any) => r.id)));
+      
+      // Select only restaurants that are open by default
+      const initialSelected = all.filter((r: any) => r.currentOpeningHours?.openNow === true || r.regularOpeningHours?.openNow === true);
+      setSelected(new Set(initialSelected.map((r: any) => r.id)));
     } catch (e) {
       console.error(e);
       setErrorMsg('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadResults(radius, true);
+    setRefreshing(false);
   };
 
   const changeRadius = async (val: number) => {
@@ -168,9 +246,25 @@ export default function RandomScreen() {
     loadResults(val);
   };
 
-  const filtered = allResults.filter(r =>
-    (r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase())
-  );
+  const filtered = allResults.filter(r => {
+    if (!((r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
+    if (openOnly) {
+      const isOpen = r.currentOpeningHours?.openNow === true || r.regularOpeningHours?.openNow === true;
+      if (!isOpen) return false;
+    }
+    if (selectedPrices.size > 0 && r.priceLevel && !selectedPrices.has(r.priceLevel)) return false;
+    if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
+    if (selectedCuisines.size > 0) {
+      const pType = r.primaryType;
+      const tTypes = r.types || [];
+      const hasMatch = Array.from(selectedCuisines).some(cuisineKey => {
+        const mappedTypes = CUISINE_TYPE_MAP[cuisineKey] || [];
+        return mappedTypes.some(t => pType === t || tTypes.includes(t));
+      });
+      if (!hasMatch) return false;
+    }
+    return true;
+  });
 
   const allSelectedInView = filtered.length > 0 && filtered.every(r => selected.has(r.id));
 
@@ -194,13 +288,13 @@ export default function RandomScreen() {
   };
 
   const pickOne = () => {
-    const pool = allResults.filter(r => selected.has(r.id));
+    const pool = filtered.filter(r => selected.has(r.id));
     if (pool.length === 0) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     router.push({ pathname: '/random-result', params: { data: JSON.stringify(pick) } });
   };
 
-  const selectedCount = allResults.filter(r => selected.has(r.id)).length;
+  const selectedCount = filtered.filter(r => selected.has(r.id)).length;
 
   return (
     <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
@@ -208,9 +302,9 @@ export default function RandomScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <AnimatedPressable onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          </AnimatedPressable>
           <Text style={styles.title}>Random Pick</Text>
           <View style={{ width: 40 }} />
         </View>
@@ -237,6 +331,16 @@ export default function RandomScreen() {
             <Text style={styles.radiusChipText}>{RADIUS_LABELS[radius]}</Text>
             <Ionicons name={showRadius ? 'chevron-up' : 'chevron-down'} size={12} color="rgba(255,255,255,0.4)" />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.radiusChip, activeFilterCount > 0 && styles.filterChipActive]}
+            onPress={() => setShowFilters(v => !v)}
+          >
+            <Ionicons name="options-outline" size={12} color={activeFilterCount > 0 ? '#FFFFFF' : '#F9A06F'} />
+            <Text style={[styles.radiusChipText, activeFilterCount > 0 && { color: '#FFFFFF' }]}>
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {showRadius && (
@@ -255,9 +359,82 @@ export default function RandomScreen() {
           </View>
         )}
 
+        {showFilters && (
+          <View style={styles.filterPanel}>
+            {/* Open Now toggle */}
+            <View style={styles.filterRow}>
+              <Text style={styles.filterLabel}>Open Now</Text>
+              <TouchableOpacity
+                style={[styles.filterToggle, openOnly && styles.filterToggleOn]}
+                onPress={() => setOpenOnly(v => !v)}
+              >
+                {openOnly && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                <Text style={[styles.filterToggleText, openOnly && { color: '#FFFFFF' }]}>
+                  {openOnly ? 'On' : 'Off'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Price filter */}
+            <Text style={styles.filterSubLabel}>Price</Text>
+            <View style={styles.filterPills}>
+              <TouchableOpacity
+                style={[styles.filterPill, selectedPrices.size === 0 && styles.filterPillActive]}
+                onPress={() => setSelectedPrices(new Set())}
+              >
+                <Text style={[styles.filterPillText, selectedPrices.size === 0 && styles.filterPillTextActive]}>Any</Text>
+              </TouchableOpacity>
+              {PRICE_LEVELS.map(p => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={[styles.filterPill, selectedPrices.has(p.key) && styles.filterPillActive]}
+                  onPress={() => togglePrice(p.key)}
+                >
+                  <Text style={[styles.filterPillText, selectedPrices.has(p.key) && styles.filterPillTextActive]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Min Rating filter */}
+            <Text style={styles.filterSubLabel}>Min Rating</Text>
+            <View style={styles.filterPills}>
+              {RATING_OPTS.map(r => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.filterPill, minRating === r && styles.filterPillActive]}
+                  onPress={() => setMinRating(r)}
+                >
+                  <Text style={[styles.filterPillText, minRating === r && styles.filterPillTextActive]}>
+                    {r === 0 ? 'Any' : `${r}+`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Cuisines filter */}
+            <Text style={styles.filterSubLabel}>Cuisines</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
+              {Object.keys(CUISINE_TYPE_MAP).map(key => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.filterPill, selectedCuisines.has(key) && styles.filterPillActive]}
+                  onPress={() => toggleCuisine(key)}
+                >
+                  <Text style={[styles.filterPillText, selectedCuisines.has(key) && styles.filterPillTextActive]}>
+                    {key.charAt(0).toUpperCase() + key.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Select all row */}
         {!isLoading && !errorMsg && allResults.length > 0 && (
           <View style={styles.selectAllRow}>
+            <Text style={styles.subtitle}>{filtered.length} restaurants matching filters</Text>
             <TouchableOpacity style={styles.selectAllBtn} onPress={toggleSelectAll}>
               <View style={[styles.checkbox, allSelectedInView && styles.checkboxSelected]}>
                 {allSelectedInView && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
@@ -266,9 +443,6 @@ export default function RandomScreen() {
                 {allSelectedInView ? 'Deselect All' : 'Select All'}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.countText}>
-              {selectedCount} / {allResults.length} selected
-            </Text>
           </View>
         )}
 
@@ -305,11 +479,7 @@ export default function RandomScreen() {
                 onToggle={() => toggleOne(item.id)}
               />
             )}
-            ListHeaderComponent={
-              <Text style={styles.subtitle}>
-                {filtered.length} restaurant{filtered.length !== 1 ? 's' : ''} nearby
-              </Text>
-            }
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
             ListFooterComponent={<View style={{ height: 120 }} />}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
@@ -453,4 +623,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22, paddingVertical: 15, borderRadius: 30,
   },
   pickBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+
+  // Filter chip (active state)
+  filterChipActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
+
+  // Filter panel
+  filterPanel: {
+    marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: 'rgba(30,15,30,0.75)', borderRadius: 18,
+    padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    gap: 10,
+  },
+  filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  filterLabel: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
+  filterSubLabel: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600', marginTop: 4 },
+  filterToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+  },
+  filterToggleOn: { backgroundColor: '#4CD964', borderColor: '#4CD964' },
+  filterToggleText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.5)' },
+  filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  filterPill: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  },
+  filterPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
+  filterPillText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+  filterPillTextActive: { color: '#FFFFFF' },
 });

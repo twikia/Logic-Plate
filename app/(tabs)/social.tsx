@@ -1,10 +1,12 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {  StyleSheet, Text, View,  } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
+import { TopProfileButton } from '@/components/ui/TopProfileButton';
 
 export default function SocialScreen() {
   return (
-    <LinearGradient colors={['#FFB399', '#A8E6CF']} style={styles.background}>
+    <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+      <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
         <Text style={styles.pageTitle}>Social</Text>
         <View style={styles.card}>

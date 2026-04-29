@@ -1,10 +1,12 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {  StyleSheet, Text, View,  } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
+import { TopProfileButton } from '@/components/ui/TopProfileButton';
 
 export default function MapScreen() {
   return (
     <LinearGradient colors={['#5C255C', '#F9A06F']} style={styles.background}>
+      <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
         <Text style={styles.pageTitle}>Map</Text>
         <View style={styles.card}>

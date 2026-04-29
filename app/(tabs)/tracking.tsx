@@ -1,10 +1,12 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {  StyleSheet, Text, View,  } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
+import { TopProfileButton } from '@/components/ui/TopProfileButton';
 
 export default function TrackingScreen() {
   return (
     <LinearGradient colors={['#FFB399', '#A8E6CF']} style={styles.background}>
+      <TopProfileButton />
       <SafeAreaView style={styles.safeArea}>
         <Text style={styles.pageTitle}>Tracking</Text>
         <View style={styles.card}>

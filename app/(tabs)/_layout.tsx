@@ -12,7 +12,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { useProfileIcon } from '@/hooks/useProfileIcon';
 
 // ─── Animated Tab Icon ──────────────────────────────────────────────────────
 // Self-contained: owns its own animation AND its own highlight based on isActive.
@@ -72,7 +71,6 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [lastPress, setLastPress] = useState(0);
-  const { icon } = useProfileIcon();
 
   // Derive active tab from pathname — guaranteed accurate
   const isResearch  = pathname.startsWith('/research');
@@ -84,35 +82,11 @@ export default function TabLayout() {
   return (
     <Tabs
       initialRouteName="(home)"
+      sceneContainerStyle={{ backgroundColor: '#422046' }}
       screenOptions={{
-        headerTransparent: true,
-        headerTitle: '',
+        headerShown: false,
         tabBarShowLabel: false,
         tabBarButton: HapticTab,
-        headerRight: () => (
-          <View style={{ marginRight: 20 }}>
-            <Link href={"/profile" as any} asChild>
-              <AnimatedPressable>
-                {({ pressed }) => (
-                  <View style={{
-                    opacity: pressed ? 0.7 : 1,
-                    borderRadius: 27,
-                    overflow: 'hidden',
-                    borderWidth: 2,
-                    borderColor: 'rgba(255,255,255,0.5)',
-                    backgroundColor: 'rgba(0,0,0,0.3)',
-                    width: 54,
-                    height: 54,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    <Text style={{ fontSize: 30 }}>{icon}</Text>
-                  </View>
-                )}
-              </AnimatedPressable>
-            </Link>
-          </View>
-        ),
       }}>
 
       {/* Research */}
