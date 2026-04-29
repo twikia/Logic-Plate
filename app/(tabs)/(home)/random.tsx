@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { getLocation } from '../../../core/locationCache';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {
@@ -220,14 +221,14 @@ export default function RandomScreen() {
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      // Use cached GPS — avoids 3-10s re-acquisition on every navigation
+      const coords = await getLocation(isRefresh);
+      if (!coords) {
         setErrorMsg('Location access is needed to find nearby restaurants.\n\nEnable it in Settings → Privacy → Location.');
         setIsLoading(false);
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const all = await getNearbyRestaurants(loc.coords.latitude, loc.coords.longitude, r);
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r);
       setAllResults(all);
 
       // Select only restaurants that are open by default

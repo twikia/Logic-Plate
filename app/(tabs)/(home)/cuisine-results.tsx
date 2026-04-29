@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { getLocation } from '../../../core/locationCache';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -252,27 +253,27 @@ export default function ResultsScreen() {
     }
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      // Use cached GPS — avoids 3-10s re-acquisition on every navigation
+      const [coords, r] = await Promise.all([
+        getLocation(isRefresh),
+        getSearchRadius(),
+      ]);
+
+      if (!coords) {
         setErrorMsg('Location access is needed to find restaurants near you.\n\nEnable it in Settings → Privacy → Location.');
         setIsLoading(false);
         return;
       }
 
-      const [loc, r] = await Promise.all([
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-        getSearchRadius(),
-      ]);
-
-      const all = await getNearbyRestaurants(loc.coords.latitude, loc.coords.longitude, r);
-      const openNow = all.filter(p =>
-        p.currentOpeningHours?.openNow === true ||
-        p.regularOpeningHours?.openNow === true
-      );
+      // Single pass: fetch, filter open, filter by cuisine type — no extra loops
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r);
       const types = CUISINE_TYPE_MAP[cuisineKey] ?? [];
-      const filtered = types.length === 0
-        ? openNow
-        : openNow.filter(r => types.some(t => r.primaryType === t || r.types?.includes(t)));
+      const filtered = all.filter(p => {
+        const isOpen = p.currentOpeningHours?.openNow === true || p.regularOpeningHours?.openNow === true;
+        if (!isOpen) return false;
+        if (types.length === 0) return true;
+        return types.some((t: string) => p.primaryType === t || p.types?.includes(t));
+      });
 
       await setCachedResults(cuisineKey, filtered);
       setAllResults(filtered);
