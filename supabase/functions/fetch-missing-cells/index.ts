@@ -70,7 +70,7 @@ serve(async (req) => {
           },
         };
 
-        const fieldMask = 'places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.types,places.priceLevel,places.rating,places.userRatingCount,places.currentOpeningHours,places.regularOpeningHours,places.businessStatus,places.photos,places.websiteUri,places.nationalPhoneNumber';
+        const fieldMask = 'places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.types,places.priceLevel,places.rating,places.userRatingCount,places.currentOpeningHours,places.regularOpeningHours,places.businessStatus,places.websiteUri,places.nationalPhoneNumber';
 
         const response = await fetch(url, {
           method: 'POST',
@@ -89,17 +89,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        const rawPlaces = data.places || [];
-
-        // Pre-build photo URLs server-side so the client never needs a Google key
-        const places = rawPlaces.map((place: any) => ({
-          ...place,
-          photos: place.photos?.map((photo: any) => ({
-            name: photo.name,
-            url: `https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=400&key=${googleMapsKey}`,
-            uri: `https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=400&key=${googleMapsKey}`,
-          })) ?? [],
-        }));
+        const places = data.places || [];
         
         newlyFetchedRestaurants.push({ cellId: cell.cellId, places });
 
