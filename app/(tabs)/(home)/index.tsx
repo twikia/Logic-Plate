@@ -2,7 +2,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -10,6 +10,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 
 export default function HomeScreen() {
   const { theme } = useAppTheme();
+  const router = useRouter();
 
   return (
     <LinearGradient
@@ -31,30 +32,33 @@ export default function HomeScreen() {
             <Text style={[styles.pageTitle, { color: theme.text }]}>Find your meal!</Text>
           </View>
 
-          <Link href="/feeling" asChild>
-            <AnimatedPressable style={[styles.giantButton, { backgroundColor: theme.cardBackground, flexDirection: 'row' }]}>
-              <IconSymbol name="heart.fill" size={32} color="#FF8C00" />
-              <Text style={[styles.buttonText, { color: theme.text }]}>Feeling</Text>
-            </AnimatedPressable>
-          </Link>
+          <AnimatedPressable
+            onPress={() => router.push('/feeling')}
+            style={[styles.homeButton, { backgroundColor: theme.cardBackground }]}
+          >
+            <IconSymbol name="heart.fill" size={32} color="#FF8C00" />
+            <Text style={[styles.homeButtonLabel, { color: theme.text }]}>Feeling</Text>
+          </AnimatedPressable>
 
 
 
-          <Link href="/health" asChild>
-            <AnimatedPressable style={[styles.giantButton, { backgroundColor: theme.cardBackground, flexDirection: 'row' }]}>
-              <IconSymbol name="leaf.fill" size={32} color="#4CAF50" />
-              <Text style={[styles.buttonText, { color: theme.text }]}>Health</Text>
-            </AnimatedPressable>
-          </Link>
+          <AnimatedPressable
+            onPress={() => router.push('/health')}
+            style={[styles.homeButton, { backgroundColor: theme.cardBackground }]}
+          >
+            <IconSymbol name="leaf.fill" size={32} color="#4CAF50" />
+            <Text style={[styles.homeButtonLabel, { color: theme.text }]}>Health</Text>
+          </AnimatedPressable>
 
 
 
-          <Link href="/random" asChild>
-            <AnimatedPressable style={[styles.giantButton, { backgroundColor: theme.cardBackground, flexDirection: 'row' }]}>
-              <IconSymbol name="shuffle" size={32} color="#00D2FF" />
-              <Text style={[styles.buttonText, { color: theme.text }]}>Select</Text>
-            </AnimatedPressable>
-          </Link>
+          <AnimatedPressable
+            onPress={() => router.push('/random')}
+            style={[styles.homeButton, { backgroundColor: theme.cardBackground }]}
+          >
+            <IconSymbol name="shuffle" size={32} color="#00D2FF" />
+            <Text style={[styles.homeButtonLabel, { color: theme.text }]}>Select</Text>
+          </AnimatedPressable>
 
 
         </View>
@@ -98,15 +102,16 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
     gap: 30,
   },
-  giantButton: {
+  homeButton: {
     width: '65%',
-    backgroundColor: '#3D2B3D',
+    minHeight: 86,
     borderRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 22,
+    paddingVertical: 20,
     paddingHorizontal: 20,
+    alignSelf: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 15,
@@ -114,10 +119,9 @@ const styles = StyleSheet.create({
     elevation: 10,
     gap: 15,
   },
-  buttonText: {
+  homeButtonLabel: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#FFFFFF',
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,

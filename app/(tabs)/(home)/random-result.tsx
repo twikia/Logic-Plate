@@ -44,13 +44,20 @@ function openGoogleMaps(name: string, lat: number, lng: number) {
 
 // ─── Photo carousel ───────────────────────────────────────────────────────────
 
-const toHighQualityPhotoUrl = (uri: string, maxPx: number = 250) => {
+const toHighQualityPhotoUrl = (uri: string, maxPx: number = 800) => {
   if (!uri) return uri;
+  // Handle both New API (maxWidthPx) and Old API (maxwidth)
   if (uri.includes('maxWidthPx=')) {
     return uri.replace(/maxWidthPx=\d+/, `maxWidthPx=${maxPx}`);
   }
+  if (uri.includes('maxwidth=')) {
+    return uri.replace(/maxwidth=\d+/, `maxwidth=${maxPx}`);
+  }
   if (uri.includes('maxHeightPx=')) {
     return uri.replace(/maxHeightPx=\d+/, `maxHeightPx=${maxPx}`);
+  }
+  if (uri.includes('maxheight=')) {
+    return uri.replace(/maxheight=\d+/, `maxheight=${maxPx}`);
   }
   const joiner = uri.includes('?') ? '&' : '?';
   return `${uri}${joiner}maxWidthPx=${maxPx}`;
@@ -61,6 +68,13 @@ const resolvePhotoUri = (photo: any): string | null => {
   if (typeof photo === 'string') return photo;
   if (typeof photo.url === 'string' && photo.url.length > 0) return photo.url;
   if (typeof photo.uri === 'string' && photo.uri.length > 0) return photo.uri;
+  if (typeof photo.photoUri === 'string' && photo.photoUri.length > 0) return photo.photoUri;
+  // Fallback for any other string property that looks like a URL
+  for (const key in photo) {
+    if (typeof photo[key] === 'string' && (photo[key].startsWith('http') || photo[key].startsWith('https'))) {
+      return photo[key];
+    }
+  }
   return null;
 };
 
@@ -83,10 +97,10 @@ function CarouselPhoto({ uris, width }: { uris: string[]; width: number }) {
   }, [uris]);
 
   useEffect(() => {
-    // Hard delay of 600ms ensures the 400ms slide animation finishes and UI is completely rendered before ANY images load
+    // Reduced delay for faster perceived loading
     const timer = setTimeout(() => {
       setStartLoad(true);
-    }, 600);
+    }, 200);
     return () => clearTimeout(timer);
   }, []);
 
