@@ -1,4 +1,6 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { useAppTheme } from '@/context/ThemeContext';
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,20 +11,19 @@ import {
   FlatList,
   Linking, Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
-import { RestaurantImage } from '../../../core/images';
-import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
-import { useAppTheme } from '@/context/ThemeContext';
 
 
 const PAGE_SIZE = 10;
@@ -96,7 +97,10 @@ function openMaps(name: string, lat: number, lng: number) {
 // ─── Photo Strip (Horizontal scroll of images) ────────────────────────────────
 
 function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
-  if (!photos || photos.length === 0) {
+  // Show however many photos we actually have (1–3). Never render empty ghost slots.
+  const displayPhotos = (photos || []).slice(0, 3);
+
+  if (displayPhotos.length === 0) {
     return (
       <View style={[styles.photoEmpty, { height: 120 }]}>
         <Ionicons name="restaurant-outline" size={32} color="rgba(255,255,255,0.15)" />
@@ -104,13 +108,10 @@ function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: an
     );
   }
 
-  // Show up to 5 photos in the strip
-  const displayPhotos = photos.slice(0, 5);
-
   return (
-    <ScrollView 
-      horizontal 
-      showsHorizontalScrollIndicator={false} 
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
       style={styles.photoStrip}
       contentContainerStyle={styles.photoStripContent}
     >
@@ -122,7 +123,7 @@ function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: an
             width={180}
             height={120}
             quality={400}
-            loadDelay={100 + (index * 150)} // Staggered loading
+            loadDelay={100 + (index * 150)}
             borderRadius={12}
           />
         </View>
@@ -133,7 +134,7 @@ function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: an
 
 // ─── Restaurant Card ─────────────────────────────────────────────────────────
 
-function RestaurantCard({ item }: { item: any }) {
+function RestaurantCard({ item, cuisineKey }: { item: any; cuisineKey?: string }) {
   const { formatDistance } = useDistanceFormatter();
   const name = item.displayName?.text || 'Unknown';
   const price = PRICE_MAP[item.priceLevel] || '';
@@ -142,11 +143,37 @@ function RestaurantCard({ item }: { item: any }) {
   const distance = `${formatDistance(distM)} away`;
   const lat = item.location?.latitude;
   const lng = item.location?.longitude;
+  // Start with Google Places photos as placeholder until three-tier fetch completes
+  const [photos, setPhotos] = useState<any[]>(item.photos || []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPhotos = async () => {
+      if (!item?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
+
+      const urls = await fetchRestaurantPhotoUrls({
+        placeId:    item.id,
+        name,
+        latitude:   lat,
+        longitude:  lng,
+        websiteUrl: item.websiteUri || undefined,
+        cuisineKey: cuisineKey || item.primaryType?.replace(/_restaurant$/, '') || undefined,
+      });
+
+      if (cancelled) return;
+
+      // Use fetched URLs if we got any, otherwise keep the Google fallback
+      setPhotos(urls.length > 0 ? urls.slice(0, 3) : (item.photos || []).slice(0, 3));
+    };
+
+    loadPhotos();
+    return () => { cancelled = true; };
+  }, [item?.id, name, lat, lng, item?.photos, cuisineKey]);
 
   return (
     <View style={styles.card}>
-      {/* Photo Strip — restored 3-card carousel functionality using decoupled images */}
-      <PhotoStrip restaurantId={item.id} photos={item.photos || []} />
+      <PhotoStrip restaurantId={item.id} photos={photos} />
       <View style={styles.cardContent}>
 
         <View style={styles.cardHeader}>
@@ -301,8 +328,8 @@ export default function ResultsScreen() {
 
   const keyExtractor = React.useCallback((item: any) => item.id, []);
   const renderItem = React.useCallback(({ item }: { item: any }) => (
-    <MemoizedRestaurantCard item={item} />
-  ), []);
+    <MemoizedRestaurantCard item={item} cuisineKey={cuisineKey} />
+  ), [cuisineKey]);
 
   return (
     <LinearGradient colors={theme.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>

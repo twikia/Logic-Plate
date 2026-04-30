@@ -415,3 +415,9 @@ entrypoint = "./functions/fetch-missing-cells/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/fetch-missing-cells/*.html" ]
+
+[functions.fetch-foursquare-photos]
+enabled = true
+verify_jwt = true
+import_map = "./functions/fetch-foursquare-photos/deno.json"
+entrypoint = "./functions/fetch-foursquare-photos/index.ts"

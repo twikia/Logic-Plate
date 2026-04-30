@@ -1,9 +1,10 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dimensions,
   Linking, Platform,
@@ -16,8 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentRestaurant } from '../../../core/currentSelection';
-import { RestaurantImage } from '../../../core/images';
-import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
+import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 
 const PRICE_MAP: Record<string, string> = {
   PRICE_LEVEL_INEXPENSIVE: '$',
@@ -46,7 +46,8 @@ function openGoogleMaps(name: string, lat: number, lng: number) {
 function PhotoCarousel({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
   const [active, setActive] = useState(0);
   const screenWidth = Dimensions.get('window').width;
-  const slideCount = Math.min(5, (photos || []).length);
+  // Show up to 4 slides — matches our three-tier TARGET_PHOTOS count
+  const slideCount = Math.min(4, (photos || []).length);
 
   if (!slideCount) {
     return (
@@ -166,7 +167,39 @@ export default function RandomResultScreen() {
   const weekdays = place.currentOpeningHours?.weekdayDescriptions
     ?? place.regularOpeningHours?.weekdayDescriptions
     ?? [];
-  const photos = place.photos || [];
+  const [photos, setPhotos] = useState<any[]>(place.photos || []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPhotos = async () => {
+      const placeId   = place.id;
+      const placeName = place.displayName?.text;
+      const placeLat  = place.location?.latitude;
+      const placeLng  = place.location?.longitude;
+
+      if (!placeId || !placeName || typeof placeLat !== 'number' || typeof placeLng !== 'number') return;
+
+      const photoUrls = await fetchRestaurantPhotoUrls({
+        placeId,
+        name:       placeName,
+        latitude:   placeLat,
+        longitude:  placeLng,
+        websiteUrl: place.websiteUri || undefined,
+        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+      });
+
+      if (cancelled || photoUrls.length === 0) return;
+
+      setPhotos(photoUrls);
+    };
+
+    loadPhotos();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [place.id, place.displayName?.text, place.location?.latitude, place.location?.longitude]);
 
   const handleShare = async () => {
     try {

@@ -131,6 +131,34 @@ Supabase table name – we’ll create user_places. If you prefer a different na
 Column types – the plan uses place_id (text), favorited (boolean), visits (int), note (text).
 3 Maximum recents – we’ll limit the recent list to the 10 most recent entries (by last_visited).
 
+## Gemini ratings and meaning
+
+Summary of good and bad about the place
+
+Speed score 0-5 (0 is slowest)
+
+Health score 0-10 with decimals (10 is best)
+
+Workout recovery score 0-10 no decimals (10 is best)
+
+processed score 0-10 no decimals (10 is no process)
+
+calorie score 0-5 (5 is most calories)
+
+protien score 0-5 (5 is most protien)
+
+carb score 0-5 (5 is most carbs)
+
+date worthinesss 0-5 (5 is best)
+
+noise level estimate 0-5 (5 is most noisy)
+
+group size sweet spot 1-6 people
+
+absolute macros - with ai caviat
+
+who this place is really for
+
 ## Google restaurant returns:
 id
 
