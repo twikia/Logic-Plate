@@ -407,7 +407,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.fetch-missing-cells]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/fetch-missing-cells/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -418,12 +418,18 @@ entrypoint = "./functions/fetch-missing-cells/index.ts"
 
 [functions.generate-ai-overviews]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/generate-ai-overviews/deno.json"
 entrypoint = "./functions/generate-ai-overviews/index.ts"
 
 [functions.fetch-foursquare-photos]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/fetch-foursquare-photos/deno.json"
 entrypoint = "./functions/fetch-foursquare-photos/index.ts"
+
+[functions.fetch-restaurant-photos]
+enabled = true
+verify_jwt = false
+import_map = "./functions/fetch-restaurant-photos/deno.json"
+entrypoint = "./functions/fetch-restaurant-photos/index.ts"

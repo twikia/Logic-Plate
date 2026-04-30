@@ -210,7 +210,6 @@ export const fetchRestaurantPhotoUrls = async ({
     if (raw) {
       const parsed = JSON.parse(raw) as { photo_urls?: string[]; ts?: number };
       if (parsed?.ts && Date.now() - parsed.ts < PHOTO_CACHE_TTL_MS && Array.isArray(parsed.photo_urls)) {
-        console.log(`[ImageCache] Local cache hit for ${placeId} (${parsed.photo_urls.length} urls)`);
         return parsed.photo_urls;
       }
     }
@@ -234,7 +233,6 @@ export const fetchRestaurantPhotoUrls = async ({
     const ageMs = Date.now() - new Date(cached.updated_at).getTime();
     if (ageMs < PHOTO_CACHE_TTL_MS) {
       const urls = Array.isArray(cached.photo_urls) ? cached.photo_urls : [];
-      console.log(`[ImageCache] DB cache hit for ${placeId} (${urls.length} urls)`);
       // Backfill local cache
       AsyncStorage.setItem(localKey, JSON.stringify({ photo_urls: urls, ts: Date.now() }))
         .catch(e => console.error('[ImageCache] Local backfill write error:', e));
