@@ -416,6 +416,12 @@ entrypoint = "./functions/fetch-missing-cells/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/fetch-missing-cells/*.html" ]
 
+[functions.generate-ai-overviews]
+enabled = true
+verify_jwt = true
+import_map = "./functions/generate-ai-overviews/deno.json"
+entrypoint = "./functions/generate-ai-overviews/index.ts"
+
 [functions.fetch-foursquare-photos]
 enabled = true
 verify_jwt = true

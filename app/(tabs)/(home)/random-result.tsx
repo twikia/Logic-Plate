@@ -200,6 +200,7 @@ export default function RandomResultScreen() {
       cancelled = true;
     };
   }, [place.id, place.displayName?.text, place.location?.latitude, place.location?.longitude]);
+  const aiOverview = place.aiOverview;
 
   const handleShare = async () => {
     try {
@@ -304,29 +305,44 @@ export default function RandomResultScreen() {
           {/* Opening hours */}
           <HoursSection weekdays={weekdays} />
 
-          {/* AI Overview — placeholder */}
+          {/* AI Overview */}
           <View style={[styles.section, styles.aiSection]}>
             <View style={styles.sectionHeader}>
               <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
               <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI Overview</Text>
-              <View style={styles.soonBadge}><Text style={styles.soonText}>Coming Soon</Text></View>
             </View>
-            <View style={styles.aiPlaceholder}>
-              <View style={styles.aiLine} />
-              <View style={[styles.aiLine, { width: '85%' }]} />
-              <View style={[styles.aiLine, { width: '70%' }]} />
-            </View>
+            {aiOverview ? (
+              <View style={{ gap: 8 }}>
+                <Text style={styles.sectionBody}>{aiOverview.summaryGoodBad}</Text>
+                <Text style={styles.sectionBody}>Speed: {aiOverview.speedScore}/10</Text>
+                <Text style={styles.sectionBody}>Health: {aiOverview.healthScore}/10</Text>
+                <Text style={styles.sectionBody}>Workout Recovery: {aiOverview.workoutRecoveryScore}/10</Text>
+                <Text style={styles.sectionBody}>Processed: {aiOverview.processedScore}/10</Text>
+                <Text style={styles.sectionBody}>Calories: {aiOverview.calorieScore}/5</Text>
+                <Text style={styles.sectionBody}>Protein: {aiOverview.proteinScore}/5</Text>
+                <Text style={styles.sectionBody}>Carbs: {aiOverview.carbScore}/5</Text>
+                <Text style={styles.sectionBody}>Date Worthiness: {aiOverview.dateWorthiness}/5</Text>
+                <Text style={styles.sectionBody}>Noise: {aiOverview.noiseLevelEstimate}/5</Text>
+                <Text style={styles.sectionBody}>Group Sweet Spot: {aiOverview.groupSizeSweetSpot} people</Text>
+                <Text style={styles.sectionBody}>{aiOverview.absoluteMacros}</Text>
+                <Text style={styles.sectionBody}>{aiOverview.whoThisPlaceIsFor}</Text>
+              </View>
+            ) : (
+              <Text style={styles.sectionBody}>Generating AI overview...</Text>
+            )}
           </View>
 
-          {/* Health Score placeholder */}
+          {/* Health Score */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="heart-outline" size={16} color="#A8D5A2" />
               <Text style={[styles.sectionTitle, { color: '#A8D5A2' }]}>Health Score</Text>
-              <View style={styles.soonBadge}><Text style={styles.soonText}>Coming Soon</Text></View>
+              <Text style={styles.soonText}>
+                {typeof aiOverview?.healthScore === 'number' ? `${aiOverview.healthScore}/10` : 'Pending'}
+              </Text>
             </View>
             <View style={styles.healthBar}>
-              <View style={[styles.healthFill, { width: '0%' }]} />
+              <View style={[styles.healthFill, { width: `${((aiOverview?.healthScore ?? 0) / 10) * 100}%` }]} />
             </View>
           </View>
 

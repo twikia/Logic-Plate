@@ -27,3 +27,28 @@ USING (true);
 
 -- Index for future cache invalidation
 CREATE INDEX idx_restaurant_cache_fetched_at ON restaurant_cache (fetched_at);
+
+CREATE TABLE ai_overview_cache (
+    place_id TEXT PRIMARY KEY,
+    summary_good_bad TEXT,
+    speed_score NUMERIC(4,2),
+    health_score NUMERIC(4,2),
+    workout_recovery_score INTEGER,
+    processed_score INTEGER,
+    calorie_score INTEGER,
+    protein_score INTEGER,
+    carb_score INTEGER,
+    date_worthiness INTEGER,
+    noise_level_estimate INTEGER,
+    group_size_sweet_spot INTEGER,
+    absolute_macros TEXT,
+    who_this_place_is_for TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE ai_overview_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read access to ai overview cache"
+ON ai_overview_cache
+FOR SELECT
+USING (true);
