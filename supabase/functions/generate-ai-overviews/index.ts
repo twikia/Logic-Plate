@@ -131,18 +131,18 @@ Output format requirements:
   "whoThisPlaceIsFor": "string"
 }
 2) summaryGoodBad: concise balanced pros and cons, max 320 chars.
-3) speedScore: integer 0-10.
-4) healthScore: decimal 0-10, one decimal place allowed.
-5) workoutRecoveryScore: integer 0-10.
-6) processedScore: integer 0-10.
-7) calorieScore: integer 0-5.
-8) proteinScore: integer 0-5.
-9) carbScore: integer 0-5.
-10) dateWorthiness: integer 0-5.
-11) noiseLevelEstimate: integer 0-5.
-12) groupSizeSweetSpot: integer 1-6.
-13) absoluteMacros: include estimated calories/protein/carbs/fat plus uncertainty caveat in one string.
-14) whoThisPlaceIsFor: single concise string.
+3) speedScore: integer 0-5 where 0 is slowest.
+4) healthScore: decimal 0-10 where 10 is best; one decimal place allowed.
+5) workoutRecoveryScore: integer 0-10 where 10 is best; no decimals.
+6) processedScore: integer 0-10 where 10 means least processed; no decimals.
+7) calorieScore: integer 0-5 where 5 is most calories.
+8) proteinScore: integer 0-5 where 5 is most protein.
+9) carbScore: integer 0-5 where 5 is most carbs.
+10) dateWorthiness: integer 0-5 where 5 is best.
+11) noiseLevelEstimate: integer 0-5 where 5 is most noisy.
+12) groupSizeSweetSpot: integer 1-6 people.
+13) absoluteMacros: include estimated absolute calories/protein/carbs/fat plus an AI uncertainty caveat in one string.
+14) whoThisPlaceIsFor: single concise string describing who this place is really for.
 15) Do not group classifications into combined labels.
 16) Use googleMapsUri and coordinates to disambiguate the exact listing when signals conflict.
 `;
@@ -159,7 +159,7 @@ const sanitizeOverview = (raw: any): AiOverview | null => {
   const whoThisPlaceIsFor = String(raw.whoThisPlaceIsFor ?? '').trim();
   if (!summaryGoodBad || !absoluteMacros || !whoThisPlaceIsFor) return null;
 
-  const speedScore = clamp(toInt(raw.speedScore), 0, 10);
+  const speedScore = clamp(toInt(raw.speedScore), 0, 5);
   const healthScore = clamp(toFloat(raw.healthScore), 0, 10);
   const workoutRecoveryScore = clamp(toInt(raw.workoutRecoveryScore), 0, 10);
   const processedScore = clamp(toInt(raw.processedScore), 0, 10);
