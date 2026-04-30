@@ -1,6 +1,7 @@
 import { getCellsInRadius, getCellCenter } from './h3Utils';
 import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
+import { getAiOverviewsForPlaces } from './aiOverviewCache';
 
 /**
  * Computes the great-circle distance between two points on a sphere given their longitudes and latitudes
@@ -89,7 +90,16 @@ export const getNearbyRestaurants = async (userLat: number, userLng: number, rad
     .filter(place => place.distanceMeters <= safeRadius)
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
-  return finalList;
+  const aiOverviews = await getAiOverviewsForPlaces(finalList);
+  return finalList.map(place => {
+    const aiOverview = place.id ? aiOverviews.get(place.id) : undefined;
+    if (!aiOverview) return place;
+    return {
+      ...place,
+      aiOverview,
+      healthScore: aiOverview.healthScore,
+    };
+  });
 };
 
 

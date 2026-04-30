@@ -70,7 +70,7 @@ serve(async (req) => {
           },
         };
 
-        const fieldMask = 'places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.types,places.priceLevel,places.rating,places.userRatingCount,places.currentOpeningHours,places.regularOpeningHours,places.businessStatus,places.websiteUri,places.nationalPhoneNumber';
+        const fieldMask = 'places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.primaryTypeDisplayName,places.types,places.priceLevel,places.rating,places.userRatingCount,places.currentOpeningHours,places.regularOpeningHours,places.businessStatus,places.websiteUri,places.nationalPhoneNumber,places.googleMapsUri,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesVegetarianFood,places.servesWine,places.servesBeer,places.servesCocktails,places.servesCoffee,places.servesDessert,places.goodForChildren,places.takeout,places.delivery,places.dineIn,places.curbsidePickup,places.paymentOptions,places.parkingOptions,places.editorialSummary,places.allowsDogs';
 
         const response = await fetch(url, {
           method: 'POST',
