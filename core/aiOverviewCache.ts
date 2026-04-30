@@ -81,6 +81,26 @@ type PlaceSeed = {
   };
   editorialSummary?: { text?: string };
   allowsDogs?: boolean;
+  // New fields
+  reviews?: { relativePublishTimeDescription?: string; text?: { text?: string }; rating?: number }[];
+  servesBrunch?: boolean;
+  goodForGroups?: boolean;
+  goodForWatchingSports?: boolean;
+  liveMusic?: boolean;
+  menuForChildren?: boolean;
+  outdoorSeating?: boolean;
+  reservable?: boolean;
+  restroom?: boolean;
+  accessibilityOptions?: {
+    wheelchairAccessibleParking?: boolean;
+    wheelchairAccessibleEntrance?: boolean;
+    wheelchairAccessibleRestroom?: boolean;
+    wheelchairAccessibleSeating?: boolean;
+  };
+  priceRange?: {
+    startPrice?: { units?: string; nanos?: number; currencyCode?: string };
+    endPrice?: { units?: string; nanos?: number; currencyCode?: string };
+  };
 };
 
 const localMemory = new Map<string, AiOverview>();
@@ -234,6 +254,17 @@ export const getAiOverviewsForPlaces = async (
               parkingOptions: (p as PlaceSeed).parkingOptions ?? null,
               editorialSummary: (p as PlaceSeed).editorialSummary?.text ?? '',
               allowsDogs: (p as PlaceSeed).allowsDogs ?? null,
+              reviews: (p as PlaceSeed).reviews ?? [],
+              servesBrunch: (p as PlaceSeed).servesBrunch ?? null,
+              goodForGroups: (p as PlaceSeed).goodForGroups ?? null,
+              goodForWatchingSports: (p as PlaceSeed).goodForWatchingSports ?? null,
+              liveMusic: (p as PlaceSeed).liveMusic ?? null,
+              menuForChildren: (p as PlaceSeed).menuForChildren ?? null,
+              outdoorSeating: (p as PlaceSeed).outdoorSeating ?? null,
+              reservable: (p as PlaceSeed).reservable ?? null,
+              restroom: (p as PlaceSeed).restroom ?? null,
+              accessibilityOptions: (p as PlaceSeed).accessibilityOptions ?? null,
+              priceRange: (p as PlaceSeed).priceRange ?? null,
             }));
 
           if (payloadPlaces.length > 0) {
