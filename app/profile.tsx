@@ -165,6 +165,24 @@ export default function ProfileScreen() {
               </View>
 
               <View style={styles.section}>
+                <View style={[styles.subscriptionMiniCard, { backgroundColor: 'rgba(249, 115, 82, 0.1)', borderColor: theme.accent }]}>
+                  <View style={styles.subInfo}>
+                    <Ionicons name="star" size={20} color={theme.accent} />
+                    <View style={{ marginLeft: 10 }}>
+                      <Text style={[styles.subPlanText, { color: theme.text }]}>Free Tier</Text>
+                      <Text style={[styles.subStatusText, { color: theme.subtext }]}>Standard features</Text>
+                    </View>
+                  </View>
+                  <AnimatedPressable 
+                    style={[styles.upgradeBtn, { backgroundColor: theme.accent }]}
+                    onPress={() => router.push('/subscription')}
+                  >
+                    <Text style={styles.upgradeBtnText}>Upgrade</Text>
+                  </AnimatedPressable>
+                </View>
+              </View>
+
+              <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
@@ -174,6 +192,15 @@ export default function ProfileScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Text style={styles.menuItemText}>General Settings</Text>
                     <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
+                  </View>
+                </AnimatedPressable>
+                <AnimatedPressable 
+                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
+                  onPress={() => router.push('/subscription')}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.menuItemText}>Subscription</Text>
+                    <Ionicons name="star" size={18} color="#F97352" />
                   </View>
                 </AnimatedPressable>
                 <View style={[styles.menuItem, { paddingVertical: 12, backgroundColor: theme.buttonBackground }]}>
@@ -476,5 +503,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#3D2B3D',
+  },
+  subscriptionMiniCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: -20,
+  },
+  subInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  subPlanText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  subStatusText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  upgradeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  upgradeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   }
 });
