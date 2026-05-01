@@ -21,14 +21,30 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { setUsernameViaEdge, refreshProfile, isGuest } = useAuth();
+  const { user, loading: authLoading, setUsernameViaEdge, refreshProfile, isGuest } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [busy, setBusy] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const onContinueAsGuest = async () => {
+    setMessage(null);
+    setGuestBusy(true);
+    try {
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      router.replace('/(tabs)' as any);
+    } finally {
+      setGuestBusy(false);
+    }
+  };
 
   const runPasswordSignIn = async () => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -159,10 +175,31 @@ export default function LoginScreen() {
         >
           <Text style={styles.brand}>Platebound</Text>
           {isGuest ? (
-            <Text style={styles.guestBanner}>
-              Guest profile — add email or a social account to keep this same user ID across devices.
-              OAuth links to this profile so your data stays put.
-            </Text>
+            <>
+              <Text style={styles.guestBanner}>
+                Guest profile — add email or a social account to keep this same user ID across devices.
+                OAuth links to this profile so your data stays put.
+              </Text>
+              <AnimatedPressable
+                style={styles.secondaryCta}
+                onPress={() => router.replace('/(tabs)' as any)}
+              >
+                <Text style={styles.secondaryCtaText}>Back to app</Text>
+              </AnimatedPressable>
+            </>
+          ) : null}
+          {!authLoading && !user ? (
+            <AnimatedPressable
+              style={[styles.secondaryCta, (guestBusy || busy) && styles.primaryDisabled]}
+              onPress={onContinueAsGuest}
+              disabled={guestBusy || busy}
+            >
+              {guestBusy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.secondaryCtaText}>Continue as guest</Text>
+              )}
+            </AnimatedPressable>
           ) : null}
           <Text style={styles.headline}>
             {mode === 'signin'
@@ -356,6 +393,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: 'rgba(255,255,255,0.65)',
+  },
+  secondaryCta: {
+    marginTop: 14,
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  secondaryCtaText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
   headline: {
     marginTop: 8,
