@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder } from 'react-native';
+import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,8 +16,8 @@ import { calculatePlateboundScore } from '@/core/ratingCalculator';
 
 const { width, height } = Dimensions.get('window');
 const MAP_RESULTS_KEY = 'map_results';
-const MAX_MILES = 6;
-const MAX_RADIUS_METERS = 8046.72; // 5 miles
+const MAX_MILES = 10;
+const MAX_RADIUS_METERS = 16093.4; // 10 miles
 const DEFAULT_RADIUS_METERS = 4000;
 const DEG_PER_MILE = 1 / 69;
 const MAX_DELTA = MAX_MILES * DEG_PER_MILE;
@@ -48,23 +48,35 @@ export default function MapScreen() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(true);
+  const [locationProgress] = useState(new Animated.Value(0));
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [radius, setRadius] = useState(DEFAULT_RADIUS_METERS);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
 
   // Animation for bottom sheet
   const sheetAnim = useRef(new Animated.Value(height)).current;
 
-  // Determine map style based on theme
-  const isDarkTheme = themeName !== 'melon_fresh';
-  const currentMapStyle = isDarkTheme ? darkMapStyle : lightMapStyle;
+  // Determine map style - Force Dark as requested
+  const currentMapStyle = darkMapStyle;
+  const isDarkTheme = themeName !== 'melon_fresh'; // Still used for UI elements
 
   useEffect(() => {
     initMap();
   }, []);
 
   const initMap = async () => {
-    setIsLoading(true);
+    setIsLocating(true);
+    
+    // Start progress bar animation
+    Animated.timing(locationProgress, {
+      toValue: 0.9,
+      duration: 3000,
+      useNativeDriver: false,
+    }).start();
+
     const [coords, savedRadius] = await Promise.all([
       getLocation(),
       getSearchRadius()
@@ -74,19 +86,38 @@ export default function MapScreen() {
     setRadius(initialRadius);
 
     if (coords) {
+      // Finish progress
+      Animated.timing(locationProgress, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: false,
+      }).start(() => {
+        setIsLocating(false);
+      });
+
+      setUserCoords(coords);
+      setSearchCenter(coords);
+      
       const initialRegion = {
         latitude: coords.latitude,
         longitude: coords.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05 * (width / height),
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02 * (width / height),
       };
       setRegion(initialRegion);
+      
+      // Auto-zoom/animate to location immediately
+      mapRef.current?.animateToRegion(initialRegion, 1000);
+      
       loadRestaurants(coords.latitude, coords.longitude, initialRadius);
+    } else {
+      setIsLocating(false);
     }
   };
 
   const loadRestaurants = async (lat: number, lng: number, r: number) => {
     setIsLoading(true);
+    setSearchCenter({ latitude: lat, longitude: lng });
     try {
       // Try cache first
       const cached = await getCachedResults(MAP_RESULTS_KEY);
@@ -107,20 +138,67 @@ export default function MapScreen() {
   };
 
   const onRegionChangeComplete = (newRegion: Region) => {
-    if (newRegion.latitudeDelta > MAX_DELTA) {
-      mapRef.current?.animateToRegion({
-        ...newRegion,
-        latitudeDelta: MAX_DELTA,
-        longitudeDelta: MAX_DELTA * (width / height),
-      });
-    }
     setRegion(newRegion);
   };
 
+  const centerToUser = () => {
+    if (userCoords) {
+      mapRef.current?.animateToRegion({
+        latitude: userCoords.latitude,
+        longitude: userCoords.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015 * (width / height),
+      }, 800);
+    }
+  };
+
+  // PanResponder for Swipeable Bottom Sheet
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 10,
+      onPanResponderMove: (_, gestureState) => {
+        const newValue = (selectedRestaurant ? height * 0.45 : height) + gestureState.dy;
+        if (newValue > height * 0.1 && newValue < height) {
+          sheetAnim.setValue(newValue);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy < -50) {
+          // Swipe Up - Full(ish) height
+          Animated.spring(sheetAnim, {
+            toValue: height * 0.15,
+            useNativeDriver: true,
+            tension: 50,
+            friction: 8,
+          }).start();
+        } else if (gestureState.dy > 100) {
+          // Swipe Down - Close
+          closeSheet();
+        } else {
+          // Snap back to mid
+          Animated.spring(sheetAnim, {
+            toValue: height * 0.45,
+            useNativeDriver: true,
+            tension: 50,
+            friction: 8,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
   const handleMarkerPress = (restaurant: any) => {
     setSelectedRestaurant(restaurant);
+    // Move map to center on restaurant slightly offset
+    mapRef.current?.animateToRegion({
+      latitude: restaurant.location.latitude - (region?.latitudeDelta || 0.015) * 0.25,
+      longitude: restaurant.location.longitude,
+      latitudeDelta: region?.latitudeDelta || 0.015,
+      longitudeDelta: region?.longitudeDelta || 0.015 * (width / height),
+    }, 400);
+
     Animated.spring(sheetAnim, {
-      toValue: height * 0.58,
+      toValue: height * 0.45,
       useNativeDriver: true,
       tension: 65,
       friction: 11,
@@ -157,10 +235,28 @@ export default function MapScreen() {
         showsUserLocation
         showsPointsOfInterest={false}
         showsCompass={false}
+        showsMyLocationButton={false}
+        toolbarEnabled={false}
         customMapStyle={currentMapStyle}
+        loadingEnabled={false}
       >
+        {searchCenter && (
+          <Circle
+            center={searchCenter}
+            radius={radius}
+            fillColor={theme.accent + '22'}
+            strokeColor={theme.accent}
+            strokeWidth={2}
+          />
+        )}
         {restaurants.map((item) => {
           const score = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel);
+          const displayScore = score > 0 ? score : (item.rating ? (item.rating * 2).toFixed(1) : 'N/A');
+          
+          const baseScale = 1.3;
+          const currentDelta = region?.latitudeDelta || 0.02;
+          const scaleFactor = Math.max(1, (currentDelta / 0.02) ** 0.6);
+          
           return (
             <Marker
               key={item.id}
@@ -170,13 +266,20 @@ export default function MapScreen() {
               }}
               onPress={() => handleMarkerPress(item)}
               tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 1 }}
             >
-              <View style={styles.markerContainer}>
-                <View style={[styles.markerBubble, { backgroundColor: theme.accent }]}>
-                  <Text style={styles.markerScore}>{score > 0 ? score : 'N/A'}</Text>
+              <Animated.View style={[
+                styles.markerContainer, 
+                { transform: [{ scale: baseScale * scaleFactor }] }
+              ]}>
+                <View style={[styles.markerBody, { backgroundColor: '#000', borderColor: theme.accent }]}>
+                  <View style={styles.markerIconContainer}>
+                    <Ionicons name="restaurant" size={10} color={theme.accent} />
+                  </View>
+                  <Text style={[styles.markerScoreText, { color: '#FFF' }]}>{displayScore}</Text>
                 </View>
-                <View style={[styles.markerArrow, { borderBottomColor: theme.accent }]} />
-              </View>
+                <View style={[styles.markerTip, { borderTopColor: theme.accent }]} />
+              </Animated.View>
             </Marker>
           );
         })}
@@ -209,7 +312,7 @@ export default function MapScreen() {
 
         {showRadiusPicker && (
           <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-            {[1000, 2000, 4000, 6000, 8046].map((r) => (
+            {[1000, 2000, 4000, 8000, 16000].map((r) => (
               <TouchableOpacity
                 key={r}
                 style={[
@@ -226,7 +329,40 @@ export default function MapScreen() {
             ))}
           </View>
         )}
+
+        {/* Home Button - Bottom Left */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={[styles.homeBtn, { backgroundColor: theme.cardBackground }]}
+          onPress={centerToUser}
+        >
+          <Ionicons name="home" size={24} color={theme.accent} />
+        </TouchableOpacity>
       </SafeAreaView>
+
+      {/* Loading Overlay */}
+      {isLocating && (
+        <View style={[styles.loadingOverlay, { backgroundColor: isDarkTheme ? '#1E0F1E' : '#FDF8F5' }]}>
+          <View style={styles.loadingContent}>
+            <Text style={[styles.loadingTitle, { color: theme.text }]}>Acquiring GPS Lock</Text>
+            <Text style={[styles.loadingSubtitle, { color: theme.subtext }]}>Finding your culinary coordinates...</Text>
+            <View style={[styles.progressBarContainer, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+              <Animated.View 
+                style={[
+                  styles.progressBar, 
+                  { 
+                    backgroundColor: theme.accent,
+                    width: locationProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%']
+                    })
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Bottom Sheet for Restaurant Overview */}
       <Animated.View
@@ -239,12 +375,11 @@ export default function MapScreen() {
           },
         ]}
       >
-        <View style={styles.sheetHandleContainer}>
+        <View style={styles.sheetHandleContainer} {...panResponder.panHandlers}>
           <TouchableOpacity 
             activeOpacity={0.6}
             onPress={closeSheet} 
-            style={styles.sheetHandle} 
-            style={[styles.sheetHandle, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]}
+            style={[styles.sheetHandle, { backgroundColor: 'rgba(255,255,255,0.3)' }]}
           />
         </View>
 
@@ -359,15 +494,16 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
   markerContainer: { alignItems: 'center', justifyContent: 'center' },
-  markerBubble: {
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 2, borderColor: '#FFF',
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }, elevation: 8,
+  markerBody: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 2,
+    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 6, shadowOffset: { width: 0, height: 4 }, elevation: 10,
   },
-  markerScore: { color: '#FFF', fontWeight: '800', fontSize: 14 },
-  markerArrow: {
+  markerIconContainer: { marginRight: 6 },
+  markerScoreText: { fontSize: 16, fontWeight: '900', letterSpacing: -0.5 },
+  markerTip: {
     width: 0, height: 0, backgroundColor: 'transparent', borderStyle: 'solid',
-    borderLeftWidth: 7, borderRightWidth: 7, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent',
-    transform: [{ rotate: '180deg' }], marginTop: -2,
+    borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    marginTop: -1,
   },
   radiusBtn: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 30, gap: 10,
@@ -383,8 +519,8 @@ const styles = StyleSheet.create({
   },
   pickerOptionText: { fontSize: 14, fontWeight: '600' },
   bottomSheet: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: height * 0.42, borderTopLeftRadius: 40, borderTopRightRadius: 40,
-    shadowOpacity: 0.6, shadowRadius: 25, shadowOffset: { width: 0, height: -10 }, elevation: 25, zIndex: 1000,
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: height * 0.85, borderTopLeftRadius: 40, borderTopRightRadius: 40,
+    shadowOpacity: 0.6, shadowRadius: 25, shadowOffset: { width: 0, height: -10 }, elevation: 25, zIndex: 10000,
   },
   sheetHandleContainer: { alignItems: 'center', paddingVertical: 15 },
   sheetHandle: { width: 60, height: 6, borderRadius: 3 },
@@ -406,4 +542,49 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8,
   },
   actionBtnText: { color: '#FFF', fontSize: 18, fontWeight: '800' },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    width: '80%',
+    alignItems: 'center',
+  },
+  loadingTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  loadingSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+  },
+  homeBtn: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+  },
 });
