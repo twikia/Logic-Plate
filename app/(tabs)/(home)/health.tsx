@@ -97,14 +97,12 @@ function StarScore({ label, value }: { label: string; value: number }) {
 
 function HealthCard({
   place,
-  expanded,
-  onToggleExpand,
   onOpenDetails,
+  onOpenLocalMap,
 }: {
   place: any;
-  expanded: boolean;
-  onToggleExpand: () => void;
   onOpenDetails: () => void;
+  onOpenLocalMap: () => void;
 }) {
   const name = place.displayName?.text || 'Unknown';
   const ai = place.aiOverview;
@@ -146,59 +144,33 @@ function HealthCard({
         <StarScore label="Protein" value={ai?.proteinScore ?? 0} />
         <StarScore label="Carb" value={ai?.carbScore ?? 0} />
       </View>
-
       <View style={styles.cardActions}>
         <TouchableOpacity
-          style={[styles.actionBtn, !mapsReady && styles.actionBtnDisabled]}
-          onPress={() => {
+          style={[styles.actionBtn, styles.actionBtnHalf, !mapsReady && styles.actionBtnDisabled]}
+          onPress={(e) => {
+            e.stopPropagation();
             if (!mapsReady) return;
             openMaps(name, lat, lng);
           }}
         >
           <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={14} color="#FFFFFF" />
-          <Text style={styles.actionBtnText}>Send to Maps</Text>
+          <Text style={styles.actionBtnText} numberOfLines={1}>
+            {Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionGhost]} disabled>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionBtnHalf, styles.actionGhost]}
+          onPress={(e) => {
+            e.stopPropagation();
+            onOpenLocalMap();
+          }}
+        >
           <Ionicons name="map-outline" size={14} color="#F9A06F" />
-          <Text style={[styles.actionBtnText, styles.actionGhostText]}>Show on Map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionGhost]} onPress={onToggleExpand}>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#F9A06F" />
-          <Text style={[styles.actionBtnText, styles.actionGhostText]}>{expanded ? 'Less' : 'More'}</Text>
+          <Text style={[styles.actionBtnText, styles.actionGhostText]} numberOfLines={1}>
+            Find on Local Map
+          </Text>
         </TouchableOpacity>
       </View>
-
-      {expanded && (
-        <View style={styles.expanded}>
-          <Text style={styles.expandedTitle}>AI Summary</Text>
-          <Text style={styles.expandedBody} numberOfLines={4}>
-            {ai?.summaryGoodBad || 'AI summary pending.'}
-          </Text>
-          <Text style={styles.expandedBody} numberOfLines={2}>
-            {ai?.whoThisPlaceIsFor || 'Who this is for pending.'}
-          </Text>
-          <View style={styles.expandedActions}>
-            <TouchableOpacity style={styles.expandedBtn} onPress={onOpenDetails}>
-              <Ionicons name="open-outline" size={14} color="#FFFFFF" />
-              <Text style={styles.expandedBtnText}>Open Full Overview</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.expandedBtn, !mapsReady && styles.actionBtnDisabled]}
-              onPress={() => {
-                if (!mapsReady) return;
-                openMaps(name, lat, lng);
-              }}
-            >
-              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={14} color="#FFFFFF" />
-              <Text style={styles.expandedBtnText}>Send to Maps</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.expandedBtn, styles.expandedGhost]} disabled>
-              <Ionicons name="map-outline" size={14} color="#F9A06F" />
-              <Text style={[styles.expandedBtnText, styles.actionGhostText]}>Show on Map</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </TouchableOpacity>
   );
 }
@@ -212,9 +184,7 @@ export default function HealthScreen() {
   const [showRadius, setShowRadius] = useState(false);
   const [metric, setMetric] = useState<SortMetric>('health');
   const [showMetric, setShowMetric] = useState(false);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [showTwenty, setShowTwenty] = useState(false);
-  const [usedExpandOnce, setUsedExpandOnce] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { formatLabel } = useDistanceFormatter();
 
@@ -260,7 +230,7 @@ export default function HealthScreen() {
     return [...allResults].sort((a, b) => scoreForMetric(b, metric) - scoreForMetric(a, metric));
   }, [allResults, metric]);
 
-  const visibleCount = showTwenty ? 20 : 10;
+  const visibleCount = showAll ? sorted.length : 10;
   const visible = sorted.slice(0, visibleCount);
 
   const onRefresh = async () => {
@@ -355,17 +325,6 @@ export default function HealthScreen() {
           <Text style={styles.metaText}>
             Showing {visible.length} of {sorted.length} ranked restaurants
           </Text>
-          {!usedExpandOnce && sorted.length > 10 && (
-            <TouchableOpacity
-              style={styles.expandBtn}
-              onPress={() => {
-                setShowTwenty(true);
-                setUsedExpandOnce(true);
-              }}
-            >
-              <Text style={styles.expandBtnText}>Expand to 20</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {isLoading ? (
@@ -386,19 +345,21 @@ export default function HealthScreen() {
             renderItem={({ item }) => (
               <HealthCard
                 place={item}
-                expanded={expandedIds.has(item.id)}
-                onToggleExpand={() => {
-                  const next = new Set(expandedIds);
-                  if (next.has(item.id)) next.delete(item.id);
-                  else next.add(item.id);
-                  setExpandedIds(next);
-                }}
                 onOpenDetails={() => openDetails(item)}
+                onOpenLocalMap={() => router.push('/map' as any)}
               />
             )}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
             contentContainerStyle={styles.list}
-            ListFooterComponent={<View style={{ height: 24 }} />}
+            ListFooterComponent={
+              sorted.length > 10 && !showAll ? (
+                <TouchableOpacity style={styles.expandBtnBottom} onPress={() => setShowAll(true)}>
+                  <Text style={styles.expandBtnText}>Show All</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ height: 24 }} />
+              )
+            }
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -435,13 +396,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   controlChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   controlChipText: {
     fontSize: 13,
@@ -473,21 +436,24 @@ const styles = StyleSheet.create({
   panelPillTextActive: { color: '#FFFFFF' },
   metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
   },
   metaText: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
-  expandBtn: {
+  expandBtnText: { fontSize: 12, fontWeight: '700', color: '#F9A06F' },
+  expandBtnBottom: {
+    marginTop: 6,
+    marginBottom: 24,
+    marginHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(249,115,82,0.2)',
     borderWidth: 1,
     borderColor: 'rgba(249,115,82,0.5)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 14,
+    paddingVertical: 12,
   },
-  expandBtnText: { fontSize: 12, fontWeight: '700', color: '#F9A06F' },
   list: { paddingHorizontal: 16, paddingBottom: 16 },
   card: {
     backgroundColor: 'rgba(30,15,30,0.58)',
@@ -513,48 +479,26 @@ const styles = StyleSheet.create({
   scoreFill: { height: '100%', borderRadius: 4, backgroundColor: '#68D8A3' },
   starWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   starRow: { flexDirection: 'row', gap: 3 },
-  cardActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  cardActions: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: '#F97352',
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
   },
-  actionBtnText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  actionBtnHalf: { flex: 1, minWidth: 0 },
   actionGhost: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },
   actionGhostText: { color: '#F9A06F' },
+  actionBtnText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
   actionBtnDisabled: { opacity: 0.45 },
-  expanded: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 10,
-    gap: 8,
-  },
-  expandedTitle: { fontSize: 13, color: '#C9A0FF', fontWeight: '700' },
-  expandedBody: { fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 18 },
-  expandedActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  expandedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 12,
-    backgroundColor: '#F97352',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  expandedGhost: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  expandedBtnText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   centerText: { fontSize: 15, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
   retryBtn: {
