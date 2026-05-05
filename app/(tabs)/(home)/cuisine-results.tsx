@@ -258,6 +258,8 @@ export default function ResultsScreen() {
   const [radius, setRadius] = useState(4000);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingStage, setLoadingStage] = useState('Preparing...');
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const { formatLabel } = useDistanceFormatter();
 
   useEffect(() => {
@@ -268,6 +270,8 @@ export default function ResultsScreen() {
   const loadResults = async (forceRefetch = false, isRefresh = false) => {
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
+    setLoadingStage('Acquiring GPS...');
+    setLoadingProgress(0.1);
 
     // Try result cache first (skip if user manually changed radius)
     if (!forceRefetch) {
@@ -276,13 +280,15 @@ export default function ResultsScreen() {
         setAllResults(cached);
         setDisplayed(cached.slice(0, PAGE_SIZE));
         setHasMore(cached.length > PAGE_SIZE);
+        setLoadingProgress(1);
         setIsLoading(false);
         return;
       }
     }
 
     try {
-      // Use cached GPS — avoids 3-10s re-acquisition on every navigation
+      setLoadingStage('Acquiring GPS...');
+      setLoadingProgress(0.15);
       const [coords, r] = await Promise.all([
         getLocation(isRefresh),
         getSearchRadius(),
@@ -294,8 +300,20 @@ export default function ResultsScreen() {
         return;
       }
 
-      // Single pass: fetch, filter open, filter by cuisine type — no extra loops
-      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r);
+      setLoadingStage('Loading restaurants...');
+      setLoadingProgress(0.25);
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, r, ({ stage, progress }) => {
+        if (stage === 'parsing-restaurants') {
+          setLoadingStage('Parsing restaurants...');
+        } else if (stage === 'fetching-restaurants' || stage === 'reading-cache') {
+          setLoadingStage('Loading restaurants...');
+        } else if (stage === 'loading-overviews') {
+          setLoadingStage('Finalizing results...');
+        } else if (stage === 'done') {
+          setLoadingStage('Done');
+        }
+        setLoadingProgress(prev => Math.max(prev, progress));
+      });
       const types = CUISINE_TYPE_MAP[cuisineKey] ?? [];
       const filtered = all.filter(p => {
         if (!isOpenNow(p)) return false;
@@ -312,8 +330,10 @@ export default function ResultsScreen() {
       setHasMore(filtered.length > PAGE_SIZE);
     } catch (e) {
       console.error(e);
-      setErrorMsg('Something went wrong. Please try again.');
+      const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
+      setErrorMsg(message);
     } finally {
+      setLoadingProgress(1);
       setIsLoading(false);
     }
   };
@@ -393,7 +413,11 @@ export default function ResultsScreen() {
 
         {isLoading ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <Text style={styles.subtitle}>Finding restaurants near you…</Text>
+            <Text style={styles.subtitle}>{loadingStage}</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.round(loadingProgress * 100)}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{Math.round(loadingProgress * 100)}%</Text>
             {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
           </View>
         ) : errorMsg ? (
@@ -558,4 +582,21 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(249,115,82,0.4)',
   },
   loadMoreText: { fontSize: 15, fontWeight: '700', color: '#F97352' },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#F97352',
+  },
+  progressText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 10,
+  },
 });

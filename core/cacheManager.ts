@@ -37,7 +37,7 @@ export const readCacheBulk = async (
       try {
         const parsed = JSON.parse(value);
         const fetchedAt = new Date(parsed.fetched_at).getTime();
-        if (now - fetchedAt < SEVEN_DAYS_MS) {
+        if (now - fetchedAt < SEVEN_DAYS_MS && Array.isArray(parsed.restaurants) && parsed.restaurants.length > 0) {
           hits.set(cellId, parsed.restaurants);
         } else {
           l1MissCells.push(cellId);
@@ -68,7 +68,7 @@ export const readCacheBulk = async (
 
         for (const row of data) {
           const fetchedAt = new Date(row.fetched_at).getTime();
-          if (now - fetchedAt < THIRTY_DAYS_MS) {
+          if (now - fetchedAt < THIRTY_DAYS_MS && Array.isArray(row.restaurants) && row.restaurants.length > 0) {
             hits.set(row.id, row.restaurants);
             backfillPairs.push([
               `cell_${row.id}`,

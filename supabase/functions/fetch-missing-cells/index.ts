@@ -39,11 +39,18 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL is missing from edge function environment');
+    }
+    if (!supabaseServiceKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is missing from edge function environment');
+    }
     
     // Create Supabase client with Service Role Key to bypass RLS
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const newlyFetchedRestaurants: { cellId: string; places: any[] }[] = [];
+    const failedCells: { cellId: string; reason: string }[] = [];
 
     // Fetch Google Places concurrently (limit to 3 at a time to prevent rate limits)
     const fetchTasks = missingCells.map((cell: {cellId: string, lat: number, lng: number}) => async () => {
@@ -70,7 +77,7 @@ serve(async (req) => {
           },
         };
 
-        const fieldMask = 'places.id,places.name,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.viewport,places.plusCode,places.types,places.primaryType,places.primaryTypeDisplayName,places.businessStatus,places.priceLevel,places.priceRange,places.rating,places.userRatingCount,places.currentOpeningHours,places.currentSecondaryOpeningHours,places.regularOpeningHours,places.regularSecondaryOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,places.googleMapsUri,places.editorialSummary,places.reviews,places.servesBreakfast,places.servesBrunch,places.servesLunch,places.servesDinner,places.servesVegetarianFood,places.servesVeganFood,places.servesWine,places.servesBeer,places.servesCocktails,places.servesCoffee,places.servesDessert,places.goodForChildren,places.goodForGroups,places.goodForWatchingSports,places.liveMusic,places.menuForChildren,places.outdoorSeating,places.reservable,places.restroom,places.takeout,places.delivery,places.dineIn,places.curbsidePickup,places.allowsDogs,places.paymentOptions,places.parkingOptions,places.accessibilityOptions,places.evChargeOptions,places.fuelOptions,places.iconBackgroundColor,places.iconMaskBaseUri';
+        const fieldMask = 'places.id,places.name,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.viewport,places.plusCode,places.types,places.primaryType,places.primaryTypeDisplayName,places.businessStatus,places.priceLevel,places.priceRange,places.rating,places.userRatingCount,places.currentOpeningHours,places.currentSecondaryOpeningHours,places.regularOpeningHours,places.regularSecondaryOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,places.googleMapsUri,places.editorialSummary,places.reviews,places.servesBreakfast,places.servesBrunch,places.servesLunch,places.servesDinner,places.servesVegetarianFood,places.servesWine,places.servesBeer,places.servesCocktails,places.servesCoffee,places.servesDessert,places.goodForChildren,places.goodForGroups,places.goodForWatchingSports,places.liveMusic,places.menuForChildren,places.outdoorSeating,places.reservable,places.restroom,places.takeout,places.delivery,places.dineIn,places.curbsidePickup,places.allowsDogs,places.paymentOptions,places.parkingOptions,places.accessibilityOptions,places.evChargeOptions,places.fuelOptions,places.iconBackgroundColor,places.iconMaskBaseUri';
 
         const response = await fetch(url, {
           method: 'POST',
@@ -85,7 +92,19 @@ serve(async (req) => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`Google Places API Error for cell ${cell.cellId}:`, errorText);
-          throw new Error(`Google Places API Error: ${response.status}`);
+          let detailedMessage = `Google Places API Error: ${response.status}`;
+          try {
+            const parsed = JSON.parse(errorText);
+            const baseMessage = parsed?.error?.message;
+            const detailMessage = parsed?.error?.details?.[0]?.fieldViolations?.[0]?.description;
+            if (baseMessage && detailMessage) {
+              detailedMessage = `Google Places API Error ${response.status}: ${baseMessage} (${detailMessage})`;
+            } else if (baseMessage) {
+              detailedMessage = `Google Places API Error ${response.status}: ${baseMessage}`;
+            }
+          } catch {
+          }
+          throw new Error(detailedMessage);
         }
 
         const data = await response.json();
@@ -100,15 +119,19 @@ serve(async (req) => {
             id: cell.cellId,
             restaurants: places,
             fetched_at: new Date().toISOString()
-          });
+          }, { onConflict: 'id' });
 
         if (dbError) {
           console.error(`Supabase Upsert Error for cell ${cell.cellId}:`, dbError);
+          throw new Error(`Supabase upsert failed: ${dbError.message}`);
         }
 
       } catch (error) {
         console.error(`Failed to fetch places for cell ${cell.cellId}:`, error);
-        newlyFetchedRestaurants.push({ cellId: cell.cellId, places: [] });
+        failedCells.push({
+          cellId: cell.cellId,
+          reason: error instanceof Error ? error.message : 'Unknown error',
+        });
       }
     });
 
@@ -125,8 +148,20 @@ serve(async (req) => {
     }
     await Promise.all(executing);
 
-    // Return the newly fetched data directly to the client
-    return new Response(JSON.stringify({ newlyFetchedRestaurants }), {
+    if (newlyFetchedRestaurants.length === 0 && failedCells.length > 0) {
+      return new Response(JSON.stringify({
+        error: 'Failed to fetch any missing cells',
+        failedCells,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({
+      newlyFetchedRestaurants,
+      failedCells,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

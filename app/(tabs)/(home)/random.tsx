@@ -171,6 +171,8 @@ export default function RandomScreen() {
   const [filter, setFilter] = useState('');
   const [radius, setRadius] = useState(4000);
   const [showRadius, setShowRadius] = useState(false);
+  const [loadingStage, setLoadingStage] = useState('Preparing...');
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const { formatLabel } = useDistanceFormatter();
 
   // ── Filter state ──
@@ -234,13 +236,17 @@ export default function RandomScreen() {
     const searchRadius = r ?? radius;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
+    setLoadingStage('Acquiring GPS...');
+    setLoadingProgress(0.1);
     try {
       const coords = await getLocation(isRefresh);
       if (!coords) {
         setErrorMsg('Location access is needed to find nearby restaurants.\n\nEnable it in Settings → Privacy → Location.');
-      } else {
-        const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius);
-        setAllResults(all);
+        setIsLoading(false);
+        return;
+      }
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius);
+      setAllResults(all);
 
         const saved = await getRandomPickerState();
         if (saved && saved.v === 1) {
@@ -265,11 +271,12 @@ export default function RandomScreen() {
           const initialSelected = all.filter((x: any) => isOpenNow(x));
           setSelected(new Set(initialSelected.map((x: any) => x.id)));
         }
-      }
     } catch (e) {
       console.error(e);
-      setErrorMsg('Something went wrong. Please try again.');
+      const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
+      setErrorMsg(message);
     } finally {
+      setLoadingProgress(1);
       setIsLoading(false);
       hydratedRef.current = true;
     }
@@ -547,7 +554,11 @@ export default function RandomScreen() {
         {/* Content */}
         {isLoading ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <Text style={styles.subtitle}>Finding restaurants near you…</Text>
+            <Text style={styles.subtitle}>{loadingStage}</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.round(loadingProgress * 100)}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{Math.round(loadingProgress * 100)}%</Text>
             {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
           </View>
         ) : errorMsg ? (
@@ -756,4 +767,21 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
   filterPillText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
   filterPillTextActive: { color: '#FFFFFF' },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#F97352',
+  },
+  progressText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 10,
+  },
 });
