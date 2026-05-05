@@ -1,6 +1,5 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -21,6 +20,7 @@ import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { setCurrentRestaurant } from '../../../core/currentSelection';
+import { getRandomPickerState, saveRandomPickerState } from '../../../core/randomPickerState';
 import { RestaurantImage } from '../../../core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
@@ -77,7 +77,17 @@ function SkeletonRow() {
 
 // ─── Selectable Restaurant Row ────────────────────────────────────────────────
 
-function RestaurantRow({ item, selected, onToggle }: { item: any; selected: boolean; onToggle: () => void }) {
+function RestaurantRow({
+  item,
+  selected,
+  onToggle,
+  onLongPressOverview,
+}: {
+  item: any;
+  selected: boolean;
+  onToggle: () => void;
+  onLongPressOverview: () => void;
+}) {
   const { formatDistance } = useDistanceFormatter();
 
   const name = item.displayName?.text || 'Unknown';
@@ -91,6 +101,8 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
     <TouchableOpacity
       activeOpacity={0.75}
       onPress={onToggle}
+      onLongPress={onLongPressOverview}
+      delayLongPress={400}
       style={[styles.row, selected && styles.rowSelected]}
     >
       {/* Thumb — RestaurantImage handles spinner, fallback, and caching */}
@@ -150,7 +162,6 @@ function RestaurantRow({ item, selected, onToggle }: { item: any; selected: bool
 
 export default function RandomScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
 
   const [allResults, setAllResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -169,6 +180,8 @@ export default function RandomScreen() {
   const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
+
+  const hydratedRef = useRef(false);
 
   const PRICE_LEVELS = [
     { key: 'PRICE_LEVEL_INEXPENSIVE', label: '$' },
@@ -203,29 +216,62 @@ export default function RandomScreen() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!hydratedRef.current || isLoading || errorMsg) return;
+    saveRandomPickerState({
+      v: 1,
+      filter,
+      openOnly,
+      selectedPrices: Array.from(selectedPrices),
+      minRating,
+      selectedCuisines: Array.from(selectedCuisines),
+      sortBy,
+      selectedIds: Array.from(selected),
+    });
+  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, selected, isLoading, errorMsg]);
+
   const loadResults = async (r?: number, isRefresh = false) => {
     const searchRadius = r ?? radius;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     try {
-      // Use cached GPS — avoids 3-10s re-acquisition on every navigation
       const coords = await getLocation(isRefresh);
       if (!coords) {
         setErrorMsg('Location access is needed to find nearby restaurants.\n\nEnable it in Settings → Privacy → Location.');
-        setIsLoading(false);
-        return;
-      }
-      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius);
-      setAllResults(all);
+      } else {
+        const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius);
+        setAllResults(all);
 
-      // Select only restaurants that are open right now (real time check)
-      const initialSelected = all.filter((r: any) => isOpenNow(r));
-      setSelected(new Set(initialSelected.map((r: any) => r.id)));
+        const saved = await getRandomPickerState();
+        if (saved && saved.v === 1) {
+          setFilter(saved.filter);
+          setOpenOnly(saved.openOnly);
+          setSelectedPrices(new Set(saved.selectedPrices));
+          setMinRating(saved.minRating);
+          setSelectedCuisines(new Set(saved.selectedCuisines));
+          setSortBy(saved.sortBy);
+        }
+
+        const allowed = new Set(all.map((x: any) => x.id));
+        if (saved?.selectedIds?.length) {
+          const nextSel = new Set(saved.selectedIds.filter((id) => allowed.has(id)));
+          if (nextSel.size > 0) {
+            setSelected(nextSel);
+          } else {
+            const initialSelected = all.filter((x: any) => isOpenNow(x));
+            setSelected(new Set(initialSelected.map((x: any) => x.id)));
+          }
+        } else {
+          const initialSelected = all.filter((x: any) => isOpenNow(x));
+          setSelected(new Set(initialSelected.map((x: any) => x.id)));
+        }
+      }
     } catch (e) {
       console.error(e);
       setErrorMsg('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
+      hydratedRef.current = true;
     }
   };
 
@@ -272,7 +318,9 @@ export default function RandomScreen() {
       const bVal = priceB === -1 ? 999 : priceB;
       return aVal - bVal;
     } else if (sortBy === 'health') {
-      return (b.healthScore || 0) - (a.healthScore || 0);
+      const ha = a.aiOverview?.healthScore ?? -1;
+      const hb = b.aiOverview?.healthScore ?? -1;
+      return hb - ha;
     }
     return 0;
   });
@@ -527,6 +575,10 @@ export default function RandomScreen() {
                 item={item}
                 selected={selected.has(item.id)}
                 onToggle={() => toggleOne(item.id)}
+                onLongPressOverview={() => {
+                  setCurrentRestaurant(item);
+                  router.push('/random-result');
+                }}
               />
             )}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}

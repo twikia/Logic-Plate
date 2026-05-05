@@ -18,9 +18,11 @@ import { clearResultCache } from '../core/resultCache';
 import { clearLocationCache } from '../core/locationCache';
 import { clearImageCache } from '../core/images';
 import { supabase } from '@/core/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user, profile, signOut, isGuest } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [isSelectingIcon, setIsSelectingIcon] = useState(false);
   const [isTestingAi, setIsTestingAi] = useState(false);
@@ -145,13 +147,66 @@ export default function ProfileScreen() {
               <View style={[styles.section, { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }]}>
                 <View style={{ flex: 1, paddingRight: 10 }}>
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>Account</Text>
-                  <Text style={[styles.subtitle, { color: theme.subtext }]}>You are currently a Guest.</Text>
-                  <AnimatedPressable style={[styles.button, { backgroundColor: theme.accent }]}>
-
-                    <Text style={styles.buttonText}>Login / Sign Up</Text>
-                  </AnimatedPressable>
+                  {user ? (
+                    isGuest ? (
+                      <>
+                        <Text style={[styles.subtitle, { color: theme.subtext }]}>
+                          Guest — your data uses the user ID below. Link an account anytime to keep the same ID on
+                          other devices.
+                        </Text>
+                        <Text style={[styles.userIdLabel, { color: theme.subtext }]}>
+                          User ID{' '}
+                          <Text style={{ fontSize: 11, color: theme.subtext }} selectable>
+                            {user.id}
+                          </Text>
+                        </Text>
+                        <AnimatedPressable
+                          style={[styles.button, { backgroundColor: theme.accent, marginTop: 12 }]}
+                          onPress={() => router.push('/(auth)/login' as any)}
+                        >
+                          <Text style={styles.buttonText}>Save or link account</Text>
+                        </AnimatedPressable>
+                        <AnimatedPressable
+                          style={[styles.button, { backgroundColor: theme.buttonBackground, marginTop: 10 }]}
+                          onPress={() => router.push('/edit-username' as any)}
+                        >
+                          <Text style={[styles.buttonText, { color: theme.text }]}>Username (optional)</Text>
+                        </AnimatedPressable>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.subtitle, { color: theme.subtext }]} numberOfLines={2}>
+                          {user.email ?? 'Signed in'}
+                        </Text>
+                        <Text style={[styles.userIdLabel, { color: theme.subtext }]}>
+                          User ID{' '}
+                          <Text style={{ fontSize: 11, color: theme.subtext }} selectable>
+                            {user.id}
+                          </Text>
+                        </Text>
+                        <AnimatedPressable
+                          style={[styles.button, { backgroundColor: theme.accent, marginTop: 12 }]}
+                          onPress={() => router.push('/edit-username')}
+                        >
+                          <Text style={styles.buttonText}>Edit username</Text>
+                        </AnimatedPressable>
+                        <AnimatedPressable
+                          style={[styles.button, { backgroundColor: theme.buttonBackground, marginTop: 10 }]}
+                          onPress={() => signOut()}
+                        >
+                          <Text style={[styles.buttonText, { color: theme.text }]}>Sign out</Text>
+                        </AnimatedPressable>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <Text style={[styles.subtitle, { color: theme.subtext }]}>
+                        Could not start a session. Check your connection and Supabase anonymous sign-in.
+                      </Text>
+                    </>
+                  )}
                 </View>
-                
+
                 <AnimatedPressable onPress={() => setIsSelectingIcon(true)} style={styles.profileIconWrapper}>
                   <View style={styles.profileIconContainer}>
                     <Text style={{ fontSize: 40 }}>{icon}</Text>
@@ -159,6 +214,15 @@ export default function ProfileScreen() {
                   <View style={styles.editBadge}>
                     <Ionicons name="pencil" size={14} color="#FFFFFF" />
                   </View>
+                  {profile?.username ? (
+                    <Text style={[styles.usernameUnderAvatar, { color: theme.text }]} numberOfLines={1}>
+                      {profile.username}
+                    </Text>
+                  ) : isGuest ? (
+                    <Text style={[styles.usernameUnderAvatar, { color: theme.subtext }]} numberOfLines={1}>
+                      Guest
+                    </Text>
+                  ) : null}
                   <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
                 </AnimatedPressable>
 
@@ -450,6 +514,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginTop: 6,
+  },
+  usernameUnderAvatar: {
+    fontSize: 13,
+    fontWeight: '700',
+    maxWidth: 96,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  userIdLabel: {
+    fontSize: 11,
+    marginTop: 8,
+    lineHeight: 16,
   },
   iconSelectionBox: {
     backgroundColor: '#3D2B3D',

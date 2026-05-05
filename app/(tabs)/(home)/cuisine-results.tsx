@@ -2,7 +2,6 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -18,6 +17,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { setCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { getLocation } from '../../../core/locationCache';
@@ -134,9 +134,20 @@ function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: an
 
 // ─── Restaurant Card ─────────────────────────────────────────────────────────
 
-function RestaurantCard({ item, cuisineKey }: { item: any; cuisineKey?: string }) {
+function RestaurantCard({
+  item,
+  cuisineKey,
+  onOpenOverview,
+}: {
+  item: any;
+  cuisineKey?: string;
+  onOpenOverview: () => void;
+}) {
   const { formatDistance } = useDistanceFormatter();
   const name = item.displayName?.text || 'Unknown';
+  const ai = item.aiOverview;
+  const healthScore = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
+  const healthPct = healthScore != null ? Math.max(0, Math.min(100, (healthScore / 10) * 100)) : 0;
   const price = PRICE_MAP[item.priceLevel] || '';
   const rating = item.rating?.toFixed(1);
   const distM = Math.round(item.distanceMeters ?? 0);
@@ -172,7 +183,7 @@ function RestaurantCard({ item, cuisineKey }: { item: any; cuisineKey?: string }
   }, [item?.id, name, lat, lng, item?.photos, cuisineKey]);
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={onOpenOverview}>
       <PhotoStrip restaurantId={item.id} photos={photos} />
       <View style={styles.cardContent}>
 
@@ -200,14 +211,15 @@ function RestaurantCard({ item, cuisineKey }: { item: any; cuisineKey?: string }
           </View>
         </View>
 
-        {/* Health score — placeholder */}
         <View style={styles.healthRow}>
           <Ionicons name="heart-outline" size={13} color="#A8D5A2" />
-          <Text style={styles.healthLabel}>Health Score</Text>
+          <Text style={styles.healthLabel}>Health</Text>
           <View style={styles.healthBar}>
-            <View style={[styles.healthFill, { width: '0%' }]} />
+            <View style={[styles.healthFill, { width: `${healthPct}%` }]} />
           </View>
-          <Text style={styles.healthPending}>Coming soon</Text>
+          <Text style={healthScore != null ? styles.healthValue : styles.healthPending}>
+            {healthScore != null ? `${healthScore.toFixed(1)}/10` : 'Pending'}
+          </Text>
         </View>
 
         {/* Maps button */}
@@ -223,7 +235,7 @@ function RestaurantCard({ item, cuisineKey }: { item: any; cuisineKey?: string }
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -235,7 +247,6 @@ const MemoizedRestaurantCard = React.memo(RestaurantCard);
 export default function ResultsScreen() {
   const { cuisine, cuisineKey } = useLocalSearchParams<{ cuisine: string; cuisineKey: string }>();
   const router = useRouter();
-  const navigation = useNavigation();
   const { theme } = useAppTheme();
 
 
@@ -327,9 +338,19 @@ export default function ResultsScreen() {
   };
 
   const keyExtractor = React.useCallback((item: any) => item.id, []);
-  const renderItem = React.useCallback(({ item }: { item: any }) => (
-    <MemoizedRestaurantCard item={item} cuisineKey={cuisineKey} />
-  ), [cuisineKey]);
+  const renderItem = React.useCallback(
+    ({ item }: { item: any }) => (
+      <MemoizedRestaurantCard
+        item={item}
+        cuisineKey={cuisineKey}
+        onOpenOverview={() => {
+          setCurrentRestaurant(item);
+          router.push('/random-result');
+        }}
+      />
+    ),
+    [cuisineKey, router]
+  );
 
   return (
     <LinearGradient colors={theme.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
@@ -516,6 +537,7 @@ const styles = StyleSheet.create({
   healthBar: { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' },
   healthFill: { height: '100%', backgroundColor: '#4CD964', borderRadius: 2 },
   healthPending: { fontSize: 11, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' },
+  healthValue: { fontSize: 11, color: '#BFF5B8', fontWeight: '700' },
   mapsBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: 'rgba(249,115,82,0.85)', borderRadius: 12,

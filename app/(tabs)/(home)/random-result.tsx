@@ -2,6 +2,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -15,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 
@@ -109,6 +110,51 @@ function InfoPill({ icon, label, color = 'rgba(255,255,255,0.65)' }: {
   );
 }
 
+function TenPointBar({
+  label,
+  value,
+  icon,
+  emoji,
+}: {
+  label: string;
+  value: number | undefined;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  emoji: string;
+}) {
+  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const pct = Math.max(0, Math.min(1, v / 10));
+  return (
+    <View style={styles.scoreCard}>
+      <View style={styles.scoreCardTop}>
+        <Text style={styles.scoreEmoji}>{emoji}</Text>
+        <Ionicons name={icon} size={15} color="#F9A06F" />
+        <Text style={styles.scoreCardLabel}>{label}</Text>
+        <Text style={styles.scoreCardVal}>{v.toFixed(1)}/10</Text>
+      </View>
+      <View style={styles.tenTrack}>
+        <View style={[styles.tenFill, { width: `${pct * 100}%` }]} />
+      </View>
+    </View>
+  );
+}
+
+function FiveStarRow({ label, value, emoji }: { label: string; value: number | undefined; emoji: string }) {
+  const rounded = Math.max(0, Math.min(5, Math.round(typeof value === 'number' && Number.isFinite(value) ? value : 0)));
+  return (
+    <View style={styles.scoreCard}>
+      <View style={styles.scoreCardTop}>
+        <Text style={styles.scoreEmoji}>{emoji}</Text>
+        <Text style={styles.scoreCardLabel}>{label}</Text>
+        <View style={styles.scoreStars}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <Ionicons key={i} name={i < rounded ? 'star' : 'star-outline'} size={15} color="#FFD66B" />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ─── Hours Section ────────────────────────────────────────────────────────────
 
 function HoursSection({ weekdays }: { weekdays: string[] }) {
@@ -145,6 +191,7 @@ function HoursSection({ weekdays }: { weekdays: string[] }) {
 export default function RandomResultScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   // Read the selected restaurant from memory — avoids the expensive JSON.parse
   // of a large URL param which was blocking the screen mount on every navigation.
@@ -168,6 +215,7 @@ export default function RandomResultScreen() {
     ?? place.regularOpeningHours?.weekdayDescriptions
     ?? [];
   const [photos, setPhotos] = useState<any[]>(place.photos || []);
+  const [addressCopied, setAddressCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +259,17 @@ export default function RandomResultScreen() {
     } catch { }
   };
 
+  const mapsProviderLabel = Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps';
+  const mapsReady = typeof lat === 'number' && typeof lng === 'number';
+  const fabBottom = 4 + insets.bottom;
+
+  const copyAddress = async () => {
+    if (!address) return;
+    await Clipboard.setStringAsync(address);
+    setAddressCopied(true);
+    setTimeout(() => setAddressCopied(false), 2000);
+  };
+
   return (
     <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -226,7 +285,11 @@ export default function RandomResultScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <View style={styles.bodyWrap}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scroll, { paddingBottom: fabBottom + 72 }]}
+        >
 
           {/* Photo carousel */}
           <PhotoCarousel restaurantId={place.id || 'unknown'} photos={photos} />
@@ -261,15 +324,30 @@ export default function RandomResultScreen() {
             />
           </View>
 
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="heart-outline" size={16} color="#A8D5A2" />
+              <Text style={[styles.sectionTitle, { color: '#A8D5A2' }]}>Health score</Text>
+              <Text style={styles.healthScoreBadge}>
+                {typeof aiOverview?.healthScore === 'number' ? `${aiOverview.healthScore.toFixed(1)}/10` : 'Pending'}
+              </Text>
+            </View>
+            <View style={styles.healthBar}>
+              <View style={[styles.healthFill, { width: `${((aiOverview?.healthScore ?? 0) / 10) * 100}%` }]} />
+            </View>
+          </View>
+
           {/* Address */}
           {address ? (
-            <View style={styles.section}>
+            <TouchableOpacity style={styles.section} onPress={copyAddress} activeOpacity={0.85}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="location-outline" size={16} color="#F9A06F" />
                 <Text style={styles.sectionTitle}>Address</Text>
+                <Ionicons name="copy-outline" size={15} color="rgba(255,255,255,0.45)" />
               </View>
               <Text style={styles.sectionBody}>{address}</Text>
-            </View>
+              <Text style={styles.copyHint}>{addressCopied ? 'Copied to clipboard' : 'Tap to copy'}</Text>
+            </TouchableOpacity>
           ) : null}
 
           {/* Phone */}
@@ -305,65 +383,90 @@ export default function RandomResultScreen() {
           {/* Opening hours */}
           <HoursSection weekdays={weekdays} />
 
-          {/* AI Overview */}
-          <View style={[styles.section, styles.aiSection]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
-              <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI Overview</Text>
-            </View>
-            {aiOverview ? (
-              <View style={{ gap: 8 }}>
-                <Text style={styles.sectionBody}>{aiOverview.summaryGoodBad}</Text>
-                <Text style={styles.sectionBody}>Speed: {aiOverview.speedScore}/10</Text>
-                <Text style={styles.sectionBody}>Health: {aiOverview.healthScore}/10</Text>
-                <Text style={styles.sectionBody}>Workout Recovery: {aiOverview.workoutRecoveryScore}/10</Text>
-                <Text style={styles.sectionBody}>Processed: {aiOverview.processedScore}/10</Text>
-                <Text style={styles.sectionBody}>Calories: {aiOverview.calorieScore}/5</Text>
-                <Text style={styles.sectionBody}>Protein: {aiOverview.proteinScore}/5</Text>
-                <Text style={styles.sectionBody}>Carbs: {aiOverview.carbScore}/5</Text>
-                <Text style={styles.sectionBody}>Date Worthiness: {aiOverview.dateWorthiness}/5</Text>
-                <Text style={styles.sectionBody}>Noise: {aiOverview.noiseLevelEstimate}/5</Text>
-                <Text style={styles.sectionBody}>Group Sweet Spot: {aiOverview.groupSizeSweetSpot} people</Text>
-                <Text style={styles.sectionBody}>{aiOverview.absoluteMacros}</Text>
-                <Text style={styles.sectionBody}>{aiOverview.whoThisPlaceIsFor}</Text>
+          {aiOverview ? (
+            <>
+              <View style={[styles.section, styles.aiSection]}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
+                  <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
+                </View>
+                <Text style={styles.sectionBody}>{aiOverview.summaryGoodBad || 'No summary yet.'}</Text>
               </View>
-            ) : (
-              <Text style={styles.sectionBody}>Generating AI overview...</Text>
-            )}
-          </View>
 
-          {/* Health Score */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="heart-outline" size={16} color="#A8D5A2" />
-              <Text style={[styles.sectionTitle, { color: '#A8D5A2' }]}>Health Score</Text>
-              <Text style={styles.soonText}>
-                {typeof aiOverview?.healthScore === 'number' ? `${aiOverview.healthScore}/10` : 'Pending'}
-              </Text>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>⚡</Text>
+                  <Ionicons name="flash-outline" size={16} color="#F9A06F" />
+                  <Text style={styles.sectionTitle}>Pace & recovery</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
+                  <TenPointBar label="Speed" value={aiOverview.speedScore} icon="timer-outline" emoji="⏱️" />
+                  <TenPointBar label="Workout recovery" value={aiOverview.workoutRecoveryScore} icon="barbell-outline" emoji="💪" />
+                  <TenPointBar label="Processed food load" value={aiOverview.processedScore} icon="nutrition-outline" emoji="🍎" />
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>🍽️</Text>
+                  <Ionicons name="restaurant-outline" size={16} color="#FFD66B" />
+                  <Text style={styles.sectionTitle}>Nutrition & portions</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
+                  <FiveStarRow label="Calorie fit" value={aiOverview.calorieScore} emoji="🔥" />
+                  <FiveStarRow label="Protein" value={aiOverview.proteinScore} emoji="🥩" />
+                  <FiveStarRow label="Carb balance" value={aiOverview.carbScore} emoji="🌾" />
+                </View>
+                {aiOverview.absoluteMacros ? (
+                  <Text style={styles.macrosBlock}>{aiOverview.absoluteMacros}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>💫</Text>
+                  <Ionicons name="people-outline" size={16} color="#E9A0C8" />
+                  <Text style={styles.sectionTitle}>Vibe & social</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
+                  <FiveStarRow label="Date worthiness" value={aiOverview.dateWorthiness} emoji="💕" />
+                  <FiveStarRow label="Noise level" value={aiOverview.noiseLevelEstimate} emoji="🔊" />
+                  <View style={styles.scoreCard}>
+                    <View style={styles.scoreCardTop}>
+                      <Text style={styles.scoreEmoji}>👥</Text>
+                      <Ionicons name="people-circle-outline" size={15} color="#F9A06F" />
+                      <Text style={styles.scoreCardLabel}>Group sweet spot</Text>
+                      <Text style={styles.scoreCardVal}>
+                        {aiOverview.groupSizeSweetSpot != null ? `${aiOverview.groupSizeSweetSpot} people` : '—'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {aiOverview.whoThisPlaceIsFor ? (
+                <View style={[styles.section, styles.whoSection]}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.aiSparkle}>🎯</Text>
+                    <Ionicons name="person-outline" size={16} color="#B8E0FF" />
+                    <Text style={[styles.sectionTitle, { color: '#B8E0FF' }]}>Who is this place for?</Text>
+                  </View>
+                  <Text style={styles.sectionBody}>{aiOverview.whoThisPlaceIsFor}</Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <View style={[styles.section, styles.aiSection]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
+                <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
+              </View>
+              <Text style={styles.sectionBody}>Generating AI overview...</Text>
             </View>
-            <View style={styles.healthBar}>
-              <View style={[styles.healthFill, { width: `${((aiOverview?.healthScore ?? 0) / 10) * 100}%` }]} />
-            </View>
-          </View>
+          )}
 
           {/* Action buttons */}
           <View style={styles.actions}>
-            {lat && lng && (
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnPrimary]}
-                onPress={() => openGoogleMaps(name, lat, lng)}
-              >
-                <Ionicons
-                  name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
-                  size={16}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.actionBtnText}>
-                  {Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}
-                </Text>
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnSecondary]}
               onPress={() => router.push('/map' as any)}
@@ -381,8 +484,27 @@ export default function RandomResultScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 24 }} />
         </ScrollView>
+
+        {mapsReady && (
+          <TouchableOpacity
+            style={[styles.mapsFabFixed, { bottom: fabBottom }]}
+            onPress={() => openGoogleMaps(name, lat!, lng!)}
+            activeOpacity={0.88}
+          >
+            <Ionicons
+              name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
+              size={18}
+              color="#FFFFFF"
+            />
+            <View>
+              <Text style={styles.mapsFabTitle}>Open in {mapsProviderLabel}</Text>
+              <Text style={styles.mapsFabSub}>Directions</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+        </View>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -390,11 +512,10 @@ export default function RandomResultScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const SCREEN_WIDTH = 390; // approximate, image fills full width
-
 const styles = StyleSheet.create({
   bg: { flex: 1 },
   safe: { flex: 1 },
+  bodyWrap: { flex: 1 },
   scroll: { paddingBottom: 20 },
 
   header: {
@@ -419,6 +540,28 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 10,
     flexDirection: 'row', alignSelf: 'center', gap: 5,
   },
+  mapsFabFixed: {
+    position: 'absolute',
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F97352',
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    maxWidth: '78%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 10,
+    zIndex: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  mapsFabTitle: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  mapsFabSub: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.75)', marginTop: 1 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.35)' },
   dotActive: { backgroundColor: '#FFFFFF', width: 16 },
 
@@ -459,6 +602,12 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', flex: 1 },
   sectionBody: { fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 20 },
+  copyHint: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 8, fontWeight: '600' },
+  healthScoreBadge: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#A8D5A2',
+  },
 
   // Hours
   hoursList: { gap: 4 },
@@ -467,22 +616,40 @@ const styles = StyleSheet.create({
 
   // AI section
   aiSection: { borderColor: 'rgba(201,160,255,0.15)' },
-  aiPlaceholder: { gap: 8 },
-  aiLine: {
-    height: 10, width: '100%',
-    backgroundColor: 'rgba(201,160,255,0.12)', borderRadius: 6,
+  aiSparkle: { fontSize: 15, marginRight: -2 },
+  whoSection: { borderColor: 'rgba(184,224,255,0.25)' },
+  scoreCardStack: { gap: 10 },
+  scoreCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  scoreCardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  scoreEmoji: { fontSize: 16 },
+  scoreCardLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.88)', minWidth: 120 },
+  scoreCardVal: { fontSize: 12, fontWeight: '800', color: '#F9A06F' },
+  scoreStars: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  tenTrack: {
+    height: 7,
+    marginTop: 10,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  tenFill: { height: '100%', borderRadius: 4, backgroundColor: '#68D8A3' },
+  macrosBlock: {
+    marginTop: 12,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 20,
+    fontWeight: '600',
   },
 
   // Health bar
   healthBar: { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' },
   healthFill: { height: '100%', backgroundColor: '#4CD964', borderRadius: 3 },
-
-  // Soon badge
-  soonBadge: {
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8,
-    paddingHorizontal: 7, paddingVertical: 3,
-  },
-  soonText: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: '600' },
 
   // Action buttons
   actions: { marginHorizontal: 16, gap: 10, marginTop: 4 },
@@ -490,7 +657,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderRadius: 16, paddingVertical: 14,
   },
-  actionBtnPrimary: { backgroundColor: '#F97352' },
   actionBtnSecondary: {
     backgroundColor: 'rgba(249,115,82,0.1)',
     borderWidth: 1, borderColor: 'rgba(249,115,82,0.4)',
