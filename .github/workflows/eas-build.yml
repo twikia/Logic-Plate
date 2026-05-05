@@ -1,16 +1,21 @@
-name: EAS Update
+name: EAS Build
 
 on:
-  workflow_dispatch:        # manual trigger from GitHub UI
+  workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to update from'
-        required: false
-        default: 'main'
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - all
 
 jobs:
-  update:
-    name: Publish EAS Update
+  build:
+    name: EAS Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -31,5 +36,5 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Publish update
-        run: eas update --branch ${{ github.ref_name }} --message "Update from GitHub Actions" --non-interactive --no-wait
+      - name: Build on EAS
+        run: eas build --platform ${{ github.event.inputs.platform }} --profile preview --non-interactive --no-wait
