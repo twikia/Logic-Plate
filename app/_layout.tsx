@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,6 +17,19 @@ export default function RootLayout() {
 
   useEffect(() => {
     initLocationCache();
+  }, []);
+
+  useEffect(() => {
+    async function checkUpdate() {
+      if (!__DEV__ && Updates.isEnabled) {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      }
+    }
+    checkUpdate();
   }, []);
 
   return (
