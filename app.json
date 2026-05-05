@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Platebound - 2",
-    "slug": "RestaurantApp",
+    "slug": "platebound",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.twikiasorganization.platebound"
     },
     "web": {
       "output": "static",
@@ -44,6 +45,19 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f6bde16f-dbb7-4c67-ab87-3f5ebd101b6f"
+      }
+    },
+    "owner": "twikias-organization",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f6bde16f-dbb7-4c67-ab87-3f5ebd101b6f"
     }
   }
 }
