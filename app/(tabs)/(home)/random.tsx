@@ -184,6 +184,7 @@ export default function RandomScreen() {
   const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
 
   const hydratedRef = useRef(false);
+  const progressCeilingRef = useRef(0);
 
   const PRICE_LEVELS = [
     { key: 'PRICE_LEVEL_INEXPENSIVE', label: '$' },
@@ -219,6 +220,23 @@ export default function RandomScreen() {
   }, []);
 
   useEffect(() => {
+    if (!isLoading) return;
+
+    const interval = setInterval(() => {
+      setLoadingProgress(prev => {
+        const ceiling = progressCeilingRef.current;
+        if (prev >= ceiling) return prev;
+
+        const remaining = ceiling - prev;
+        const step = Math.min(0.015, Math.max(0.003, remaining * 0.18));
+        return Math.min(ceiling, prev + step);
+      });
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  useEffect(() => {
     if (!hydratedRef.current || isLoading || errorMsg) return;
     saveRandomPickerState({
       v: 1,
@@ -237,7 +255,8 @@ export default function RandomScreen() {
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     setLoadingStage('Acquiring GPS...');
-    setLoadingProgress(0.1);
+    progressCeilingRef.current = 0.22;
+    setLoadingProgress(0.08);
     try {
       const coords = await getLocation(isRefresh);
       if (!coords) {
@@ -245,7 +264,28 @@ export default function RandomScreen() {
         setIsLoading(false);
         return;
       }
-      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius);
+      setLoadingStage('Loading restaurants...');
+      progressCeilingRef.current = 0.32;
+      setLoadingProgress(prev => Math.max(prev, 0.2));
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius, ({ stage, progress }) => {
+        if (stage === 'reading-cache') {
+          setLoadingStage('Checking restaurant cache...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.38);
+        } else if (stage === 'fetching-restaurants') {
+          setLoadingStage('Loading restaurants...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.72);
+        } else if (stage === 'parsing-restaurants') {
+          setLoadingStage('Organizing restaurants...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.84);
+        } else if (stage === 'loading-overviews') {
+          setLoadingStage('Finalizing results...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.97);
+        } else if (stage === 'done') {
+          setLoadingStage('Done');
+          progressCeilingRef.current = 1;
+        }
+        setLoadingProgress(prev => Math.max(prev, progress));
+      });
       setAllResults(all);
 
         const saved = await getRandomPickerState();

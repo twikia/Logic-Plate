@@ -41,65 +41,14 @@ type PlaceSeed = {
   primaryType?: string;
   primaryTypeDisplayName?: { text?: string };
   types?: string[];
-  priceLevel?: string;
-  rating?: number;
-  userRatingCount?: number;
   location?: { latitude?: number; longitude?: number };
   googleMapsUri?: string;
-  websiteUri?: string;
-  nationalPhoneNumber?: string;
   businessStatus?: string;
-  currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
-  regularOpeningHours?: { weekdayDescriptions?: string[] };
-  servesBreakfast?: boolean;
-  servesLunch?: boolean;
-  servesDinner?: boolean;
-  servesVegetarianFood?: boolean;
-  servesVeganFood?: boolean;
-  servesWine?: boolean;
-  servesBeer?: boolean;
-  servesCocktails?: boolean;
-  servesDessert?: boolean;
-  servesCoffee?: boolean;
-  goodForChildren?: boolean;
-  takeout?: boolean;
-  delivery?: boolean;
-  dineIn?: boolean;
-  curbsidePickup?: boolean;
-  paymentOptions?: {
-    acceptsCreditCards?: boolean;
-    acceptsDebitCards?: boolean;
-    acceptsCashOnly?: boolean;
-    acceptsNfc?: boolean;
-  };
-  parkingOptions?: {
-    freeParkingLot?: boolean;
-    freeStreetParking?: boolean;
-    valetParking?: boolean;
-    paidGarageParking?: boolean;
-    paidStreetParking?: boolean;
-  };
-  editorialSummary?: { text?: string };
-  allowsDogs?: boolean;
-  // New fields
-  reviews?: { relativePublishTimeDescription?: string; text?: { text?: string }; rating?: number }[];
-  servesBrunch?: boolean;
-  goodForGroups?: boolean;
-  goodForWatchingSports?: boolean;
-  liveMusic?: boolean;
-  menuForChildren?: boolean;
-  outdoorSeating?: boolean;
-  reservable?: boolean;
-  restroom?: boolean;
   accessibilityOptions?: {
     wheelchairAccessibleParking?: boolean;
     wheelchairAccessibleEntrance?: boolean;
     wheelchairAccessibleRestroom?: boolean;
     wheelchairAccessibleSeating?: boolean;
-  };
-  priceRange?: {
-    startPrice?: { units?: string; nanos?: number; currencyCode?: string };
-    endPrice?: { units?: string; nanos?: number; currencyCode?: string };
   };
 };
 
@@ -225,46 +174,10 @@ export const getAiOverviewsForPlaces = async (
               primaryType: (p as PlaceSeed).primaryType ?? '',
               primaryTypeDisplayName: (p as PlaceSeed).primaryTypeDisplayName?.text ?? '',
               types: (p as PlaceSeed).types ?? [],
-              priceLevel: (p as PlaceSeed).priceLevel ?? '',
-              rating: (p as PlaceSeed).rating ?? null,
-              userRatingCount: (p as PlaceSeed).userRatingCount ?? null,
               location: (p as PlaceSeed).location ?? null,
               googleMapsUri: (p as PlaceSeed).googleMapsUri ?? '',
-              websiteUri: (p as PlaceSeed).websiteUri ?? '',
-              nationalPhoneNumber: (p as PlaceSeed).nationalPhoneNumber ?? '',
               businessStatus: (p as PlaceSeed).businessStatus ?? '',
-              currentOpeningHours: (p as PlaceSeed).currentOpeningHours ?? null,
-              regularOpeningHours: (p as PlaceSeed).regularOpeningHours ?? null,
-              servesBreakfast: (p as PlaceSeed).servesBreakfast ?? null,
-              servesLunch: (p as PlaceSeed).servesLunch ?? null,
-              servesDinner: (p as PlaceSeed).servesDinner ?? null,
-              servesVegetarianFood: (p as PlaceSeed).servesVegetarianFood ?? null,
-              servesVeganFood: (p as PlaceSeed).servesVeganFood ?? null,
-              servesWine: (p as PlaceSeed).servesWine ?? null,
-              servesBeer: (p as PlaceSeed).servesBeer ?? null,
-              servesCocktails: (p as PlaceSeed).servesCocktails ?? null,
-              servesDessert: (p as PlaceSeed).servesDessert ?? null,
-              servesCoffee: (p as PlaceSeed).servesCoffee ?? null,
-              goodForChildren: (p as PlaceSeed).goodForChildren ?? null,
-              takeout: (p as PlaceSeed).takeout ?? null,
-              delivery: (p as PlaceSeed).delivery ?? null,
-              dineIn: (p as PlaceSeed).dineIn ?? null,
-              curbsidePickup: (p as PlaceSeed).curbsidePickup ?? null,
-              paymentOptions: (p as PlaceSeed).paymentOptions ?? null,
-              parkingOptions: (p as PlaceSeed).parkingOptions ?? null,
-              editorialSummary: (p as PlaceSeed).editorialSummary?.text ?? '',
-              allowsDogs: (p as PlaceSeed).allowsDogs ?? null,
-              reviews: (p as PlaceSeed).reviews ?? [],
-              servesBrunch: (p as PlaceSeed).servesBrunch ?? null,
-              goodForGroups: (p as PlaceSeed).goodForGroups ?? null,
-              goodForWatchingSports: (p as PlaceSeed).goodForWatchingSports ?? null,
-              liveMusic: (p as PlaceSeed).liveMusic ?? null,
-              menuForChildren: (p as PlaceSeed).menuForChildren ?? null,
-              outdoorSeating: (p as PlaceSeed).outdoorSeating ?? null,
-              reservable: (p as PlaceSeed).reservable ?? null,
-              restroom: (p as PlaceSeed).restroom ?? null,
               accessibilityOptions: (p as PlaceSeed).accessibilityOptions ?? null,
-              priceRange: (p as PlaceSeed).priceRange ?? null,
             }));
 
           if (payloadPlaces.length > 0) {
