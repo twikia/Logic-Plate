@@ -538,7 +538,7 @@ export default function MapScreen() {
                 <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{selectedRestaurant.aiOverview.summaryGoodBad}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                   {[
-                    { label: `Speed ${selectedRestaurant.aiOverview.speedScore}/10`, color: '#F9A06F' },
+                    { label: `Convenience Speed ${selectedRestaurant.aiOverview.speedScore}/5`, color: '#F9A06F' },
                     { label: `Health ${selectedRestaurant.aiOverview.healthScore}/10`, color: '#4CD964' },
                     { label: `Recovery ${selectedRestaurant.aiOverview.workoutRecoveryScore}/10`, color: '#64D9D9' },
                     { label: `Processed ${selectedRestaurant.aiOverview.processedScore}/10`, color: '#FF6B6B' },
