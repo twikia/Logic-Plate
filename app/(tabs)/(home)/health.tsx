@@ -3,7 +3,7 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Linking,
@@ -186,7 +186,10 @@ export default function HealthScreen() {
   const [showMetric, setShowMetric] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loadingStage, setLoadingStage] = useState('Preparing...');
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const { formatLabel } = useDistanceFormatter();
+  const progressCeilingRef = useRef(0);
 
   useEffect(() => {
     getSearchRadius().then((savedRadius) => {
@@ -194,6 +197,23 @@ export default function HealthScreen() {
       loadResults(savedRadius);
     });
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const interval = setInterval(() => {
+      setLoadingProgress((prev) => {
+        const ceiling = progressCeilingRef.current;
+        if (prev >= ceiling) return prev;
+
+        const remaining = ceiling - prev;
+        const step = Math.min(0.015, Math.max(0.003, remaining * 0.18));
+        return Math.min(ceiling, prev + step);
+      });
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   const scoreForMetric = (item: any, currentMetric: SortMetric) => {
     const ai = item.aiOverview;
@@ -210,6 +230,9 @@ export default function HealthScreen() {
     const activeRadius = requestedRadius ?? radius;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
+    setLoadingStage('Acquiring GPS...');
+    progressCeilingRef.current = 0.22;
+    setLoadingProgress(0.08);
     try {
       const coords = await getLocation(isRefresh);
       if (!coords) {
@@ -217,11 +240,33 @@ export default function HealthScreen() {
         setIsLoading(false);
         return;
       }
-      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, activeRadius);
+      setLoadingStage('Loading restaurants...');
+      progressCeilingRef.current = 0.32;
+      setLoadingProgress((prev) => Math.max(prev, 0.2));
+      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, activeRadius, ({ stage, progress }) => {
+        if (stage === 'reading-cache') {
+          setLoadingStage('Checking restaurant cache...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.38);
+        } else if (stage === 'fetching-restaurants') {
+          setLoadingStage('Loading restaurants...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.72);
+        } else if (stage === 'parsing-restaurants') {
+          setLoadingStage('Ranking restaurants...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.84);
+        } else if (stage === 'loading-overviews') {
+          setLoadingStage('Finalizing health rankings...');
+          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.97);
+        } else if (stage === 'done') {
+          setLoadingStage('Done');
+          progressCeilingRef.current = 1;
+        }
+        setLoadingProgress((prev) => Math.max(prev, progress));
+      });
       setAllResults(all.filter((item) => !!item.aiOverview));
     } catch {
       setErrorMsg('Unable to load health rankings right now.');
     } finally {
+      setLoadingProgress(1);
       setIsLoading(false);
     }
   };
@@ -328,8 +373,12 @@ export default function HealthScreen() {
         </View>
 
         {isLoading ? (
-          <View style={styles.centerBox}>
-            <Text style={styles.centerText}>Loading health rankings...</Text>
+          <View style={styles.loadingBox}>
+            <Text style={styles.loadingText}>{loadingStage}</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.round(loadingProgress * 100)}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{Math.round(loadingProgress * 100)}%</Text>
           </View>
         ) : errorMsg ? (
           <View style={styles.centerBox}>
@@ -434,6 +483,25 @@ const styles = StyleSheet.create({
   panelPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
   panelPillText: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
   panelPillTextActive: { color: '#FFFFFF' },
+  loadingBox: { paddingHorizontal: 16, paddingTop: 8 },
+  loadingText: { fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 10 },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#F97352',
+  },
+  progressText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 10,
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
