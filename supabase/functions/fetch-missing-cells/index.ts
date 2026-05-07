@@ -77,7 +77,36 @@ serve(async (req) => {
           },
         };
 
-        const fieldMask = 'places.id,places.name,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.viewport,places.plusCode,places.types,places.primaryType,places.primaryTypeDisplayName,places.businessStatus,places.priceLevel,places.priceRange,places.rating,places.userRatingCount,places.currentOpeningHours,places.currentSecondaryOpeningHours,places.regularOpeningHours,places.regularSecondaryOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,places.googleMapsUri,places.editorialSummary,places.reviews,places.servesBreakfast,places.servesBrunch,places.servesLunch,places.servesDinner,places.servesVegetarianFood,places.servesWine,places.servesBeer,places.servesCocktails,places.servesCoffee,places.servesDessert,places.goodForChildren,places.goodForGroups,places.goodForWatchingSports,places.liveMusic,places.menuForChildren,places.outdoorSeating,places.reservable,places.restroom,places.takeout,places.delivery,places.dineIn,places.curbsidePickup,places.allowsDogs,places.paymentOptions,places.parkingOptions,places.accessibilityOptions,places.evChargeOptions,places.fuelOptions,places.iconBackgroundColor,places.iconMaskBaseUri';
+        const fieldMask = [
+          'places.id',
+          'places.name',
+          'places.displayName',
+          'places.formattedAddress',
+          'places.shortFormattedAddress',
+          'places.location',
+          'places.viewport',
+          'places.plusCode',
+          'places.types',
+          'places.primaryType',
+          'places.primaryTypeDisplayName',
+          'places.businessStatus',
+          'places.priceLevel',
+          'places.priceRange',
+          'places.rating',
+          'places.userRatingCount',
+          'places.currentOpeningHours',
+          'places.currentSecondaryOpeningHours',
+          'places.regularOpeningHours',
+          'places.regularSecondaryOpeningHours',
+          'places.utcOffsetMinutes',
+          'places.websiteUri',
+          'places.nationalPhoneNumber',
+          'places.internationalPhoneNumber',
+          'places.googleMapsUri',
+          'places.accessibilityOptions',
+          'places.iconBackgroundColor',
+          'places.iconMaskBaseUri',
+        ].join(',');
 
         const response = await fetch(url, {
           method: 'POST',

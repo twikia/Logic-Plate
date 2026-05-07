@@ -20,48 +20,12 @@ type InputPlace = {
   googleMapsUri?: string;
   websiteUri?: string;
   nationalPhoneNumber?: string;
+  internationalPhoneNumber?: string;
   businessStatus?: string;
   currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] } | null;
+  currentSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] } | null;
   regularOpeningHours?: { weekdayDescriptions?: string[] } | null;
-  servesBreakfast?: boolean | null;
-  servesLunch?: boolean | null;
-  servesDinner?: boolean | null;
-  servesVegetarianFood?: boolean | null;
-  servesVeganFood?: boolean | null;
-  servesWine?: boolean | null;
-  servesBeer?: boolean | null;
-  servesCocktails?: boolean | null;
-  servesDessert?: boolean | null;
-  servesCoffee?: boolean | null;
-  goodForChildren?: boolean | null;
-  takeout?: boolean | null;
-  delivery?: boolean | null;
-  dineIn?: boolean | null;
-  curbsidePickup?: boolean | null;
-  paymentOptions?: {
-    acceptsCreditCards?: boolean;
-    acceptsDebitCards?: boolean;
-    acceptsCashOnly?: boolean;
-    acceptsNfc?: boolean;
-  } | null;
-  parkingOptions?: {
-    freeParkingLot?: boolean;
-    freeStreetParking?: boolean;
-    valetParking?: boolean;
-    paidGarageParking?: boolean;
-    paidStreetParking?: boolean;
-  } | null;
-  editorialSummary?: string;
-  allowsDogs?: boolean | null;
-  reviews?: { relativePublishTimeDescription?: string; text?: { text?: string }; rating?: number }[] | null;
-  servesBrunch?: boolean | null;
-  goodForGroups?: boolean | null;
-  goodForWatchingSports?: boolean | null;
-  liveMusic?: boolean | null;
-  menuForChildren?: boolean | null;
-  outdoorSeating?: boolean | null;
-  reservable?: boolean | null;
-  restroom?: boolean | null;
+  regularSecondaryOpeningHours?: { weekdayDescriptions?: string[] } | null;
   accessibilityOptions?: {
     wheelchairAccessibleParking?: boolean;
     wheelchairAccessibleEntrance?: boolean;
@@ -95,7 +59,7 @@ You are generating one restaurant AI overview for downstream parsing.
 Return JSON only. Do not include markdown. Do not include explanations outside JSON.
 If the restaurant appears to be part of a chain, you may use reliable chain-level patterns and commonly known chain menu tendencies to improve accuracy. Prefer listing-specific signals when they conflict with chain-level assumptions, and keep uncertainty caveats explicit.
 
-Use all provided signals (reviews, editorial summary, opening hours, serves/goodFor flags, accessibility, parking, etc.) to construct a highly accurate and context-aware overview.
+Use the provided Google Places Pro and Enterprise signals plus reliable category and chain-level knowledge to construct an accurate, context-aware overview. Keep uncertainty caveats explicit when listing-specific signals are limited.
 
 Restaurant Data:
 - ID: ${place.id}
@@ -106,25 +70,16 @@ Restaurant Data:
 - Business Status: ${place.businessStatus ?? ''}
 - Price Level: ${place.priceLevel ?? ''}
 - Price Range: ${JSON.stringify(place.priceRange ?? {})}
-- Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} reviews)
-- Editorial Summary: ${place.editorialSummary ?? ''}
-- Recent Reviews Snippets: ${JSON.stringify((place.reviews ?? []).map(r => ({ rating: r.rating, text: r.text?.text })).slice(0, 3))}
+- Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} user ratings)
 
-Features & Amenities:
-- Serves: Breakfast: ${place.servesBreakfast}, Brunch: ${place.servesBrunch}, Lunch: ${place.servesLunch}, Dinner: ${place.servesDinner}, Dessert: ${place.servesDessert}, Coffee: ${place.servesCoffee}
-- Dietary: Vegetarian: ${place.servesVegetarianFood}, Vegan: ${place.servesVeganFood}
-- Drinks: Wine: ${place.servesWine}, Beer: ${place.servesBeer}, Cocktails: ${place.servesCocktails}
-- Atmosphere/Seating: Outdoor Seating: ${place.outdoorSeating}, Live Music: ${place.liveMusic}, Good for Watching Sports: ${place.goodForWatchingSports}, Good for Groups: ${place.goodForGroups}, Good for Children: ${place.goodForChildren}, Allows Dogs: ${place.allowsDogs}
-- Service Options: Takeout: ${place.takeout}, Delivery: ${place.delivery}, Dine-in: ${place.dineIn}, Reservable: ${place.reservable}, Curbside Pickup: ${place.curbsidePickup}
-- Facilities: Restroom: ${place.restroom}, Accessibility: ${JSON.stringify(place.accessibilityOptions ?? {})}, Parking: ${JSON.stringify(place.parkingOptions ?? {})}
-- Payment: ${JSON.stringify(place.paymentOptions ?? {})}
-
-Hours & Location:
+Accessibility & Location:
+- Accessibility: ${JSON.stringify(place.accessibilityOptions ?? {})}
 - Coordinates: lat=${place.location?.latitude ?? ''}, lng=${place.location?.longitude ?? ''}
 - Maps Link: ${place.googleMapsUri ?? ''}
 - Website: ${place.websiteUri ?? ''}
-- Phone: ${place.nationalPhoneNumber ?? ''}
+- Phone: ${place.nationalPhoneNumber ?? place.internationalPhoneNumber ?? ''}
 - Opening Hours: ${((place.currentOpeningHours?.weekdayDescriptions ?? place.regularOpeningHours?.weekdayDescriptions) ?? []).join(' | ')}
+- Secondary Opening Hours: ${((place.currentSecondaryOpeningHours?.weekdayDescriptions ?? place.regularSecondaryOpeningHours?.weekdayDescriptions) ?? []).join(' | ')}
 
 Output format requirements:
 1) Return exactly one JSON object with exactly these keys and no extras:
