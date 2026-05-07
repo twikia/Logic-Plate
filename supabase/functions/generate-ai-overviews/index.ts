@@ -13,14 +13,28 @@ type InputPlace = {
   primaryType?: string;
   primaryTypeDisplayName?: string;
   types?: string[];
+  priceLevel?: string;
+  rating?: number | null;
+  userRatingCount?: number | null;
   location?: { latitude?: number; longitude?: number } | null;
   googleMapsUri?: string;
+  websiteUri?: string;
+  nationalPhoneNumber?: string;
+  internationalPhoneNumber?: string;
   businessStatus?: string;
+  currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] } | null;
+  currentSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] } | null;
+  regularOpeningHours?: { weekdayDescriptions?: string[] } | null;
+  regularSecondaryOpeningHours?: { weekdayDescriptions?: string[] } | null;
   accessibilityOptions?: {
     wheelchairAccessibleParking?: boolean;
     wheelchairAccessibleEntrance?: boolean;
     wheelchairAccessibleRestroom?: boolean;
     wheelchairAccessibleSeating?: boolean;
+  } | null;
+  priceRange?: {
+    startPrice?: { units?: string; nanos?: number; currencyCode?: string };
+    endPrice?: { units?: string; nanos?: number; currencyCode?: string };
   } | null;
 };
 
@@ -45,7 +59,7 @@ You are generating one restaurant AI overview for downstream parsing.
 Return JSON only. Do not include markdown. Do not include explanations outside JSON.
 If the restaurant appears to be part of a chain, you may use reliable chain-level patterns and commonly known chain menu tendencies to improve accuracy. Prefer listing-specific signals when they conflict with chain-level assumptions, and keep uncertainty caveats explicit.
 
-Use the provided Google Places Pro-level signals plus reliable category and chain-level knowledge to construct an accurate, context-aware overview. Keep uncertainty caveats explicit when listing-specific signals are limited.
+Use the provided Google Places Pro and Enterprise signals plus reliable category and chain-level knowledge to construct an accurate, context-aware overview. Keep uncertainty caveats explicit when listing-specific signals are limited.
 
 Restaurant Data:
 - ID: ${place.id}
@@ -54,11 +68,18 @@ Restaurant Data:
 - Category: ${place.primaryTypeDisplayName ?? place.primaryType ?? ''}
 - Types: ${(place.types ?? []).join(', ')}
 - Business Status: ${place.businessStatus ?? ''}
+- Price Level: ${place.priceLevel ?? ''}
+- Price Range: ${JSON.stringify(place.priceRange ?? {})}
+- Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} reviews)
 
 Accessibility & Location:
 - Accessibility: ${JSON.stringify(place.accessibilityOptions ?? {})}
 - Coordinates: lat=${place.location?.latitude ?? ''}, lng=${place.location?.longitude ?? ''}
 - Maps Link: ${place.googleMapsUri ?? ''}
+- Website: ${place.websiteUri ?? ''}
+- Phone: ${place.nationalPhoneNumber ?? place.internationalPhoneNumber ?? ''}
+- Opening Hours: ${((place.currentOpeningHours?.weekdayDescriptions ?? place.regularOpeningHours?.weekdayDescriptions) ?? []).join(' | ')}
+- Secondary Opening Hours: ${((place.currentSecondaryOpeningHours?.weekdayDescriptions ?? place.regularSecondaryOpeningHours?.weekdayDescriptions) ?? []).join(' | ')}
 
 Output format requirements:
 1) Return exactly one JSON object with exactly these keys and no extras:

@@ -41,14 +41,28 @@ type PlaceSeed = {
   primaryType?: string;
   primaryTypeDisplayName?: { text?: string };
   types?: string[];
+  priceLevel?: string;
+  rating?: number;
+  userRatingCount?: number;
   location?: { latitude?: number; longitude?: number };
   googleMapsUri?: string;
+  websiteUri?: string;
+  nationalPhoneNumber?: string;
+  internationalPhoneNumber?: string;
   businessStatus?: string;
+  currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
+  currentSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
+  regularOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
+  regularSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
   accessibilityOptions?: {
     wheelchairAccessibleParking?: boolean;
     wheelchairAccessibleEntrance?: boolean;
     wheelchairAccessibleRestroom?: boolean;
     wheelchairAccessibleSeating?: boolean;
+  };
+  priceRange?: {
+    startPrice?: { units?: string; nanos?: number; currencyCode?: string };
+    endPrice?: { units?: string; nanos?: number; currencyCode?: string };
   };
 };
 
@@ -174,9 +188,20 @@ export const getAiOverviewsForPlaces = async (
               primaryType: (p as PlaceSeed).primaryType ?? '',
               primaryTypeDisplayName: (p as PlaceSeed).primaryTypeDisplayName?.text ?? '',
               types: (p as PlaceSeed).types ?? [],
+              priceLevel: (p as PlaceSeed).priceLevel ?? '',
+              priceRange: (p as PlaceSeed).priceRange ?? null,
+              rating: (p as PlaceSeed).rating ?? null,
+              userRatingCount: (p as PlaceSeed).userRatingCount ?? null,
               location: (p as PlaceSeed).location ?? null,
               googleMapsUri: (p as PlaceSeed).googleMapsUri ?? '',
+              websiteUri: (p as PlaceSeed).websiteUri ?? '',
+              nationalPhoneNumber: (p as PlaceSeed).nationalPhoneNumber ?? '',
+              internationalPhoneNumber: (p as PlaceSeed).internationalPhoneNumber ?? '',
               businessStatus: (p as PlaceSeed).businessStatus ?? '',
+              currentOpeningHours: (p as PlaceSeed).currentOpeningHours ?? null,
+              currentSecondaryOpeningHours: (p as PlaceSeed).currentSecondaryOpeningHours ?? null,
+              regularOpeningHours: (p as PlaceSeed).regularOpeningHours ?? null,
+              regularSecondaryOpeningHours: (p as PlaceSeed).regularSecondaryOpeningHours ?? null,
               accessibilityOptions: (p as PlaceSeed).accessibilityOptions ?? null,
             }));
 
