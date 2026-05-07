@@ -4,6 +4,13 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 
 export type RestaurantLoadProgressFlavor = 'health' | 'random' | 'cuisine';
 
+const DEFAULT_STAGE_LABELS: Record<Exclude<RestaurantLoadStage, 'done'>, string> = {
+  'reading-cache': 'Checking restaurant cache...',
+  'fetching-restaurants': 'Loading restaurants...',
+  'parsing-restaurants': 'Organizing restaurants...',
+  'loading-overviews': 'Finalizing results...',
+};
+
 const STAGE_LABELS: Record<
   RestaurantLoadProgressFlavor,
   Record<Exclude<RestaurantLoadStage, 'done'>, string>
@@ -14,18 +21,8 @@ const STAGE_LABELS: Record<
     'parsing-restaurants': 'Ranking restaurants...',
     'loading-overviews': 'Finalizing health rankings...',
   },
-  random: {
-    'reading-cache': 'Checking restaurant cache...',
-    'fetching-restaurants': 'Loading restaurants...',
-    'parsing-restaurants': 'Organizing restaurants...',
-    'loading-overviews': 'Finalizing results...',
-  },
-  cuisine: {
-    'reading-cache': 'Checking restaurant cache...',
-    'fetching-restaurants': 'Loading restaurants...',
-    'parsing-restaurants': 'Organizing restaurants...',
-    'loading-overviews': 'Finalizing results...',
-  },
+  random: DEFAULT_STAGE_LABELS,
+  cuisine: DEFAULT_STAGE_LABELS,
 };
 
 export function useRestaurantLoadProgress(
