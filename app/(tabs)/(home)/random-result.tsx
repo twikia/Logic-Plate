@@ -138,6 +138,28 @@ function TenPointBar({
   );
 }
 
+function SpeedBar({ value }: { value: number | undefined }) {
+  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const pct = Math.max(0, Math.min(1, v / 5));
+  return (
+    <View style={styles.scoreCard}>
+      <View style={styles.scoreCardTop}>
+        <Text style={styles.scoreEmoji}>⏱️</Text>
+        <Ionicons name="timer-outline" size={15} color="#F9A06F" />
+        <Text style={styles.scoreCardLabel}>Speed</Text>
+        <Text style={styles.scoreCardVal}>{v.toFixed(0)}/5</Text>
+      </View>
+      <View style={styles.speedScaleRow}>
+        <Text style={styles.speedScaleText}>🐌 0 slow</Text>
+        <Text style={styles.speedScaleText}>5 fast ⚡</Text>
+      </View>
+      <View style={styles.tenTrack}>
+        <View style={[styles.tenFill, { width: `${pct * 100}%` }]} />
+      </View>
+    </View>
+  );
+}
+
 function FiveStarRow({ label, value, emoji }: { label: string; value: number | undefined; emoji: string }) {
   const rounded = Math.max(0, Math.min(5, Math.round(typeof value === 'number' && Number.isFinite(value) ? value : 0)));
   return (
@@ -397,10 +419,20 @@ export default function RandomResultScreen() {
                 <View style={styles.sectionHeader}>
                   <Text style={styles.aiSparkle}>⚡</Text>
                   <Ionicons name="flash-outline" size={16} color="#F9A06F" />
-                  <Text style={styles.sectionTitle}>Pace & recovery</Text>
+                  <Text style={styles.sectionTitle}>Convenience</Text>
                 </View>
                 <View style={styles.scoreCardStack}>
-                  <TenPointBar label="Speed" value={aiOverview.speedScore} icon="timer-outline" emoji="⏱️" />
+                  <SpeedBar value={aiOverview.speedScore} />
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>💪</Text>
+                  <Ionicons name="barbell-outline" size={16} color="#F9A06F" />
+                  <Text style={styles.sectionTitle}>Recovery</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
                   <TenPointBar label="Workout recovery" value={aiOverview.workoutRecoveryScore} icon="barbell-outline" emoji="💪" />
                   <TenPointBar label="Processed food load" value={aiOverview.processedScore} icon="nutrition-outline" emoji="🍎" />
                 </View>
@@ -631,6 +663,8 @@ const styles = StyleSheet.create({
   scoreCardLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.88)', minWidth: 120 },
   scoreCardVal: { fontSize: 12, fontWeight: '800', color: '#F9A06F' },
   scoreStars: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  speedScaleRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  speedScaleText: { fontSize: 11, color: 'rgba(255,255,255,0.58)', fontWeight: '700' },
   tenTrack: {
     height: 7,
     marginTop: 10,
