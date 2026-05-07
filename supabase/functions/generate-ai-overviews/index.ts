@@ -70,7 +70,7 @@ Restaurant Data:
 - Business Status: ${place.businessStatus ?? ''}
 - Price Level: ${place.priceLevel ?? ''}
 - Price Range: ${JSON.stringify(place.priceRange ?? {})}
-- Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} reviews)
+- Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} user ratings)
 
 Accessibility & Location:
 - Accessibility: ${JSON.stringify(place.accessibilityOptions ?? {})}
