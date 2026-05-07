@@ -1,3 +1,7 @@
+import {
+  RestaurantLoadingProgressBar,
+  useRestaurantLoadProgress,
+} from '@/components/RestaurantLoadingProgress';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -171,8 +175,6 @@ export default function RandomScreen() {
   const [filter, setFilter] = useState('');
   const [radius, setRadius] = useState(4000);
   const [showRadius, setShowRadius] = useState(false);
-  const [loadingStage, setLoadingStage] = useState('Preparing...');
-  const [loadingProgress, setLoadingProgress] = useState(0);
   const { formatLabel } = useDistanceFormatter();
 
   // ── Filter state ──
@@ -184,7 +186,14 @@ export default function RandomScreen() {
   const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
 
   const hydratedRef = useRef(false);
-  const progressCeilingRef = useRef(0);
+  const {
+    loadingStage,
+    loadingProgress,
+    startGpsPhase,
+    startFetchPhase,
+    onOrchestratorProgress,
+    snapProgressComplete,
+  } = useRestaurantLoadProgress(isLoading, 'random');
 
   const PRICE_LEVELS = [
     { key: 'PRICE_LEVEL_INEXPENSIVE', label: '$' },
@@ -220,23 +229,6 @@ export default function RandomScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading) return;
-
-    const interval = setInterval(() => {
-      setLoadingProgress(prev => {
-        const ceiling = progressCeilingRef.current;
-        if (prev >= ceiling) return prev;
-
-        const remaining = ceiling - prev;
-        const step = Math.min(0.015, Math.max(0.003, remaining * 0.18));
-        return Math.min(ceiling, prev + step);
-      });
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
-  useEffect(() => {
     if (!hydratedRef.current || isLoading || errorMsg) return;
     saveRandomPickerState({
       v: 1,
@@ -254,9 +246,7 @@ export default function RandomScreen() {
     const searchRadius = r ?? radius;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
-    setLoadingStage('Acquiring GPS...');
-    progressCeilingRef.current = 0.22;
-    setLoadingProgress(0.08);
+    startGpsPhase();
     try {
       const coords = await getLocation(isRefresh);
       if (!coords) {
@@ -264,28 +254,13 @@ export default function RandomScreen() {
         setIsLoading(false);
         return;
       }
-      setLoadingStage('Loading restaurants...');
-      progressCeilingRef.current = 0.32;
-      setLoadingProgress(prev => Math.max(prev, 0.2));
-      const all = await getNearbyRestaurants(coords.latitude, coords.longitude, searchRadius, ({ stage, progress }) => {
-        if (stage === 'reading-cache') {
-          setLoadingStage('Checking restaurant cache...');
-          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.38);
-        } else if (stage === 'fetching-restaurants') {
-          setLoadingStage('Loading restaurants...');
-          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.72);
-        } else if (stage === 'parsing-restaurants') {
-          setLoadingStage('Organizing restaurants...');
-          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.84);
-        } else if (stage === 'loading-overviews') {
-          setLoadingStage('Finalizing results...');
-          progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.97);
-        } else if (stage === 'done') {
-          setLoadingStage('Done');
-          progressCeilingRef.current = 1;
-        }
-        setLoadingProgress(prev => Math.max(prev, progress));
-      });
+      startFetchPhase();
+      const all = await getNearbyRestaurants(
+        coords.latitude,
+        coords.longitude,
+        searchRadius,
+        onOrchestratorProgress
+      );
       setAllResults(all);
 
         const saved = await getRandomPickerState();
@@ -316,7 +291,7 @@ export default function RandomScreen() {
       const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
       setErrorMsg(message);
     } finally {
-      setLoadingProgress(1);
+      snapProgressComplete();
       setIsLoading(false);
       hydratedRef.current = true;
     }
@@ -594,11 +569,7 @@ export default function RandomScreen() {
         {/* Content */}
         {isLoading ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <Text style={styles.subtitle}>{loadingStage}</Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.round(loadingProgress * 100)}%` }]} />
-            </View>
-            <Text style={styles.progressText}>{Math.round(loadingProgress * 100)}%</Text>
+            <RestaurantLoadingProgressBar stageLabel={loadingStage} progress={loadingProgress} />
             {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
           </View>
         ) : errorMsg ? (
@@ -807,21 +778,4 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
   filterPillText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
   filterPillTextActive: { color: '#FFFFFF' },
-  progressTrack: {
-    width: '100%',
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#F97352',
-  },
-  progressText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 10,
-  },
 });
