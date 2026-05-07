@@ -22,14 +22,14 @@ const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
  * Phase 6: Cache Orchestrator — Optimized with bulk cache reads.
  * Master function to fetch nearby restaurants efficiently using Supabase Edge Functions.
  */
-type RestaurantLoadStage =
+export type RestaurantLoadStage =
   | 'reading-cache'
   | 'fetching-restaurants'
   | 'parsing-restaurants'
   | 'loading-overviews'
   | 'done';
 
-type RestaurantLoadProgress = {
+export type RestaurantLoadProgress = {
   stage: RestaurantLoadStage;
   progress: number;
 };
