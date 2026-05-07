@@ -174,33 +174,6 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.brand}>Platebound</Text>
-          {isGuest ? (
-            <>
-              <Text style={styles.guestBanner}>
-                Guest profile — add email or a social account to keep this same user ID across devices.
-                OAuth links to this profile so your data stays put.
-              </Text>
-              <AnimatedPressable
-                style={styles.secondaryCta}
-                onPress={() => router.replace('/(tabs)' as any)}
-              >
-                <Text style={styles.secondaryCtaText}>Back to app</Text>
-              </AnimatedPressable>
-            </>
-          ) : null}
-          {!authLoading && !user ? (
-            <AnimatedPressable
-              style={[styles.secondaryCta, (guestBusy || busy) && styles.primaryDisabled]}
-              onPress={onContinueAsGuest}
-              disabled={guestBusy || busy}
-            >
-              {guestBusy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.secondaryCtaText}>Continue as guest</Text>
-              )}
-            </AnimatedPressable>
-          ) : null}
           <Text style={styles.headline}>
             {mode === 'signin'
               ? 'Welcome back'
@@ -277,7 +250,7 @@ export default function LoginScreen() {
             )}
           </AnimatedPressable>
 
-          <Text style={styles.divider}>or continue with</Text>
+          <Text style={styles.divider}>or</Text>
 
           <View style={styles.socialGrid}>
             <AnimatedPressable
@@ -359,9 +332,27 @@ export default function LoginScreen() {
             </AnimatedPressable>
           </View>
 
-          <Text style={styles.footerNote}>
-            Passwords are verified by Supabase Auth and are never stored in app-readable tables.
-          </Text>
+          {!authLoading && !user ? (
+            <AnimatedPressable
+              style={[styles.secondaryCta, styles.tailCta, (guestBusy || busy) && styles.primaryDisabled]}
+              onPress={onContinueAsGuest}
+              disabled={guestBusy || busy}
+            >
+              {guestBusy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.secondaryCtaText}>Continue as guest</Text>
+              )}
+            </AnimatedPressable>
+          ) : null}
+          {isGuest ? (
+            <AnimatedPressable
+              style={[styles.secondaryCta, styles.tailCta]}
+              onPress={() => router.replace('/(tabs)' as any)}
+            >
+              <Text style={styles.secondaryCtaText}>Back to app</Text>
+            </AnimatedPressable>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -388,12 +379,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     fontWeight: '600',
   },
-  guestBanner: {
-    marginTop: 14,
-    fontSize: 13,
-    lineHeight: 19,
-    color: 'rgba(255,255,255,0.65)',
-  },
   secondaryCta: {
     marginTop: 14,
     paddingVertical: 14,
@@ -408,8 +393,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  tailCta: {
+    marginTop: 22,
+  },
   headline: {
-    marginTop: 8,
+    marginTop: 20,
     fontSize: 28,
     fontWeight: '800',
     color: '#fff',
@@ -492,12 +480,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
-  },
-  footerNote: {
-    marginTop: 28,
-    fontSize: 12,
-    lineHeight: 18,
-    color: 'rgba(255,255,255,0.4)',
-    textAlign: 'center',
   },
 });
