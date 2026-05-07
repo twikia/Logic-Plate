@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
@@ -54,14 +54,15 @@ function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
       tracksViewChanges={tracked}
       anchor={{ x: 0.5, y: 1 }}
     >
-      {/* shadowWrapper gives the shadow room so Android doesn't clip the pill */}
-      <View style={styles.markerShadowWrapper}>
-        <View style={styles.markerContainer}>
-          <View style={[styles.markerBody, { backgroundColor: '#1A0A1A', borderColor: accentColor }]}>
-            <Ionicons name={icon} size={14} color={accentColor} />
-            <Text style={styles.markerScoreText}>{displayScore}</Text>
+      <View style={styles.markerHitFrame} collapsable={false}>
+        <View style={styles.markerShadowWrapper}>
+          <View style={styles.markerContainer}>
+            <View style={[styles.markerBody, { backgroundColor: '#1A0A1A', borderColor: accentColor }]}>
+              <Ionicons name={icon} size={14} color={accentColor} />
+              <Text style={styles.markerScoreText}>{displayScore}</Text>
+            </View>
+            <View style={[styles.markerTip, { borderTopColor: accentColor }]} />
           </View>
-          <View style={[styles.markerTip, { borderTopColor: accentColor }]} />
         </View>
       </View>
     </Marker>
@@ -97,6 +98,7 @@ function openMaps(name: string, lat: number, lng: number) {
 export default function MapScreen() {
   const { theme, themeName } = useAppTheme();
   const { formatDistance, formatLabel } = useDistanceFormatter();
+  const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -172,17 +174,18 @@ export default function MapScreen() {
   const loadRestaurants = async (lat: number, lng: number, r: number) => {
     setIsLoading(true);
     setSearchCenter({ latitude: lat, longitude: lng });
+    const cacheKey = `${MAP_RESULTS_KEY}_${Math.round(r)}`;
     try {
-      // Try cache first
-      const cached = await getCachedResults(MAP_RESULTS_KEY);
+      const cached = await getCachedResults(cacheKey);
       if (cached && cached.length > 0) {
         setRestaurants(cached);
         setIsLoading(false);
         return;
       }
 
+      setRestaurants([]);
       const results = await getNearbyRestaurants(lat, lng, r);
-      await setCachedResults(MAP_RESULTS_KEY, results);
+      await setCachedResults(cacheKey, results);
       setRestaurants(results);
     } catch (error) {
       console.error('Error loading restaurants for map:', error);
@@ -420,7 +423,12 @@ export default function MapScreen() {
         {selectedRestaurant && (
           <ScrollView
             style={styles.sheetScrollView}
-            contentContainerStyle={styles.sheetContent}
+            contentContainerStyle={[
+              styles.sheetContent,
+              {
+                paddingBottom: Math.max(insets.bottom, 20) + 72,
+              },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.sheetHeader}>
@@ -479,7 +487,9 @@ export default function MapScreen() {
                 height={180}
                 borderRadius={20}
               />
-            </View>            {selectedRestaurant.formattedAddress ? (
+            </View>
+
+            {selectedRestaurant.formattedAddress ? (
               <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="location-outline" size={15} color="#F9A06F" />
@@ -556,7 +566,7 @@ export default function MapScreen() {
               </View>
             ) : null}
 
-            <View style={{ height: 40 }} />
+            <View style={{ height: 28 }} />
           </ScrollView>
         )}
       </Animated.View>
@@ -609,6 +619,13 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
+  markerHitFrame: {
+    width: 140,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    overflow: 'visible',
+  },
   markerShadowWrapper: { padding: 8, overflow: 'visible' },
   markerContainer: { alignItems: 'center' },
   markerBody: {
@@ -644,7 +661,7 @@ const styles = StyleSheet.create({
   sheetHandleContainer: { alignItems: 'center', paddingVertical: 15 },
   sheetHandle: { width: 60, height: 6, borderRadius: 3 },
   sheetScrollView: { flex: 1 },
-  sheetContent: { paddingHorizontal: 24, paddingBottom: 40 },
+  sheetContent: { paddingHorizontal: 24, flexGrow: 1 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   closeBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   restaurantName: { fontSize: 24, fontWeight: '800', marginBottom: 4 },
