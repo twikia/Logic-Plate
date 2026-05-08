@@ -11,13 +11,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
-          node-version: 20
-
-      - name: Install Supabase CLI
-        run: npm install -g supabase@latest
+          version: latest
 
       - name: Deploy functions
         env:
