@@ -160,6 +160,28 @@ function SpeedBar({ value }: { value: number | undefined }) {
   );
 }
 
+function EnergySustainBar({ value }: { value: number | undefined }) {
+  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const pct = Math.max(0, Math.min(1, v / 5));
+  return (
+    <View style={styles.scoreCard}>
+      <View style={styles.scoreCardTop}>
+        <Text style={styles.scoreEmoji}>🔋</Text>
+        <Ionicons name="pulse-outline" size={15} color="#7EC8E3" />
+        <Text style={styles.scoreCardLabel}>Energy sustain</Text>
+        <Text style={styles.scoreCardVal}>{v.toFixed(0)}/5</Text>
+      </View>
+      <View style={styles.speedScaleRow}>
+        <Text style={styles.speedScaleText}>⚡ 0 crashy</Text>
+        <Text style={styles.speedScaleText}>5 slow sustain</Text>
+      </View>
+      <View style={styles.tenTrack}>
+        <View style={[styles.tenFill, { width: `${pct * 100}%`, backgroundColor: '#7EC8E3' }]} />
+      </View>
+    </View>
+  );
+}
+
 function FiveStarRow({ label, value, emoji }: { label: string; value: number | undefined; emoji: string }) {
   const rounded = Math.max(0, Math.min(5, Math.round(typeof value === 'number' && Number.isFinite(value) ? value : 0)));
   return (
@@ -417,6 +439,18 @@ export default function RandomResultScreen() {
 
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>👅</Text>
+                  <Ionicons name="restaurant-outline" size={16} color="#FFB84D" />
+                  <Text style={styles.sectionTitle}>Flavor & value</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
+                  <FiveStarRow label="Taste" value={aiOverview.tasteScore} emoji="👅" />
+                  <FiveStarRow label="Value for money" value={aiOverview.valueForMoneyScore} emoji="💵" />
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
                   <Text style={styles.aiSparkle}>⚡</Text>
                   <Ionicons name="flash-outline" size={16} color="#F9A06F" />
                   <Text style={styles.sectionTitle}>Convenience</Text>
@@ -435,6 +469,19 @@ export default function RandomResultScreen() {
                 <View style={styles.scoreCardStack}>
                   <TenPointBar label="Workout recovery" value={aiOverview.workoutRecoveryScore} icon="barbell-outline" emoji="💪" />
                   <TenPointBar label="Processed food load" value={aiOverview.processedScore} icon="nutrition-outline" emoji="🍎" />
+                  <FiveStarRow label="Hungover recovery" value={aiOverview.hungoverRecoveryScore} emoji="🥴" />
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>🌙</Text>
+                  <Ionicons name="fast-food-outline" size={16} color="#C9A0FF" />
+                  <Text style={styles.sectionTitle}>Cravings & menu</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
+                  <FiveStarRow label="Munchy score" value={aiOverview.munchyScore} emoji="🌙" />
+                  <FiveStarRow label="Variety" value={aiOverview.varietyScore} emoji="🔄" />
                 </View>
               </View>
 
@@ -448,6 +495,7 @@ export default function RandomResultScreen() {
                   <FiveStarRow label="Calorie fit" value={aiOverview.calorieScore} emoji="🔥" />
                   <FiveStarRow label="Protein" value={aiOverview.proteinScore} emoji="🥩" />
                   <FiveStarRow label="Carb balance" value={aiOverview.carbScore} emoji="🌾" />
+                  <FiveStarRow label="Macro-friendly tracking" value={aiOverview.macroFriendlyScore} emoji="📊" />
                 </View>
                 {aiOverview.absoluteMacros ? (
                   <Text style={styles.macrosBlock}>{aiOverview.absoluteMacros}</Text>
@@ -473,6 +521,19 @@ export default function RandomResultScreen() {
                       </Text>
                     </View>
                   </View>
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.aiSparkle}>💻</Text>
+                  <Ionicons name="laptop-outline" size={16} color="#9BC99D" />
+                  <Text style={styles.sectionTitle}>Solo & work</Text>
+                </View>
+                <View style={styles.scoreCardStack}>
+                  <FiveStarRow label="Solo diner friendly" value={aiOverview.soloDinerScore} emoji="🪑" />
+                  <EnergySustainBar value={aiOverview.energySustainScore} />
+                  <FiveStarRow label="Work friendly (wifi / laptop)" value={aiOverview.workFriendlyScore} emoji="💻" />
                 </View>
               </View>
 

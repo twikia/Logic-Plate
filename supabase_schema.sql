@@ -43,6 +43,15 @@ CREATE TABLE ai_overview_cache (
     group_size_sweet_spot INTEGER,
     absolute_macros TEXT,
     who_this_place_is_for TEXT,
+    taste_score INTEGER NOT NULL DEFAULT 0,
+    value_for_money_score INTEGER NOT NULL DEFAULT 0,
+    hungover_recovery_score INTEGER NOT NULL DEFAULT 0,
+    munchy_score INTEGER NOT NULL DEFAULT 0,
+    variety_score INTEGER NOT NULL DEFAULT 0,
+    macro_friendly_score INTEGER NOT NULL DEFAULT 0,
+    solo_diner_score INTEGER NOT NULL DEFAULT 0,
+    energy_sustain_score INTEGER NOT NULL DEFAULT 0,
+    work_friendly_score INTEGER NOT NULL DEFAULT 0,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
