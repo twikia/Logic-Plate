@@ -52,6 +52,15 @@ type AiOverview = {
   groupSizeSweetSpot: number;
   absoluteMacros: string;
   whoThisPlaceIsFor: string;
+  tasteScore: number;
+  valueForMoneyScore: number;
+  hungoverRecoveryScore: number;
+  munchyScore: number;
+  varietyScore: number;
+  macroFriendlyScore: number;
+  soloDinerScore: number;
+  energySustainScore: number;
+  workFriendlyScore: number;
 };
 
 const promptForPlace = (place: InputPlace) => `
@@ -96,12 +105,21 @@ Output format requirements:
   "noiseLevelEstimate": 0,
   "groupSizeSweetSpot": 1,
   "absoluteMacros": "string",
-  "whoThisPlaceIsFor": "string"
+  "whoThisPlaceIsFor": "string",
+  "tasteScore": 0,
+  "valueForMoneyScore": 0,
+  "hungoverRecoveryScore": 0,
+  "munchyScore": 0,
+  "varietyScore": 0,
+  "macroFriendlyScore": 0,
+  "soloDinerScore": 0,
+  "energySustainScore": 0,
+  "workFriendlyScore": 0
 }
 2) summaryGoodBad: concise balanced pros and cons, max 320 chars.
-3) speedScore: integer 0-5 where 0 is slowest.
+3) speedScore: integer 0-5 where 0 is slowest service / longest wait for typical orders.
 4) healthScore: decimal 0-10 where 10 is best; one decimal place allowed.
-5) workoutRecoveryScore: integer 0-10 where 10 is best; no decimals.
+5) workoutRecoveryScore: integer 0-10 where 10 is best for gym recovery; no decimals.
 6) processedScore: integer 0-10 where 10 means least processed; no decimals.
 7) calorieScore: integer 0-5 where 5 is most calories.
 8) proteinScore: integer 0-5 where 5 is most protein.
@@ -111,8 +129,17 @@ Output format requirements:
 12) groupSizeSweetSpot: integer 1-6 people.
 13) absoluteMacros: include estimated absolute calories/protein/carbs/fat plus an AI uncertainty caveat in one string.
 14) whoThisPlaceIsFor: single concise string describing who this place is really for.
-15) Do not group classifications into combined labels.
-16) Use googleMapsUri and coordinates to disambiguate the exact listing when signals conflict.
+15) tasteScore: integer 0-5 where 5 is best overall flavor execution for this concept.
+16) valueForMoneyScore: integer 0-5 where 5 is best value; MUST explicitly weigh Price Level and Price Range against typical portion and quality for this listing.
+17) hungoverRecoveryScore: integer 0-5 where 5 best eases hangover symptoms (greasy/salty/carby comfort without guessing medical claims).
+18) munchyScore: integer 0-5 where 5 best satisfies late-night munchies / craveable indulgence.
+19) varietyScore: integer 0-5 where 5 is broad menu variety or strong customizable options.
+20) macroFriendlyScore: integer 0-5 where 5 means easiest to estimate calories/macros (labeled menus, bowl-builders, consistent portions).
+21) soloDinerScore: integer 0-5 where 5 is most welcoming to dining alone (counter/bar seating, low awkwardness).
+22) energySustainScore: integer 0-5 where 5 is slow sustained fullness/energy after eating; 0 is sharp spike then crash for typical orders.
+23) workFriendlyScore: integer 0-5 where 5 is best for laptop work (wifi/outlets/ seating/time limits vibe); infer from category plus listing hints when possible.
+24) Do not group classifications into combined labels.
+25) Use googleMapsUri and coordinates to disambiguate the exact listing when signals conflict.
 `;
 
 const sanitizeOverview = (raw: any): AiOverview | null => {
@@ -138,6 +165,16 @@ const sanitizeOverview = (raw: any): AiOverview | null => {
   const noiseLevelEstimate = clamp(toInt(raw.noiseLevelEstimate), 0, 5);
   const groupSizeSweetSpot = clamp(toInt(raw.groupSizeSweetSpot), 1, 6);
 
+  const tasteScore = clamp(toInt(raw.tasteScore ?? 0), 0, 5);
+  const valueForMoneyScore = clamp(toInt(raw.valueForMoneyScore ?? 0), 0, 5);
+  const hungoverRecoveryScore = clamp(toInt(raw.hungoverRecoveryScore ?? 0), 0, 5);
+  const munchyScore = clamp(toInt(raw.munchyScore ?? 0), 0, 5);
+  const varietyScore = clamp(toInt(raw.varietyScore ?? 0), 0, 5);
+  const macroFriendlyScore = clamp(toInt(raw.macroFriendlyScore ?? 0), 0, 5);
+  const soloDinerScore = clamp(toInt(raw.soloDinerScore ?? 0), 0, 5);
+  const energySustainScore = clamp(toInt(raw.energySustainScore ?? 0), 0, 5);
+  const workFriendlyScore = clamp(toInt(raw.workFriendlyScore ?? 0), 0, 5);
+
   if (
     Number.isNaN(speedScore) ||
     Number.isNaN(healthScore) ||
@@ -148,7 +185,16 @@ const sanitizeOverview = (raw: any): AiOverview | null => {
     Number.isNaN(carbScore) ||
     Number.isNaN(dateWorthiness) ||
     Number.isNaN(noiseLevelEstimate) ||
-    Number.isNaN(groupSizeSweetSpot)
+    Number.isNaN(groupSizeSweetSpot) ||
+    Number.isNaN(tasteScore) ||
+    Number.isNaN(valueForMoneyScore) ||
+    Number.isNaN(hungoverRecoveryScore) ||
+    Number.isNaN(munchyScore) ||
+    Number.isNaN(varietyScore) ||
+    Number.isNaN(macroFriendlyScore) ||
+    Number.isNaN(soloDinerScore) ||
+    Number.isNaN(energySustainScore) ||
+    Number.isNaN(workFriendlyScore)
   ) {
     return null;
   }
@@ -167,6 +213,15 @@ const sanitizeOverview = (raw: any): AiOverview | null => {
     groupSizeSweetSpot,
     absoluteMacros,
     whoThisPlaceIsFor,
+    tasteScore,
+    valueForMoneyScore,
+    hungoverRecoveryScore,
+    munchyScore,
+    varietyScore,
+    macroFriendlyScore,
+    soloDinerScore,
+    energySustainScore,
+    workFriendlyScore,
   };
 };
 
@@ -254,6 +309,15 @@ serve(async (req) => {
         group_size_sweet_spot: overview.groupSizeSweetSpot,
         absolute_macros: overview.absoluteMacros,
         who_this_place_is_for: overview.whoThisPlaceIsFor,
+        taste_score: overview.tasteScore,
+        value_for_money_score: overview.valueForMoneyScore,
+        hungover_recovery_score: overview.hungoverRecoveryScore,
+        munchy_score: overview.munchyScore,
+        variety_score: overview.varietyScore,
+        macro_friendly_score: overview.macroFriendlyScore,
+        solo_diner_score: overview.soloDinerScore,
+        energy_sustain_score: overview.energySustainScore,
+        work_friendly_score: overview.workFriendlyScore,
         updated_at: new Date().toISOString(),
       });
     }
