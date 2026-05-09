@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-app-secret',
 };
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 10;
 
 const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
