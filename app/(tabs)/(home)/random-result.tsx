@@ -1,14 +1,16 @@
+import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Dimensions,
   Linking, Platform,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -19,13 +21,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
-
-const PRICE_MAP: Record<string, string> = {
-  PRICE_LEVEL_INEXPENSIVE: '$',
-  PRICE_LEVEL_MODERATE: '$$',
-  PRICE_LEVEL_EXPENSIVE: '$$$',
-  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
-};
+import { isOpenNow } from '../../../core/isOpenNow';
+import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -241,20 +238,30 @@ export default function RandomResultScreen() {
   // of a large URL param which was blocking the screen mount on every navigation.
   const place = getCurrentRestaurant() ?? {};
 
+  const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLiveOpenEpoch((e) => e + 1);
+    }, [])
+  );
+
   const name = place.displayName?.text || 'Unknown';
   const address = place.formattedAddress || '';
   const phone = place.nationalPhoneNumber || '';
   const website = place.websiteUri || '';
   const rating = place.rating?.toFixed(1);
   const reviews = place.userRatingCount;
-  const price = PRICE_MAP[place.priceLevel] || '';
+  const price = formatPlacePriceLabel(place);
   const type = place.primaryType?.replace(/_/g, ' ') || '';
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const { formatDistance } = useDistanceFormatter();
   const distM = Math.round(place.distanceMeters ?? 0);
   const dist = `${formatDistance(distM)} away`;
-  const isOpen = place.currentOpeningHours?.openNow ?? place.businessStatus === 'OPERATIONAL';
+  void liveOpenEpoch;
+  const isOpen = isOpenNow(place);
   const weekdays = place.currentOpeningHours?.weekdayDescriptions
     ?? place.regularOpeningHours?.weekdayDescriptions
     ?? [];
@@ -333,6 +340,17 @@ export default function RandomResultScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scroll, { paddingBottom: fabBottom + 72 }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              tintColor="#FFFFFF"
+              onRefresh={() => {
+                setRefreshing(true);
+                setLiveOpenEpoch((e) => e + 1);
+                setTimeout(() => setRefreshing(false), 300);
+              }}
+            />
+          }
         >
 
           {/* Photo carousel */}
@@ -434,7 +452,10 @@ export default function RandomResultScreen() {
                   <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
                   <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
                 </View>
-                <Text style={styles.sectionBody}>{aiOverview.summaryGoodBad || 'No summary yet.'}</Text>
+                <AiOverviewSummaryBody
+                  text={aiOverview.summaryGoodBad || 'No summary yet.'}
+                  style={styles.sectionBody}
+                />
               </View>
 
               <View style={styles.section}>

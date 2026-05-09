@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { isOpenNow } from '../../../core/isOpenNow';
+import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
 import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
@@ -27,13 +28,6 @@ import { setCurrentRestaurant } from '../../../core/currentSelection';
 import { getRandomPickerState, saveRandomPickerState } from '../../../core/randomPickerState';
 import { RestaurantImage } from '../../../core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
-
-const PRICE_MAP: Record<string, string> = {
-  PRICE_LEVEL_INEXPENSIVE: '$',
-  PRICE_LEVEL_MODERATE: '$$',
-  PRICE_LEVEL_EXPENSIVE: '$$$',
-  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
-};
 
 const CUISINE_TYPE_MAP: Record<string, string[]> = {
   italian: ['italian_restaurant'],
@@ -98,7 +92,7 @@ function RestaurantRow({
   const rating = item.rating?.toFixed(1);
   const distM = Math.round(item.distanceMeters ?? 0);
   const dist = formatDistance(distM);
-  const price = PRICE_MAP[item.priceLevel] || '';
+  const price = formatPlacePriceLabel(item);
   const isOpen = isOpenNow(item);
 
   return (
@@ -184,6 +178,7 @@ export default function RandomScreen() {
   const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
+  const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
 
   const hydratedRef = useRef(false);
   const {
@@ -294,6 +289,7 @@ export default function RandomScreen() {
       snapProgressComplete();
       setIsLoading(false);
       hydratedRef.current = true;
+      setOpenCheckEpoch((e) => e + 1);
     }
   };
 
@@ -591,6 +587,7 @@ export default function RandomScreen() {
         ) : (
           <FlatList
             data={filtered}
+            extraData={openCheckEpoch}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <RestaurantRow
