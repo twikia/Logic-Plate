@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { setCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
+import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
 import { getLocation } from '../../../core/locationCache';
 import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
@@ -46,13 +47,6 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
   pizza: ['pizza_restaurant'],
   dessert: ['bakery', 'dessert_shop', 'dessert_restaurant'],
   other: [],
-};
-
-const PRICE_MAP: Record<string, string> = {
-  PRICE_LEVEL_INEXPENSIVE: '$',
-  PRICE_LEVEL_MODERATE: '$$',
-  PRICE_LEVEL_EXPENSIVE: '$$$',
-  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
 };
 
 const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
@@ -141,10 +135,12 @@ function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: an
 function RestaurantCard({
   item,
   cuisineKey,
+  openCheckEpoch,
   onOpenOverview,
 }: {
   item: any;
   cuisineKey?: string;
+  openCheckEpoch: number;
   onOpenOverview: () => void;
 }) {
   const { formatDistance } = useDistanceFormatter();
@@ -152,7 +148,9 @@ function RestaurantCard({
   const ai = item.aiOverview;
   const healthScore = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
   const healthPct = healthScore != null ? Math.max(0, Math.min(100, (healthScore / 10) * 100)) : 0;
-  const price = PRICE_MAP[item.priceLevel] || '';
+  void openCheckEpoch;
+  const price = formatPlacePriceLabel(item);
+  const openNow = isOpenNow(item);
   const rating = item.rating?.toFixed(1);
   const distM = Math.round(item.distanceMeters ?? 0);
   const distance = `${formatDistance(distM)} away`;
@@ -209,9 +207,15 @@ function RestaurantCard({
             <Ionicons name="navigate-outline" size={12} color="#F9A06F" />
             <Text style={styles.metaText}>{distance}</Text>
           </View>
-          <View style={[styles.metaPill, { borderColor: 'rgba(76,217,100,0.3)' }]}>
-            <Ionicons name="time-outline" size={12} color="#4CD964" />
-            <Text style={[styles.metaText, { color: '#4CD964' }]}>Open</Text>
+          <View style={[styles.metaPill, { borderColor: openNow ? 'rgba(76,217,100,0.3)' : 'rgba(255,100,100,0.3)' }]}>
+            <Ionicons
+              name={openNow ? 'checkmark-circle-outline' : 'close-circle-outline'}
+              size={12}
+              color={openNow ? '#4CD964' : '#FF6B6B'}
+            />
+            <Text style={[styles.metaText, { color: openNow ? '#4CD964' : '#FF6B6B' }]}>
+              {openNow ? 'Open' : 'Closed'}
+            </Text>
           </View>
         </View>
 
@@ -262,6 +266,7 @@ export default function ResultsScreen() {
   const [radius, setRadius] = useState(4000);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
   const { formatLabel } = useDistanceFormatter();
   const {
     loadingStage,
@@ -290,6 +295,7 @@ export default function ResultsScreen() {
         setHasMore(cached.length > PAGE_SIZE);
         snapProgressComplete();
         setIsLoading(false);
+        setOpenCheckEpoch((e) => e + 1);
         return;
       }
     }
@@ -334,6 +340,7 @@ export default function ResultsScreen() {
     } finally {
       snapProgressComplete();
       setIsLoading(false);
+      setOpenCheckEpoch((e) => e + 1);
     }
   };
 
@@ -362,13 +369,14 @@ export default function ResultsScreen() {
       <MemoizedRestaurantCard
         item={item}
         cuisineKey={cuisineKey}
+        openCheckEpoch={openCheckEpoch}
         onOpenOverview={() => {
           setCurrentRestaurant(item);
           router.push('/random-result');
         }}
       />
     ),
-    [cuisineKey, router]
+    [cuisineKey, router, openCheckEpoch]
   );
 
   return (
@@ -434,6 +442,7 @@ export default function ResultsScreen() {
         ) : (
           <FlatList
             data={displayed}
+            extraData={openCheckEpoch}
             keyExtractor={keyExtractor}
             renderItem={renderItem}
             initialNumToRender={5}

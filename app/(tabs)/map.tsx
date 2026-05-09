@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
+import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getLocation } from '@/core/locationCache';
 import { getNearbyRestaurants } from '@/core/restaurantOrchestrator';
@@ -13,13 +14,8 @@ import { getSearchRadius, setSearchRadius } from '@/core/userSettings';
 import { RestaurantImage } from '@/core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
-
-const PRICE_MAP: Record<string, string> = {
-  PRICE_LEVEL_INEXPENSIVE: '$',
-  PRICE_LEVEL_MODERATE: '$$',
-  PRICE_LEVEL_EXPENSIVE: '$$$',
-  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$',
-};
+import { formatPlacePriceLabel } from '@/core/placePriceLabel';
+import { isOpenNow } from '@/core/isOpenNow';
 
 // Maps a primaryType string to an Ionicons icon name
 function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionicons>['name'] {
@@ -104,6 +100,7 @@ export default function MapScreen() {
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [radius, setRadius] = useState(DEFAULT_RADIUS_METERS);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
+  const [openStatusEpoch, setOpenStatusEpoch] = useState(0);
 
   // Animation for bottom sheet
   const sheetAnim = useRef(new Animated.Value(height)).current;
@@ -184,6 +181,7 @@ export default function MapScreen() {
       console.error('Error loading restaurants for map:', error);
     } finally {
       setIsLoading(false);
+      setOpenStatusEpoch((e) => e + 1);
     }
   };
 
@@ -276,6 +274,10 @@ export default function MapScreen() {
   };
 
   const circleCenter = userCoords ?? searchCenter;
+
+  void openStatusEpoch;
+  const sheetPriceLabel = selectedRestaurant ? formatPlacePriceLabel(selectedRestaurant) : '';
+  const sheetOpenNow = selectedRestaurant ? isOpenNow(selectedRestaurant) : false;
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkTheme ? '#1E0F1E' : '#FDF8F5' }]}>
@@ -452,14 +454,14 @@ export default function MapScreen() {
                 <Ionicons name="navigate-outline" size={14} color="#F9A06F" />
                 <Text style={[styles.metaText, { color: theme.text }]}>{formatDistance(selectedRestaurant.distanceMeters)} away</Text>
               </View>
-              {PRICE_MAP[selectedRestaurant.priceLevel] && (
+              {sheetPriceLabel ? (
                 <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
-                  <Text style={[styles.metaText, { color: '#F9A06F' }]}>{PRICE_MAP[selectedRestaurant.priceLevel]}</Text>
+                  <Text style={[styles.metaText, { color: '#F9A06F' }]}>{sheetPriceLabel}</Text>
                 </View>
-              )}
-              <View style={[styles.metaPill, { borderColor: selectedRestaurant.currentOpeningHours?.openNow ? 'rgba(76,217,100,0.3)' : 'rgba(255,107,107,0.3)', backgroundColor: 'transparent' }]}>
-                <Ionicons name={selectedRestaurant.currentOpeningHours?.openNow ? 'checkmark-circle-outline' : 'close-circle-outline'} size={14} color={selectedRestaurant.currentOpeningHours?.openNow ? '#4CD964' : '#FF6B6B'} />
-                <Text style={[styles.metaText, { color: selectedRestaurant.currentOpeningHours?.openNow ? '#4CD964' : '#FF6B6B' }]}>{selectedRestaurant.currentOpeningHours?.openNow ? 'Open' : 'Closed'}</Text>
+              ) : null}
+              <View style={[styles.metaPill, { borderColor: sheetOpenNow ? 'rgba(76,217,100,0.3)' : 'rgba(255,107,107,0.3)', backgroundColor: 'transparent' }]}>
+                <Ionicons name={sheetOpenNow ? 'checkmark-circle-outline' : 'close-circle-outline'} size={14} color={sheetOpenNow ? '#4CD964' : '#FF6B6B'} />
+                <Text style={[styles.metaText, { color: sheetOpenNow ? '#4CD964' : '#FF6B6B' }]}>{sheetOpenNow ? 'Open' : 'Closed'}</Text>
               </View>
             </View>
 
@@ -522,13 +524,18 @@ export default function MapScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {(selectedRestaurant.currentOpeningHours?.weekdayDescriptions?.length > 0) ? (
+            {(selectedRestaurant.currentOpeningHours?.weekdayDescriptions?.length
+              ? selectedRestaurant.currentOpeningHours.weekdayDescriptions
+              : selectedRestaurant.regularOpeningHours?.weekdayDescriptions)?.length ? (
               <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="time-outline" size={15} color="#F9A06F" />
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>Hours</Text>
                 </View>
-                {selectedRestaurant.currentOpeningHours.weekdayDescriptions.map((line: string, i: number) => {
+                {(selectedRestaurant.currentOpeningHours?.weekdayDescriptions?.length
+                  ? selectedRestaurant.currentOpeningHours.weekdayDescriptions
+                  : selectedRestaurant.regularOpeningHours?.weekdayDescriptions
+                ).map((line: string, i: number) => {
                   const todayIdx = (new Date().getDay() + 6) % 7;
                   return (
                     <Text key={i} style={[styles.infoSectionBody, { color: i === todayIdx ? '#4CD964' : theme.subtext, fontWeight: i === todayIdx ? '700' : '400' }]}>{line}</Text>
@@ -543,7 +550,10 @@ export default function MapScreen() {
                   <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
                   <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI Overview</Text>
                 </View>
-                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{selectedRestaurant.aiOverview.summaryGoodBad}</Text>
+                <AiOverviewSummaryBody
+                  text={selectedRestaurant.aiOverview.summaryGoodBad}
+                  style={[styles.infoSectionBody, { color: theme.subtext }]}
+                />
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                   {[
                     { label: `Convenience Speed ${selectedRestaurant.aiOverview.speedScore}/5`, color: '#F9A06F' },
