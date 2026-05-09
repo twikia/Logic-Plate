@@ -6,6 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-app-secret',
 };
 
+const BATCH_SIZE = 5;
+
+const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
+
 type InputPlace = {
   id: string;
   name?: string;
@@ -19,19 +23,9 @@ type InputPlace = {
   location?: { latitude?: number; longitude?: number } | null;
   googleMapsUri?: string;
   websiteUri?: string;
-  nationalPhoneNumber?: string;
-  internationalPhoneNumber?: string;
   businessStatus?: string;
   currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] } | null;
-  currentSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] } | null;
   regularOpeningHours?: { weekdayDescriptions?: string[] } | null;
-  regularSecondaryOpeningHours?: { weekdayDescriptions?: string[] } | null;
-  accessibilityOptions?: {
-    wheelchairAccessibleParking?: boolean;
-    wheelchairAccessibleEntrance?: boolean;
-    wheelchairAccessibleRestroom?: boolean;
-    wheelchairAccessibleSeating?: boolean;
-  } | null;
   priceRange?: {
     startPrice?: { units?: string; nanos?: number; currencyCode?: string };
     endPrice?: { units?: string; nanos?: number; currencyCode?: string };
@@ -63,84 +57,138 @@ type AiOverview = {
   workFriendlyScore: number;
 };
 
-const promptForPlace = (place: InputPlace) => `
-You are generating one restaurant AI overview for downstream parsing.
-Return JSON only. Do not include markdown. Do not include explanations outside JSON.
-If the restaurant appears to be part of a chain, you may use reliable chain-level patterns and commonly known chain menu tendencies to improve accuracy. Prefer listing-specific signals when they conflict with chain-level assumptions, and keep uncertainty caveats explicit.
+const overviewItemSchema = {
+  type: 'OBJECT',
+  properties: {
+    placeId: { type: 'STRING' },
+    summaryGoodBad: { type: 'STRING' },
+    speedScore: { type: 'INTEGER' },
+    healthScore: { type: 'NUMBER' },
+    workoutRecoveryScore: { type: 'INTEGER' },
+    processedScore: { type: 'INTEGER' },
+    calorieScore: { type: 'INTEGER' },
+    proteinScore: { type: 'INTEGER' },
+    carbScore: { type: 'INTEGER' },
+    dateWorthiness: { type: 'INTEGER' },
+    noiseLevelEstimate: { type: 'INTEGER' },
+    groupSizeSweetSpot: { type: 'INTEGER' },
+    absoluteMacros: { type: 'STRING' },
+    whoThisPlaceIsFor: { type: 'STRING' },
+    tasteScore: { type: 'INTEGER' },
+    valueForMoneyScore: { type: 'INTEGER' },
+    hungoverRecoveryScore: { type: 'INTEGER' },
+    munchyScore: { type: 'INTEGER' },
+    varietyScore: { type: 'INTEGER' },
+    macroFriendlyScore: { type: 'INTEGER' },
+    soloDinerScore: { type: 'INTEGER' },
+    energySustainScore: { type: 'INTEGER' },
+    workFriendlyScore: { type: 'INTEGER' },
+  },
+  required: [
+    'placeId',
+    'summaryGoodBad',
+    'speedScore',
+    'healthScore',
+    'workoutRecoveryScore',
+    'processedScore',
+    'calorieScore',
+    'proteinScore',
+    'carbScore',
+    'dateWorthiness',
+    'noiseLevelEstimate',
+    'groupSizeSweetSpot',
+    'absoluteMacros',
+    'whoThisPlaceIsFor',
+    'tasteScore',
+    'valueForMoneyScore',
+    'hungoverRecoveryScore',
+    'munchyScore',
+    'varietyScore',
+    'macroFriendlyScore',
+    'soloDinerScore',
+    'energySustainScore',
+    'workFriendlyScore',
+  ],
+} as const;
 
-Use the provided Google Places Pro and Enterprise signals plus reliable category and chain-level knowledge to construct an accurate, context-aware overview. Keep uncertainty caveats explicit when listing-specific signals are limited.
+const batchResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    overviews: {
+      type: 'ARRAY',
+      items: overviewItemSchema,
+    },
+  },
+  required: ['overviews'],
+} as const;
 
-Restaurant Data:
-- ID: ${place.id}
-- Name: ${place.name ?? ''}
-- Address: ${place.formattedAddress ?? ''}
-- Category: ${place.primaryTypeDisplayName ?? place.primaryType ?? ''}
-- Types: ${(place.types ?? []).join(', ')}
-- Business Status: ${place.businessStatus ?? ''}
-- Price Level: ${place.priceLevel ?? ''}
-- Price Range: ${JSON.stringify(place.priceRange ?? {})}
-- Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} user ratings)
+const SYSTEM_INSTRUCTION = `You are generating restaurant AI overviews for downstream parsing.
+Return JSON only at the root: an object with a single key "overviews" whose value is an array.
+The array must contain exactly one object per restaurant provided in the user message, in the same order, each with "placeId" matching that restaurant's ID and exactly the score keys defined in the response schema (no extra keys).
 
-Accessibility & Location:
-- Accessibility: ${JSON.stringify(place.accessibilityOptions ?? {})}
-- Coordinates: lat=${place.location?.latitude ?? ''}, lng=${place.location?.longitude ?? ''}
-- Maps Link: ${place.googleMapsUri ?? ''}
-- Website: ${place.websiteUri ?? ''}
-- Phone: ${place.nationalPhoneNumber ?? place.internationalPhoneNumber ?? ''}
-- Opening Hours: ${((place.currentOpeningHours?.weekdayDescriptions ?? place.regularOpeningHours?.weekdayDescriptions) ?? []).join(' | ')}
-- Secondary Opening Hours: ${((place.currentSecondaryOpeningHours?.weekdayDescriptions ?? place.regularSecondaryOpeningHours?.weekdayDescriptions) ?? []).join(' | ')}
+If a restaurant appears to be part of a chain, you may use reliable chain-level patterns and commonly known chain menu tendencies to improve accuracy. Prefer listing-specific signals when they conflict with chain-level assumptions, and keep uncertainty caveats explicit.
 
-Output format requirements:
-1) Return exactly one JSON object with exactly these keys and no extras:
-{
-  "summaryGoodBad": "string",
-  "speedScore": 0,
-  "healthScore": 0.0,
-  "workoutRecoveryScore": 0,
-  "processedScore": 0,
-  "calorieScore": 0,
-  "proteinScore": 0,
-  "carbScore": 0,
-  "dateWorthiness": 0,
-  "noiseLevelEstimate": 0,
-  "groupSizeSweetSpot": 1,
-  "absoluteMacros": "string",
-  "whoThisPlaceIsFor": "string",
-  "tasteScore": 0,
-  "valueForMoneyScore": 0,
-  "hungoverRecoveryScore": 0,
-  "munchyScore": 0,
-  "varietyScore": 0,
-  "macroFriendlyScore": 0,
-  "soloDinerScore": 0,
-  "energySustainScore": 0,
-  "workFriendlyScore": 0
-}
-2) summaryGoodBad: concise balanced pros and cons, max 320 chars.
-3) speedScore: integer 0-5 where 0 is slowest service / longest wait for typical orders.
-4) healthScore: decimal 0-10 where 10 is best; one decimal place allowed.
-5) workoutRecoveryScore: integer 0-10 where 10 is best for gym recovery; no decimals.
-6) processedScore: integer 0-10 where 10 means least processed; no decimals.
-7) calorieScore: integer 0-5 where 5 is most calories.
-8) proteinScore: integer 0-5 where 5 is most protein.
-9) carbScore: integer 0-5 where 5 is most carbs.
-10) dateWorthiness: integer 0-5 where 5 is best.
-11) noiseLevelEstimate: integer 0-5 where 5 is most noisy.
-12) groupSizeSweetSpot: integer 1-6 people.
-13) absoluteMacros: include estimated absolute calories/protein/carbs/fat plus an AI uncertainty caveat in one string.
-14) whoThisPlaceIsFor: single concise string describing who this place is really for.
-15) tasteScore: integer 0-5 where 5 is best overall flavor execution for this concept.
-16) valueForMoneyScore: integer 0-5 where 5 is best value; MUST explicitly weigh Price Level and Price Range against typical portion and quality for this listing.
-17) hungoverRecoveryScore: integer 0-5 where 5 best eases hangover symptoms (greasy/salty/carby comfort without guessing medical claims).
-18) munchyScore: integer 0-5 where 5 best satisfies late-night munchies / craveable indulgence.
-19) varietyScore: integer 0-5 where 5 is broad menu variety or strong customizable options.
-20) macroFriendlyScore: integer 0-5 where 5 means easiest to estimate calories/macros (labeled menus, bowl-builders, consistent portions).
-21) soloDinerScore: integer 0-5 where 5 is most welcoming to dining alone (counter/bar seating, low awkwardness).
-22) energySustainScore: integer 0-5 where 5 is slow sustained fullness/energy after eating; 0 is sharp spike then crash for typical orders.
-23) workFriendlyScore: integer 0-5 where 5 is best for laptop work (wifi/outlets/ seating/time limits vibe); infer from category plus listing hints when possible.
-24) Do not group classifications into combined labels.
-25) Use googleMapsUri and coordinates to disambiguate the exact listing when signals conflict.
-`;
+Use the provided Google Places signals plus reliable category and chain-level knowledge to construct an accurate, context-aware overview. Keep uncertainty caveats explicit when listing-specific signals are limited.
+
+Field rules:
+1) summaryGoodBad: concise balanced pros and cons, max 320 chars.
+2) speedScore: integer 0-5 where 0 is slowest service / longest wait for typical orders.
+3) healthScore: decimal 0-10 where 10 is best; one decimal place allowed.
+4) workoutRecoveryScore: integer 0-10 where 10 is best for gym recovery; no decimals.
+5) processedScore: integer 0-10 where 10 means least processed; no decimals.
+6) calorieScore: integer 0-5 where 5 is most calories.
+7) proteinScore: integer 0-5 where 5 is most protein.
+8) carbScore: integer 0-5 where 5 is most carbs.
+9) dateWorthiness: integer 0-5 where 5 is best.
+10) noiseLevelEstimate: integer 0-5 where 5 is most noisy.
+11) groupSizeSweetSpot: integer 1-6 people.
+12) absoluteMacros: include estimated absolute calories/protein/carbs/fat plus an AI uncertainty caveat in one string.
+13) whoThisPlaceIsFor: single concise string describing who this place is really for.
+14) tasteScore: integer 0-5 where 5 is best overall flavor execution for this concept.
+15) valueForMoneyScore: integer 0-5 where 5 is best value; MUST explicitly weigh Price Level and Price Range against typical portion and quality for this listing.
+16) hungoverRecoveryScore: integer 0-5 where 5 best eases hangover symptoms (greasy/salty/carby comfort without guessing medical claims).
+17) munchyScore: integer 0-5 where 5 best satisfies late-night munchies / craveable indulgence.
+18) varietyScore: integer 0-5 where 5 is broad menu variety or strong customizable options.
+19) macroFriendlyScore: integer 0-5 where 5 means easiest to estimate calories/macros (labeled menus, bowl-builders, consistent portions).
+20) soloDinerScore: integer 0-5 where 5 is most welcoming to dining alone (counter/bar seating, low awkwardness).
+21) energySustainScore: integer 0-5 where 5 is slow sustained fullness/energy after eating; 0 is sharp spike then crash for typical orders.
+22) workFriendlyScore: integer 0-5 where 5 is best for laptop work (wifi/outlets/seating/time limits vibe); infer from category plus listing hints when possible.
+23) Do not group classifications into combined labels.
+24) Use googleMapsUri and coordinates to disambiguate the exact listing when signals conflict.`;
+
+const formatPlaceBlock = (place: InputPlace): string => {
+  const hours = (place.currentOpeningHours?.weekdayDescriptions ??
+    place.regularOpeningHours?.weekdayDescriptions ??
+    []) as string[];
+  const hoursLine = hours.join(' | ');
+  const openNow =
+    place.currentOpeningHours?.openNow === undefined
+      ? ''
+      : String(place.currentOpeningHours.openNow);
+  return [
+    `ID: ${place.id}`,
+    `Name: ${place.name ?? ''}`,
+    `Address: ${place.formattedAddress ?? ''}`,
+    `Category: ${place.primaryTypeDisplayName ?? place.primaryType ?? ''}`,
+    `Types: ${(place.types ?? []).join(', ')}`,
+    `Business Status: ${place.businessStatus ?? ''}`,
+    `Price Level: ${place.priceLevel ?? ''}`,
+    `Price Range: ${JSON.stringify(place.priceRange ?? {})}`,
+    `Rating: ${place.rating ?? ''} (${place.userRatingCount ?? 0} user ratings)`,
+    `Coordinates: lat=${place.location?.latitude ?? ''}, lng=${place.location?.longitude ?? ''}`,
+    `Maps Link: ${place.googleMapsUri ?? ''}`,
+    `Website: ${place.websiteUri ?? ''}`,
+    `Open Now: ${openNow}`,
+    `Opening Hours: ${hoursLine}`,
+  ].join('\n');
+};
+
+const userPromptForBatch = (places: InputPlace[]): string => {
+  const blocks = places.map((p, i) => `--- Restaurant ${i + 1} ---\n${formatPlaceBlock(p)}`).join('\n\n');
+  return `You are given exactly ${places.length} restaurant(s). Return one JSON object with key "overviews" whose value is an array of exactly ${places.length} objects (same order). Each object must include "placeId" matching the listing ID and all required score fields.
+
+${blocks}`;
+};
 
 const sanitizeOverview = (raw: any): AiOverview | null => {
   if (!raw || typeof raw !== 'object') return null;
@@ -260,16 +308,25 @@ serve(async (req) => {
     const generatedOverviews: { placeId: string; overview: AiOverview }[] = [];
     const missingOnly = (places as InputPlace[]).filter((p) => p?.id);
 
-    for (const place of missingOnly) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+    const geminiUrl =
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+
+    for (let i = 0; i < missingOnly.length; i += BATCH_SIZE) {
+      const batch = missingOnly.slice(i, i + BATCH_SIZE);
+      const batchIds = new Set(batch.map((p) => p.id));
+
       const response = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: promptForPlace(place) }] }],
+          systemInstruction: {
+            parts: [{ text: SYSTEM_INSTRUCTION }],
+          },
+          contents: [{ role: 'user', parts: [{ text: userPromptForBatch(batch) }] }],
           generationConfig: {
             temperature: 0.2,
             responseMimeType: 'application/json',
+            responseSchema: batchResponseSchema,
           },
         }),
       });
@@ -289,37 +346,45 @@ serve(async (req) => {
         continue;
       }
 
-      const overview = sanitizeOverview(parsed);
-      if (!overview) continue;
+      const items = parsed?.overviews;
+      if (!Array.isArray(items)) continue;
 
-      generatedOverviews.push({ placeId: place.id, overview });
+      for (const item of items) {
+        const placeId = String(item?.placeId ?? '').trim();
+        if (!placeId || !batchIds.has(placeId)) continue;
 
-      await supabase.from('ai_overview_cache').upsert({
-        place_id: place.id,
-        summary_good_bad: overview.summaryGoodBad,
-        speed_score: overview.speedScore,
-        health_score: overview.healthScore,
-        workout_recovery_score: overview.workoutRecoveryScore,
-        processed_score: overview.processedScore,
-        calorie_score: overview.calorieScore,
-        protein_score: overview.proteinScore,
-        carb_score: overview.carbScore,
-        date_worthiness: overview.dateWorthiness,
-        noise_level_estimate: overview.noiseLevelEstimate,
-        group_size_sweet_spot: overview.groupSizeSweetSpot,
-        absolute_macros: overview.absoluteMacros,
-        who_this_place_is_for: overview.whoThisPlaceIsFor,
-        taste_score: overview.tasteScore,
-        value_for_money_score: overview.valueForMoneyScore,
-        hungover_recovery_score: overview.hungoverRecoveryScore,
-        munchy_score: overview.munchyScore,
-        variety_score: overview.varietyScore,
-        macro_friendly_score: overview.macroFriendlyScore,
-        solo_diner_score: overview.soloDinerScore,
-        energy_sustain_score: overview.energySustainScore,
-        work_friendly_score: overview.workFriendlyScore,
-        updated_at: new Date().toISOString(),
-      });
+        const overview = sanitizeOverview(item);
+        if (!overview) continue;
+
+        generatedOverviews.push({ placeId, overview });
+
+        await supabase.from('ai_overview_cache').upsert({
+          place_id: placeId,
+          summary_good_bad: overview.summaryGoodBad,
+          speed_score: overview.speedScore,
+          health_score: overview.healthScore,
+          workout_recovery_score: overview.workoutRecoveryScore,
+          processed_score: overview.processedScore,
+          calorie_score: overview.calorieScore,
+          protein_score: overview.proteinScore,
+          carb_score: overview.carbScore,
+          date_worthiness: overview.dateWorthiness,
+          noise_level_estimate: overview.noiseLevelEstimate,
+          group_size_sweet_spot: overview.groupSizeSweetSpot,
+          absolute_macros: overview.absoluteMacros,
+          who_this_place_is_for: overview.whoThisPlaceIsFor,
+          taste_score: overview.tasteScore,
+          value_for_money_score: overview.valueForMoneyScore,
+          hungover_recovery_score: overview.hungoverRecoveryScore,
+          munchy_score: overview.munchyScore,
+          variety_score: overview.varietyScore,
+          macro_friendly_score: overview.macroFriendlyScore,
+          solo_diner_score: overview.soloDinerScore,
+          energy_sustain_score: overview.energySustainScore,
+          work_friendly_score: overview.workFriendlyScore,
+          updated_at: new Date().toISOString(),
+        });
+      }
     }
 
     return new Response(JSON.stringify({ generatedOverviews }), {
