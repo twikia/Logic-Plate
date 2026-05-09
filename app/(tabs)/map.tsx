@@ -31,23 +31,16 @@ function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionic
   return 'restaurant';
 }
 
-// Marker component with deferred tracksViewChanges=false to ensure initial render.
-// The outer shadowWrapper absorbs the Android elevation shadow space so the
-// native layer doesn't clip the pill shape.
 function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
   item: any; accentColor: string; displayScore: string | number; onPress: () => void;
 }) {
-  const [tracked, setTracked] = useState(true);
-  useEffect(() => {
-    const t = setTimeout(() => setTracked(false), 800);
-    return () => clearTimeout(t);
-  }, []);
   const icon = getCuisineIcon(item.primaryType);
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
       onPress={onPress}
-      tracksViewChanges={tracked}
+      tracksViewChanges={false}
+      zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
       <View style={styles.markerHitFrame} collapsable={false}>
@@ -273,10 +266,14 @@ export default function MapScreen() {
     setRadius(clamped);
     await setSearchRadius(clamped);
     setShowRadiusPicker(false);
-    if (region) {
+    if (userCoords) {
+      loadRestaurants(userCoords.latitude, userCoords.longitude, clamped);
+    } else if (region) {
       loadRestaurants(region.latitude, region.longitude, clamped);
     }
   };
+
+  const circleCenter = userCoords ?? searchCenter;
 
   void openStatusEpoch;
   const sheetPriceLabel = selectedRestaurant ? formatPlacePriceLabel(selectedRestaurant) : '';
@@ -299,15 +296,16 @@ export default function MapScreen() {
         customMapStyle={currentMapStyle}
         loadingEnabled={false}
       >
-        {searchCenter && (
+        {circleCenter ? (
           <Circle
-            center={searchCenter}
+            center={circleCenter}
             radius={radius}
             fillColor={theme.accent + '22'}
             strokeColor={theme.accent}
             strokeWidth={2}
+            zIndex={0}
           />
-        )}
+        ) : null}
         {restaurants.map((item) => {
           const score = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel);
           const displayScore = score > 0 ? score : (item.rating ? (item.rating * 2).toFixed(1) : 'N/A');
