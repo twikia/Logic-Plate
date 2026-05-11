@@ -27,6 +27,7 @@ import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { setCurrentRestaurant } from '../../../core/currentSelection';
 import { getRandomPickerState, saveRandomPickerState } from '../../../core/randomPickerState';
 import { RestaurantImage } from '../../../core/images';
+import { placeOffersSweets } from '../../../core/placeSweets';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
 const CUISINE_TYPE_MAP: Record<string, string[]> = {
@@ -45,7 +46,19 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
   steakhouse: ['steak_house'],
   vegan: ['vegan_restaurant', 'vegetarian_restaurant'],
   pizza: ['pizza_restaurant'],
-  dessert: ['bakery', 'dessert_shop', 'dessert_restaurant'],
+  dessert: [
+    'bakery',
+    'dessert_shop',
+    'dessert_restaurant',
+    'ice_cream_shop',
+    'donut_shop',
+    'candy_store',
+    'chocolate_shop',
+    'confectionery',
+    'cake_shop',
+    'pastry_shop',
+    'acai_shop',
+  ],
 };
 
 const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
@@ -316,7 +329,8 @@ export default function RandomScreen() {
     if (selectedCuisines.size > 0) {
       const pType = r.primaryType;
       const tTypes = r.types || [];
-      const hasMatch = Array.from(selectedCuisines).some(cuisineKey => {
+        const hasMatch = Array.from(selectedCuisines).some(cuisineKey => {
+        if (cuisineKey === 'dessert') return placeOffersSweets(r);
         const mappedTypes = CUISINE_TYPE_MAP[cuisineKey] || [];
         return mappedTypes.some(t => pType === t || tTypes.includes(t));
       });

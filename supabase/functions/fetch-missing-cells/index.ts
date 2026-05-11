@@ -58,12 +58,14 @@ serve(async (req) => {
         const url = 'https://places.googleapis.com/v1/places:searchNearby';
         const requestBody = {
           includedTypes: [
-            'restaurant', 'cafe', 'bar', 'coffee_shop', 'fast_food_restaurant', 
+            'restaurant', 'cafe', 'bar', 'coffee_shop', 'fast_food_restaurant',
             'pizza_restaurant', 'hamburger_restaurant', 'sandwich_shop', 'ice_cream_shop',
+            'bakery', 'dessert_shop', 'dessert_restaurant', 'donut_shop', 'candy_store',
+            'chocolate_shop', 'confectionery', 'cake_shop', 'pastry_shop', 'acai_shop',
             'steak_house', 'seafood_restaurant', 'american_restaurant', 'breakfast_restaurant',
             'brunch_restaurant', 'italian_restaurant', 'japanese_restaurant', 'korean_restaurant',
             'mexican_restaurant', 'thai_restaurant', 'vegetarian_restaurant', 'vegan_restaurant',
-            'meal_takeaway', 'meal_delivery'
+            'meal_takeaway', 'meal_delivery',
           ],
           maxResultCount: 20,
           locationRestriction: {
@@ -106,6 +108,7 @@ serve(async (req) => {
           'places.accessibilityOptions',
           'places.iconBackgroundColor',
           'places.iconMaskBaseUri',
+          'places.editorialSummary',
         ].join(',');
 
         const response = await fetch(url, {

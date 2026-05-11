@@ -17,40 +17,57 @@ import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
 import { isOpenNow } from '@/core/isOpenNow';
 
-// Maps a primaryType string to an Ionicons icon name
 function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionicons>['name'] {
   if (!primaryType) return 'restaurant';
   const t = primaryType.toLowerCase();
   if (t.includes('pizza')) return 'pizza';
-  if (t.includes('coffee') || t.includes('cafe') || t.includes('cafeteria')) return 'cafe';
-  if (t.includes('bar') || t.includes('pub') || t.includes('brewery')) return 'beer';
-  if (t.includes('bakery') || t.includes('dessert') || t.includes('ice_cream')) return 'ice-cream';
+  if (t.includes('coffee') || t.includes('cafe') || t.includes('cafeteria') || t.includes('coffee_shop')) return 'cafe';
+  if (t.includes('bar') || t.includes('pub') || t.includes('brewery') || t.includes('wine')) return 'beer';
+  if (t.includes('bakery') || t.includes('dessert') || t.includes('ice_cream') || t.includes('chocolate') || t.includes('confection') || t.includes('candy') || t.includes('donut')) return 'ice-cream';
   if (t.includes('fast_food') || t.includes('hamburger')) return 'fast-food';
   if (t.includes('seafood') || t.includes('sushi') || t.includes('fish')) return 'fish';
   if (t.includes('sandwich') || t.includes('sub')) return 'nutrition-outline';
+  if (t.includes('steak') || t.includes('bbq') || t.includes('barbecue')) return 'flame-outline';
+  if (t.includes('mexican') || t.includes('taco')) return 'fast-food';
+  if (t.includes('indian')) return 'restaurant-outline';
+  if (t.includes('thai') || t.includes('vietnamese') || t.includes('ramen') || t.includes('noodle')) return 'restaurant';
+  if (t.includes('italian')) return 'restaurant-outline';
   return 'restaurant';
 }
 
 function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
   item: any; accentColor: string; displayScore: string | number; onPress: () => void;
 }) {
-  const icon = getCuisineIcon(item.primaryType);
+  const [tracksChanges, setTracksChanges] = useState(true);
+  useEffect(() => {
+    const done = setTimeout(() => setTracksChanges(false), 450);
+    return () => clearTimeout(done);
+  }, [item.id]);
+
+  const iconName = getCuisineIcon(item.primaryType);
+  const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
+
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
       onPress={onPress}
-      tracksViewChanges={false}
+      tracksViewChanges={tracksChanges}
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
       <View style={styles.markerHitFrame} collapsable={false}>
         <View style={styles.markerShadowWrapper}>
-          <View style={styles.markerContainer}>
-            <View style={[styles.markerBody, { backgroundColor: '#1A0A1A', borderColor: accentColor }]}>
-              <Ionicons name={icon} size={14} color={accentColor} />
-              <Text style={styles.markerScoreText}>{displayScore}</Text>
+          <View style={styles.markerColumn}>
+            <View style={[styles.markerCard, { borderColor: accentColor }]}>
+              <View style={[styles.markerIconRing, { borderColor: accentColor + '88' }]}>
+                <Ionicons name={iconName} size={20} color={accentColor} />
+              </View>
+              <View style={[styles.markerScorePill, { backgroundColor: accentColor }]}>
+                <Text style={styles.markerScorePillText}>{scoreText}</Text>
+              </View>
             </View>
-            <View style={[styles.markerTip, { borderTopColor: accentColor }]} />
+            <View style={[styles.markerStem, { backgroundColor: accentColor }]} />
+            <View style={[styles.markerDot, { borderColor: accentColor }]} />
           </View>
         </View>
       </View>
@@ -215,7 +232,7 @@ export default function MapScreen() {
           // Swipe Up - Full(ish) height
           Animated.spring(sheetAnim, {
             toValue: height * 0.15,
-            useNativeDriver: true,
+            useNativeDriver: false,
             tension: 50,
             friction: 8,
           }).start();
@@ -226,7 +243,7 @@ export default function MapScreen() {
           // Snap back to mid
           Animated.spring(sheetAnim, {
             toValue: height * 0.45,
-            useNativeDriver: true,
+            useNativeDriver: false,
             tension: 50,
             friction: 8,
           }).start();
@@ -247,7 +264,7 @@ export default function MapScreen() {
 
     Animated.spring(sheetAnim, {
       toValue: height * 0.45,
-      useNativeDriver: true,
+      useNativeDriver: false,
       tension: 65,
       friction: 11,
     }).start();
@@ -257,7 +274,7 @@ export default function MapScreen() {
     Animated.timing(sheetAnim, {
       toValue: height,
       duration: 300,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start(() => setSelectedRestaurant(null));
   };
 
@@ -430,6 +447,8 @@ export default function MapScreen() {
               },
             ]}
             showsVerticalScrollIndicator={false}
+            collapsable={false}
+            nestedScrollEnabled
           >
             <View style={styles.sheetHeader}>
               <View style={{ flex: 1 }}>
@@ -628,24 +647,54 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
   markerHitFrame: {
-    width: 140,
-    height: 80,
+    width: 160,
+    height: 96,
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'visible',
   },
-  markerShadowWrapper: { padding: 8, overflow: 'visible' },
-  markerContainer: { alignItems: 'center' },
-  markerBody: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 2.5,
-    shadowColor: '#000', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+  markerShadowWrapper: { padding: 10, overflow: 'visible' },
+  markerColumn: { alignItems: 'center' },
+  markerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 2,
+    backgroundColor: '#1A0A1A',
+    shadowColor: '#000',
+    shadowOpacity: 0.85,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
   },
-  markerScoreText: { fontSize: 15, fontWeight: '900', color: '#FFF', letterSpacing: -0.3 },
-  markerTip: {
-    width: 0, height: 0, backgroundColor: 'transparent', borderStyle: 'solid',
-    borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent',
+  markerIconRing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  markerScorePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  markerScorePillText: { fontSize: 14, fontWeight: '900', color: '#FFF', letterSpacing: -0.2 },
+  markerStem: { width: 3, height: 8, borderRadius: 2, marginTop: -1 },
+  markerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
     marginTop: -1,
+    backgroundColor: '#1A0A1A',
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   radiusBtn: {
@@ -669,7 +718,7 @@ const styles = StyleSheet.create({
   sheetHandleContainer: { alignItems: 'center', paddingVertical: 15 },
   sheetHandle: { width: 60, height: 6, borderRadius: 3 },
   sheetScrollView: { flex: 1 },
-  sheetContent: { paddingHorizontal: 24, flexGrow: 1 },
+  sheetContent: { paddingHorizontal: 24 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   closeBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   restaurantName: { fontSize: 24, fontWeight: '800', marginBottom: 4 },

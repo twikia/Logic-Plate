@@ -360,7 +360,10 @@ export default function ProfileScreen() {
                 <AnimatedPressable 
                   key={item} 
                   style={[styles.iconOption, icon === item && styles.iconOptionSelected]}
-                  onPress={() => { changeIcon(item); setIsSelectingIcon(false); }}
+                  onPress={async () => {
+                    await changeIcon(item);
+                    setIsSelectingIcon(false);
+                  }}
                 >
                   <Text style={{ fontSize: 32 }}>{item}</Text>
                   {icon === item && (

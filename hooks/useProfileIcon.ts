@@ -6,15 +6,21 @@ export const ICONS = [
   '🍕', '🍔', '🌮', '🍣', '🍩', '🥑', '🥞', '🍜', '🍓', '🍦'
 ];
 
+let memoryProfileIcon: string | null = null;
+
 export function useProfileIcon() {
-  const [icon, setIcon] = useState(ICONS[0]);
+  const [icon, setIcon] = useState(() => memoryProfileIcon ?? ICONS[0]);
 
   useEffect(() => {
     AsyncStorage.getItem('profile_icon').then(val => {
-      if (val) setIcon(val);
+      if (val) {
+        memoryProfileIcon = val;
+        setIcon(val);
+      }
     });
 
-    const subscription = DeviceEventEmitter.addListener('onProfileIconChange', (newIcon) => {
+    const subscription = DeviceEventEmitter.addListener('onProfileIconChange', (newIcon: string) => {
+      memoryProfileIcon = newIcon;
       setIcon(newIcon);
     });
 
@@ -22,6 +28,7 @@ export function useProfileIcon() {
   }, []);
 
   const changeIcon = async (newIcon: string) => {
+    memoryProfileIcon = newIcon;
     setIcon(newIcon);
     await AsyncStorage.setItem('profile_icon', newIcon);
     DeviceEventEmitter.emit('onProfileIconChange', newIcon);
