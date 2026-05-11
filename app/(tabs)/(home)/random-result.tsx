@@ -19,10 +19,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getCurrentRestaurant } from '../../../core/currentSelection';
+import { getCurrentRestaurant, subscribeCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
+import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '../../../core/aiOverviewCache';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,12 +113,27 @@ function TenPointBar({
   value,
   icon,
   emoji,
+  placeholder,
 }: {
   label: string;
   value: number | undefined;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   emoji: string;
+  placeholder?: boolean;
 }) {
+  if (placeholder) {
+    return (
+      <View style={styles.scoreCard}>
+        <View style={styles.scoreCardTop}>
+          <Text style={styles.scoreEmoji}>{emoji}</Text>
+          <Ionicons name={icon} size={15} color="#F9A06F" />
+          <Text style={styles.scoreCardLabel}>{label}</Text>
+          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+        </View>
+        <View style={styles.tenTrack} />
+      </View>
+    );
+  }
   const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
   const pct = Math.max(0, Math.min(1, v / 10));
   return (
@@ -135,7 +151,24 @@ function TenPointBar({
   );
 }
 
-function SpeedBar({ value }: { value: number | undefined }) {
+function SpeedBar({ value, placeholder }: { value: number | undefined; placeholder?: boolean }) {
+  if (placeholder) {
+    return (
+      <View style={styles.scoreCard}>
+        <View style={styles.scoreCardTop}>
+          <Text style={styles.scoreEmoji}>⏱️</Text>
+          <Ionicons name="timer-outline" size={15} color="#F9A06F" />
+          <Text style={styles.scoreCardLabel}>Speed</Text>
+          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+        </View>
+        <View style={styles.speedScaleRow}>
+          <Text style={styles.speedScaleText}>🐌 0 slow</Text>
+          <Text style={styles.speedScaleText}>5 fast ⚡</Text>
+        </View>
+        <View style={styles.tenTrack} />
+      </View>
+    );
+  }
   const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
   const pct = Math.max(0, Math.min(1, v / 5));
   return (
@@ -157,7 +190,24 @@ function SpeedBar({ value }: { value: number | undefined }) {
   );
 }
 
-function EnergySustainBar({ value }: { value: number | undefined }) {
+function EnergySustainBar({ value, placeholder }: { value: number | undefined; placeholder?: boolean }) {
+  if (placeholder) {
+    return (
+      <View style={styles.scoreCard}>
+        <View style={styles.scoreCardTop}>
+          <Text style={styles.scoreEmoji}>🔋</Text>
+          <Ionicons name="pulse-outline" size={15} color="#7EC8E3" />
+          <Text style={styles.scoreCardLabel}>Energy sustain</Text>
+          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+        </View>
+        <View style={styles.speedScaleRow}>
+          <Text style={styles.speedScaleText}>⚡ 0 crashy</Text>
+          <Text style={styles.speedScaleText}>5 slow sustain</Text>
+        </View>
+        <View style={styles.tenTrack} />
+      </View>
+    );
+  }
   const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
   const pct = Math.max(0, Math.min(1, v / 5));
   return (
@@ -179,7 +229,18 @@ function EnergySustainBar({ value }: { value: number | undefined }) {
   );
 }
 
-function FiveStarRow({ label, value, emoji }: { label: string; value: number | undefined; emoji: string }) {
+function FiveStarRow({ label, value, emoji, placeholder }: { label: string; value: number | undefined; emoji: string; placeholder?: boolean }) {
+  if (placeholder) {
+    return (
+      <View style={styles.scoreCard}>
+        <View style={styles.scoreCardTop}>
+          <Text style={styles.scoreEmoji}>{emoji}</Text>
+          <Text style={styles.scoreCardLabel}>{label}</Text>
+          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+        </View>
+      </View>
+    );
+  }
   const rounded = Math.max(0, Math.min(5, Math.round(typeof value === 'number' && Number.isFinite(value) ? value : 0)));
   return (
     <View style={styles.scoreCard}>
@@ -236,6 +297,9 @@ export default function RandomResultScreen() {
 
   // Read the selected restaurant from memory — avoids the expensive JSON.parse
   // of a large URL param which was blocking the screen mount on every navigation.
+  const [, setSelectionEpoch] = useState(0);
+  useEffect(() => subscribeCurrentRestaurant(() => setSelectionEpoch(e => e + 1)), []);
+
   const place = getCurrentRestaurant() ?? {};
 
   const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
@@ -300,6 +364,7 @@ export default function RandomResultScreen() {
     };
   }, [place.id, place.displayName?.text, place.location?.latitude, place.location?.longitude]);
   const aiOverview = place.aiOverview;
+  const ph = !aiOverview;
 
   const handleShare = async () => {
     try {
@@ -391,11 +456,18 @@ export default function RandomResultScreen() {
               <Ionicons name="heart-outline" size={16} color="#A8D5A2" />
               <Text style={[styles.sectionTitle, { color: '#A8D5A2' }]}>Health score</Text>
               <Text style={styles.healthScoreBadge}>
-                {typeof aiOverview?.healthScore === 'number' ? `${aiOverview.healthScore.toFixed(1)}/10` : 'Pending'}
+                {typeof aiOverview?.healthScore === 'number'
+                  ? `${aiOverview.healthScore.toFixed(1)}/10`
+                  : AI_OVERVIEW_FIELD_PLACEHOLDER}
               </Text>
             </View>
             <View style={styles.healthBar}>
-              <View style={[styles.healthFill, { width: `${((aiOverview?.healthScore ?? 0) / 10) * 100}%` }]} />
+              <View
+                style={[
+                  styles.healthFill,
+                  { width: `${ph ? 0 : ((aiOverview!.healthScore ?? 0) / 10) * 100}%` },
+                ]}
+              />
             </View>
           </View>
 
@@ -445,139 +517,139 @@ export default function RandomResultScreen() {
           {/* Opening hours */}
           <HoursSection weekdays={weekdays} />
 
-          {aiOverview ? (
-            <>
-              <View style={[styles.section, styles.aiSection]}>
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
-                  <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
-                </View>
-                <AiOverviewSummaryBody
-                  text={aiOverview.summaryGoodBad || 'No summary yet.'}
-                  style={styles.sectionBody}
-                />
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>👅</Text>
-                  <Ionicons name="restaurant-outline" size={16} color="#FFB84D" />
-                  <Text style={styles.sectionTitle}>Flavor & value</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <FiveStarRow label="Taste" value={aiOverview.tasteScore} emoji="👅" />
-                  <FiveStarRow label="Value for money" value={aiOverview.valueForMoneyScore} emoji="💵" />
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>⚡</Text>
-                  <Ionicons name="flash-outline" size={16} color="#F9A06F" />
-                  <Text style={styles.sectionTitle}>Convenience</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <SpeedBar value={aiOverview.speedScore} />
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>💪</Text>
-                  <Ionicons name="barbell-outline" size={16} color="#F9A06F" />
-                  <Text style={styles.sectionTitle}>Recovery</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <TenPointBar label="Workout recovery" value={aiOverview.workoutRecoveryScore} icon="barbell-outline" emoji="💪" />
-                  <TenPointBar label="Processed food load" value={aiOverview.processedScore} icon="nutrition-outline" emoji="🍎" />
-                  <FiveStarRow label="Hungover recovery" value={aiOverview.hungoverRecoveryScore} emoji="🥴" />
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>🌙</Text>
-                  <Ionicons name="fast-food-outline" size={16} color="#C9A0FF" />
-                  <Text style={styles.sectionTitle}>Cravings & menu</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <FiveStarRow label="Munchy score" value={aiOverview.munchyScore} emoji="🌙" />
-                  <FiveStarRow label="Variety" value={aiOverview.varietyScore} emoji="🔄" />
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>🍽️</Text>
-                  <Ionicons name="restaurant-outline" size={16} color="#FFD66B" />
-                  <Text style={styles.sectionTitle}>Nutrition & portions</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <FiveStarRow label="Calorie fit" value={aiOverview.calorieScore} emoji="🔥" />
-                  <FiveStarRow label="Protein" value={aiOverview.proteinScore} emoji="🥩" />
-                  <FiveStarRow label="Carb balance" value={aiOverview.carbScore} emoji="🌾" />
-                  <FiveStarRow label="Macro-friendly tracking" value={aiOverview.macroFriendlyScore} emoji="📊" />
-                </View>
-                {aiOverview.absoluteMacros ? (
-                  <Text style={styles.macrosBlock}>{aiOverview.absoluteMacros}</Text>
-                ) : null}
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>💫</Text>
-                  <Ionicons name="people-outline" size={16} color="#E9A0C8" />
-                  <Text style={styles.sectionTitle}>Vibe & social</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <FiveStarRow label="Date worthiness" value={aiOverview.dateWorthiness} emoji="💕" />
-                  <FiveStarRow label="Noise level" value={aiOverview.noiseLevelEstimate} emoji="🔊" />
-                  <View style={styles.scoreCard}>
-                    <View style={styles.scoreCardTop}>
-                      <Text style={styles.scoreEmoji}>👥</Text>
-                      <Ionicons name="people-circle-outline" size={15} color="#F9A06F" />
-                      <Text style={styles.scoreCardLabel}>Group sweet spot</Text>
-                      <Text style={styles.scoreCardVal}>
-                        {aiOverview.groupSizeSweetSpot != null ? `${aiOverview.groupSizeSweetSpot} people` : '—'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.aiSparkle}>💻</Text>
-                  <Ionicons name="laptop-outline" size={16} color="#9BC99D" />
-                  <Text style={styles.sectionTitle}>Solo & work</Text>
-                </View>
-                <View style={styles.scoreCardStack}>
-                  <FiveStarRow label="Solo diner friendly" value={aiOverview.soloDinerScore} emoji="🪑" />
-                  <EnergySustainBar value={aiOverview.energySustainScore} />
-                  <FiveStarRow label="Work friendly (wifi / laptop)" value={aiOverview.workFriendlyScore} emoji="💻" />
-                </View>
-              </View>
-
-              {aiOverview.whoThisPlaceIsFor ? (
-                <View style={[styles.section, styles.whoSection]}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.aiSparkle}>🎯</Text>
-                    <Ionicons name="person-outline" size={16} color="#B8E0FF" />
-                    <Text style={[styles.sectionTitle, { color: '#B8E0FF' }]}>Who is this place for?</Text>
-                  </View>
-                  <Text style={styles.sectionBody}>{aiOverview.whoThisPlaceIsFor}</Text>
-                </View>
-              ) : null}
-            </>
-          ) : (
+          <>
             <View style={[styles.section, styles.aiSection]}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
                 <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
               </View>
-              <Text style={styles.sectionBody}>Generating AI overview...</Text>
+              {ph ? (
+                <Text style={styles.sectionBody}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+              ) : (
+                <AiOverviewSummaryBody
+                  text={aiOverview!.summaryGoodBad || 'No summary yet.'}
+                  style={styles.sectionBody}
+                />
+              )}
             </View>
-          )}
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>👅</Text>
+                <Ionicons name="restaurant-outline" size={16} color="#FFB84D" />
+                <Text style={styles.sectionTitle}>Flavor & value</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <FiveStarRow label="Taste" value={aiOverview?.tasteScore} emoji="👅" placeholder={ph} />
+                <FiveStarRow label="Value for money" value={aiOverview?.valueForMoneyScore} emoji="💵" placeholder={ph} />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>⚡</Text>
+                <Ionicons name="flash-outline" size={16} color="#F9A06F" />
+                <Text style={styles.sectionTitle}>Convenience</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <SpeedBar value={aiOverview?.speedScore} placeholder={ph} />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>💪</Text>
+                <Ionicons name="barbell-outline" size={16} color="#F9A06F" />
+                <Text style={styles.sectionTitle}>Recovery</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <TenPointBar label="Workout recovery" value={aiOverview?.workoutRecoveryScore} icon="barbell-outline" emoji="💪" placeholder={ph} />
+                <TenPointBar label="Processed food load" value={aiOverview?.processedScore} icon="nutrition-outline" emoji="🍎" placeholder={ph} />
+                <FiveStarRow label="Hungover recovery" value={aiOverview?.hungoverRecoveryScore} emoji="🥴" placeholder={ph} />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>🌙</Text>
+                <Ionicons name="fast-food-outline" size={16} color="#C9A0FF" />
+                <Text style={styles.sectionTitle}>Cravings & menu</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <FiveStarRow label="Munchy score" value={aiOverview?.munchyScore} emoji="🌙" placeholder={ph} />
+                <FiveStarRow label="Variety" value={aiOverview?.varietyScore} emoji="🔄" placeholder={ph} />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>🍽️</Text>
+                <Ionicons name="restaurant-outline" size={16} color="#FFD66B" />
+                <Text style={styles.sectionTitle}>Nutrition & portions</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <FiveStarRow label="Calorie fit" value={aiOverview?.calorieScore} emoji="🔥" placeholder={ph} />
+                <FiveStarRow label="Protein" value={aiOverview?.proteinScore} emoji="🥩" placeholder={ph} />
+                <FiveStarRow label="Carb balance" value={aiOverview?.carbScore} emoji="🌾" placeholder={ph} />
+                <FiveStarRow label="Macro-friendly tracking" value={aiOverview?.macroFriendlyScore} emoji="📊" placeholder={ph} />
+              </View>
+              {ph ? (
+                <Text style={styles.macrosBlock}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+              ) : aiOverview!.absoluteMacros ? (
+                <Text style={styles.macrosBlock}>{aiOverview.absoluteMacros}</Text>
+              ) : null}
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>💫</Text>
+                <Ionicons name="people-outline" size={16} color="#E9A0C8" />
+                <Text style={styles.sectionTitle}>Vibe & social</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <FiveStarRow label="Date worthiness" value={aiOverview?.dateWorthiness} emoji="💕" placeholder={ph} />
+                <FiveStarRow label="Noise level" value={aiOverview?.noiseLevelEstimate} emoji="🔊" placeholder={ph} />
+                <View style={styles.scoreCard}>
+                  <View style={styles.scoreCardTop}>
+                    <Text style={styles.scoreEmoji}>👥</Text>
+                    <Ionicons name="people-circle-outline" size={15} color="#F9A06F" />
+                    <Text style={styles.scoreCardLabel}>Group sweet spot</Text>
+                    <Text style={styles.scoreCardVal}>
+                      {ph
+                        ? AI_OVERVIEW_FIELD_PLACEHOLDER
+                        : aiOverview!.groupSizeSweetSpot != null
+                          ? `${aiOverview.groupSizeSweetSpot} people`
+                          : '—'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>💻</Text>
+                <Ionicons name="laptop-outline" size={16} color="#9BC99D" />
+                <Text style={styles.sectionTitle}>Solo & work</Text>
+              </View>
+              <View style={styles.scoreCardStack}>
+                <FiveStarRow label="Solo diner friendly" value={aiOverview?.soloDinerScore} emoji="🪑" placeholder={ph} />
+                <EnergySustainBar value={aiOverview?.energySustainScore} placeholder={ph} />
+                <FiveStarRow label="Work friendly (wifi / laptop)" value={aiOverview?.workFriendlyScore} emoji="💻" placeholder={ph} />
+              </View>
+            </View>
+
+            <View style={[styles.section, styles.whoSection]}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.aiSparkle}>🎯</Text>
+                <Ionicons name="person-outline" size={16} color="#B8E0FF" />
+                <Text style={[styles.sectionTitle, { color: '#B8E0FF' }]}>Who is this place for?</Text>
+              </View>
+              <Text style={styles.sectionBody}>
+                {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : aiOverview?.whoThisPlaceIsFor || '—'}
+              </Text>
+            </View>
+          </>
 
           {/* Action buttons */}
           <View style={styles.actions}>

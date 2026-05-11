@@ -12,7 +12,7 @@ export const runCacheTests = async () => {
   console.log(`Fetching restaurants near [${testLat}, ${testLng}] with ${radius}m radius...`);
   
   let startTime = Date.now();
-  let results = await getNearbyRestaurants(testLat, testLng, radius);
+  let results = await getNearbyRestaurants(testLat, testLng, radius, undefined, { waitForAi: true });
   let time1 = Date.now() - startTime;
   
   console.log(`\n=> [Test 1] Fetched ${results.length} unique restaurants in ${time1}ms.`);
@@ -23,7 +23,7 @@ export const runCacheTests = async () => {
   console.log('Fetching identical coordinates immediately after...');
   
   startTime = Date.now();
-  let results2 = await getNearbyRestaurants(testLat, testLng, radius);
+  let results2 = await getNearbyRestaurants(testLat, testLng, radius, undefined, { waitForAi: true });
   let time2 = Date.now() - startTime;
   
   console.log(`\n=> [Test 2] Fetched ${results2.length} unique restaurants in ${time2}ms.`);
@@ -46,7 +46,7 @@ export const runCacheTests = async () => {
   console.log(`Fetching near offset coordinates [${offsetLat}, ${testLng}] with ${radius}m radius...`);
   
   startTime = Date.now();
-  let results3 = await getNearbyRestaurants(offsetLat, testLng, radius);
+  let results3 = await getNearbyRestaurants(offsetLat, testLng, radius, undefined, { waitForAi: true });
   let time3 = Date.now() - startTime;
   
   console.log(`\n=> [Test 3] Fetched ${results3.length} unique restaurants in ${time3}ms.`);

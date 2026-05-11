@@ -1,14 +1,15 @@
 import { getCellsInRadius, getCellCenter } from './h3Utils';
 import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
-import { getAiOverviewsForPlaces } from './aiOverviewCache';
+import {
+  getCachedAiOverviewsForPlaces,
+  invokeGenerateAiOverviewsForPlaces,
+  type AiOverview,
+} from './aiOverviewCache';
 
-/**
- * Computes the great-circle distance between two points on a sphere given their longitudes and latitudes
- */
 const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const toRad = (x: number) => (x * Math.PI) / 180;
-  const R = 6371e3; // Earth radius in meters
+  const R = 6371e3;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -18,10 +19,6 @@ const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 };
 
-/**
- * Phase 6: Cache Orchestrator — Optimized with bulk cache reads.
- * Master function to fetch nearby restaurants efficiently using Supabase Edge Functions.
- */
 export type RestaurantLoadStage =
   | 'reading-cache'
   | 'fetching-restaurants'
@@ -34,24 +31,62 @@ export type RestaurantLoadProgress = {
   progress: number;
 };
 
-export const getNearbyRestaurants = async (
+export class RestaurantLoadSupersededError extends Error {
+  readonly name = 'RestaurantLoadSupersededError';
+  constructor() {
+    super('Restaurant load superseded');
+  }
+}
+
+export const isRestaurantLoadSupersededError = (e: unknown): boolean =>
+  e instanceof RestaurantLoadSupersededError;
+
+export type GetNearbyRestaurantsOptions = {
+  onAiReady?: (places: any[]) => void;
+  waitForAi?: boolean;
+};
+
+let latestRestaurantJobSeq = 0;
+
+type QueuedRestaurantTask = {
+  userLat: number;
+  userLng: number;
+  radiusMeters: number;
+  onProgress?: (update: RestaurantLoadProgress) => void;
+  options?: GetNearbyRestaurantsOptions;
+  resolve: (places: any[]) => void;
+  reject: (e: unknown) => void;
+};
+
+let restaurantFetchActive = false;
+let restaurantFetchPending: QueuedRestaurantTask | null = null;
+
+const mergeAiOntoPlaces = (finalList: any[], aiById: Map<string, AiOverview>) =>
+  finalList.map(place => {
+    const ai = place.id ? aiById.get(place.id) : undefined;
+    if (!ai) return { ...place };
+    return {
+      ...place,
+      aiOverview: ai,
+      healthScore: ai.healthScore,
+    };
+  });
+
+async function loadNearbyRestaurantsInternal(
   userLat: number,
   userLng: number,
   radiusMeters: number,
-  onProgress?: (update: RestaurantLoadProgress) => void
-) => {
-  // Cap radius at 8km to avoid massive fetches
+  onProgress?: (update: RestaurantLoadProgress) => void,
+  options?: GetNearbyRestaurantsOptions
+): Promise<any[]> {
+  const jobSeq = ++latestRestaurantJobSeq;
   const safeRadius = Math.min(radiusMeters, 8000);
 
-  // 1. Get all overlapping H3 cells
   const cellIds = getCellsInRadius(userLat, userLng, safeRadius);
   if (cellIds.length === 0) {
     throw new Error('No search cells generated for current location.');
   }
 
-  // 2. Bulk-read ALL cells from cache in two operations:
-  //    - One AsyncStorage.multiGet (single JS bridge crossing) for L1
-  //    - One Supabase .in() query for any L2 misses
   onProgress?.({ stage: 'reading-cache', progress: 0.2 });
   const { hits, misses: uncachedCells } = await readCacheBulk(cellIds);
   console.log(
@@ -63,7 +98,6 @@ export const getNearbyRestaurants = async (
     allRestaurants = allRestaurants.concat(restaurants);
   });
 
-  // 3. Fetch still-missing cells from Supabase Edge Function
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
     const missingCellsPayload = uncachedCells.map(cellId => {
@@ -71,7 +105,9 @@ export const getNearbyRestaurants = async (
       return { cellId, lat, lng };
     });
 
-    console.log(`Database cache misses remain for ${uncachedCells.length} cells. Invoking edge function fetch-missing-cells...`);
+    console.log(
+      `Database cache misses remain for ${uncachedCells.length} cells. Invoking edge function fetch-missing-cells...`
+    );
     const { data, error } = await supabase.functions.invoke('fetch-missing-cells', {
       body: { missingCells: missingCellsPayload },
       headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
@@ -87,9 +123,7 @@ export const getNearbyRestaurants = async (
       if (Array.isArray(data.failedCells) && data.failedCells.length > 0) {
         console.error('Edge function reported failed cells:', data.failedCells);
       }
-      // Edge Function returns [{ cellId, places }]
-      data.newlyFetchedRestaurants.forEach((result: { cellId: string, places: any[] }) => {
-        // Write to local cache asynchronously so next time it's fast without hitting Supabase DB
+      data.newlyFetchedRestaurants.forEach((result: { cellId: string; places: any[] }) => {
         writeCache(result.cellId, result.places);
         allRestaurants = allRestaurants.concat(result.places);
       });
@@ -101,7 +135,6 @@ export const getNearbyRestaurants = async (
     }
   }
 
-  // 4. Deduplicate by Place ID using a Map (O(n), not O(n²))
   onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
   const uniqueRestaurantsMap = new Map<string, any>();
   for (const place of allRestaurants) {
@@ -110,7 +143,6 @@ export const getNearbyRestaurants = async (
     }
   }
 
-  // 5. Compute exact distance, filter by requested radius, and sort
   const finalList = Array.from(uniqueRestaurantsMap.values())
     .map(place => {
       if (!place.location?.latitude || !place.location?.longitude) {
@@ -119,7 +151,8 @@ export const getNearbyRestaurants = async (
       return {
         ...place,
         distanceMeters: haversineDistance(
-          userLat, userLng,
+          userLat,
+          userLng,
           place.location.latitude,
           place.location.longitude
         ),
@@ -128,19 +161,101 @@ export const getNearbyRestaurants = async (
     .filter(place => place.distanceMeters <= safeRadius)
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
-  onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
-  const aiOverviews = await getAiOverviewsForPlaces(finalList);
-  const enriched = finalList.map(place => {
-    const aiOverview = place.id ? aiOverviews.get(place.id) : undefined;
-    if (!aiOverview) return place;
-    return {
-      ...place,
-      aiOverview,
-      healthScore: aiOverview.healthScore,
+  const cachedAi = await getCachedAiOverviewsForPlaces(finalList);
+  const baseList = mergeAiOntoPlaces(finalList, cachedAi);
+
+  const missingIds = finalList.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
+
+  const runAiMerge = async () => {
+    if (missingIds.length === 0) {
+      onProgress?.({ stage: 'done', progress: 1 });
+      return;
+    }
+    onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
+    try {
+      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingIds);
+      if (jobSeq !== latestRestaurantJobSeq) return;
+      for (const [k, v] of generated) {
+        cachedAi.set(k, v);
+      }
+      if (generated.size > 0) {
+        const enriched = mergeAiOntoPlaces(finalList, cachedAi);
+        options?.onAiReady?.(enriched);
+      }
+    } catch (err) {
+      console.error('Background AI overviews failed:', err);
+    } finally {
+      if (jobSeq === latestRestaurantJobSeq) {
+        onProgress?.({ stage: 'done', progress: 1 });
+      }
+    }
+  };
+
+  if (missingIds.length > 0) {
+    if (options?.waitForAi) {
+      onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
+      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingIds);
+      for (const [k, v] of generated) {
+        cachedAi.set(k, v);
+      }
+      const enriched = mergeAiOntoPlaces(finalList, cachedAi);
+      onProgress?.({ stage: 'done', progress: 1 });
+      return enriched;
+    }
+    void runAiMerge();
+  } else {
+    onProgress?.({ stage: 'done', progress: 1 });
+  }
+
+  return baseList;
+}
+
+export const getNearbyRestaurants = (
+  userLat: number,
+  userLng: number,
+  radiusMeters: number,
+  onProgress?: (update: RestaurantLoadProgress) => void,
+  options?: GetNearbyRestaurantsOptions
+): Promise<any[]> => {
+  return new Promise((resolve, reject) => {
+    const task: QueuedRestaurantTask = {
+      userLat,
+      userLng,
+      radiusMeters,
+      onProgress,
+      options,
+      resolve,
+      reject,
     };
+
+    if (restaurantFetchActive) {
+      if (restaurantFetchPending) {
+        restaurantFetchPending.reject(new RestaurantLoadSupersededError());
+      }
+      restaurantFetchPending = task;
+      return;
+    }
+
+    restaurantFetchActive = true;
+    void (async () => {
+      let current: QueuedRestaurantTask | null = task;
+      while (current) {
+        try {
+          const result = await loadNearbyRestaurantsInternal(
+            current.userLat,
+            current.userLng,
+            current.radiusMeters,
+            current.onProgress,
+            current.options
+          );
+          current.resolve(result);
+        } catch (e) {
+          current.reject(e);
+        }
+        current = restaurantFetchPending;
+        restaurantFetchPending = null;
+      }
+      restaurantFetchActive = false;
+    })();
   });
-  onProgress?.({ stage: 'done', progress: 1 });
-  return enriched;
 };
-
-

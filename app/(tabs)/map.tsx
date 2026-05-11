@@ -8,7 +8,8 @@ import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getLocation } from '@/core/locationCache';
-import { getNearbyRestaurants } from '@/core/restaurantOrchestrator';
+import { getNearbyRestaurants, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
+import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '@/core/aiOverviewCache';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import { getSearchRadius, setSearchRadius } from '@/core/userSettings';
 import { RestaurantImage } from '@/core/images';
@@ -174,10 +175,23 @@ export default function MapScreen() {
       }
 
       setRestaurants([]);
-      const results = await getNearbyRestaurants(lat, lng, r);
+      const results = await getNearbyRestaurants(lat, lng, r, undefined, {
+        onAiReady: async (enriched) => {
+          await setCachedResults(cacheKey, enriched);
+          setRestaurants(enriched);
+          setSelectedRestaurant((prev: any) => {
+            if (!prev) return null;
+            const next = enriched.find((x: any) => x.id === prev.id);
+            return next ?? prev;
+          });
+        },
+      });
       await setCachedResults(cacheKey, results);
       setRestaurants(results);
     } catch (error) {
+      if (isRestaurantLoadSupersededError(error)) {
+        return;
+      }
       console.error('Error loading restaurants for map:', error);
     } finally {
       setIsLoading(false);
@@ -505,7 +519,9 @@ export default function MapScreen() {
                 <Ionicons name="heart-outline" size={15} color="#A8D5A2" />
                 <Text style={[styles.infoSectionTitle, { color: '#A8D5A2' }]}>Health Score</Text>
                 <Text style={[styles.metaText, { color: theme.subtext }]}>
-                  {typeof selectedRestaurant.aiOverview?.healthScore === 'number' ? `${selectedRestaurant.aiOverview.healthScore}/10` : 'Pending'}
+                  {typeof selectedRestaurant.aiOverview?.healthScore === 'number'
+                    ? `${selectedRestaurant.aiOverview.healthScore}/10`
+                    : AI_OVERVIEW_FIELD_PLACEHOLDER}
                 </Text>
               </View>
               <View style={styles.healthBar}>
@@ -572,7 +588,30 @@ export default function MapScreen() {
                   <Text style={[styles.infoSectionBody, { color: theme.subtext, marginTop: 8, fontStyle: 'italic' }]}>{selectedRestaurant.aiOverview.whoThisPlaceIsFor}</Text>
                 ) : null}
               </View>
-            ) : null}
+            ) : (
+              <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
+                <View style={styles.infoSectionHeader}>
+                  <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
+                  <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI Overview</Text>
+                </View>
+                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                  {[
+                    { label: `Convenience Speed ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#F9A06F' },
+                    { label: `Health ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#4CD964' },
+                    { label: `Recovery ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#64D9D9' },
+                    { label: `Processed ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#FF6B6B' },
+                    { label: `Date ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#FFD700' },
+                    { label: `Noise ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#C9A0FF' },
+                  ].map(({ label, color }) => (
+                    <View key={label} style={[styles.metaPill, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                      <Text style={[styles.metaText, { color }]}>{label}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.infoSectionBody, { color: theme.subtext, marginTop: 8, fontStyle: 'italic' }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+              </View>
+            )}
 
             <View style={{ height: 28 }} />
           </ScrollView>

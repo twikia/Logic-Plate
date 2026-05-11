@@ -22,9 +22,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
 import { getLocation } from '../../../core/locationCache';
-import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
+import {
+  getNearbyRestaurants,
+  isRestaurantLoadSupersededError,
+} from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
-import { setCurrentRestaurant } from '../../../core/currentSelection';
+import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import { getRandomPickerState, saveRandomPickerState } from '../../../core/randomPickerState';
 import { RestaurantImage } from '../../../core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -254,7 +257,11 @@ export default function RandomScreen() {
         coords.latitude,
         coords.longitude,
         searchRadius,
-        onOrchestratorProgress
+        onOrchestratorProgress,
+        { onAiReady: (enriched) => {
+          setAllResults(enriched);
+          replaceCurrentRestaurantIfInList(enriched);
+        } }
       );
       setAllResults(all);
 
@@ -282,6 +289,9 @@ export default function RandomScreen() {
           setSelected(new Set(initialSelected.map((x: any) => x.id)));
         }
     } catch (e) {
+      if (isRestaurantLoadSupersededError(e)) {
+        return;
+      }
       console.error(e);
       const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
       setErrorMsg(message);

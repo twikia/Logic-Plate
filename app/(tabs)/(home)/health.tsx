@@ -19,10 +19,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setCurrentRestaurant } from '../../../core/currentSelection';
+import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage } from '../../../core/images';
 import { getLocation } from '../../../core/locationCache';
-import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
+import {
+  getNearbyRestaurants,
+  isRestaurantLoadSupersededError,
+} from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 
 type SortMetric =
@@ -62,16 +65,19 @@ function ScoreBar({
   max,
 }: {
   label: string;
-  value: number;
+  value: number | undefined;
   max: number;
 }) {
-  const safe = Number.isFinite(value) ? value : 0;
-  const pct = Math.max(0, Math.min(1, safe / max));
+  const pending = value === undefined || !Number.isFinite(value);
+  const safe = pending ? 0 : value;
+  const pct = pending ? 0 : Math.max(0, Math.min(1, safe / max));
   return (
     <View style={styles.scoreItem}>
       <View style={styles.scoreLabelRow}>
         <Text style={styles.scoreLabel}>{label}</Text>
-        <Text style={styles.scoreValue}>{safe.toFixed(max === 10 ? 1 : 0)}/{max}</Text>
+        <Text style={styles.scoreValue}>
+          {pending ? '-' : `${safe.toFixed(max === 10 ? 1 : 0)}/${max}`}
+        </Text>
       </View>
       <View style={styles.scoreTrack}>
         <View style={[styles.scoreFill, { width: `${pct * 100}%` }]} />
@@ -80,21 +86,26 @@ function ScoreBar({
   );
 }
 
-function StarScore({ label, value }: { label: string; value: number }) {
-  const rounded = Math.max(0, Math.min(5, Math.round(value)));
+function StarScore({ label, value }: { label: string; value: number | undefined }) {
+  const pending = value === undefined || !Number.isFinite(value);
+  const rounded = pending ? 0 : Math.max(0, Math.min(5, Math.round(value)));
   return (
     <View style={styles.starWrap}>
       <Text style={styles.scoreLabel}>{label}</Text>
-      <View style={styles.starRow}>
-        {Array.from({ length: 5 }, (_, i) => (
-          <Ionicons
-            key={`${label}_${i}`}
-            name={i < rounded ? 'star' : 'star-outline'}
-            size={12}
-            color="#FFD66B"
-          />
-        ))}
-      </View>
+      {pending ? (
+        <Text style={[styles.scoreLabel, { marginTop: 2 }]}>-</Text>
+      ) : (
+        <View style={styles.starRow}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <Ionicons
+              key={`${label}_${i}`}
+              name={i < rounded ? 'star' : 'star-outline'}
+              size={12}
+              color="#FFD66B"
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -135,18 +146,19 @@ function HealthCard({
             {formatDistance(Math.round(place.distanceMeters ?? 0))} away
           </Text>
           <Text style={styles.scoreHeadline}>
-            Health {typeof ai?.healthScore === 'number' ? ai.healthScore.toFixed(1) : '0.0'}/10
+            Health{' '}
+            {typeof ai?.healthScore === 'number' ? `${ai.healthScore.toFixed(1)}/10` : '-'}
           </Text>
         </View>
       </View>
 
       <View style={styles.compactScores}>
-        <ScoreBar label="Health" value={ai?.healthScore ?? 0} max={10} />
-        <ScoreBar label="Recovery" value={ai?.workoutRecoveryScore ?? 0} max={10} />
-        <ScoreBar label="Processed" value={ai?.processedScore ?? 0} max={10} />
-        <StarScore label="Cal" value={ai?.calorieScore ?? 0} />
-        <StarScore label="Protein" value={ai?.proteinScore ?? 0} />
-        <StarScore label="Carb" value={ai?.carbScore ?? 0} />
+        <ScoreBar label="Health" value={ai?.healthScore} max={10} />
+        <ScoreBar label="Recovery" value={ai?.workoutRecoveryScore} max={10} />
+        <ScoreBar label="Processed" value={ai?.processedScore} max={10} />
+        <StarScore label="Cal" value={ai?.calorieScore} />
+        <StarScore label="Protein" value={ai?.proteinScore} />
+        <StarScore label="Carb" value={ai?.carbScore} />
       </View>
       <View style={styles.cardActions}>
         <TouchableOpacity
@@ -235,10 +247,17 @@ export default function HealthScreen() {
         coords.latitude,
         coords.longitude,
         activeRadius,
-        onOrchestratorProgress
+        onOrchestratorProgress,
+        { onAiReady: (enriched) => {
+          setAllResults(enriched);
+          replaceCurrentRestaurantIfInList(enriched);
+        } }
       );
-      setAllResults(all.filter((item) => !!item.aiOverview));
-    } catch {
+      setAllResults(all);
+    } catch (e) {
+      if (isRestaurantLoadSupersededError(e)) {
+        return;
+      }
       setErrorMsg('Unable to load health rankings right now.');
     } finally {
       snapProgressComplete();
