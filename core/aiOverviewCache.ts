@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
 
+export const AI_OVERVIEW_FIELD_PLACEHOLDER = '-';
+
 export type AiOverview = {
   summaryGoodBad: string;
   speedScore: number;
@@ -52,7 +54,7 @@ type AiOverviewRow = {
   work_friendly_score?: number | null;
 };
 
-type PlaceSeed = {
+export type PlaceSeed = {
   id: string;
   displayName?: { text?: string };
   formattedAddress?: string;
@@ -171,7 +173,31 @@ const fromStorage = (value: string | null): AiOverview | null => {
   }
 };
 
-export const getAiOverviewsForPlaces = async (
+const placeToEdgePayload = (p: PlaceSeed) => ({
+  id: p.id,
+  name: p.displayName?.text ?? '',
+  formattedAddress: p.formattedAddress ?? '',
+  primaryType: p.primaryType ?? '',
+  primaryTypeDisplayName: p.primaryTypeDisplayName?.text ?? '',
+  types: p.types ?? [],
+  priceLevel: p.priceLevel ?? '',
+  priceRange: p.priceRange ?? null,
+  rating: p.rating ?? null,
+  userRatingCount: p.userRatingCount ?? null,
+  location: p.location ?? null,
+  googleMapsUri: p.googleMapsUri ?? '',
+  websiteUri: p.websiteUri ?? '',
+  nationalPhoneNumber: p.nationalPhoneNumber ?? '',
+  internationalPhoneNumber: p.internationalPhoneNumber ?? '',
+  businessStatus: p.businessStatus ?? '',
+  currentOpeningHours: p.currentOpeningHours ?? null,
+  currentSecondaryOpeningHours: p.currentSecondaryOpeningHours ?? null,
+  regularOpeningHours: p.regularOpeningHours ?? null,
+  regularSecondaryOpeningHours: p.regularSecondaryOpeningHours ?? null,
+  accessibilityOptions: p.accessibilityOptions ?? null,
+});
+
+export const getCachedAiOverviewsForPlaces = async (
   places: PlaceSeed[]
 ): Promise<Map<string, AiOverview>> => {
   const result = new Map<string, AiOverview>();
@@ -214,14 +240,10 @@ export const getAiOverviewsForPlaces = async (
 
       if (!error && data) {
         const backfills: [string, string][] = [];
-        const foundDbIds = new Set<string>();
-        const incompleteDbIds = new Set<string>();
 
         for (const row of data as AiOverviewRow[]) {
-          foundDbIds.add(row.place_id);
           const normalized = normalizeOverview(row);
           if (!normalized) {
-            incompleteDbIds.add(row.place_id);
             continue;
           }
           localMemory.set(row.place_id, normalized);
@@ -232,63 +254,64 @@ export const getAiOverviewsForPlaces = async (
         if (backfills.length > 0) {
           AsyncStorage.multiSet(backfills).catch(() => undefined);
         }
-
-        const stillMissing = needsDb.filter(id => !result.has(id) && (!foundDbIds.has(id) || incompleteDbIds.has(id)));
-        if (stillMissing.length > 0) {
-          const placeMap = new Map(uniquePlaces.map(p => [p.id, p]));
-          const payloadPlaces = stillMissing
-            .map(id => placeMap.get(id))
-            .filter(Boolean)
-            .map((p) => ({
-              id: (p as PlaceSeed).id,
-              name: (p as PlaceSeed).displayName?.text ?? '',
-              formattedAddress: (p as PlaceSeed).formattedAddress ?? '',
-              primaryType: (p as PlaceSeed).primaryType ?? '',
-              primaryTypeDisplayName: (p as PlaceSeed).primaryTypeDisplayName?.text ?? '',
-              types: (p as PlaceSeed).types ?? [],
-              priceLevel: (p as PlaceSeed).priceLevel ?? '',
-              priceRange: (p as PlaceSeed).priceRange ?? null,
-              rating: (p as PlaceSeed).rating ?? null,
-              userRatingCount: (p as PlaceSeed).userRatingCount ?? null,
-              location: (p as PlaceSeed).location ?? null,
-              googleMapsUri: (p as PlaceSeed).googleMapsUri ?? '',
-              websiteUri: (p as PlaceSeed).websiteUri ?? '',
-              nationalPhoneNumber: (p as PlaceSeed).nationalPhoneNumber ?? '',
-              internationalPhoneNumber: (p as PlaceSeed).internationalPhoneNumber ?? '',
-              businessStatus: (p as PlaceSeed).businessStatus ?? '',
-              currentOpeningHours: (p as PlaceSeed).currentOpeningHours ?? null,
-              currentSecondaryOpeningHours: (p as PlaceSeed).currentSecondaryOpeningHours ?? null,
-              regularOpeningHours: (p as PlaceSeed).regularOpeningHours ?? null,
-              regularSecondaryOpeningHours: (p as PlaceSeed).regularSecondaryOpeningHours ?? null,
-              accessibilityOptions: (p as PlaceSeed).accessibilityOptions ?? null,
-            }));
-
-          if (payloadPlaces.length > 0) {
-            const { data: generatedData, error: invokeError } = await supabase.functions.invoke(
-              'generate-ai-overviews',
-              {
-                body: { places: payloadPlaces },
-                headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
-              }
-            );
-
-            if (!invokeError && generatedData?.generatedOverviews) {
-              const generatedBackfills: [string, string][] = [];
-              for (const item of generatedData.generatedOverviews as { placeId: string; overview: AiOverview }[]) {
-                if (!item?.placeId || !item?.overview) continue;
-                localMemory.set(item.placeId, item.overview);
-                result.set(item.placeId, item.overview);
-                generatedBackfills.push([`ai_overview_${item.placeId}`, JSON.stringify(item.overview)]);
-              }
-              if (generatedBackfills.length > 0) {
-                AsyncStorage.multiSet(generatedBackfills).catch(() => undefined);
-              }
-            }
-          }
-        }
       }
     }
   }
 
+  return result;
+};
+
+export const invokeGenerateAiOverviewsForPlaces = async (
+  places: PlaceSeed[],
+  missingPlaceIds: string[]
+): Promise<Map<string, AiOverview>> => {
+  const out = new Map<string, AiOverview>();
+  const uniquePlaces = Array.from(new Map(places.filter(p => p?.id).map(p => [p.id, p])).values());
+  const placeMap = new Map(uniquePlaces.map(p => [p.id, p]));
+  const payloadPlaces = missingPlaceIds
+    .map(id => placeMap.get(id))
+    .filter(Boolean)
+    .map(p => placeToEdgePayload(p as PlaceSeed));
+
+  if (payloadPlaces.length === 0) return out;
+
+  const { data: generatedData, error: invokeError } = await supabase.functions.invoke(
+    'generate-ai-overviews',
+    {
+      body: { places: payloadPlaces },
+      headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
+    }
+  );
+
+  if (invokeError || !generatedData?.generatedOverviews) {
+    return out;
+  }
+
+  const generatedBackfills: [string, string][] = [];
+  for (const item of generatedData.generatedOverviews as { placeId: string; overview: AiOverview }[]) {
+    if (!item?.placeId || !item?.overview) continue;
+    localMemory.set(item.placeId, item.overview);
+    out.set(item.placeId, item.overview);
+    generatedBackfills.push([`ai_overview_${item.placeId}`, JSON.stringify(item.overview)]);
+  }
+  if (generatedBackfills.length > 0) {
+    AsyncStorage.multiSet(generatedBackfills).catch(() => undefined);
+  }
+
+  return out;
+};
+
+export const getAiOverviewsForPlaces = async (
+  places: PlaceSeed[]
+): Promise<Map<string, AiOverview>> => {
+  const result = await getCachedAiOverviewsForPlaces(places);
+  const uniquePlaces = Array.from(new Map(places.filter(p => p?.id).map(p => [p.id, p])).values());
+  const stillMissing = uniquePlaces.map(p => p.id).filter(id => !result.has(id));
+  if (stillMissing.length === 0) return result;
+
+  const generated = await invokeGenerateAiOverviewsForPlaces(places, stillMissing);
+  for (const [k, v] of generated) {
+    result.set(k, v);
+  }
   return result;
 };

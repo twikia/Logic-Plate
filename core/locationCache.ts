@@ -6,8 +6,9 @@ const HARDCODED_DENVER_COORDS = { latitude: 39.7392, longitude: -104.9903 };
 /**
  * In-memory location cache.
  *
- * Getting a GPS fix (Location.getCurrentPositionAsync) can take 3-10 seconds,
- * especially on Android with Balanced accuracy. Since every screen independently
+ * Getting a GPS fix can take several seconds with high accuracy.
+ * We prefer a fast approximate fix (last known position when fresh, then Low accuracy)
+ * so the app can search nearby quickly; accuracy within tens of meters is enough here. Since every screen independently
  * was calling requestForegroundPermissionsAsync + getCurrentPositionAsync on every
  * mount, navigating back and forth caused a full GPS re-acquisition every time.
  *
@@ -50,9 +51,24 @@ export const getLocation = async (
       if (status !== 'granted') return null;
 
       console.log('Starting fresh GPS acquisition...');
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      let loc = await Location.getLastKnownPositionAsync({
+        maxAge: 120_000,
       });
+      const last = loc?.coords;
+      const lastOk =
+        last &&
+        Number.isFinite(last.latitude) &&
+        Number.isFinite(last.longitude) &&
+        Math.abs(last.latitude) <= 90 &&
+        Math.abs(last.longitude) <= 180;
+      if (!lastOk) {
+        loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Low,
+        });
+      }
+      if (!loc?.coords) {
+        return null;
+      }
 
       cachedCoords = {
         latitude: loc.coords.latitude,
