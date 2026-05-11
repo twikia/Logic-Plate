@@ -33,6 +33,7 @@ import {
 import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '../../../core/aiOverviewCache';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
+import { placeOffersSweets } from '../../../core/placeSweets';
 
 
 const PAGE_SIZE = 10;
@@ -49,7 +50,19 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
   smoothies: ['ice_cream_shop', 'juice_shop'],
   vegan: ['vegan_restaurant', 'vegetarian_restaurant'],
   pizza: ['pizza_restaurant'],
-  dessert: ['bakery', 'dessert_shop', 'dessert_restaurant'],
+  dessert: [
+    'bakery',
+    'dessert_shop',
+    'dessert_restaurant',
+    'ice_cream_shop',
+    'donut_shop',
+    'candy_store',
+    'chocolate_shop',
+    'confectionery',
+    'cake_shop',
+    'pastry_shop',
+    'acai_shop',
+  ],
   other: [],
 };
 
@@ -59,7 +72,7 @@ function filterCuisineResults(list: any[], key: string) {
     if (!isOpenNow(p)) return false;
     if (types.length === 0) return true;
     if (key === 'dessert') {
-      return types.includes(p.primaryType);
+      return placeOffersSweets(p);
     }
     return types.some((t: string) => p.primaryType === t || p.types?.includes(t));
   });
