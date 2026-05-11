@@ -21,12 +21,16 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setCurrentRestaurant } from '../../../core/currentSelection';
+import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
 import { getLocation } from '../../../core/locationCache';
-import { getNearbyRestaurants } from '../../../core/restaurantOrchestrator';
+import {
+  getNearbyRestaurants,
+  isRestaurantLoadSupersededError,
+} from '../../../core/restaurantOrchestrator';
+import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '../../../core/aiOverviewCache';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { placeOffersSweets } from '../../../core/placeSweets';
@@ -61,6 +65,18 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
   ],
   other: [],
 };
+
+function filterCuisineResults(list: any[], key: string) {
+  const types = CUISINE_TYPE_MAP[key] ?? [];
+  return list.filter(p => {
+    if (!isOpenNow(p)) return false;
+    if (types.length === 0) return true;
+    if (key === 'dessert') {
+      return placeOffersSweets(p);
+    }
+    return types.some((t: string) => p.primaryType === t || p.types?.includes(t));
+  });
+}
 
 const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 
@@ -239,7 +255,7 @@ function RestaurantCard({
             <View style={[styles.healthFill, { width: `${healthPct}%` }]} />
           </View>
           <Text style={healthScore != null ? styles.healthValue : styles.healthPending}>
-            {healthScore != null ? `${healthScore.toFixed(1)}/10` : 'Pending'}
+            {healthScore != null ? `${healthScore.toFixed(1)}/10` : AI_OVERVIEW_FIELD_PLACEHOLDER}
           </Text>
         </View>
 
@@ -330,23 +346,29 @@ export default function ResultsScreen() {
         coords.latitude,
         coords.longitude,
         r,
-        onOrchestratorProgress
-      );
-      const types = CUISINE_TYPE_MAP[cuisineKey] ?? [];
-      const filtered = all.filter(p => {
-        if (!isOpenNow(p)) return false;
-        if (types.length === 0) return true;
-        if (cuisineKey === 'dessert') {
-          return placeOffersSweets(p);
+        onOrchestratorProgress,
+        {
+          onAiReady: async (enriched) => {
+            const filtered = filterCuisineResults(enriched, cuisineKey);
+            await setCachedResults(cuisineKey, filtered);
+            setAllResults(filtered);
+            setDisplayed(filtered.slice(0, PAGE_SIZE));
+            setHasMore(filtered.length > PAGE_SIZE);
+            replaceCurrentRestaurantIfInList(filtered);
+            setOpenCheckEpoch((e) => e + 1);
+          },
         }
-        return types.some((t: string) => p.primaryType === t || p.types?.includes(t));
-      });
+      );
+      const filtered = filterCuisineResults(all, cuisineKey);
 
       await setCachedResults(cuisineKey, filtered);
       setAllResults(filtered);
       setDisplayed(filtered.slice(0, PAGE_SIZE));
       setHasMore(filtered.length > PAGE_SIZE);
     } catch (e) {
+      if (isRestaurantLoadSupersededError(e)) {
+        return;
+      }
       console.error(e);
       const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
       setErrorMsg(message);

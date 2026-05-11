@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-app-secret',
 };
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 
 const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
@@ -273,6 +273,60 @@ const sanitizeOverview = (raw: any): AiOverview | null => {
   };
 };
 
+const runGeminiBatch = async (
+  batch: InputPlace[],
+  geminiUrl: string
+): Promise<{ placeId: string; overview: AiOverview }[]> => {
+  const batchIds = new Set(batch.map((p) => p.id));
+  const out: { placeId: string; overview: AiOverview }[] = [];
+
+  const response = await fetch(geminiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: SYSTEM_INSTRUCTION }],
+      },
+      contents: [{ role: 'user', parts: [{ text: userPromptForBatch(batch) }] }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+        responseSchema: batchResponseSchema,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    return out;
+  }
+
+  const modelData = await response.json();
+  const rawText = modelData?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) return out;
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    return out;
+  }
+
+  const items = parsed?.overviews;
+  if (!Array.isArray(items)) return out;
+
+  for (const item of items) {
+    const placeId = String(item?.placeId ?? '').trim();
+    if (!placeId || !batchIds.has(placeId)) continue;
+
+    const overview = sanitizeOverview(item);
+    if (!overview) continue;
+
+    out.push({ placeId, overview });
+  }
+
+  return out;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -305,60 +359,23 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const generatedOverviews: { placeId: string; overview: AiOverview }[] = [];
     const missingOnly = (places as InputPlace[]).filter((p) => p?.id);
 
     const geminiUrl =
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
 
+    const batches: InputPlace[][] = [];
     for (let i = 0; i < missingOnly.length; i += BATCH_SIZE) {
-      const batch = missingOnly.slice(i, i + BATCH_SIZE);
-      const batchIds = new Set(batch.map((p) => p.id));
+      batches.push(missingOnly.slice(i, i + BATCH_SIZE));
+    }
 
-      const response = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: SYSTEM_INSTRUCTION }],
-          },
-          contents: [{ role: 'user', parts: [{ text: userPromptForBatch(batch) }] }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json',
-            responseSchema: batchResponseSchema,
-          },
-        }),
-      });
+    const perBatch = await Promise.all(batches.map((batch) => runGeminiBatch(batch, geminiUrl)));
+    const generatedOverviews = perBatch.flat();
 
-      if (!response.ok) {
-        continue;
-      }
-
-      const modelData = await response.json();
-      const rawText = modelData?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) continue;
-
-      let parsed: any;
-      try {
-        parsed = JSON.parse(rawText);
-      } catch {
-        continue;
-      }
-
-      const items = parsed?.overviews;
-      if (!Array.isArray(items)) continue;
-
-      for (const item of items) {
-        const placeId = String(item?.placeId ?? '').trim();
-        if (!placeId || !batchIds.has(placeId)) continue;
-
-        const overview = sanitizeOverview(item);
-        if (!overview) continue;
-
-        generatedOverviews.push({ placeId, overview });
-
-        await supabase.from('ai_overview_cache').upsert({
+    const updatedAt = new Date().toISOString();
+    await Promise.all(
+      generatedOverviews.map(({ placeId, overview }) =>
+        supabase.from('ai_overview_cache').upsert({
           place_id: placeId,
           summary_good_bad: overview.summaryGoodBad,
           speed_score: overview.speedScore,
@@ -382,10 +399,10 @@ serve(async (req) => {
           solo_diner_score: overview.soloDinerScore,
           energy_sustain_score: overview.energySustainScore,
           work_friendly_score: overview.workFriendlyScore,
-          updated_at: new Date().toISOString(),
-        });
-      }
-    }
+          updated_at: updatedAt,
+        })
+      )
+    );
 
     return new Response(JSON.stringify({ generatedOverviews }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

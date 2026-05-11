@@ -6,8 +6,37 @@
 
 let currentRestaurant: any = null;
 
+const listeners = new Set<() => void>();
+
+const notify = () => {
+  listeners.forEach(fn => {
+    try {
+      fn();
+    } catch {
+      /* ignore */
+    }
+  });
+};
+
+export const subscribeCurrentRestaurant = (fn: () => void) => {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+};
+
 export const setCurrentRestaurant = (restaurant: any) => {
   currentRestaurant = restaurant;
+  notify();
+};
+
+export const replaceCurrentRestaurantIfInList = (list: any[]) => {
+  if (!currentRestaurant?.id) return;
+  const next = list.find((p: any) => p?.id === currentRestaurant.id);
+  if (next) {
+    currentRestaurant = next;
+    notify();
+  }
 };
 
 export const getCurrentRestaurant = () => {
@@ -16,4 +45,5 @@ export const getCurrentRestaurant = () => {
 
 export const clearCurrentRestaurant = () => {
   currentRestaurant = null;
+  notify();
 };
