@@ -41,8 +41,8 @@ function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
 }) {
   const [tracksChanges, setTracksChanges] = useState(true);
   useEffect(() => {
-    const done = setTimeout(() => setTracksChanges(false), 450);
-    return () => clearTimeout(done);
+    const timer = setTimeout(() => setTracksChanges(false), 500);
+    return () => clearTimeout(timer);
   }, [item.id]);
 
   const iconName = getCuisineIcon(item.primaryType);
@@ -56,21 +56,12 @@ function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
-      <View style={styles.markerHitFrame} collapsable={false}>
-        <View style={styles.markerShadowWrapper}>
-          <View style={styles.markerColumn}>
-            <View style={[styles.markerCard, { borderColor: accentColor }]}>
-              <View style={[styles.markerIconRing, { borderColor: accentColor + '88' }]}>
-                <Ionicons name={iconName} size={20} color={accentColor} />
-              </View>
-              <View style={[styles.markerScorePill, { backgroundColor: accentColor }]}>
-                <Text style={styles.markerScorePillText}>{scoreText}</Text>
-              </View>
-            </View>
-            <View style={[styles.markerStem, { backgroundColor: accentColor }]} />
-            <View style={[styles.markerDot, { borderColor: accentColor }]} />
-          </View>
+      <View collapsable={false} style={styles.markerWrap}>
+        <View style={[styles.markerPill, { borderColor: accentColor }]}>
+          <Ionicons name={iconName} size={22} color={accentColor} />
+          <Text style={styles.markerLabel}>{scoreText}</Text>
         </View>
+        <View style={[styles.markerTip, { backgroundColor: accentColor }]} />
       </View>
     </Marker>
   );
@@ -685,55 +676,30 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
-  markerHitFrame: {
-    width: 160,
-    height: 96,
+  markerWrap: {
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    overflow: 'visible',
   },
-  markerShadowWrapper: { padding: 10, overflow: 'visible' },
-  markerColumn: { alignItems: 'center' },
-  markerCard: {
+  markerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
+    backgroundColor: '#1A0A1A',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 18,
-    borderWidth: 2,
-    backgroundColor: '#1A0A1A',
-    shadowColor: '#000',
-    shadowOpacity: 0.85,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 12,
+    borderRadius: 20,
+    borderWidth: 2.5,
+    gap: 7,
   },
-  markerIconRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+  markerLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
-  markerScorePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    minWidth: 44,
-    alignItems: 'center',
-  },
-  markerScorePillText: { fontSize: 14, fontWeight: '900', color: '#FFF', letterSpacing: -0.2 },
-  markerStem: { width: 3, height: 8, borderRadius: 2, marginTop: -1 },
-  markerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    marginTop: -1,
-    backgroundColor: '#1A0A1A',
+  markerTip: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 2,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   radiusBtn: {
