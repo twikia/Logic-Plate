@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -106,7 +107,7 @@ function SkeletonRow() {
   );
 }
 
-const CUTOFF_ROWS: { key: RandomAiCutoffKey; label: string; scale: 'five' | 'ten' }[] = [
+const AI_METRICS: { key: RandomAiCutoffKey; label: string; scale: 'five' | 'ten' }[] = [
   { key: 'taste', label: 'Taste', scale: 'five' },
   { key: 'valueForMoney', label: 'Value', scale: 'five' },
   { key: 'speed', label: 'Speed', scale: 'five' },
@@ -119,8 +120,28 @@ const CUTOFF_ROWS: { key: RandomAiCutoffKey; label: string; scale: 'five' | 'ten
   { key: 'energySustain', label: 'Energy sustain', scale: 'five' },
 ];
 
-const FIVE_CUTOFF_OPTS = [0, 2, 3, 4, 5] as const;
-const TEN_CUTOFF_OPTS = [0, 4, 5, 6, 7, 8, 9, 10] as const;
+const FIVE_SCORE_OPTS = [0, 1, 2, 3, 4, 5] as const;
+const TEN_SCORE_OPTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+
+type AiMetricSlot = { key: RandomAiCutoffKey | null; min: number };
+
+function metricScale(key: RandomAiCutoffKey): 'five' | 'ten' {
+  return AI_METRICS.find((m) => m.key === key)?.scale ?? 'five';
+}
+
+function slotsToCutoffs(a: AiMetricSlot, b: AiMetricSlot): RandomAiCutoffs {
+  const o: RandomAiCutoffs = { ...DEFAULT_RANDOM_AI_CUTOFFS };
+  if (a.key != null && a.min > 0) o[a.key] = a.min;
+  if (b.key != null && b.min > 0) o[b.key] = b.min;
+  return o;
+}
+
+function cutoffsToSlots(cutoffs: RandomAiCutoffs): [AiMetricSlot, AiMetricSlot] {
+  const entries = (Object.keys(cutoffs) as RandomAiCutoffKey[])
+    .filter((k) => cutoffs[k] > 0)
+    .map((k) => ({ key: k, min: cutoffs[k] }));
+  return [entries[0] ?? { key: null, min: 0 }, entries[1] ?? { key: null, min: 0 }];
+}
 
 const SORT_OPTIONS: { key: RandomSortBy; label: string }[] = [
   { key: 'distance', label: 'Distance' },
@@ -248,9 +269,15 @@ function RestaurantRow({
         <View style={{ flex: 1 }}>
           <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
           <View style={styles.rowMeta}>
+            {typeof item.rating === 'number' && item.rating > 0 ? (
+              <View style={styles.metaPill}>
+                <Ionicons name="star" size={10} color="#FBBF24" />
+                <Text style={[styles.metaText, styles.rowMapsRating]}>{item.rating.toFixed(1)}</Text>
+              </View>
+            ) : null}
             <View style={styles.metaPill}>
-              <Ionicons name="ribbon-outline" size={10} color="#F9A06F" />
-              <Text style={styles.metaText}>{overall > 0 ? overall.toFixed(1) : '—'}</Text>
+              <Ionicons name="ribbon-outline" size={10} color="#A78BFA" />
+              <Text style={styles.rowPlateboundScore}>{overall > 0 ? overall.toFixed(1) : '—'}</Text>
             </View>
             <View style={styles.metaPill}>
               <Ionicons name="heart-outline" size={10} color="#4CD964" />
@@ -311,11 +338,14 @@ export default function RandomScreen() {
   const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<RandomSortBy>('distance');
-  const [minAiCutoffs, setMinAiCutoffs] = useState<RandomAiCutoffs>({ ...DEFAULT_RANDOM_AI_CUTOFFS });
+  const [aiSlot1, setAiSlot1] = useState<AiMetricSlot>({ key: null, min: 0 });
+  const [aiSlot2, setAiSlot2] = useState<AiMetricSlot>({ key: null, min: 0 });
+  const [categoryModal, setCategoryModal] = useState<1 | 2 | null>(null);
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
   const [scenarioKey, setScenarioKey] = useState<ScenarioKey | null>(null);
   const [scenarioFilterEnabled, setScenarioFilterEnabled] = useState(false);
 
+  const minAiCutoffs = useMemo(() => slotsToCutoffs(aiSlot1, aiSlot2), [aiSlot1, aiSlot2]);
   const hydratedRef = useRef(false);
   const {
     loadingStage,
@@ -417,7 +447,9 @@ export default function RandomScreen() {
           setMinRating(saved.minRating);
           setSelectedCuisines(new Set(saved.selectedCuisines));
           setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
-          setMinAiCutoffs(mergeRandomAiCutoffs(saved.minAiCutoffs));
+          const [s1, s2] = cutoffsToSlots(mergeRandomAiCutoffs(saved.minAiCutoffs));
+          setAiSlot1(s1);
+          setAiSlot2(s2);
           if (paramScenario) {
             setScenarioKey(paramScenario);
             setScenarioFilterEnabled(true);
@@ -717,38 +749,52 @@ export default function RandomScreen() {
               ))}
             </ScrollView>
 
-            <Text style={styles.filterSubLabel}>Minimum AI scores</Text>
-            <ScrollView style={styles.cutoffScroll} nestedScrollEnabled showsVerticalScrollIndicator>
-              {CUTOFF_ROWS.map(({ key, label, scale }) => {
-                const opts = scale === 'ten' ? TEN_CUTOFF_OPTS : FIVE_CUTOFF_OPTS;
-                const cur = minAiCutoffs[key];
-                return (
-                  <View key={key} style={styles.cutoffRow}>
-                    <Text style={styles.cutoffRowLabel} numberOfLines={1}>
-                      {label}
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cutoffPills}>
-                      {opts.map((opt) => (
-                        <TouchableOpacity
-                          key={opt}
-                          style={[styles.filterPill, styles.cutoffPill, cur === opt && styles.filterPillActive]}
-                          onPress={() =>
-                            setMinAiCutoffs((prev) => ({
-                              ...prev,
-                              [key]: opt,
-                            }))
-                          }
-                        >
-                          <Text style={[styles.filterPillText, cur === opt && styles.filterPillTextActive]}>
-                            {opt === 0 ? 'Any' : `${opt}+`}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+            <Text style={styles.filterSubLabel}>Minimum AI (2 filters)</Text>
+            {[1, 2].map((slotNum) => {
+              const slot = slotNum === 1 ? aiSlot1 : aiSlot2;
+              const setSlot = slotNum === 1 ? setAiSlot1 : setAiSlot2;
+              const opts = slot.key == null ? [] : metricScale(slot.key) === 'ten' ? [...TEN_SCORE_OPTS] : [...FIVE_SCORE_OPTS];
+              const categoryLabel =
+                slot.key == null ? 'Metric' : AI_METRICS.find((m) => m.key === slot.key)?.label ?? 'Metric';
+              return (
+                <View key={slotNum} style={styles.aiFilterBlock}>
+                  <View style={styles.aiFilterRow}>
+                    <TouchableOpacity
+                      style={styles.aiCategoryField}
+                      onPress={() => setCategoryModal(slotNum as 1 | 2)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.aiCategoryFieldText} numberOfLines={1}>
+                        {categoryLabel}
+                      </Text>
+                      <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.45)" />
+                    </TouchableOpacity>
+                    {slot.key != null ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.aiScoreStrip}
+                        contentContainerStyle={styles.aiScorePills}
+                      >
+                        {opts.map((opt) => (
+                          <TouchableOpacity
+                            key={opt}
+                            style={[styles.filterPill, styles.aiScorePill, slot.min === opt && styles.filterPillActive]}
+                            onPress={() => setSlot((prev) => ({ ...prev, min: opt }))}
+                          >
+                            <Text style={[styles.filterPillText, slot.min === opt && styles.filterPillTextActive]}>
+                              {opt === 0 ? 'Any' : `${opt}+`}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    ) : (
+                      <View style={styles.aiScorePlaceholder} />
+                    )}
                   </View>
-                );
-              })}
-            </ScrollView>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -831,6 +877,55 @@ export default function RandomScreen() {
           </TouchableOpacity>
         )}
       </SafeAreaView>
+
+      <Modal
+        visible={categoryModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCategoryModal(null)}
+      >
+        <View style={styles.categoryModalRoot}>
+          <TouchableOpacity
+            style={styles.categoryModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setCategoryModal(null)}
+          />
+          <View style={styles.categoryModalSheet}>
+            <Text style={styles.categoryModalTitle}>AI metric</Text>
+            <ScrollView style={styles.categoryModalList} keyboardShouldPersistTaps="handled">
+              <TouchableOpacity
+                style={styles.categoryModalOption}
+                onPress={() => {
+                  if (categoryModal === 1) setAiSlot1({ key: null, min: 0 });
+                  else if (categoryModal === 2) setAiSlot2({ key: null, min: 0 });
+                  setCategoryModal(null);
+                }}
+              >
+                <Text style={styles.categoryModalOptionText}>None</Text>
+              </TouchableOpacity>
+              {AI_METRICS.map((m) => (
+                <TouchableOpacity
+                  key={m.key}
+                  style={styles.categoryModalOption}
+                  onPress={() => {
+                    if (categoryModal === 1) {
+                      if (m.key === aiSlot2.key) setAiSlot2({ key: null, min: 0 });
+                      setAiSlot1({ key: m.key, min: 0 });
+                    } else if (categoryModal === 2) {
+                      if (m.key === aiSlot1.key) setAiSlot1({ key: null, min: 0 });
+                      setAiSlot2({ key: m.key, min: 0 });
+                    }
+                    setCategoryModal(null);
+                  }}
+                >
+                  <Text style={styles.categoryModalOptionText}>{m.label}</Text>
+                  <Text style={styles.categoryModalScaleHint}>{m.scale === 'ten' ? '0–10' : '0–5'}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -927,6 +1022,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
   metaText: { fontSize: 11, color: 'rgba(255,255,255,0.65)' },
+  rowMapsRating: { fontSize: 11, color: '#FBBF24', fontWeight: '700' },
+  rowPlateboundScore: { fontSize: 11, color: '#C4B5FD', fontWeight: '800' },
 
   checkbox: {
     width: 26, height: 26, borderRadius: 13,
@@ -976,11 +1073,59 @@ const styles = StyleSheet.create({
   filterCloseBtn: { padding: 2 },
   filterDuoRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   filterDuoCell: { flex: 1, gap: 6 },
-  cutoffScroll: { maxHeight: 220 },
-  cutoffRow: { marginBottom: 8 },
-  cutoffRowLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.55)', marginBottom: 4 },
-  cutoffPills: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6, alignItems: 'center' },
-  cutoffPill: { paddingHorizontal: 10, paddingVertical: 5 },
+  aiFilterBlock: { marginBottom: 4 },
+  aiFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  aiCategoryField: {
+    width: '42%',
+    maxWidth: 148,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  aiCategoryFieldText: { flex: 1, fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
+  aiScoreStrip: { flex: 1, minWidth: 0 },
+  aiScorePlaceholder: { flex: 1, minHeight: 38 },
+  aiScorePills: { flexDirection: 'row', flexWrap: 'nowrap', gap: 5, alignItems: 'center', paddingVertical: 2 },
+  aiScorePill: { paddingHorizontal: 9, paddingVertical: 5 },
+  categoryModalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  categoryModalSheet: {
+    width: '86%',
+    maxHeight: '72%',
+    backgroundColor: 'rgba(28,14,32,0.98)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: 14,
+    zIndex: 2,
+  },
+  categoryModalTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginBottom: 10 },
+  categoryModalList: { maxHeight: 420 },
+  categoryModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  categoryModalOptionText: { fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.92)' },
+  categoryModalScaleHint: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.4)' },
   filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filterLabel: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
   filterSubLabel: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600', marginTop: 4 },

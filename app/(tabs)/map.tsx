@@ -56,12 +56,14 @@ function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
-      <View collapsable={false} style={styles.markerWrap}>
-        <View style={[styles.markerPill, { borderColor: accentColor }]}>
-          <Ionicons name={iconName} size={22} color={accentColor} />
-          <Text style={styles.markerLabel}>{scoreText}</Text>
+      <View collapsable={false} style={styles.markerDrawBounds}>
+        <View style={styles.markerWrap}>
+          <View style={[styles.markerPill, { borderColor: accentColor }]}>
+            <Ionicons name={iconName} size={22} color={accentColor} />
+            <Text style={styles.markerLabel}>{scoreText}</Text>
+          </View>
+          <View style={[styles.markerTip, { backgroundColor: accentColor }]} />
         </View>
-        <View style={[styles.markerTip, { backgroundColor: accentColor }]} />
       </View>
     </Marker>
   );
@@ -675,6 +677,17 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
+  },
+  markerDrawBounds: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    overflow: 'visible',
+    paddingLeft: 18,
+    paddingRight: 28,
+    paddingTop: 14,
+    paddingBottom: 22,
+    minWidth: 120,
+    minHeight: 72,
   },
   markerWrap: {
     alignItems: 'center',
