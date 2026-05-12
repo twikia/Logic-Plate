@@ -15,17 +15,14 @@ import { HapticTab } from '@/components/haptic-tab';
 import { useAppTheme } from '@/context/ThemeContext';
 
 
-// ─── Animated Tab Icon ──────────────────────────────────────────────────────
-// Self-contained: owns its own animation AND its own highlight based on isActive.
-// Never touches accessibilityState — that was the source of the broken highlights.
 interface AnimatedTabIconProps {
   onPress?: () => void;
   isActive: boolean;
   iconOn: React.ComponentProps<typeof Ionicons>['name'];
   iconOff: React.ComponentProps<typeof Ionicons>['name'];
-  iconColor: string;          // active icon colour
-  dimColor: string;           // inactive icon colour
-  highlightBg: string;        // active circle bg colour
+  iconColor: string;
+  dimColor: string;
+  highlightBg: string;
 }
 
 function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimColor, highlightBg }: AnimatedTabIconProps) {
@@ -46,7 +43,6 @@ function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimCol
       }}
       style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
     >
-      {/* Static highlight circle — size defines the layout, colour owned here */}
       <View style={{
         width: 44,
         height: 44,
@@ -55,7 +51,6 @@ function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimCol
         justifyContent: 'center',
         alignItems: 'center',
       }}>
-        {/* Only the icon bounces */}
         <Animated.View style={animStyle}>
           <Ionicons
             size={24}
@@ -68,42 +63,34 @@ function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimCol
   );
 }
 
-// ─── Tab Layout ──────────────────────────────────────────────────────────────
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [lastPress, setLastPress] = useState(0);
   const { theme } = useAppTheme();
 
-
-  // Derive active tab from pathname — guaranteed accurate
-  const isResearch = pathname.startsWith('/research');
-  const isTracking = pathname.startsWith('/tracking');
   const isMap = pathname.startsWith('/map');
   const isSocial = pathname.startsWith('/social');
-  // everything else (/, /feeling, /health, /random) belongs to home
 
   return (
     <Tabs
       initialRouteName="(home)"
-      sceneContainerStyle={{ backgroundColor: '#422046' }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
         tabBarButton: HapticTab,
       }}>
 
-      {/* Research */}
       <Tabs.Screen
-        name="research"
+        name="social"
         options={{
           tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}
-              isActive={isResearch}
-              iconOn="search"
-              iconOff="search-outline"
+              isActive={isSocial}
+              iconOn="people"
+              iconOff="people-outline"
               iconColor={theme.text}
               dimColor={theme.subtext}
               highlightBg={theme.accent}
@@ -112,28 +99,6 @@ export default function TabLayout() {
         }}
       />
 
-
-      {/* Tracking */}
-      <Tabs.Screen
-        name="tracking"
-        options={{
-          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
-          tabBarButton: (props) => (
-            <AnimatedTabIcon
-              onPress={props.onPress as () => void}
-              isActive={isTracking}
-              iconOn="stats-chart"
-              iconOff="stats-chart-outline"
-              iconColor={theme.text}
-              dimColor={theme.subtext}
-              highlightBg={theme.accent}
-            />
-          ),
-        }}
-      />
-
-
-      {/* Home (Floating Button) */}
       <Tabs.Screen
         name="(home)"
         options={{
@@ -144,17 +109,9 @@ export default function TabLayout() {
                 onPress={() => {
                   const now = Date.now();
                   if (now - lastPress < 300) {
-                    // Double tap → hard reset to the true home root
-                    if (router.canDismiss()) {
-                      router.dismissAll();
-                    } else {
-                      router.navigate('/(tabs)/(home)/');
-                    }
+                    router.navigate('/(tabs)/(home)/');
                   } else {
-                    // Single tap → Expo Router's native tab switch:
-                    // preserves the (home) stack exactly as the user left it
-                    // (feeling screen, cuisine results, random, etc.)
-                    props.onPress?.();
+                    (props.onPress as (() => void) | undefined)?.();
                   }
                   setLastPress(now);
                 }}
@@ -179,8 +136,6 @@ export default function TabLayout() {
         }}
       />
 
-
-      {/* Map */}
       <Tabs.Screen
         name="map"
         options={{
@@ -191,26 +146,6 @@ export default function TabLayout() {
               isActive={isMap}
               iconOn="map"
               iconOff="map-outline"
-              iconColor={theme.text}
-              dimColor={theme.subtext}
-              highlightBg={theme.accent}
-            />
-          ),
-        }}
-      />
-
-
-      {/* Social */}
-      <Tabs.Screen
-        name="social"
-        options={{
-          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
-          tabBarButton: (props) => (
-            <AnimatedTabIcon
-              onPress={props.onPress as () => void}
-              isActive={isSocial}
-              iconOn="people"
-              iconOff="people-outline"
               iconColor={theme.text}
               dimColor={theme.subtext}
               highlightBg={theme.accent}
