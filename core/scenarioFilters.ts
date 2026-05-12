@@ -17,7 +17,7 @@ export const SCENARIO_ORDER: ScenarioKey[] = [
 
 export const SCENARIO_LABELS: Record<ScenarioKey, string> = {
   healthiest: 'Healthiest',
-  workplace: 'Work lunch',
+  workplace: 'Workplace',
   quick_bites: 'Quick bites',
   date_night: 'Date night',
   vegetarian_forward: 'Plant-forward',
