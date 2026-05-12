@@ -19,8 +19,10 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { AiOverview } from '../../../core/aiOverviewCache';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
+import { calculatePlateboundScore } from '../../../core/ratingCalculator';
 import { getLocation } from '../../../core/locationCache';
 import {
   getNearbyRestaurants,
@@ -34,7 +36,16 @@ import {
   SCENARIO_LABELS,
   type ScenarioKey,
 } from '../../../core/scenarioFilters';
-import { getRandomPickerState, saveRandomPickerState } from '../../../core/randomPickerState';
+import {
+  DEFAULT_RANDOM_AI_CUTOFFS,
+  getRandomPickerState,
+  isRandomSortBy,
+  mergeRandomAiCutoffs,
+  saveRandomPickerState,
+  type RandomAiCutoffKey,
+  type RandomAiCutoffs,
+  type RandomSortBy,
+} from '../../../core/randomPickerState';
 import { RestaurantImage } from '../../../core/images';
 import { placeOffersSweets } from '../../../core/placeSweets';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -95,86 +106,179 @@ function SkeletonRow() {
   );
 }
 
+const CUTOFF_ROWS: { key: RandomAiCutoffKey; label: string; scale: 'five' | 'ten' }[] = [
+  { key: 'taste', label: 'Taste', scale: 'five' },
+  { key: 'valueForMoney', label: 'Value', scale: 'five' },
+  { key: 'speed', label: 'Speed', scale: 'five' },
+  { key: 'workoutRecovery', label: 'Workout recovery', scale: 'ten' },
+  { key: 'munchy', label: 'Munchy', scale: 'five' },
+  { key: 'protein', label: 'Protein', scale: 'five' },
+  { key: 'calorie', label: 'Calorie fit', scale: 'five' },
+  { key: 'dateWorthiness', label: 'Date worthy', scale: 'five' },
+  { key: 'soloDiner', label: 'Solo diner', scale: 'five' },
+  { key: 'energySustain', label: 'Energy sustain', scale: 'five' },
+];
+
+const FIVE_CUTOFF_OPTS = [0, 2, 3, 4, 5] as const;
+const TEN_CUTOFF_OPTS = [0, 4, 5, 6, 7, 8, 9, 10] as const;
+
+const SORT_OPTIONS: { key: RandomSortBy; label: string }[] = [
+  { key: 'distance', label: 'Distance' },
+  { key: 'price', label: 'Price' },
+  { key: 'rating', label: 'Rating' },
+  { key: 'overall', label: 'Overall' },
+  { key: 'health', label: 'Health' },
+  { key: 'taste', label: 'Taste' },
+  { key: 'valueForMoney', label: 'Value' },
+  { key: 'speed', label: 'Speed' },
+  { key: 'workoutRecovery', label: 'Recovery' },
+  { key: 'munchy', label: 'Munchy' },
+  { key: 'protein', label: 'Protein' },
+  { key: 'calorie', label: 'Calories' },
+  { key: 'dateWorthiness', label: 'Date' },
+  { key: 'soloDiner', label: 'Solo diner' },
+  { key: 'energySustain', label: 'Energy' },
+];
+
+function getOverviewMetric(ai: AiOverview | undefined | null, key: RandomAiCutoffKey | 'health'): number {
+  if (!ai) return -1;
+  switch (key) {
+    case 'taste':
+      return ai.tasteScore ?? -1;
+    case 'valueForMoney':
+      return ai.valueForMoneyScore ?? -1;
+    case 'speed':
+      return ai.speedScore ?? -1;
+    case 'workoutRecovery':
+      return ai.workoutRecoveryScore ?? -1;
+    case 'munchy':
+      return ai.munchyScore ?? -1;
+    case 'protein':
+      return ai.proteinScore ?? -1;
+    case 'calorie':
+      return ai.calorieScore ?? -1;
+    case 'dateWorthiness':
+      return ai.dateWorthiness ?? -1;
+    case 'soloDiner':
+      return ai.soloDinerScore ?? -1;
+    case 'energySustain':
+      return ai.energySustainScore ?? -1;
+    case 'health':
+      return typeof ai.healthScore === 'number' ? ai.healthScore : -1;
+    default:
+      return -1;
+  }
+}
+
+function getSortValue(r: { aiOverview?: AiOverview | null; rating?: number; priceLevel?: string; distanceMeters?: number }, sortBy: RandomSortBy): number {
+  const ai = r.aiOverview ?? null;
+  if (sortBy === 'overall') {
+    return calculatePlateboundScore(ai, r.rating, r.priceLevel);
+  }
+  if (sortBy === 'distance') {
+    return r.distanceMeters ?? 0;
+  }
+  if (sortBy === 'rating') {
+    return r.rating ?? -1;
+  }
+  if (sortBy === 'price') {
+    const priceLevels = ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE', 'PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE'];
+    const idx = r.priceLevel ? priceLevels.indexOf(r.priceLevel) : -1;
+    return idx === -1 ? 999 : idx;
+  }
+  if (sortBy === 'health' || (sortBy as string) in DEFAULT_RANDOM_AI_CUTOFFS) {
+    return getOverviewMetric(ai, sortBy === 'health' ? 'health' : (sortBy as RandomAiCutoffKey));
+  }
+  return -1;
+}
+
+function passesAiCutoffs(r: { aiOverview?: AiOverview | null }, cutoffs: RandomAiCutoffs): boolean {
+  const ai = r.aiOverview;
+  for (const key of Object.keys(cutoffs) as RandomAiCutoffKey[]) {
+    const min = cutoffs[key];
+    if (min <= 0) continue;
+    const v = getOverviewMetric(ai, key);
+    if (v < min) return false;
+  }
+  return true;
+}
+
 // ─── Selectable Restaurant Row ────────────────────────────────────────────────
 
 function RestaurantRow({
   item,
   selected,
-  onToggle,
-  onLongPressOverview,
+  onOpenDetail,
+  onToggleSelect,
 }: {
   item: any;
   selected: boolean;
-  onToggle: () => void;
-  onLongPressOverview: () => void;
+  onOpenDetail: () => void;
+  onToggleSelect: () => void;
 }) {
   const { formatDistance } = useDistanceFormatter();
 
   const name = item.displayName?.text || 'Unknown';
-  const rating = item.rating?.toFixed(1);
+  const ai = item.aiOverview as AiOverview | undefined | null;
   const distM = Math.round(item.distanceMeters ?? 0);
   const dist = formatDistance(distM);
   const price = formatPlacePriceLabel(item);
-  const isOpen = isOpenNow(item);
+  const overall = calculatePlateboundScore(ai, item.rating, item.priceLevel);
+  const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.75}
-      onPress={onToggle}
-      onLongPress={onLongPressOverview}
-      delayLongPress={400}
-      style={[styles.row, selected && styles.rowSelected]}
-    >
-      {/* Thumb — RestaurantImage handles spinner, fallback, and caching */}
-      <View style={styles.thumbWrap}>
-        <RestaurantImage
-          restaurantId={item.id}
-          photos={item.photos || []}
-          width={56}
-          height={56}
-          quality={200}
-          loadDelay={400}
-          borderRadius={12}
-        />
-      </View>
+    <View style={[styles.row, selected && styles.rowSelected]}>
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={onOpenDetail}
+        style={styles.rowMainTap}
+      >
+        <View style={styles.thumbWrap}>
+          <RestaurantImage
+            restaurantId={item.id}
+            photos={item.photos || []}
+            width={56}
+            height={56}
+            quality={200}
+            loadDelay={400}
+            borderRadius={12}
+          />
+        </View>
 
-      {/* Info */}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
-        <View style={styles.rowMeta}>
-          {rating && (
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
+          <View style={styles.rowMeta}>
             <View style={styles.metaPill}>
-              <Ionicons name="star" size={10} color="#FFD700" />
-              <Text style={styles.metaText}>{rating}</Text>
+              <Ionicons name="ribbon-outline" size={10} color="#F9A06F" />
+              <Text style={styles.metaText}>{overall > 0 ? overall.toFixed(1) : '—'}</Text>
             </View>
-          )}
-          <View style={styles.metaPill}>
-            <Ionicons name="navigate-outline" size={10} color="#F9A06F" />
-            <Text style={styles.metaText}>{dist}</Text>
-          </View>
-          {price ? (
             <View style={styles.metaPill}>
-              <Text style={[styles.metaText, { color: '#F9A06F' }]}>{price}</Text>
+              <Ionicons name="heart-outline" size={10} color="#4CD964" />
+              <Text style={[styles.metaText, { color: '#4CD964' }]}>
+                {healthNum != null ? `${healthNum.toFixed(1)}/10` : '—'}
+              </Text>
             </View>
-          ) : null}
-          <View style={[styles.metaPill, { borderColor: isOpen ? 'rgba(76,217,100,0.3)' : 'rgba(255,100,100,0.3)' }]}>
-            <Ionicons
-              name={isOpen ? 'checkmark-circle-outline' : 'close-circle-outline'}
-              size={10}
-              color={isOpen ? '#4CD964' : '#FF6B6B'}
-            />
-            <Text style={[styles.metaText, { color: isOpen ? '#4CD964' : '#FF6B6B' }]}>
-              {isOpen ? 'Open' : 'Closed'}
-            </Text>
+            {price ? (
+              <View style={styles.metaPill}>
+                <Text style={[styles.metaText, { color: '#F9A06F' }]}>{price}</Text>
+              </View>
+            ) : null}
+            <View style={styles.metaPill}>
+              <Ionicons name="navigate-outline" size={10} color="#F9A06F" />
+              <Text style={styles.metaText}>{dist}</Text>
+            </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
-      {/* Checkbox */}
-      <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+      <TouchableOpacity
+        onPress={onToggleSelect}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={[styles.checkbox, selected && styles.checkboxSelected]}
+      >
         {selected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -206,7 +310,8 @@ export default function RandomScreen() {
   const [selectedPrices, setSelectedPrices] = useState<Set<string>>(new Set());
   const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
+  const [sortBy, setSortBy] = useState<RandomSortBy>('distance');
+  const [minAiCutoffs, setMinAiCutoffs] = useState<RandomAiCutoffs>({ ...DEFAULT_RANDOM_AI_CUTOFFS });
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
   const [scenarioKey, setScenarioKey] = useState<ScenarioKey | null>(null);
   const [scenarioFilterEnabled, setScenarioFilterEnabled] = useState(false);
@@ -246,7 +351,8 @@ export default function RandomScreen() {
     (selectedPrices.size > 0 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
     (selectedCuisines.size > 0 ? 1 : 0) +
-    (scenarioFilterEnabled && scenarioKey ? 1 : 0);
+    (scenarioFilterEnabled && scenarioKey ? 1 : 0) +
+    (Object.values(minAiCutoffs).filter((v) => v > 0).length);
 
   useEffect(() => {
     getSearchRadius().then(r => {
@@ -271,11 +377,12 @@ export default function RandomScreen() {
       minRating,
       selectedCuisines: Array.from(selectedCuisines),
       sortBy,
+      minAiCutoffs: minAiCutoffs,
       selectedIds: Array.from(selected),
       scenarioKey,
       scenarioFilterEnabled,
     });
-  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
+  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, minAiCutoffs, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
 
   const loadResults = async (r?: number, isRefresh = false) => {
     const searchRadius = r ?? radius;
@@ -309,7 +416,8 @@ export default function RandomScreen() {
           setSelectedPrices(new Set(saved.selectedPrices));
           setMinRating(saved.minRating);
           setSelectedCuisines(new Set(saved.selectedCuisines));
-          setSortBy(saved.sortBy);
+          setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
+          setMinAiCutoffs(mergeRandomAiCutoffs(saved.minAiCutoffs));
           if (paramScenario) {
             setScenarioKey(paramScenario);
             setScenarioFilterEnabled(true);
@@ -383,25 +491,18 @@ export default function RandomScreen() {
     if (scenarioFilterEnabled && scenarioKey && !restaurantMatchesScenario(r, scenarioKey)) {
       return false;
     }
+    if (!passesAiCutoffs(r, minAiCutoffs)) return false;
     return true;
   }).sort((a, b) => {
     if (sortBy === 'distance') {
       return (a.distanceMeters || 0) - (b.distanceMeters || 0);
-    } else if (sortBy === 'rating') {
-      return (b.rating || 0) - (a.rating || 0);
-    } else if (sortBy === 'price') {
-      const priceLevels = ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE', 'PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE'];
-      const priceA = a.priceLevel ? priceLevels.indexOf(a.priceLevel) : -1;
-      const priceB = b.priceLevel ? priceLevels.indexOf(b.priceLevel) : -1;
-      const aVal = priceA === -1 ? 999 : priceA;
-      const bVal = priceB === -1 ? 999 : priceB;
-      return aVal - bVal;
-    } else if (sortBy === 'health') {
-      const ha = a.aiOverview?.healthScore ?? -1;
-      const hb = b.aiOverview?.healthScore ?? -1;
-      return hb - ha;
     }
-    return 0;
+    if (sortBy === 'price') {
+      return getSortValue(a, sortBy) - getSortValue(b, sortBy);
+    }
+    const va = getSortValue(a, sortBy);
+    const vb = getSortValue(b, sortBy);
+    return vb - va;
   });
 
   const allSelectedInView = filtered.length > 0 && filtered.every(r => selected.has(r.id));
@@ -509,37 +610,49 @@ export default function RandomScreen() {
 
         {showFilters && (
           <View style={styles.filterPanel}>
-            {/* Scenario preset */}
-            {scenarioKey && (
-              <View style={[styles.filterRow, { justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }]}>
-                <Text style={styles.filterLabel}>Your vibe</Text>
-                <TouchableOpacity
-                  style={[styles.filterToggle, scenarioFilterEnabled && styles.filterToggleOn]}
-                  onPress={() => setScenarioFilterEnabled((v) => !v)}
-                >
-                  {scenarioFilterEnabled && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                  <Text style={[styles.filterToggleText, scenarioFilterEnabled && { color: '#FFFFFF' }]}>
-                    {SCENARIO_LABELS[scenarioKey]}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Open Now toggle */}
-            <View style={[styles.filterRow, { justifyContent: 'flex-start', gap: 12 }]}>
-              <Text style={styles.filterLabel}>Open Now</Text>
+            <View style={styles.filterPanelHeader}>
+              <Text style={styles.filterPanelTitle}>Filters</Text>
               <TouchableOpacity
-                style={[styles.filterToggle, openOnly && styles.filterToggleOn]}
-                onPress={() => setOpenOnly(v => !v)}
+                onPress={() => setShowFilters(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.filterCloseBtn}
               >
-                {openOnly && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                <Text style={[styles.filterToggleText, openOnly && { color: '#FFFFFF' }]}>
-                  {openOnly ? 'On' : 'Off'}
-                </Text>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.9)" />
               </TouchableOpacity>
             </View>
 
-            {/* Price filter */}
+            <View style={styles.filterDuoRow}>
+              <View style={styles.filterDuoCell}>
+                <Text style={styles.filterLabel}>On</Text>
+                <TouchableOpacity
+                  style={[styles.filterToggle, openOnly && styles.filterToggleOn]}
+                  onPress={() => setOpenOnly((v) => !v)}
+                >
+                  {openOnly && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                  <Text style={[styles.filterToggleText, openOnly && { color: '#FFFFFF' }]}>
+                    {openOnly ? 'Open' : 'Any hours'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {scenarioKey ? (
+                <View style={styles.filterDuoCell}>
+                  <Text style={styles.filterLabel}>Vibe</Text>
+                  <TouchableOpacity
+                    style={[styles.filterToggle, scenarioFilterEnabled && styles.filterToggleOn]}
+                    onPress={() => setScenarioFilterEnabled((v) => !v)}
+                  >
+                    {scenarioFilterEnabled && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                    <Text
+                      style={[styles.filterToggleText, scenarioFilterEnabled && { color: '#FFFFFF' }]}
+                      numberOfLines={1}
+                    >
+                      {SCENARIO_LABELS[scenarioKey]}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+
             <Text style={styles.filterSubLabel}>Price</Text>
             <View style={styles.filterPills}>
               <TouchableOpacity
@@ -561,7 +674,6 @@ export default function RandomScreen() {
               ))}
             </View>
 
-            {/* Min Rating filter */}
             <Text style={styles.filterSubLabel}>Min Rating</Text>
             <View style={styles.filterPills}>
               {RATING_OPTS.map(r => (
@@ -577,7 +689,6 @@ export default function RandomScreen() {
               ))}
             </View>
 
-            {/* Cuisines filter */}
             <Text style={styles.filterSubLabel}>Cuisines</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
               {Object.keys(CUISINE_TYPE_MAP).map(key => (
@@ -593,34 +704,51 @@ export default function RandomScreen() {
               ))}
             </ScrollView>
 
-            {/* Sort filter */}
             <Text style={styles.filterSubLabel}>Sort By</Text>
-            <View style={styles.filterPills}>
-              <TouchableOpacity
-                style={[styles.filterPill, sortBy === 'distance' && styles.filterPillActive]}
-                onPress={() => setSortBy('distance')}
-              >
-                <Text style={[styles.filterPillText, sortBy === 'distance' && styles.filterPillTextActive]}>Distance</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterPill, sortBy === 'price' && styles.filterPillActive]}
-                onPress={() => setSortBy('price')}
-              >
-                <Text style={[styles.filterPillText, sortBy === 'price' && styles.filterPillTextActive]}>Price</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterPill, sortBy === 'health' && styles.filterPillActive]}
-                onPress={() => setSortBy('health')}
-              >
-                <Text style={[styles.filterPillText, sortBy === 'health' && styles.filterPillTextActive]}>Health Score</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.filterPill, sortBy === 'rating' && styles.filterPillActive]}
-                onPress={() => setSortBy('rating')}
-              >
-                <Text style={[styles.filterPillText, sortBy === 'rating' && styles.filterPillTextActive]}>Rating</Text>
-              </TouchableOpacity>
-            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
+              {SORT_OPTIONS.map(({ key, label }) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.filterPill, sortBy === key && styles.filterPillActive]}
+                  onPress={() => setSortBy(key)}
+                >
+                  <Text style={[styles.filterPillText, sortBy === key && styles.filterPillTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.filterSubLabel}>Minimum AI scores</Text>
+            <ScrollView style={styles.cutoffScroll} nestedScrollEnabled showsVerticalScrollIndicator>
+              {CUTOFF_ROWS.map(({ key, label, scale }) => {
+                const opts = scale === 'ten' ? TEN_CUTOFF_OPTS : FIVE_CUTOFF_OPTS;
+                const cur = minAiCutoffs[key];
+                return (
+                  <View key={key} style={styles.cutoffRow}>
+                    <Text style={styles.cutoffRowLabel} numberOfLines={1}>
+                      {label}
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cutoffPills}>
+                      {opts.map((opt) => (
+                        <TouchableOpacity
+                          key={opt}
+                          style={[styles.filterPill, styles.cutoffPill, cur === opt && styles.filterPillActive]}
+                          onPress={() =>
+                            setMinAiCutoffs((prev) => ({
+                              ...prev,
+                              [key]: opt,
+                            }))
+                          }
+                        >
+                          <Text style={[styles.filterPillText, cur === opt && styles.filterPillTextActive]}>
+                            {opt === 0 ? 'Any' : `${opt}+`}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
         )}
 
@@ -670,11 +798,11 @@ export default function RandomScreen() {
               <RestaurantRow
                 item={item}
                 selected={selected.has(item.id)}
-                onToggle={() => toggleOne(item.id)}
-                onLongPressOverview={() => {
+                onOpenDetail={() => {
                   setCurrentRestaurant(item);
                   router.push('/random-result');
                 }}
+                onToggleSelect={() => toggleOne(item.id)}
               />
             )}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
@@ -773,6 +901,12 @@ const styles = StyleSheet.create({
     marginBottom: 10, padding: 10,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
+  rowMainTap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   rowSelected: {
     borderColor: 'rgba(249,115,82,0.5)',
     backgroundColor: 'rgba(249,115,82,0.1)',
@@ -832,6 +966,21 @@ const styles = StyleSheet.create({
     padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     gap: 10,
   },
+  filterPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  filterPanelTitle: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+  filterCloseBtn: { padding: 2 },
+  filterDuoRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  filterDuoCell: { flex: 1, gap: 6 },
+  cutoffScroll: { maxHeight: 220 },
+  cutoffRow: { marginBottom: 8 },
+  cutoffRowLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.55)', marginBottom: 4 },
+  cutoffPills: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6, alignItems: 'center' },
+  cutoffPill: { paddingHorizontal: 10, paddingVertical: 5 },
   filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filterLabel: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
   filterSubLabel: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600', marginTop: 4 },

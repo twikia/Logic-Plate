@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
 import { runCacheTests } from '../tests/cacheTest';
 import { clearLocalCache } from '../core/cacheManager';
+import { clearRandomPickerState } from '../core/randomPickerState';
+import { resetRecommendationPrefsToOnboarding } from '../core/recommendationPrefs';
 import { clearResultCache } from '../core/resultCache';
 import { clearLocationCache } from '../core/locationCache';
 import { clearImageCache } from '../core/images';
@@ -335,9 +337,12 @@ export default function ProfileScreen() {
                       clearLocationCache(),
                       clearImageCache(),
                       Image.clearMemoryCache(),
-                      Image.clearDiskCache()
+                      Image.clearDiskCache(),
+                      clearRandomPickerState(),
+                      resetRecommendationPrefsToOnboarding(),
                     ]);
-                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, Location, and Images) have been wiped.');
+                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, Location, and Images) have been wiped. Recommendation preferences were reset.');
+                    router.replace('/welcome-onboarding' as any);
                   }}
                 >
                   <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear All Caches</Text>
