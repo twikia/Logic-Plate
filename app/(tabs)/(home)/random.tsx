@@ -5,8 +5,8 @@ import {
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
@@ -28,6 +28,12 @@ import {
 } from '../../../core/restaurantOrchestrator';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
+import {
+  isScenarioKey,
+  restaurantMatchesScenario,
+  SCENARIO_LABELS,
+  type ScenarioKey,
+} from '../../../core/scenarioFilters';
 import { getRandomPickerState, saveRandomPickerState } from '../../../core/randomPickerState';
 import { RestaurantImage } from '../../../core/images';
 import { placeOffersSweets } from '../../../core/placeSweets';
@@ -176,6 +182,13 @@ function RestaurantRow({
 
 export default function RandomScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ scenario?: string | string[] }>();
+  const paramScenario = useMemo((): ScenarioKey | null => {
+    const raw = params.scenario;
+    const s = Array.isArray(raw) ? raw[0] : raw;
+    if (!isScenarioKey(s)) return null;
+    return s;
+  }, [params.scenario]);
 
   const [allResults, setAllResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,6 +208,8 @@ export default function RandomScreen() {
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'distance' | 'price' | 'health' | 'rating'>('distance');
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
+  const [scenarioKey, setScenarioKey] = useState<ScenarioKey | null>(null);
+  const [scenarioFilterEnabled, setScenarioFilterEnabled] = useState(false);
 
   const hydratedRef = useRef(false);
   const {
@@ -230,7 +245,8 @@ export default function RandomScreen() {
     (openOnly ? 1 : 0) +
     (selectedPrices.size > 0 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
-    (selectedCuisines.size > 0 ? 1 : 0);
+    (selectedCuisines.size > 0 ? 1 : 0) +
+    (scenarioFilterEnabled && scenarioKey ? 1 : 0);
 
   useEffect(() => {
     getSearchRadius().then(r => {
@@ -238,6 +254,12 @@ export default function RandomScreen() {
       loadResults(r);
     });
   }, []);
+
+  useEffect(() => {
+    if (!paramScenario) return;
+    setScenarioKey(paramScenario);
+    setScenarioFilterEnabled(true);
+  }, [paramScenario]);
 
   useEffect(() => {
     if (!hydratedRef.current || isLoading || errorMsg) return;
@@ -250,8 +272,10 @@ export default function RandomScreen() {
       selectedCuisines: Array.from(selectedCuisines),
       sortBy,
       selectedIds: Array.from(selected),
+      scenarioKey,
+      scenarioFilterEnabled,
     });
-  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, selected, isLoading, errorMsg]);
+  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
 
   const loadResults = async (r?: number, isRefresh = false) => {
     const searchRadius = r ?? radius;
@@ -286,6 +310,16 @@ export default function RandomScreen() {
           setMinRating(saved.minRating);
           setSelectedCuisines(new Set(saved.selectedCuisines));
           setSortBy(saved.sortBy);
+          if (paramScenario) {
+            setScenarioKey(paramScenario);
+            setScenarioFilterEnabled(true);
+          } else {
+            const sk = saved.scenarioKey;
+            if (isScenarioKey(sk)) {
+              setScenarioKey(sk);
+              setScenarioFilterEnabled(saved.scenarioFilterEnabled !== false);
+            }
+          }
         }
 
         const allowed = new Set(all.map((x: any) => x.id));
@@ -345,6 +379,9 @@ export default function RandomScreen() {
         return mappedTypes.some(t => pType === t || tTypes.includes(t));
       });
       if (!hasMatch) return false;
+    }
+    if (scenarioFilterEnabled && scenarioKey && !restaurantMatchesScenario(r, scenarioKey)) {
+      return false;
     }
     return true;
   }).sort((a, b) => {
@@ -407,7 +444,7 @@ export default function RandomScreen() {
           <AnimatedPressable onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
           </AnimatedPressable>
-          <Text style={styles.title}>Random Pick</Text>
+          <Text style={styles.title}>Select</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -472,6 +509,22 @@ export default function RandomScreen() {
 
         {showFilters && (
           <View style={styles.filterPanel}>
+            {/* Scenario preset */}
+            {scenarioKey && (
+              <View style={[styles.filterRow, { justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }]}>
+                <Text style={styles.filterLabel}>Your vibe</Text>
+                <TouchableOpacity
+                  style={[styles.filterToggle, scenarioFilterEnabled && styles.filterToggleOn]}
+                  onPress={() => setScenarioFilterEnabled((v) => !v)}
+                >
+                  {scenarioFilterEnabled && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                  <Text style={[styles.filterToggleText, scenarioFilterEnabled && { color: '#FFFFFF' }]}>
+                    {SCENARIO_LABELS[scenarioKey]}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Open Now toggle */}
             <View style={[styles.filterRow, { justifyContent: 'flex-start', gap: 12 }]}>
               <Text style={styles.filterLabel}>Open Now</Text>

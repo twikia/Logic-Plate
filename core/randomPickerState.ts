@@ -11,6 +11,8 @@ export type RandomPickerPersisted = {
   selectedCuisines: string[];
   sortBy: 'distance' | 'price' | 'health' | 'rating';
   selectedIds: string[];
+  scenarioKey?: string | null;
+  scenarioFilterEnabled?: boolean;
 };
 
 export async function getRandomPickerState(): Promise<RandomPickerPersisted | null> {
