@@ -8,7 +8,8 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
 import { RestaurantImage } from '@/core/images';
-import { requestGeminiRerollPick } from '@/core/recommendationFeedback';
+import { pickSurpriseFromRanked } from '@/core/recommendationFeedback';
+import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
 import { applyRerollDiversityQueue, scoreRestaurantPool } from '@/core/recommendationEngine';
 import { getRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
@@ -33,14 +34,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -189,6 +188,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const sessionRadiusRef = useRef(4000);
+  const shownPlaceIdsRef = useRef<Set<string>>(new Set());
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
   const [session, setSession] = useState<SessionOverrides | null>(null);
@@ -202,8 +202,6 @@ export default function HomeScreen() {
     null | 'meal' | 'group' | 'budget' | 'distance' | 'mood'
   >(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState(20);
 
   const {
@@ -236,12 +234,14 @@ export default function HomeScreen() {
     const coords = coordsRef.current;
     if (!prefs || !session || !coords || rawPlaces.length === 0) return;
     const visits = await loadVisits();
+    const rainy = await fetchIsLikelyRainNow(coords.latitude, coords.longitude);
     const scored = scoreRestaurantPool(rawPlaces, {
       prefs,
       session,
       visits,
       userLat: coords.latitude,
       userLng: coords.longitude,
+      rainyWeather: rainy === true ? true : undefined,
     });
     setRanked(scored);
     setRerollQueue(applyRerollDiversityQueue(scored, 2, 10));
@@ -278,6 +278,7 @@ export default function HomeScreen() {
           },
         }
       );
+      shownPlaceIdsRef.current = new Set();
       setRawPlaces(all);
     } catch (e) {
       if (isRestaurantLoadSupersededError(e)) {
@@ -303,6 +304,11 @@ export default function HomeScreen() {
     return rerollQueue[rerollStep - 1] ?? null;
   }, [ranked, rerollQueue, rerollStep]);
 
+  useEffect(() => {
+    const id = currentScored?.place?.id;
+    if (id) shownPlaceIdsRef.current.add(String(id));
+  }, [currentScored?.place?.id]);
+
   const canReroll =
     (rerollStep === 0 && ranked.length > 1) || (rerollStep > 0 && rerollStep < rerollQueue.length);
 
@@ -323,26 +329,20 @@ export default function HomeScreen() {
 
   const showFeedbackHint = rerollStep >= 3;
 
-  const submitFeedback = async () => {
-    if (!feedbackText.trim() || !ranked.length) return;
-    setFeedbackBusy(true);
-    try {
-      const pool = ranked.slice(0, 25).map(r => r.place);
-      const id = await requestGeminiRerollPick(feedbackText, pool);
-      if (id) {
-        const hit = ranked.find(r => r.place?.id === id);
-        if (hit) {
-          setRerollStep(0);
-          const rest = ranked.filter(r => r.place?.id !== id);
-          setRanked([hit, ...rest]);
-          setRerollQueue(applyRerollDiversityQueue([hit, ...rest], 2, 10));
-        }
-      }
-      setFeedbackOpen(false);
-      setFeedbackText('');
-    } finally {
-      setFeedbackBusy(false);
+  const applySurprisePick = () => {
+    if (!ranked.length) return;
+    const hit = pickSurpriseFromRanked(
+      ranked,
+      shownPlaceIdsRef.current,
+      currentScored?.place?.primaryType ?? null
+    );
+    if (hit?.place?.id) {
+      setRerollStep(0);
+      const rest = ranked.filter(r => r.place?.id !== hit.place?.id);
+      setRanked([hit, ...rest]);
+      setRerollQueue(applyRerollDiversityQueue([hit, ...rest], 2, 10));
     }
+    setFeedbackOpen(false);
   };
 
   const emptyAfterLoad = !isLoading && !errorMsg && ranked.length === 0;
@@ -421,7 +421,7 @@ export default function HomeScreen() {
 
           {showFeedbackHint && currentScored && (
             <TouchableOpacity onPress={() => setFeedbackOpen(true)} style={styles.feedbackHint}>
-              <Text style={styles.feedbackHintText}>Not finding it? Tell us what you are after →</Text>
+              <Text style={styles.feedbackHintText}>Still looking? Try another pick →</Text>
             </TouchableOpacity>
           )}
 
@@ -552,25 +552,20 @@ export default function HomeScreen() {
       <Modal visible={feedbackOpen} transparent animationType="slide">
         <View style={styles.feedbackWrap}>
           <View style={[styles.feedbackCard, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>What are you after?</Text>
-            <TextInput
-              style={[styles.feedbackInput, { color: theme.text, borderColor: 'rgba(255,255,255,0.2)' }]}
-              placeholder="Describe it in your own words"
-              placeholderTextColor={theme.subtext}
-              value={feedbackText}
-              onChangeText={setFeedbackText}
-              multiline
-            />
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Try another place</Text>
+            <Text style={[styles.feedbackBody, { color: theme.subtext }]}>
+              We will choose a restaurant you have not seen in this round, shuffled among strong matches and
+              biased away from the same cuisine type when possible.
+            </Text>
             <View style={styles.feedbackActions}>
               <TouchableOpacity onPress={() => setFeedbackOpen(false)} style={styles.feedbackCancel}>
                 <Text style={{ color: theme.subtext }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => void submitFeedback()}
-                style={[styles.feedbackGo, { backgroundColor: theme.accent }, feedbackBusy && { opacity: 0.6 }]}
-                disabled={feedbackBusy}
+                onPress={applySurprisePick}
+                style={[styles.feedbackGo, { backgroundColor: theme.accent }]}
               >
-                {feedbackBusy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalOkText}>Ask</Text>}
+                <Text style={styles.modalOkText}>Surprise me</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -732,14 +727,7 @@ const styles = StyleSheet.create({
   modalOkText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
   feedbackWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   feedbackCard: { padding: 20, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
-  feedbackInput: {
-    borderWidth: 1,
-    borderRadius: 14,
-    minHeight: 100,
-    padding: 12,
-    textAlignVertical: 'top',
-    marginTop: 8,
-  },
+  feedbackBody: { fontSize: 14, lineHeight: 20, marginTop: 4, marginBottom: 4 },
   feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16, marginTop: 16 },
   feedbackCancel: { paddingVertical: 10, paddingHorizontal: 8 },
   feedbackGo: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, minWidth: 80, alignItems: 'center' },
