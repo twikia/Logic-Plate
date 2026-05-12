@@ -122,3 +122,7 @@ export async function markOnboardingComplete(partial?: Partial<RecommendationPre
     onboardingComplete: true,
   });
 }
+
+export async function resetRecommendationPrefsToOnboarding(): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ ...DEFAULT_PREFS_V1 }));
+}

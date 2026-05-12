@@ -341,7 +341,7 @@ export default function LoginScreen() {
               {guestBusy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.secondaryCtaText}>Continue as guest</Text>
+                <Text style={styles.secondaryCtaText}>Continue as guest for now</Text>
               )}
             </AnimatedPressable>
           ) : null}
