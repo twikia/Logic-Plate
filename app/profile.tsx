@@ -250,6 +250,15 @@ export default function ProfileScreen() {
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
+                  onPress={() => router.push('/recommendation-settings' as any)}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.menuItemText}>Recommendations</Text>
+                    <Ionicons name="sparkles-outline" size={18} color="#F97352" />
+                  </View>
+                </AnimatedPressable>
+                <AnimatedPressable 
+                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
                   onPress={() => router.push('/general-settings')}
                 >
 

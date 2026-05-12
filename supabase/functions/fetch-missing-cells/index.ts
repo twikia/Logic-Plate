@@ -109,6 +109,13 @@ serve(async (req) => {
           'places.iconBackgroundColor',
           'places.iconMaskBaseUri',
           'places.editorialSummary',
+          'places.goodForGroups',
+          'places.servesVegetarianFood',
+          'places.takeout',
+          'places.dineIn',
+          'places.delivery',
+          'places.liveMusic',
+          'places.reservable',
         ].join(',');
 
         const response = await fetch(url, {

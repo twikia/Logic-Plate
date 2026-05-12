@@ -1,0 +1,160 @@
+export type DefaultGroupSize = 'solo' | 'partner' | 'small_group' | 'big_group' | 'varies';
+
+export type RecommendationWeights = {
+  distance: number;
+  health: number;
+  price: number;
+  rating: number;
+  novelty: number;
+};
+
+export type DietaryFilterId =
+  | 'vegetarian'
+  | 'vegan'
+  | 'halal'
+  | 'kosher'
+  | 'gluten_free'
+  | 'dairy_free'
+  | 'nut_allergy';
+
+export type DefaultRadiusId = 'walking' | 'short_drive' | 'worth_trip';
+
+export type SessionGroupChip = 'solo' | 'partner' | 'small_group' | 'big_group';
+
+export type MealTypeContext = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'late_night';
+
+export type SessionMood = 'comfort' | 'light' | 'adventurous' | 'quick' | 'special';
+
+export type RecommendationPrefsV1 = {
+  v: 1;
+  onboardingComplete: boolean;
+  defaultGroupSize: DefaultGroupSize;
+  weights: RecommendationWeights;
+  dietaryFilters: DietaryFilterId[];
+  budgetCeiling: number;
+  favoriteCuisines: string[];
+  defaultRadius: DefaultRadiusId;
+  openNowOnly: boolean;
+  minimumRatingThreshold: number;
+  noveltyPressure: number;
+  penalizeRepeats: boolean;
+  cuisineRepeatWindowDays: number;
+};
+
+export type SessionOverrides = {
+  mealType: MealTypeContext;
+  groupSize: SessionGroupChip;
+  budgetCeiling: number;
+  radiusMeters: number;
+  sessionMood: SessionMood | null;
+};
+
+export type MatchPillKind =
+  | 'distance'
+  | 'health'
+  | 'value'
+  | 'rating'
+  | 'novelty'
+  | 'groups'
+  | 'tonight'
+  | 'vibe';
+
+export type ScoredRestaurant = {
+  place: any;
+  plateboundScore: number;
+  raw: {
+    distance: number;
+    health: number;
+    price: number;
+    rating: number;
+    novelty: number;
+  };
+  weightedParts: {
+    distance: number;
+    health: number;
+    price: number;
+    rating: number;
+    novelty: number;
+  };
+  modifiers: {
+    meal: number;
+    group: number;
+    mood: number;
+    time: number;
+  };
+  matchPills: { kind: MatchPillKind; emoji: string; label: string }[];
+};
+
+export const DEFAULT_WEIGHTS: RecommendationWeights = {
+  distance: 50,
+  health: 50,
+  price: 50,
+  rating: 50,
+  novelty: 50,
+};
+
+export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {
+  v: 1,
+  onboardingComplete: false,
+  defaultGroupSize: 'solo',
+  weights: { ...DEFAULT_WEIGHTS },
+  dietaryFilters: [],
+  budgetCeiling: 20,
+  favoriteCuisines: ['italian'],
+  defaultRadius: 'short_drive',
+  openNowOnly: false,
+  minimumRatingThreshold: 3.5,
+  noveltyPressure: 50,
+  penalizeRepeats: true,
+  cuisineRepeatWindowDays: 7,
+};
+
+export function radiusIdToMeters(id: DefaultRadiusId): number {
+  switch (id) {
+    case 'walking':
+      return 800;
+    case 'short_drive':
+      return 3000;
+    case 'worth_trip':
+      return 8000;
+    default:
+      return 3000;
+  }
+}
+
+export function defaultGroupToSessionChip(size: DefaultGroupSize): SessionGroupChip {
+  switch (size) {
+    case 'partner':
+      return 'partner';
+    case 'small_group':
+      return 'small_group';
+    case 'big_group':
+      return 'big_group';
+    case 'varies':
+      return 'small_group';
+    default:
+      return 'solo';
+  }
+}
+
+export function inferMealTypeFromClock(d: Date = new Date()): MealTypeContext {
+  const h = d.getHours();
+  if (h < 10) return 'breakfast';
+  if (h < 14) return 'lunch';
+  if (h < 17) return 'snack';
+  if (h < 22) return 'dinner';
+  return 'late_night';
+}
+
+export function budgetToPriceLevelsAtOrBelow(budget: number): string[] {
+  const all = [
+    'PRICE_LEVEL_INEXPENSIVE',
+    'PRICE_LEVEL_MODERATE',
+    'PRICE_LEVEL_EXPENSIVE',
+    'PRICE_LEVEL_VERY_EXPENSIVE',
+  ];
+  if (budget < 15) return ['PRICE_LEVEL_INEXPENSIVE'];
+  if (budget < 30) return ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE'];
+  if (budget < 60) return ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE', 'PRICE_LEVEL_EXPENSIVE'];
+  return all;
+}
