@@ -1,24 +1,11 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useCallback } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { RestaurantImage } from '@/core/images';
+import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { useAppTheme } from '@/context/ThemeContext';
-import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
-import {
-  loadCachedRestaurants,
-  oneLineVibe,
-  pickQuickVoteRestaurants,
-  type QuickVoteRestaurant,
-} from '@/utils/quickVote';
+import { type QuickVoteRestaurant } from '@/utils/quickVote';
 
 function parseVoteParams(raw: Record<string, string | string[] | undefined>) {
   const restaurantsJson =
@@ -45,28 +32,6 @@ export default function QuickVoteVoteScreen() {
   const router = useRouter();
   const raw = useLocalSearchParams();
   const parsed = parseVoteParams(raw as Record<string, string | string[] | undefined>);
-  const { formatDistance } = useDistanceFormatter();
-  const [allCached, setAllCached] = useState<QuickVoteRestaurant[] | null>(null);
-
-  useEffect(() => {
-    loadCachedRestaurants().then(setAllCached);
-  }, []);
-
-  const reroll = useCallback(() => {
-    if (!parsed) return;
-    const pool = allCached ?? [];
-    const next = pickQuickVoteRestaurants(pool);
-    if (next.length < 5) return;
-    router.replace({
-      pathname: '/groups/quick/vote',
-      params: {
-        restaurantsJson: JSON.stringify(next),
-        voterCount: String(parsed.voterCount),
-        currentVoter: '1',
-        votesJson: JSON.stringify({}),
-      },
-    });
-  }, [allCached, parsed, router]);
 
   const voteFor = useCallback(
     (restaurant: QuickVoteRestaurant) => {
@@ -91,6 +56,18 @@ export default function QuickVoteVoteScreen() {
     [parsed, router]
   );
 
+  const endVoting = useCallback(() => {
+    if (!parsed) return;
+    router.replace({
+      pathname: '/groups/quick/winner',
+      params: {
+        winnerJson: '',
+        votesJson: parsed.votesJson,
+        restaurantsJson: parsed.restaurantsJson,
+      },
+    });
+  }, [parsed, router]);
+
   if (!parsed) return <Redirect href="/groups/quick" />;
 
   const { restaurants, voterCount, currentVoter } = parsed;
@@ -98,60 +75,24 @@ export default function QuickVoteVoteScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
           <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={reroll} disabled={!allCached || allCached.length < 10}>
-          <Text
-            style={{
-              color: allCached && allCached.length >= 10 ? theme.accent : theme.subtext,
-              fontSize: 16,
-              fontWeight: '600',
-            }}>
-            Reroll → 5 new
-          </Text>
+        <TouchableOpacity onPress={endVoting} hitSlop={12}>
+          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>End</Text>
         </TouchableOpacity>
       </View>
       <Text style={[styles.header, { color: theme.text }]}>
         Voter {currentVoter} of {voterCount}
       </Text>
-      {!allCached ? (
-        <ActivityIndicator color={theme.accent} style={{ marginTop: 24 }} />
-      ) : null}
       <ScrollView contentContainerStyle={styles.list}>
         {restaurants.map((r) => (
-          <View
+          <QuickVoteRestaurantCard
             key={r.id}
-            style={[styles.card, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '22' }]}>
-            <View style={styles.cardRow}>
-              <RestaurantImage
-                restaurantId={r.id}
-                photos={(r as { photos?: unknown[] }).photos ?? []}
-                width={72}
-                height={72}
-                borderRadius={12}
-              />
-              <View style={styles.cardBody}>
-                <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>
-                  {r.displayName?.text ?? 'Restaurant'}
-                </Text>
-                <Text style={[styles.vibe, { color: theme.subtext }]} numberOfLines={2}>
-                  {oneLineVibe(r) || ' '}
-                </Text>
-                <Text style={[styles.meta, { color: theme.subtext }]}>
-                  {typeof r.rating === 'number' ? `⭐ ${r.rating.toFixed(1)}` : '⭐ —'}
-                  {typeof r.distanceMeters === 'number'
-                    ? `  •  ${formatDistance(r.distanceMeters)}`
-                    : ''}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.voteBtn, { backgroundColor: theme.accent }]}
-                  onPress={() => voteFor(r)}>
-                  <Text style={[styles.voteBtnText, { color: theme.text }]}>Vote for this →</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+            restaurant={r}
+            theme={theme}
+            onVote={() => voteFor(r)}
+          />
         ))}
       </ScrollView>
     </SafeAreaView>
@@ -168,21 +109,4 @@ const styles = StyleSheet.create({
   },
   header: { fontSize: 20, fontWeight: '800', paddingHorizontal: 16, marginTop: 12 },
   list: { padding: 16, paddingBottom: 40, gap: 14 },
-  card: {
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-  },
-  cardRow: { flexDirection: 'row', gap: 12 },
-  cardBody: { flex: 1, minWidth: 0 },
-  name: { fontSize: 17, fontWeight: '700' },
-  vibe: { fontSize: 14, marginTop: 4 },
-  meta: { fontSize: 13, marginTop: 6 },
-  voteBtn: {
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  voteBtnText: { fontWeight: '700', fontSize: 16 },
 });

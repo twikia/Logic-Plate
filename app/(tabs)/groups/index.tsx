@@ -68,27 +68,15 @@ export default function GroupsScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity
           style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => goLobby('passphone')}>
-          <Text style={[styles.modeEmoji]}>📱</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>Pass the Phone</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
           onPress={() => goLobby('qr')}>
           <Text style={[styles.modeEmoji]}>📷</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>QR Code</Text>
+          <Text style={[styles.modeText, { color: theme.text }]}>Generate QR Code</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
           onPress={() => goLobby('code')}>
           <Text style={[styles.modeEmoji]}>🔢</Text>
           <Text style={[styles.modeText, { color: theme.text }]}>Share a Code</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => router.push('/groups/quick')}>
-          <Text style={[styles.modeEmoji]}>⚡</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>Quick Vote</Text>
         </TouchableOpacity>
 
         <Text style={[styles.or, { color: theme.subtext }]}>or join a session</Text>
@@ -111,6 +99,13 @@ export default function GroupsScreen() {
             <Text style={[styles.joinBtnText, { color: theme.text }]}>Join</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={[styles.modeBtn, { backgroundColor: theme.cardBackground, marginTop: 8 }]}
+          onPress={() => router.push('/groups/quick')}>
+          <Text style={[styles.modeEmoji]}>⚡</Text>
+          <Text style={[styles.modeText, { color: theme.text }]}>Quick Vote</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
