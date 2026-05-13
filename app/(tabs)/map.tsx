@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getLocation } from '@/core/locationCache';
 import { getNearbyRestaurants, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
-import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '@/core/aiOverviewCache';
+import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import { getSearchRadius, setSearchRadius } from '@/core/userSettings';
 import { RestaurantImage } from '@/core/images';
@@ -17,6 +17,15 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
 import { isOpenNow } from '@/core/isOpenNow';
+import type { RandomSortBy } from '@/core/randomPickerState';
+import {
+  SORT_OPTIONS,
+  compareRestaurantsBySort,
+  getSortValue,
+  lerpRedGreen,
+  markerSortColorForOpenState,
+  sortGoodness01,
+} from '@/core/restaurantSort';
 
 function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionicons>['name'] {
   if (!primaryType) return 'restaurant';
@@ -36,14 +45,130 @@ function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionic
   return 'restaurant';
 }
 
+function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
+  if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
+  if (sortBy === 'price') return formatPlacePriceLabel(item) || '—';
+  if (sortBy === 'rating') {
+    return typeof item.rating === 'number' && item.rating > 0 ? item.rating.toFixed(1) : '—';
+  }
+  if (sortBy === 'overall') {
+    const s = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel);
+    return s > 0 ? s.toFixed(1) : '—';
+  }
+  const raw = getSortValue(item, sortBy);
+  return raw >= 0 ? raw.toFixed(1) : '—';
+}
+
+type MapThemeSlice = { text: string; subtext: string; accent: string };
+
+function MapSheetAiScores({
+  ai,
+  ph,
+  isDark,
+  theme,
+}: {
+  ai?: AiOverview | null;
+  ph: boolean;
+  isDark: boolean;
+  theme: MapThemeSlice;
+}) {
+  const border = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+  const num = (x: number | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
+  const sq = (emoji: string, label: string, val: number | undefined, k: string) => (
+    <View key={k} style={[styles.aiSquare, { borderColor: border }]}>
+      <Text style={styles.aiSquareEmoji}>{emoji}</Text>
+      <Text style={[styles.aiSquareLabel, { color: theme.subtext }]} numberOfLines={2}>
+        {label}
+      </Text>
+      <Text style={[styles.aiSquareVal, { color: theme.text }]}>
+        {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : `${num(val).toFixed(1)}/5`}
+      </Text>
+    </View>
+  );
+  const bar10 = (label: string, val: number | undefined, k: string) => {
+    const n = ph ? 0 : num(val);
+    const pct = Math.max(0, Math.min(1, n / 10));
+    return (
+      <View key={k} style={[styles.aiBarCard, { borderColor: border }]}>
+        <View style={styles.aiBarTop}>
+          <Text style={[styles.aiBarTitle, { color: theme.text }]} numberOfLines={1}>
+            {label}
+          </Text>
+          <Text style={[styles.aiBarNum, { color: theme.subtext }]}>
+            {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : `${n.toFixed(1)}/10`}
+          </Text>
+        </View>
+        <View style={[styles.aiBarTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
+          <View style={[styles.aiBarFill, { width: `${pct * 100}%`, backgroundColor: theme.accent }]} />
+        </View>
+      </View>
+    );
+  };
+  const groupText = ph
+    ? AI_OVERVIEW_FIELD_PLACEHOLDER
+    : ai?.groupSizeSweetSpot != null
+      ? `${ai.groupSizeSweetSpot} people`
+      : '—';
+  return (
+    <View style={[styles.infoSection, { borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
+      <View style={styles.infoSectionHeader}>
+        <Ionicons name="analytics-outline" size={15} color="#C9A0FF" />
+        <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI scores</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled
+        contentContainerStyle={styles.aiStripRow}
+      >
+        {sq('👅', 'Taste', ai?.tasteScore, 'taste')}
+        {sq('💵', 'Value', ai?.valueForMoneyScore, 'value')}
+        {bar10('Health', ai?.healthScore, 'health')}
+        {sq('⏱️', 'Speed', ai?.speedScore, 'speed')}
+        {bar10('Workout recovery', ai?.workoutRecoveryScore, 'workout')}
+        {bar10('Processed load', ai?.processedScore, 'processed')}
+        {sq('🌙', 'Munchy', ai?.munchyScore, 'munchy')}
+        {sq('🔄', 'Variety', ai?.varietyScore, 'variety')}
+        {sq('🔥', 'Calorie fit', ai?.calorieScore, 'calorie')}
+        {sq('🥩', 'Protein', ai?.proteinScore, 'protein')}
+        {sq('🌾', 'Carb balance', ai?.carbScore, 'carb')}
+        {sq('📊', 'Macro-friendly', ai?.macroFriendlyScore, 'macro')}
+        {sq('🥴', 'Hungover', ai?.hungoverRecoveryScore, 'hungover')}
+        {sq('💕', 'Date', ai?.dateWorthiness, 'date')}
+        {sq('🔊', 'Noise', ai?.noiseLevelEstimate, 'noise')}
+        <View key="group" style={[styles.aiSquare, { borderColor: border, minWidth: 88 }]}>
+          <Text style={styles.aiSquareEmoji}>👥</Text>
+          <Text style={[styles.aiSquareLabel, { color: theme.subtext }]} numberOfLines={2}>
+            Group fit
+          </Text>
+          <Text style={[styles.aiSquareVal, { color: theme.text }]} numberOfLines={1}>
+            {groupText}
+          </Text>
+        </View>
+        {sq('🪑', 'Solo diner', ai?.soloDinerScore, 'solo')}
+        {sq('🔋', 'Energy', ai?.energySustainScore, 'energy')}
+        {sq('💻', 'Work friendly', ai?.workFriendlyScore, 'work')}
+      </ScrollView>
+      {ph ? (
+        <Text style={[styles.infoSectionBody, { color: theme.subtext, marginTop: 10 }]}>
+          {AI_OVERVIEW_FIELD_PLACEHOLDER}
+        </Text>
+      ) : ai?.absoluteMacros ? (
+        <Text style={[styles.macrosBlock, { color: theme.subtext }]}>{ai.absoluteMacros}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
   item: any; accentColor: string; displayScore: string | number; onPress: () => void;
 }) {
   const [tracksChanges, setTracksChanges] = useState(true);
   useEffect(() => {
+    setTracksChanges(true);
     const timer = setTimeout(() => setTracksChanges(false), 500);
     return () => clearTimeout(timer);
-  }, [item.id]);
+  }, [item.id, accentColor, displayScore]);
 
   const iconName = getCuisineIcon(item.primaryType);
   const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
@@ -113,6 +238,8 @@ export default function MapScreen() {
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [radius, setRadius] = useState(DEFAULT_RADIUS_METERS);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
+  const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('overall');
+  const [showSortPicker, setShowSortPicker] = useState(false);
   const [openStatusEpoch, setOpenStatusEpoch] = useState(0);
 
   // Animation for bottom sheet
@@ -121,6 +248,11 @@ export default function MapScreen() {
   // Determine map style - Force Dark as requested
   const currentMapStyle = darkMapStyle;
   const isDarkTheme = themeName !== 'melon_fresh'; // Still used for UI elements
+
+  const sortedMarkers = useMemo(
+    () => [...restaurants].sort((a, b) => compareRestaurantsBySort(a, b, mapSortBy)),
+    [restaurants, mapSortBy]
+  );
 
   useEffect(() => {
     initMap();
@@ -292,6 +424,7 @@ export default function MapScreen() {
     setRadius(clamped);
     await setSearchRadius(clamped);
     setShowRadiusPicker(false);
+    setShowSortPicker(false);
     if (userCoords) {
       loadRestaurants(userCoords.latitude, userCoords.longitude, clamped);
     } else if (region) {
@@ -332,14 +465,16 @@ export default function MapScreen() {
             zIndex={0}
           />
         ) : null}
-        {restaurants.map((item) => {
-          const score = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel);
-          const displayScore = score > 0 ? score : (item.rating ? (item.rating * 2).toFixed(1) : 'N/A');
+        {sortedMarkers.map((item) => {
+          const goodness = sortGoodness01(item, mapSortBy, radius);
+          const sortColor = lerpRedGreen(goodness);
+          const markerColor = markerSortColorForOpenState(sortColor, isOpenNow(item));
+          const displayScore = formatMarkerSortLabel(item, mapSortBy, formatDistance);
           return (
             <RestaurantMarker
               key={item.id}
               item={item}
-              accentColor={theme.accent}
+              accentColor={markerColor}
               displayScore={displayScore}
               onPress={() => handleMarkerPress(item)}
             />
@@ -365,7 +500,10 @@ export default function MapScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             style={[styles.radiusBtn, { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-            onPress={() => setShowRadiusPicker(!showRadiusPicker)}
+            onPress={() => {
+              setShowSortPicker(false);
+              setShowRadiusPicker(!showRadiusPicker);
+            }}
           >
             <Ionicons name="locate" size={14} color={theme.accent} />
             <Text style={[styles.radiusText, { color: theme.text }]}>{formatLabel(radius)}</Text>
@@ -389,6 +527,61 @@ export default function MapScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[
+              styles.sortBtn,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              },
+            ]}
+            onPress={() => {
+              setShowRadiusPicker(false);
+              setShowSortPicker(!showSortPicker);
+            }}
+          >
+            <Ionicons name="swap-vertical" size={14} color={theme.accent} />
+            <Text style={[styles.radiusText, { color: theme.text }]}>
+              {SORT_OPTIONS.find((o) => o.key === mapSortBy)?.label ?? 'Sort'}
+            </Text>
+            <Ionicons name={showSortPicker ? 'chevron-up' : 'chevron-down'} size={12} color={theme.subtext} />
+          </TouchableOpacity>
+
+          {showSortPicker && (
+            <View
+              style={[
+                styles.sortPickerContainer,
+                { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
+              ]}
+            >
+              <ScrollView
+                style={styles.sortPickerScroll}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {SORT_OPTIONS.map(({ key, label }) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.pickerOption,
+                      { borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' },
+                      mapSortBy === key && { backgroundColor: theme.accent, borderColor: theme.accent },
+                    ]}
+                    onPress={() => {
+                      setMapSortBy(key);
+                      setShowSortPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.pickerOptionText, { color: theme.text }, mapSortBy === key && { color: '#FFF' }]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -452,7 +645,7 @@ export default function MapScreen() {
             contentContainerStyle={[
               styles.sheetContent,
               {
-                paddingBottom: Math.max(insets.bottom, 20) + 72,
+                paddingBottom: Math.max(insets.bottom, 24) + 110,
               },
             ]}
             showsVerticalScrollIndicator={false}
@@ -480,7 +673,7 @@ export default function MapScreen() {
               </View>
               <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
                 <Ionicons name="navigate-outline" size={14} color="#F9A06F" />
-                <Text style={[styles.metaText, { color: theme.text }]}>{formatDistance(selectedRestaurant.distanceMeters)} away</Text>
+                <Text style={[styles.metaText, { color: theme.text }]}>{formatDistance(selectedRestaurant.distanceMeters ?? 0)} away</Text>
               </View>
               {sheetPriceLabel ? (
                 <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
@@ -493,7 +686,31 @@ export default function MapScreen() {
               </View>
             </View>
 
-            {/* Open in Maps — at the top of the panel */}
+            <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
+              <View style={styles.infoSectionHeader}>
+                <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
+                <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
+              </View>
+              {selectedRestaurant.aiOverview ? (
+                <AiOverviewSummaryBody
+                  text={selectedRestaurant.aiOverview.summaryGoodBad}
+                  style={[styles.infoSectionBody, { color: theme.subtext }]}
+                />
+              ) : (
+                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+              )}
+            </View>
+
+            <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
+              <View style={styles.infoSectionHeader}>
+                <Ionicons name="person-outline" size={15} color="#B8E0FF" />
+                <Text style={[styles.infoSectionTitle, { color: '#B8E0FF' }]}>Who is it for?</Text>
+              </View>
+              <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>
+                {selectedRestaurant.aiOverview?.whoThisPlaceIsFor || AI_OVERVIEW_FIELD_PLACEHOLDER}
+              </Text>
+            </View>
+
             <TouchableOpacity
               activeOpacity={0.9}
               style={[styles.actionBtn, { backgroundColor: theme.accent, marginBottom: 14 }]}
@@ -527,21 +744,12 @@ export default function MapScreen() {
               </View>
             ) : null}
 
-            {/* Health Score — directly below address */}
-            <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
-              <View style={styles.infoSectionHeader}>
-                <Ionicons name="heart-outline" size={15} color="#A8D5A2" />
-                <Text style={[styles.infoSectionTitle, { color: '#A8D5A2' }]}>Health Score</Text>
-                <Text style={[styles.metaText, { color: theme.subtext }]}>
-                  {typeof selectedRestaurant.aiOverview?.healthScore === 'number'
-                    ? `${selectedRestaurant.aiOverview.healthScore}/10`
-                    : AI_OVERVIEW_FIELD_PLACEHOLDER}
-                </Text>
-              </View>
-              <View style={styles.healthBar}>
-                <View style={[styles.healthFill, { width: `${((selectedRestaurant.aiOverview?.healthScore ?? 0) / 10) * 100}%` as any }]} />
-              </View>
-            </View>
+            <MapSheetAiScores
+              ai={selectedRestaurant.aiOverview}
+              ph={!selectedRestaurant.aiOverview}
+              isDark={isDarkTheme}
+              theme={{ text: theme.text, subtext: theme.subtext, accent: theme.accent }}
+            />
 
             {selectedRestaurant.nationalPhoneNumber ? (
               <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(`tel:${selectedRestaurant.nationalPhoneNumber}`)}>
@@ -574,60 +782,7 @@ export default function MapScreen() {
               </View>
             ) : null}
 
-            {selectedRestaurant.aiOverview ? (
-              <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
-                <View style={styles.infoSectionHeader}>
-                  <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
-                  <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI Overview</Text>
-                </View>
-                <AiOverviewSummaryBody
-                  text={selectedRestaurant.aiOverview.summaryGoodBad}
-                  style={[styles.infoSectionBody, { color: theme.subtext }]}
-                />
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                  {[
-                    { label: `Convenience Speed ${selectedRestaurant.aiOverview.speedScore}/5`, color: '#F9A06F' },
-                    { label: `Health ${selectedRestaurant.aiOverview.healthScore}/10`, color: '#4CD964' },
-                    { label: `Recovery ${selectedRestaurant.aiOverview.workoutRecoveryScore}/10`, color: '#64D9D9' },
-                    { label: `Processed ${selectedRestaurant.aiOverview.processedScore}/10`, color: '#FF6B6B' },
-                    { label: `Date ${selectedRestaurant.aiOverview.dateWorthiness}/5`, color: '#FFD700' },
-                    { label: `Noise ${selectedRestaurant.aiOverview.noiseLevelEstimate}/5`, color: '#C9A0FF' },
-                  ].map(({ label, color }) => (
-                    <View key={label} style={[styles.metaPill, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                      <Text style={[styles.metaText, { color }]}>{label}</Text>
-                    </View>
-                  ))}
-                </View>
-                {selectedRestaurant.aiOverview.whoThisPlaceIsFor ? (
-                  <Text style={[styles.infoSectionBody, { color: theme.subtext, marginTop: 8, fontStyle: 'italic' }]}>{selectedRestaurant.aiOverview.whoThisPlaceIsFor}</Text>
-                ) : null}
-              </View>
-            ) : (
-              <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
-                <View style={styles.infoSectionHeader}>
-                  <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
-                  <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI Overview</Text>
-                </View>
-                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                  {[
-                    { label: `Convenience Speed ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#F9A06F' },
-                    { label: `Health ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#4CD964' },
-                    { label: `Recovery ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#64D9D9' },
-                    { label: `Processed ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#FF6B6B' },
-                    { label: `Date ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#FFD700' },
-                    { label: `Noise ${AI_OVERVIEW_FIELD_PLACEHOLDER}`, color: '#C9A0FF' },
-                  ].map(({ label, color }) => (
-                    <View key={label} style={[styles.metaPill, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                      <Text style={[styles.metaText, { color }]}>{label}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Text style={[styles.infoSectionBody, { color: theme.subtext, marginTop: 8, fontStyle: 'italic' }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-              </View>
-            )}
-
-            <View style={{ height: 28 }} />
+            <View style={{ height: 40 }} />
           </ScrollView>
         )}
       </Animated.View>
@@ -713,6 +868,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
+  sortBtn: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, gap: 5, marginTop: 8,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, borderWidth: 1,
+  },
+  sortPickerContainer: {
+    marginTop: 6, borderRadius: 16, padding: 10, width: 168, maxHeight: 280, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 12, elevation: 12, borderWidth: 1,
+  },
+  sortPickerScroll: { maxHeight: 260 },
   radiusBtn: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, gap: 5,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, borderWidth: 1,
@@ -729,7 +892,6 @@ const styles = StyleSheet.create({
   bottomSheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0, height: height * 0.85, borderTopLeftRadius: 40, borderTopRightRadius: 40,
     shadowOpacity: 0.6, shadowRadius: 25, shadowOffset: { width: 0, height: -10 }, elevation: 25, zIndex: 10000,
-    overflow: 'hidden',
   },
   sheetHandleContainer: { alignItems: 'center', paddingVertical: 15 },
   sheetHandle: { width: 60, height: 6, borderRadius: 3 },
@@ -759,8 +921,40 @@ const styles = StyleSheet.create({
   infoSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
   infoSectionTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
   infoSectionBody: { fontSize: 13, lineHeight: 19 },
-  healthBar: { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden', marginTop: 4 },
-  healthFill: { height: '100%', backgroundColor: '#4CD964', borderRadius: 3 },
+  macrosBlock: { fontSize: 12, lineHeight: 18, marginTop: 12 },
+  aiStripRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
+  aiSquare: {
+    width: 78,
+    minHeight: 88,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    justifyContent: 'flex-start',
+  },
+  aiSquareEmoji: { fontSize: 18, textAlign: 'center', marginBottom: 4 },
+  aiSquareLabel: { fontSize: 10, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
+  aiSquareVal: { fontSize: 13, fontWeight: '800', textAlign: 'center', marginTop: 6 },
+  aiBarCard: {
+    width: 200,
+    minHeight: 88,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  aiBarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
+  aiBarTitle: { fontSize: 12, fontWeight: '700', flex: 1 },
+  aiBarNum: { fontSize: 12, fontWeight: '700' },
+  aiBarTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  aiBarFill: { height: '100%', borderRadius: 4 },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
