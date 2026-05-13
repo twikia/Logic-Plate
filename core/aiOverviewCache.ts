@@ -28,6 +28,18 @@ export type AiOverview = {
   workFriendlyScore: number;
 };
 
+export function mergeAiOverviewsOntoPlaces<T extends { id?: string }>(
+  places: T[],
+  aiById: Map<string, AiOverview>
+): T[] {
+  return places.map(place => {
+    const id = place.id;
+    const ai = id ? aiById.get(id) : undefined;
+    if (!ai) return { ...place };
+    return { ...place, aiOverview: ai, healthScore: ai.healthScore };
+  });
+}
+
 type AiOverviewRow = {
   place_id: string;
   summary_good_bad: string | null;
@@ -80,10 +92,7 @@ export type PlaceSeed = {
     wheelchairAccessibleRestroom?: boolean;
     wheelchairAccessibleSeating?: boolean;
   };
-  priceRange?: {
-    startPrice?: { units?: string; nanos?: number; currencyCode?: string };
-    endPrice?: { units?: string; nanos?: number; currencyCode?: string };
-  };
+  priceRange?: unknown;
 };
 
 const localMemory = new Map<string, AiOverview>();

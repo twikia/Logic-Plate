@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import {
   getCachedAiOverviewsForPlaces,
   invokeGenerateAiOverviewsForPlaces,
+  mergeAiOverviewsOntoPlaces,
   type AiOverview,
 } from './aiOverviewCache';
 
@@ -62,15 +63,7 @@ let restaurantFetchActive = false;
 let restaurantFetchPending: QueuedRestaurantTask | null = null;
 
 const mergeAiOntoPlaces = (finalList: any[], aiById: Map<string, AiOverview>) =>
-  finalList.map(place => {
-    const ai = place.id ? aiById.get(place.id) : undefined;
-    if (!ai) return { ...place };
-    return {
-      ...place,
-      aiOverview: ai,
-      healthScore: ai.healthScore,
-    };
-  });
+  mergeAiOverviewsOntoPlaces(finalList, aiById);
 
 async function loadNearbyRestaurantsInternal(
   userLat: number,

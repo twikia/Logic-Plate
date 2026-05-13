@@ -46,6 +46,7 @@ export default function QuickVoteVoteScreen() {
         params: {
           voterName: `Voter ${parsed.currentVoter}`,
           votedRestaurantName: name,
+          votedPlaceId: restaurant.id,
           restaurantsJson: parsed.restaurantsJson,
           voterCount: String(parsed.voterCount),
           nextVoter: String(parsed.currentVoter + 1),
