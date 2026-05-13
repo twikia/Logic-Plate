@@ -2,15 +2,14 @@ import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
-import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
 import { RestaurantImage } from '@/core/images';
-import { pickSurpriseFromRanked } from '@/core/recommendationFeedback';
 import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
-import { applyRerollDiversityQueue, scoreRestaurantPool } from '@/core/recommendationEngine';
+import { scoreRestaurantPool } from '@/core/recommendationEngine';
 import { getRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
   defaultGroupToSessionChip,
@@ -28,14 +27,19 @@ import {
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
 import { appendVisit, loadVisits } from '@/core/recommendationVisitHistory';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Dimensions,
+  FlatList,
   Linking,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleSheet,
@@ -45,6 +49,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
+
+const WINDOW_WIDTH = Dimensions.get('window').width;
+const CAROUSEL_PAGE = WINDOW_WIDTH;
+
 function openMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
   if (Platform.OS === 'ios') {
@@ -95,10 +103,14 @@ function distanceChipLabel(m: number): string {
 
 function SpotlightCard({
   scored,
+  pickIndex,
+  pickTotal,
   onPress,
   onOpenMap,
 }: {
   scored: ScoredRestaurant;
+  pickIndex: number;
+  pickTotal: number;
   onPress: () => void;
   onOpenMap: () => void;
 }) {
@@ -113,7 +125,9 @@ function SpotlightCard({
 
   return (
     <TouchableOpacity activeOpacity={0.88} style={styles.spotlightCard} onPress={onPress}>
-      <Text style={styles.spotlightBadge}>Your pick</Text>
+      <Text style={styles.spotlightBadge}>
+        Top picks · {pickIndex + 1} / {pickTotal}
+      </Text>
       <View style={styles.spotlightTop}>
         <View style={styles.spotlightThumbWrap}>
           <RestaurantImage
@@ -186,22 +200,21 @@ function SpotlightCard({
 export default function HomeScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const sessionRadiusRef = useRef(4000);
-  const shownPlaceIdsRef = useRef<Set<string>>(new Set());
+  const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
   const [session, setSession] = useState<SessionOverrides | null>(null);
   const [rawPlaces, setRawPlaces] = useState<any[]>([]);
   const [ranked, setRanked] = useState<ScoredRestaurant[]>([]);
-  const [rerollQueue, setRerollQueue] = useState<ScoredRestaurant[]>([]);
-  const [rerollStep, setRerollStep] = useState(0);
+  const [pickIndex, setPickIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [chipModal, setChipModal] = useState<
     null | 'meal' | 'group' | 'budget' | 'distance' | 'mood'
   >(null);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState(20);
 
   const {
@@ -212,6 +225,8 @@ export default function HomeScreen() {
     onOrchestratorProgress,
     snapProgressComplete,
   } = useRestaurantLoadProgress(isLoading, 'health');
+
+  const topTen = useMemo(() => ranked.slice(0, 10), [ranked]);
 
   useEffect(() => {
     void getRecommendationPrefs().then(p => {
@@ -244,13 +259,17 @@ export default function HomeScreen() {
       rainyWeather: rainy === true ? true : undefined,
     });
     setRanked(scored);
-    setRerollQueue(applyRerollDiversityQueue(scored, 2, 10));
-    setRerollStep(0);
+    setPickIndex(0);
+    carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [prefs, session, rawPlaces]);
 
   useEffect(() => {
     void recompute();
   }, [recompute]);
+
+  useEffect(() => {
+    setPickIndex(i => Math.min(i, Math.max(0, topTen.length - 1)));
+  }, [topTen.length]);
 
   const loadSpotlight = useCallback(async () => {
     setIsLoading(true);
@@ -278,7 +297,6 @@ export default function HomeScreen() {
           },
         }
       );
-      shownPlaceIdsRef.current = new Set();
       setRawPlaces(all);
     } catch (e) {
       if (isRestaurantLoadSupersededError(e)) {
@@ -298,24 +316,22 @@ export default function HomeScreen() {
     }
   }, [loadSpotlight, prefs, session?.radiusMeters]);
 
-  const currentScored = useMemo(() => {
-    if (ranked.length === 0) return null;
-    if (rerollStep <= 0) return ranked[0]!;
-    return rerollQueue[rerollStep - 1] ?? null;
-  }, [ranked, rerollQueue, rerollStep]);
+  const goToPick = useCallback((i: number) => {
+    const max = Math.max(0, topTen.length - 1);
+    const next = Math.min(Math.max(0, i), max);
+    setPickIndex(next);
+    carouselRef.current?.scrollToOffset({ offset: next * CAROUSEL_PAGE, animated: true });
+  }, [topTen.length]);
 
-  useEffect(() => {
-    const id = currentScored?.place?.id;
-    if (id) shownPlaceIdsRef.current.add(String(id));
-  }, [currentScored?.place?.id]);
-
-  const canReroll =
-    (rerollStep === 0 && ranked.length > 1) || (rerollStep > 0 && rerollStep < rerollQueue.length);
-
-  const pickReroll = () => {
-    if (!canReroll) return;
-    setRerollStep(s => s + 1);
-  };
+  const onCarouselMomentumEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = e.nativeEvent.contentOffset.x;
+      const i = Math.round(x / CAROUSEL_PAGE);
+      const max = Math.max(0, topTen.length - 1);
+      setPickIndex(Math.min(Math.max(0, i), max));
+    },
+    [topTen.length]
+  );
 
   const openDetails = async (item: ScoredRestaurant) => {
     await appendVisit(String(item.place?.id || ''), String(item.place?.primaryType || ''));
@@ -327,25 +343,8 @@ export default function HomeScreen() {
   const groupLabel = (g: SessionGroupChip) => GROUPS.find(x => x.id === g)?.label ?? g;
   const moodLabel = (m: SessionMood) => MOODS.find(x => x.id === m)?.label ?? m;
 
-  const showFeedbackHint = rerollStep >= 3;
-
-  const applySurprisePick = () => {
-    if (!ranked.length) return;
-    const hit = pickSurpriseFromRanked(
-      ranked,
-      shownPlaceIdsRef.current,
-      currentScored?.place?.primaryType ?? null
-    );
-    if (hit?.place?.id) {
-      setRerollStep(0);
-      const rest = ranked.filter(r => r.place?.id !== hit.place?.id);
-      setRanked([hit, ...rest]);
-      setRerollQueue(applyRerollDiversityQueue([hit, ...rest], 2, 10));
-    }
-    setFeedbackOpen(false);
-  };
-
   const emptyAfterLoad = !isLoading && !errorMsg && ranked.length === 0;
+  const scrollBottomPad = tabBarHeight + 16;
 
   return (
     <LinearGradient
@@ -355,12 +354,14 @@ export default function HomeScreen() {
       style={styles.background}
     >
       <TopProfileButton />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.pageTitle, { color: theme.text }]}>Find your meal</Text>
+          <Text style={[styles.pageTitle, { color: theme.text }]}>Top 10 picks</Text>
+
+          <ScenarioQuickBar />
 
           {prefs && session && !isLoading && !errorMsg && ranked.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
@@ -411,43 +412,69 @@ export default function HomeScreen() {
                 <Text style={styles.retryText}>Refresh</Text>
               </TouchableOpacity>
             </View>
-          ) : currentScored ? (
-            <SpotlightCard
-              scored={currentScored}
-              onPress={() => void openDetails(currentScored)}
-              onOpenMap={() => router.push('/map' as any)}
-            />
+          ) : topTen.length > 0 ? (
+            <View style={styles.galleryBlock}>
+              <FlatList
+                ref={carouselRef}
+                data={topTen}
+                keyExtractor={item => String(item.place?.id ?? '')}
+                horizontal
+                pagingEnabled
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={onCarouselMomentumEnd}
+                getItemLayout={(_, index) => ({
+                  length: CAROUSEL_PAGE,
+                  offset: CAROUSEL_PAGE * index,
+                  index,
+                })}
+                renderItem={({ item, index }) => (
+                  <View style={{ width: CAROUSEL_PAGE, paddingHorizontal: 20 }}>
+                    <SpotlightCard
+                      scored={item}
+                      pickIndex={index}
+                      pickTotal={topTen.length}
+                      onPress={() => void openDetails(item)}
+                      onOpenMap={() => router.push('/map' as any)}
+                    />
+                  </View>
+                )}
+              />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filmstripRow}
+              >
+                {topTen.map((scored, i) => {
+                  const d = Math.abs(i - pickIndex);
+                  const scale = d === 0 ? 1 : d === 1 ? 0.82 : 0.68;
+                  const place = scored.place;
+                  return (
+                    <TouchableOpacity
+                      key={String(place?.id ?? i)}
+                      activeOpacity={0.85}
+                      onPress={() => goToPick(i)}
+                      style={[
+                        styles.filmstripThumb,
+                        { transform: [{ scale }] },
+                        i === pickIndex && styles.filmstripThumbActive,
+                      ]}
+                    >
+                      <RestaurantImage
+                        restaurantId={place.id}
+                        photos={place.photos || []}
+                        width={48}
+                        height={48}
+                        quality={160}
+                        loadDelay={80 + i * 40}
+                        borderRadius={12}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
           ) : null}
-
-          {showFeedbackHint && currentScored && (
-            <TouchableOpacity onPress={() => setFeedbackOpen(true)} style={styles.feedbackHint}>
-              <Text style={styles.feedbackHintText}>Still looking? Try another pick →</Text>
-            </TouchableOpacity>
-          )}
-
-          {!isLoading && !errorMsg && ranked.length > 0 && (
-            <AnimatedPressable
-              onPress={pickReroll}
-              style={[
-                styles.nextBtn,
-                { backgroundColor: theme.cardBackground },
-                !canReroll && { opacity: 0.45 },
-              ]}
-              disabled={!canReroll}
-            >
-              <Ionicons name="shuffle" size={26} color={theme.accent} />
-              <Text style={[styles.nextLabel, { color: theme.text }]}>Reroll</Text>
-            </AnimatedPressable>
-          )}
-
-          <AnimatedPressable
-            onPress={() => router.push('/pick-categories')}
-            style={[styles.specificBtn, { borderColor: 'rgba(255,255,255,0.35)' }]}
-          >
-            <Ionicons name="options-outline" size={22} color={theme.text} />
-            <Text style={[styles.specificLabel, { color: theme.text }]}>Try something specific</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.subtext} />
-          </AnimatedPressable>
         </ScrollView>
       </SafeAreaView>
 
@@ -548,29 +575,6 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-
-      <Modal visible={feedbackOpen} transparent animationType="slide">
-        <View style={styles.feedbackWrap}>
-          <View style={[styles.feedbackCard, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Try another place</Text>
-            <Text style={[styles.feedbackBody, { color: theme.subtext }]}>
-              We will choose a restaurant you have not seen in this round, shuffled among strong matches and
-              biased away from the same cuisine type when possible.
-            </Text>
-            <View style={styles.feedbackActions}>
-              <TouchableOpacity onPress={() => setFeedbackOpen(false)} style={styles.feedbackCancel}>
-                <Text style={{ color: theme.subtext }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={applySurprisePick}
-                style={[styles.feedbackGo, { backgroundColor: theme.accent }]}
-              >
-                <Text style={styles.modalOkText}>Surprise me</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </LinearGradient>
   );
 }
@@ -580,8 +584,31 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingTop: 44 },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100,
     gap: 18,
+  },
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  galleryBlock: { marginHorizontal: -20 },
+  filmstripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  filmstripThumb: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  filmstripThumbActive: {
+    borderColor: '#F9A06F',
   },
   chipScroll: { gap: 8, paddingBottom: 4 },
   chip: {
@@ -594,12 +621,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   chipText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  pageTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
   loadingBox: { marginTop: 12 },
   messageBox: {
     backgroundColor: 'rgba(30,15,30,0.55)',
@@ -679,35 +700,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: -4,
   },
-  nextBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    minHeight: 56,
-    borderRadius: 18,
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  nextLabel: { fontSize: 18, fontWeight: '800' },
-  specificBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    minHeight: 54,
-    borderRadius: 18,
-    borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 16,
-  },
-  specificLabel: { flex: 1, fontSize: 17, fontWeight: '700' },
-  feedbackHint: { alignSelf: 'center', paddingVertical: 6 },
-  feedbackHintText: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: '600' },
   modalRoot: { flex: 1, justifyContent: 'center' },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -725,10 +717,4 @@ const styles = StyleSheet.create({
   budgetShow: { fontSize: 32, fontWeight: '900', textAlign: 'center', marginVertical: 8 },
   modalOk: { marginTop: 12, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   modalOkText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
-  feedbackWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  feedbackCard: { padding: 20, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
-  feedbackBody: { fontSize: 14, lineHeight: 20, marginTop: 4, marginBottom: 4 },
-  feedbackActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16, marginTop: 16 },
-  feedbackCancel: { paddingVertical: 10, paddingHorizontal: 8 },
-  feedbackGo: { borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, minWidth: 80, alignItems: 'center' },
 });

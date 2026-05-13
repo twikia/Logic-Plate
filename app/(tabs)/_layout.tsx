@@ -1,8 +1,9 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -68,6 +69,18 @@ export default function TabLayout() {
   const pathname = usePathname();
   const [lastPress, setLastPress] = useState(0);
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
+
+  const tabBarStyle = useMemo(
+    () => ({
+      backgroundColor: theme.cardBackground,
+      borderTopWidth: 0,
+      height: 52 + insets.bottom,
+      paddingBottom: insets.bottom,
+      paddingTop: 4,
+    }),
+    [theme.cardBackground, insets.bottom]
+  );
 
   const isMap = pathname.startsWith('/map');
   const isSocial = pathname.startsWith('/social');
@@ -79,12 +92,12 @@ export default function TabLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarButton: HapticTab,
+        tabBarStyle,
       }}>
 
       <Tabs.Screen
         name="social"
         options={{
-          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}
@@ -102,7 +115,6 @@ export default function TabLayout() {
       <Tabs.Screen
         name="(home)"
         options={{
-          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <View style={{ flex: 1, alignItems: 'center' }}>
               <AnimatedPressable
@@ -116,20 +128,20 @@ export default function TabLayout() {
                   setLastPress(now);
                 }}
                 style={{
-                  top: -25,
-                  width: 75,
-                  height: 75,
-                  borderRadius: 40,
+                  top: -12,
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
                   backgroundColor: theme.accent,
                   justifyContent: 'center',
                   alignItems: 'center',
                   shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 5,
-                  elevation: 5,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.22,
+                  shadowRadius: 4,
+                  elevation: 4,
                 }}>
-                <Ionicons size={36} name="home" color={theme.text} />
+                <Ionicons size={28} name="home" color={theme.text} />
               </AnimatedPressable>
             </View>
           ),
@@ -139,7 +151,6 @@ export default function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          tabBarStyle: { backgroundColor: theme.cardBackground, borderTopWidth: 0, height: 85, paddingBottom: 20 },
           tabBarButton: (props) => (
             <AnimatedTabIcon
               onPress={props.onPress as () => void}

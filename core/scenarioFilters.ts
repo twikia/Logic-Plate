@@ -24,6 +24,15 @@ export const SCENARIO_LABELS: Record<ScenarioKey, string> = {
   comfort_classics: 'Comfort classics',
 };
 
+export const SCENARIO_EMOJIS: Record<ScenarioKey, string> = {
+  healthiest: '🥗',
+  workplace: '☕',
+  quick_bites: '🍔',
+  date_night: '🍷',
+  vegetarian_forward: '🌿',
+  comfort_classics: '🍕',
+};
+
 function hasType(place: any, type: string) {
   const p = place?.primaryType;
   const t: string[] = place?.types || [];
