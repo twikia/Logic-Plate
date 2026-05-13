@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, PressableProps } from 'react-native';
+import { Pressable, type PressableProps, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -45,3 +45,4 @@ export const AnimatedPressable = React.forwardRef<View, PressableProps>(
   }
 );
 
+AnimatedPressable.displayName = 'AnimatedPressable';

@@ -84,6 +84,7 @@ export default function TabLayout() {
 
   const isMap = pathname.startsWith('/map');
   const isSocial = pathname.startsWith('/social');
+  const isGroups = pathname.startsWith('/groups');
 
   return (
     <Tabs
@@ -104,6 +105,23 @@ export default function TabLayout() {
               isActive={isSocial}
               iconOn="people"
               iconOff="people-outline"
+              iconColor={theme.text}
+              dimColor={theme.subtext}
+              highlightBg={theme.accent}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="groups"
+        options={{
+          tabBarButton: (props) => (
+            <AnimatedTabIcon
+              onPress={props.onPress as () => void}
+              isActive={isGroups}
+              iconOn="people-circle"
+              iconOff="people-circle-outline"
               iconColor={theme.text}
               dimColor={theme.subtext}
               highlightBg={theme.accent}

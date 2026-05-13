@@ -1,0 +1,150 @@
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
+import {
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { RestaurantImage } from '@/core/images';
+import { formatPlacePriceLabel } from '@/core/placePriceLabel';
+import { useAppTheme } from '@/context/ThemeContext';
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
+import {
+  determineWinner,
+  oneLineVibe,
+  type QuickVoteRestaurant,
+} from '@/utils/quickVote';
+
+export default function QuickVoteWinnerScreen() {
+  const { theme } = useAppTheme();
+  const router = useRouter();
+  const raw = useLocalSearchParams();
+  const { formatDistance } = useDistanceFormatter();
+  const { width } = useWindowDimensions();
+  const imgW = Math.min(width - 40, 400);
+
+  const winnerJson = typeof raw.winnerJson === 'string' ? raw.winnerJson : '';
+  const votesJson = typeof raw.votesJson === 'string' ? raw.votesJson : '{}';
+  const restaurantsJson =
+    typeof raw.restaurantsJson === 'string' ? raw.restaurantsJson : '';
+
+  const { winner, restaurants, votes } = useMemo(() => {
+    let restaurantsList: QuickVoteRestaurant[] = [];
+    let votesObj: Record<string, number> = {};
+    try {
+      restaurantsList = JSON.parse(restaurantsJson) as QuickVoteRestaurant[];
+      votesObj = JSON.parse(votesJson) as Record<string, number>;
+    } catch {
+      return { winner: null as QuickVoteRestaurant | null, restaurants: [], votes: {} };
+    }
+    const w =
+      winnerJson && winnerJson.length > 0
+        ? (JSON.parse(winnerJson) as QuickVoteRestaurant)
+        : determineWinner(votesObj, restaurantsList);
+    return { winner: w, restaurants: restaurantsList, votes: votesObj };
+  }, [restaurantsJson, votesJson, winnerJson]);
+
+  if (!winner || !restaurants.length) {
+    return <Redirect href="/groups/quick" />;
+  }
+
+  const lat = winner.location?.latitude;
+  const lng = winner.location?.longitude;
+  const openMaps = () => {
+    if (typeof lat === 'number' && typeof lng === 'number') {
+      Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
+    }
+  };
+
+  const breakdown = [...restaurants]
+    .map((r) => ({ r, c: votes[r.id] ?? 0 }))
+    .filter((x) => x.c > 0)
+    .sort((a, b) => b.c - a.c);
+
+  const maxVotes = Math.max(...breakdown.map((x) => x.c), 1);
+
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={[styles.celebrate, { color: theme.text }]}>{"You're going here 🎉"}</Text>
+        <RestaurantImage
+          restaurantId={winner.id}
+          photos={(winner as { photos?: unknown[] }).photos ?? []}
+          width={imgW}
+          height={Math.round(imgW * 0.55)}
+          borderRadius={16}
+        />
+        <Text style={[styles.title, { color: theme.text }]}>
+          {winner.displayName?.text ?? 'Restaurant'}
+        </Text>
+        <Text style={[styles.summary, { color: theme.subtext }]}>{oneLineVibe(winner)}</Text>
+        <Text style={[styles.meta, { color: theme.subtext }]}>
+          {typeof winner.rating === 'number' ? `⭐ ${winner.rating.toFixed(1)}` : '⭐ —'}
+          {typeof winner.distanceMeters === 'number'
+            ? `  •  ${formatDistance(winner.distanceMeters)}`
+            : ''}
+          {formatPlacePriceLabel(winner as never)
+            ? `  •  ${formatPlacePriceLabel(winner as never)}`
+            : ''}
+        </Text>
+
+        <Text style={[styles.section, { color: theme.text }]}>Vote breakdown</Text>
+        {breakdown.map((row, i) => {
+          const label = row.r.displayName?.text ?? 'Restaurant';
+          const w = Math.round((row.c / maxVotes) * 100);
+          const medal = i === 0 ? '🥇' : '🥈';
+          return (
+            <View key={row.r.id} style={styles.row}>
+              <Text style={[styles.rowLabel, { color: theme.text }]} numberOfLines={1}>
+                {medal} {label}
+              </Text>
+              <View style={[styles.barOuter, { backgroundColor: theme.cardBackground }]}>
+                <View style={[styles.barInner, { width: `${w}%`, backgroundColor: theme.accent }]} />
+              </View>
+              <Text style={[styles.rowCount, { color: theme.subtext }]}>{row.c} votes</Text>
+            </View>
+          );
+        })}
+
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: theme.accent }]}
+          onPress={openMaps}>
+          <Text style={[styles.btnText, { color: theme.text }]}>Open in Maps</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: theme.cardBackground }]}
+          onPress={() => router.replace('/groups/quick')}>
+          <Text style={[styles.btnText, { color: theme.text }]}>Start Over</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1 },
+  scroll: { padding: 20, paddingBottom: 48 },
+  celebrate: { fontSize: 22, fontWeight: '800', marginBottom: 16, textAlign: 'center' },
+  title: { fontSize: 22, fontWeight: '800', marginTop: 16 },
+  summary: { fontSize: 15, marginTop: 8, lineHeight: 21 },
+  meta: { fontSize: 14, marginTop: 10 },
+  section: { fontSize: 18, fontWeight: '700', marginTop: 28, marginBottom: 12 },
+  row: { marginBottom: 14 },
+  rowLabel: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
+  barOuter: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barInner: { height: '100%', borderRadius: 4 },
+  rowCount: { fontSize: 12, marginTop: 4 },
+  btn: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  btnText: { fontSize: 16, fontWeight: '700' },
+});
