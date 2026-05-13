@@ -53,6 +53,19 @@ const FILM_STRIP_WIDTH = WINDOW_WIDTH * FILM_STRIP_FRAC;
 const FILM_CARD_W = (FILM_STRIP_WIDTH - 9 * FILM_GAP) / 10;
 const FILM_CARD_H = FILM_CARD_W * 1.55;
 
+const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
+  { bg: 'rgba(249,115,82,0.62)', border: '#FFD4CC', mark: '#3F0D00' },
+  { bg: 'rgba(250,204,21,0.55)', border: '#FFF7C2', mark: '#3A2800' },
+  { bg: 'rgba(74,222,128,0.52)', border: '#DCFCE7', mark: '#0F2918' },
+  { bg: 'rgba(56,189,248,0.55)', border: '#CFFAFE', mark: '#082F49' },
+  { bg: 'rgba(167,139,250,0.58)', border: '#EDE9FE', mark: '#2E1065' },
+  { bg: 'rgba(244,114,182,0.55)', border: '#FCE7F3', mark: '#4A051E' },
+  { bg: 'rgba(45,212,191,0.52)', border: '#CCFBF1', mark: '#042F2E' },
+  { bg: 'rgba(251,146,60,0.58)', border: '#FFEDD5', mark: '#431407' },
+  { bg: 'rgba(129,140,248,0.55)', border: '#E0E7FF', mark: '#1E1B4B' },
+  { bg: 'rgba(250,112,154,0.55)', border: '#FFE4E9', mark: '#4A0D24' },
+];
+
 function openMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
   if (Platform.OS === 'ios') {
@@ -372,6 +385,8 @@ export default function HomeScreen() {
                 <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
                   {topTen.map((scored, i) => {
                     const place = scored.place;
+                    const pal = FILMSTRIP_PALETTE[i % FILMSTRIP_PALETTE.length];
+                    const active = i === pickIndex;
                     return (
                       <TouchableOpacity
                         key={String(place?.id ?? i)}
@@ -382,11 +397,13 @@ export default function HomeScreen() {
                           {
                             width: FILM_CARD_W,
                             height: FILM_CARD_H,
+                            backgroundColor: pal.bg,
+                            borderColor: active ? theme.accent : pal.border,
                           },
-                          i === pickIndex && styles.filmstripThumbActive,
+                          active && styles.filmstripThumbActive,
                         ]}
                       >
-                        <Text style={styles.filmstripMark}>?</Text>
+                        <Text style={[styles.filmstripMark, { color: pal.mark }]}>?</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -422,22 +439,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   filmstripThumb: {
-    borderRadius: 5,
+    borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.22)',
-    backgroundColor: 'rgba(30,15,30,0.72)',
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   filmstripThumbActive: {
-    borderColor: '#F9A06F',
-    backgroundColor: 'rgba(45,25,45,0.88)',
+    borderWidth: 2.5,
+    shadowColor: '#F9A06F',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.75,
+    shadowRadius: 5,
+    elevation: 5,
   },
   filmstripMark: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '900',
-    color: 'rgba(255,255,255,0.55)',
   },
   loadingBox: { marginTop: 12 },
   messageBox: {
