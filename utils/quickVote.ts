@@ -13,7 +13,8 @@ export interface QuickVoteRestaurant {
   regularSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
   photo_url?: string;
   gemini_summary?: string;
-  aiOverview?: { summaryGoodBad?: string };
+  healthScore?: number;
+  aiOverview?: { summaryGoodBad?: string; healthScore?: number };
   rating?: number;
   formattedAddress?: string;
   location?: { latitude?: number; longitude?: number };

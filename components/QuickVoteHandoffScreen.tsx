@@ -100,13 +100,14 @@ export function QuickVoteHandoffScreen({
   }, [params, router]);
 
   useEffect(() => {
+    const handoffMs = 4000;
     Animated.timing(progress, {
       toValue: 0,
-      duration: 500,
+      duration: handoffMs,
       useNativeDriver: false,
     }).start();
 
-    const timer = setTimeout(advance, 500);
+    const timer = setTimeout(advance, handoffMs);
     return () => clearTimeout(timer);
   }, [advance, progress]);
 
