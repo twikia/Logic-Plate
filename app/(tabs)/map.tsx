@@ -56,11 +56,13 @@ function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
-      <View collapsable={false} style={styles.markerDrawBounds}>
+      <View collapsable={false} style={styles.markerRoot}>
         <View style={styles.markerWrap}>
           <View style={[styles.markerPill, { borderColor: accentColor }]}>
-            <Ionicons name={iconName} size={22} color={accentColor} />
-            <Text style={styles.markerLabel}>{scoreText}</Text>
+            <Ionicons name={iconName} size={20} color={accentColor} />
+            <Text style={styles.markerLabel} numberOfLines={1}>
+              {scoreText}
+            </Text>
           </View>
           <View style={[styles.markerTip, { backgroundColor: accentColor }]} />
         </View>
@@ -678,16 +680,12 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
-  markerDrawBounds: {
+  markerRoot: {
     alignItems: 'center',
     justifyContent: 'flex-end',
+    paddingTop: 10,
+    paddingHorizontal: 12,
     overflow: 'visible',
-    paddingLeft: 18,
-    paddingRight: 28,
-    paddingTop: 14,
-    paddingBottom: 22,
-    minWidth: 120,
-    minHeight: 72,
   },
   markerWrap: {
     alignItems: 'center',
@@ -696,15 +694,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A0A1A',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 2.5,
-    gap: 7,
+    gap: 5,
   },
   markerLabel: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     letterSpacing: -0.3,
   },

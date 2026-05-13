@@ -258,29 +258,29 @@ function RestaurantRow({
           <RestaurantImage
             restaurantId={item.id}
             photos={item.photos || []}
-            width={56}
-            height={56}
+            width={52}
+            height={52}
             quality={200}
             loadDelay={400}
-            borderRadius={12}
+            borderRadius={11}
           />
         </View>
 
-        <View style={{ flex: 1 }}>
+        <View style={styles.rowTextCol}>
           <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
           <View style={styles.rowMeta}>
             {typeof item.rating === 'number' && item.rating > 0 ? (
               <View style={styles.metaPill}>
-                <Ionicons name="star" size={10} color="#FBBF24" />
+                <Ionicons name="star" size={9} color="#FBBF24" />
                 <Text style={[styles.metaText, styles.rowMapsRating]}>{item.rating.toFixed(1)}</Text>
               </View>
             ) : null}
             <View style={styles.metaPill}>
-              <Ionicons name="ribbon-outline" size={10} color="#A78BFA" />
+              <Ionicons name="ribbon-outline" size={9} color="#A78BFA" />
               <Text style={styles.rowPlateboundScore}>{overall > 0 ? overall.toFixed(1) : '—'}</Text>
             </View>
             <View style={styles.metaPill}>
-              <Ionicons name="heart-outline" size={10} color="#4CD964" />
+              <Ionicons name="heart-outline" size={9} color="#4CD964" />
               <Text style={[styles.metaText, { color: '#4CD964' }]}>
                 {healthNum != null ? `${healthNum.toFixed(1)}/10` : '—'}
               </Text>
@@ -291,7 +291,7 @@ function RestaurantRow({
               </View>
             ) : null}
             <View style={styles.metaPill}>
-              <Ionicons name="navigate-outline" size={10} color="#F9A06F" />
+              <Ionicons name="navigate-outline" size={9} color="#F9A06F" />
               <Text style={styles.metaText}>{dist}</Text>
             </View>
           </View>
@@ -991,7 +991,7 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
 
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: 'rgba(30,15,30,0.55)', borderRadius: 16,
     marginBottom: 10, padding: 10,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
@@ -1000,30 +1000,32 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    minWidth: 0,
   },
+  rowTextCol: { flex: 1, minWidth: 0 },
   rowSelected: {
     borderColor: 'rgba(249,115,82,0.5)',
     backgroundColor: 'rgba(249,115,82,0.1)',
   },
-  thumbWrap: { width: 56, height: 56, borderRadius: 12, overflow: 'hidden' },
-  thumb: { width: 56, height: 56 },
+  thumbWrap: { width: 52, height: 52, borderRadius: 11, overflow: 'hidden' },
+  thumb: { width: 52, height: 52 },
   skeletonThumb: {
-    width: 56, height: 56, borderRadius: 12,
+    width: 52, height: 52, borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
 
-  rowName: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', marginBottom: 5 },
-  rowMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  rowName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
+  rowMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   metaPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8,
-    paddingHorizontal: 6, paddingVertical: 3,
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 7,
+    paddingHorizontal: 5, paddingVertical: 2,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
-  metaText: { fontSize: 11, color: 'rgba(255,255,255,0.65)' },
-  rowMapsRating: { fontSize: 11, color: '#FBBF24', fontWeight: '700' },
-  rowPlateboundScore: { fontSize: 11, color: '#C4B5FD', fontWeight: '800' },
+  metaText: { fontSize: 10, color: 'rgba(255,255,255,0.65)' },
+  rowMapsRating: { fontSize: 10, color: '#FBBF24', fontWeight: '700' },
+  rowPlateboundScore: { fontSize: 10, color: '#C4B5FD', fontWeight: '800' },
 
   checkbox: {
     width: 26, height: 26, borderRadius: 13,
