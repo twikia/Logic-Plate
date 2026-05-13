@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const BATCH_SIZE = 5;
 
-const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 type InputPlace = {
   id: string;

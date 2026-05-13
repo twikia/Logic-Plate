@@ -15,11 +15,8 @@ import {
   defaultGroupToSessionChip,
   inferMealTypeFromClock,
   radiusIdToMeters,
-  type MealTypeContext,
   type RecommendationPrefsV1,
   type ScoredRestaurant,
-  type SessionGroupChip,
-  type SessionMood,
   type SessionOverrides,
 } from '@/core/recommendationTypes';
 import {
@@ -37,7 +34,6 @@ import {
   Dimensions,
   FlatList,
   Linking,
-  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -48,10 +44,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Slider from '@react-native-community/slider';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
 const CAROUSEL_PAGE = WINDOW_WIDTH;
+const FILM_STRIP_FRAC = 0.66;
+const FILM_GAP = 2;
+const FILM_STRIP_WIDTH = WINDOW_WIDTH * FILM_STRIP_FRAC;
+const FILM_CARD_W = (FILM_STRIP_WIDTH - 9 * FILM_GAP) / 10;
+const FILM_CARD_H = FILM_CARD_W * 1.55;
 
 function openMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
@@ -64,41 +64,6 @@ function openMaps(name: string, lat: number, lng: number) {
       Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encoded}`)
     );
   }
-}
-
-const MEALS: { id: MealTypeContext; label: string }[] = [
-  { id: 'breakfast', label: 'Breakfast' },
-  { id: 'lunch', label: 'Lunch' },
-  { id: 'snack', label: 'Snack' },
-  { id: 'dinner', label: 'Dinner' },
-  { id: 'late_night', label: 'Late night' },
-];
-
-const GROUPS: { id: SessionGroupChip; label: string }[] = [
-  { id: 'solo', label: 'Solo' },
-  { id: 'partner', label: 'Partner' },
-  { id: 'small_group', label: 'Small group' },
-  { id: 'big_group', label: 'Big group' },
-];
-
-const DIST_OPTS: { meters: number; label: string }[] = [
-  { meters: 800, label: 'Walking' },
-  { meters: 3000, label: 'Short drive' },
-  { meters: 8000, label: 'Worth the trip' },
-];
-
-const MOODS: { id: SessionMood; label: string }[] = [
-  { id: 'comfort', label: 'Comfort' },
-  { id: 'light', label: 'Light' },
-  { id: 'adventurous', label: 'Adventurous' },
-  { id: 'quick', label: 'Quick' },
-  { id: 'special', label: 'Special occasion' },
-];
-
-function distanceChipLabel(m: number): string {
-  if (m <= 900) return 'Walking';
-  if (m <= 3500) return 'Short drive';
-  return 'Worth the trip';
 }
 
 function SpotlightCard({
@@ -212,10 +177,6 @@ export default function HomeScreen() {
   const [pickIndex, setPickIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [chipModal, setChipModal] = useState<
-    null | 'meal' | 'group' | 'budget' | 'distance' | 'mood'
-  >(null);
-  const [budgetDraft, setBudgetDraft] = useState(20);
 
   const {
     loadingStage,
@@ -339,10 +300,6 @@ export default function HomeScreen() {
     router.push('/random-result');
   };
 
-  const mealLabel = (m: MealTypeContext) => MEALS.find(x => x.id === m)?.label ?? m;
-  const groupLabel = (g: SessionGroupChip) => GROUPS.find(x => x.id === g)?.label ?? g;
-  const moodLabel = (m: SessionMood) => MOODS.find(x => x.id === m)?.label ?? m;
-
   const emptyAfterLoad = !isLoading && !errorMsg && ranked.length === 0;
   const scrollBottomPad = tabBarHeight + 16;
 
@@ -362,35 +319,6 @@ export default function HomeScreen() {
           <Text style={[styles.pageTitle, { color: theme.text }]}>Top 10 picks</Text>
 
           <ScenarioQuickBar />
-
-          {prefs && session && !isLoading && !errorMsg && ranked.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
-              <TouchableOpacity style={styles.chip} onPress={() => setChipModal('meal')}>
-                <Text style={styles.chipText}>{mealLabel(session.mealType)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.chip} onPress={() => setChipModal('group')}>
-                <Text style={styles.chipText}>{groupLabel(session.groupSize)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.chip}
-                onPress={() => {
-                  setBudgetDraft(session.budgetCeiling);
-                  setChipModal('budget');
-                }}
-              >
-                <Text style={styles.chipText}>~${Math.round(session.budgetCeiling)}pp</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.chip} onPress={() => setChipModal('distance')}>
-                <Text style={styles.chipText}>{distanceChipLabel(session.radiusMeters)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.chip}
-                onPress={() => setChipModal('mood')}
-              >
-                <Text style={styles.chipText}>{session.sessionMood ? moodLabel(session.sessionMood) : '+ mood'}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          )}
 
           {isLoading ? (
             <RestaurantLoadingProgressBar
@@ -440,141 +368,34 @@ export default function HomeScreen() {
                   </View>
                 )}
               />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filmstripRow}
-              >
-                {topTen.map((scored, i) => {
-                  const d = Math.abs(i - pickIndex);
-                  const scale = d === 0 ? 1 : d === 1 ? 0.82 : 0.68;
-                  const place = scored.place;
-                  return (
-                    <TouchableOpacity
-                      key={String(place?.id ?? i)}
-                      activeOpacity={0.85}
-                      onPress={() => goToPick(i)}
-                      style={[
-                        styles.filmstripThumb,
-                        { transform: [{ scale }] },
-                        i === pickIndex && styles.filmstripThumbActive,
-                      ]}
-                    >
-                      <RestaurantImage
-                        restaurantId={place.id}
-                        photos={place.photos || []}
-                        width={48}
-                        height={48}
-                        quality={160}
-                        loadDelay={80 + i * 40}
-                        borderRadius={12}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
+                <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
+                  {topTen.map((scored, i) => {
+                    const place = scored.place;
+                    return (
+                      <TouchableOpacity
+                        key={String(place?.id ?? i)}
+                        activeOpacity={0.85}
+                        onPress={() => goToPick(i)}
+                        style={[
+                          styles.filmstripThumb,
+                          {
+                            width: FILM_CARD_W,
+                            height: FILM_CARD_H,
+                          },
+                          i === pickIndex && styles.filmstripThumbActive,
+                        ]}
+                      >
+                        <Text style={styles.filmstripMark}>?</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
           ) : null}
         </ScrollView>
       </SafeAreaView>
-
-      <Modal visible={chipModal !== null} transparent animationType="fade">
-        <View style={styles.modalRoot}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setChipModal(null)} />
-          <View style={[styles.modalCard, { backgroundColor: theme.cardBackground }]}>
-          {chipModal === 'meal' &&
-            MEALS.map(m => (
-              <TouchableOpacity
-                key={m.id}
-                style={styles.modalRow}
-                onPress={() => {
-                  setSession(s => (s ? { ...s, mealType: m.id } : s));
-                  setChipModal(null);
-                }}
-              >
-                <Text style={[styles.modalRowText, { color: theme.text }]}>{m.label}</Text>
-              </TouchableOpacity>
-            ))}
-          {chipModal === 'group' &&
-            GROUPS.map(m => (
-              <TouchableOpacity
-                key={m.id}
-                style={styles.modalRow}
-                onPress={() => {
-                  setSession(s => (s ? { ...s, groupSize: m.id } : s));
-                  setChipModal(null);
-                }}
-              >
-                <Text style={[styles.modalRowText, { color: theme.text }]}>{m.label}</Text>
-              </TouchableOpacity>
-            ))}
-          {chipModal === 'budget' && session && (
-            <View style={{ paddingVertical: 8 }}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Budget per person</Text>
-              <Text style={[styles.budgetShow, { color: theme.accent }]}>${Math.round(budgetDraft)}</Text>
-              <Slider
-                minimumValue={5}
-                maximumValue={100}
-                step={1}
-                value={budgetDraft}
-                onValueChange={setBudgetDraft}
-                minimumTrackTintColor={theme.accent}
-                maximumTrackTintColor="rgba(255,255,255,0.15)"
-                thumbTintColor="#FFFFFF"
-              />
-              <TouchableOpacity
-                style={[styles.modalOk, { backgroundColor: theme.accent }]}
-                onPress={() => {
-                  setSession(s => (s ? { ...s, budgetCeiling: budgetDraft } : s));
-                  setChipModal(null);
-                }}
-              >
-                <Text style={styles.modalOkText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          {chipModal === 'distance' &&
-            DIST_OPTS.map(d => (
-              <TouchableOpacity
-                key={d.meters}
-                style={styles.modalRow}
-                onPress={() => {
-                  setSession(s => (s ? { ...s, radiusMeters: d.meters } : s));
-                  setChipModal(null);
-                  void loadSpotlight();
-                }}
-              >
-                <Text style={[styles.modalRowText, { color: theme.text }]}>{d.label}</Text>
-              </TouchableOpacity>
-            ))}
-          {chipModal === 'mood' && (
-            <View>
-              <TouchableOpacity
-                style={styles.modalRow}
-                onPress={() => {
-                  setSession(s => (s ? { ...s, sessionMood: null } : s));
-                  setChipModal(null);
-                }}
-              >
-                <Text style={[styles.modalRowText, { color: theme.subtext }]}>Clear mood</Text>
-              </TouchableOpacity>
-              {MOODS.map(m => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={styles.modalRow}
-                  onPress={() => {
-                    setSession(s => (s ? { ...s, sessionMood: m.id } : s));
-                    setChipModal(null);
-                  }}
-                >
-                  <Text style={[styles.modalRowText, { color: theme.text }]}>{m.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          </View>
-        </View>
-      </Modal>
     </LinearGradient>
   );
 }
@@ -593,34 +414,31 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   galleryBlock: { marginHorizontal: -20 },
+  filmstripWrap: { alignSelf: 'center' },
   filmstripRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   filmstripThumb: {
-    borderRadius: 14,
+    borderRadius: 5,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(30,15,30,0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   filmstripThumbActive: {
     borderColor: '#F9A06F',
+    backgroundColor: 'rgba(45,25,45,0.88)',
   },
-  chipScroll: { gap: 8, paddingBottom: 4 },
-  chip: {
-    backgroundColor: 'rgba(30,15,30,0.55)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    marginRight: 8,
+  filmstripMark: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.55)',
   },
-  chipText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   loadingBox: { marginTop: 12 },
   messageBox: {
     backgroundColor: 'rgba(30,15,30,0.55)',
@@ -700,21 +518,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: -4,
   },
-  modalRoot: { flex: 1, justifyContent: 'center' },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  modalCard: {
-    marginHorizontal: 24,
-    borderRadius: 18,
-    padding: 8,
-    maxHeight: '50%',
-  },
-  modalRow: { paddingVertical: 14, paddingHorizontal: 12 },
-  modalRowText: { fontSize: 16, fontWeight: '600' },
-  modalTitle: { fontSize: 17, fontWeight: '800', marginBottom: 8 },
-  budgetShow: { fontSize: 32, fontWeight: '900', textAlign: 'center', marginVertical: 8 },
-  modalOk: { marginTop: 12, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  modalOkText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
 });
