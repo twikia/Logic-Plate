@@ -10,7 +10,7 @@ export function TopProfileButton() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { top: Math.max(insets.top, 20) }]}>
+    <View style={[styles.container, { top: Math.max(insets.top, 20) + 12 }]}>
       <Link href={"/profile" as any} asChild>
         <AnimatedPressable>
           {({ pressed }) => (

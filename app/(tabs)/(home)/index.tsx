@@ -7,8 +7,8 @@ import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
+import type { AiOverview } from '@/core/aiOverviewCache';
 import { isPlaceLikelyOpenNow } from '@/core/isOpenNow';
-import { RestaurantImage } from '@/core/images';
 import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
 import { scoreRestaurantPool } from '@/core/recommendationEngine';
 import { getRecommendationPrefs } from '@/core/recommendationPrefs';
@@ -38,15 +38,21 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  type DimensionValue,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Svg, { Polygon } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
+const WINDOW_HEIGHT = Dimensions.get('window').height;
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const FILM_STRIP_FRAC = 0.66;
 const FILM_GAP = 2;
@@ -99,6 +105,123 @@ function openMaps(name: string, lat: number, lng: number) {
   }
 }
 
+function clampScore(v: number, max: number) {
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(max, v));
+}
+
+function polygonRing(cx: number, cy: number, radius: number, n: number) {
+  return Array.from({ length: n }, (_, i) => {
+    const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return `${cx + radius * Math.cos(t)},${cy + radius * Math.sin(t)}`;
+  }).join(' ');
+}
+
+function MatchShapeRadar({ raw, stroke }: { raw: ScoredRestaurant['raw']; stroke: string }) {
+  const n = 5;
+  const vals = [raw.distance, raw.health, raw.price, raw.rating, raw.novelty].map(v => clampScore(v, 100));
+  const cx = 50;
+  const cy = 52;
+  const R = 36;
+  const fillPts = vals
+    .map((v, i) => {
+      const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      const r = (v / 100) * R;
+      return `${cx + r * Math.cos(t)},${cy + r * Math.sin(t)}`;
+    })
+    .join(' ');
+  const labels = ['Near', 'Health', 'Value', 'Rated', 'Novel'];
+  return (
+    <View style={styles.radarBlock}>
+      <Svg width="100%" height={118} viewBox="0 0 100 104" preserveAspectRatio="xMidYMid meet">
+        <Polygon points={polygonRing(cx, cy, R * 0.35, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
+        <Polygon points={polygonRing(cx, cy, R * 0.68, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
+        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.16)" strokeWidth={0.45} />
+        <Polygon points={fillPts} fill={`${stroke}55`} stroke={stroke} strokeWidth={1.1} strokeLinejoin="round" />
+      </Svg>
+      <View style={styles.radarLabelRow}>
+        {labels.map(l => (
+          <Text key={l} style={styles.radarLabel}>
+            {l}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function EngineStatBars({ raw }: { raw: ScoredRestaurant['raw'] }) {
+  const rows: { label: string; value: number; colors: [string, string] }[] = [
+    { label: 'Distance fit', value: raw.distance, colors: ['#7DD3FC', '#38BDF8'] },
+    { label: 'Health signal', value: raw.health, colors: ['#86EFAC', '#4ADE80'] },
+    { label: 'Price fit', value: raw.price, colors: ['#FDE68A', '#FBBF24'] },
+    { label: 'Rating signal', value: raw.rating, colors: ['#FBCFE8', '#F472B6'] },
+    { label: 'Novelty', value: raw.novelty, colors: ['#C4B5FD', '#A78BFA'] },
+  ];
+  return (
+    <View style={styles.engineBars}>
+      {rows.map(row => {
+        return (
+          <View key={row.label} style={styles.engineBarRow}>
+            <Text style={styles.engineBarLabel}>{row.label}</Text>
+            <View style={styles.engineBarTrack}>
+              <View style={[styles.engineBarFillWrap, { width: `${clampScore(row.value, 100)}%` as DimensionValue }]}>
+                <LinearGradient
+                  colors={row.colors}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+              </View>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function AiScoreColumn({ label, value, tint }: { label: string; value: number; tint: string }) {
+  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const pct = `${clampScore(v, 10) * 10}%` as DimensionValue;
+  return (
+    <View style={styles.aiCol}>
+      <View style={styles.aiColTrack}>
+        <View style={[styles.aiColFillWrap, { height: pct }]}>
+          <LinearGradient colors={[tint, `${tint}33`]} style={StyleSheet.absoluteFillObject} />
+        </View>
+      </View>
+      <Text style={styles.aiColVal}>{v.toFixed(1)}</Text>
+      <Text style={styles.aiColLbl} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function AiInsightDeck({ ai, accent }: { ai: AiOverview; accent: string }) {
+  const cols = [
+    { label: 'Health', v: ai.healthScore },
+    { label: 'Taste', v: ai.tasteScore },
+    { label: 'Value', v: ai.valueForMoneyScore },
+    { label: 'Speed', v: ai.speedScore },
+    { label: 'Date', v: ai.dateWorthiness },
+    { label: 'Solo', v: ai.soloDinerScore },
+    { label: 'Work', v: ai.workFriendlyScore },
+    { label: 'Protein', v: ai.proteinScore },
+  ];
+  return (
+    <View style={styles.aiDeck}>
+      <Text style={styles.sectionTitle}>AI taste profile</Text>
+      <View style={styles.aiColRow}>
+        {cols.map(c => (
+          <AiScoreColumn key={c.label} label={c.label} value={c.v} tint={accent} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function SpotlightCard({
   scored,
   canReject,
@@ -112,6 +235,7 @@ function SpotlightCard({
   onPress: () => void;
   onOpenMap: () => void;
 }) {
+  const { theme } = useAppTheme();
   const place = scored.place;
   const name = place.displayName?.text || 'Unknown';
   const lat = place.location?.latitude;
@@ -120,87 +244,159 @@ function SpotlightCard({
   const { formatDistance } = useDistanceFormatter();
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
   const match = Math.round(scored.plateboundScore);
+  const ai = place.aiOverview as AiOverview | null | undefined;
+  const reviewCount =
+    typeof place.userRatingCount === 'number' && place.userRatingCount > 0
+      ? `${place.userRatingCount.toLocaleString()} reviews`
+      : null;
+
+  const ty = useSharedValue(0);
+  const opacity = useSharedValue(1);
+
+  const rejectRef = useRef(onReject);
+  rejectRef.current = onReject;
+  const fireReject = useCallback(() => {
+    rejectRef.current();
+  }, []);
+
+  const playDismissAnim = useCallback(() => {
+    const target = WINDOW_HEIGHT * 0.55;
+    ty.value = withTiming(target, { duration: 280 }, finished => {
+      if (finished) runOnJS(fireReject)();
+    });
+    opacity.value = withTiming(0, { duration: 260 });
+  }, [fireReject, opacity, ty]);
+
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(canReject)
+        .activeOffsetY(12)
+        .failOffsetX([-36, 36])
+        .onUpdate(e => {
+          if (e.translationY > 0) {
+            ty.value = e.translationY;
+            opacity.value = Math.max(0.35, 1 - e.translationY / 420);
+          }
+        })
+        .onEnd(e => {
+          const drop = ty.value > 110 || e.velocityY > 700;
+          if (drop) {
+            const target = WINDOW_HEIGHT * 0.55;
+            ty.value = withTiming(target, { duration: 280 }, finished => {
+              if (finished) runOnJS(fireReject)();
+            });
+            opacity.value = withTiming(0, { duration: 260 });
+          } else {
+            ty.value = withSpring(0, { damping: 18, stiffness: 220 });
+            opacity.value = withSpring(1);
+          }
+        }),
+    [canReject, fireReject, ty, opacity]
+  );
+
+  const cardAnim = useAnimatedStyle(() => ({
+    transform: [{ translateY: ty.value }],
+    opacity: opacity.value,
+  }));
 
   return (
-    <TouchableOpacity activeOpacity={0.88} style={styles.spotlightCard} onPress={onPress}>
-      {canReject ? (
-        <TouchableOpacity
-          style={styles.spotlightReject}
-          onPress={e => {
-            e.stopPropagation();
-            onReject();
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={22} color="rgba(255,255,255,0.92)" />
-        </TouchableOpacity>
-      ) : null}
-      <View style={styles.spotlightTop}>
-        <View style={styles.spotlightThumbWrap}>
-          <RestaurantImage
-            restaurantId={place.id}
-            photos={place.photos || []}
-            width={96}
-            height={96}
-            quality={240}
-            loadDelay={200}
-            borderRadius={16}
-          />
-        </View>
-        <View style={styles.spotlightInfo}>
-          <Text style={styles.spotlightTitle} numberOfLines={2}>
-            {name}
-          </Text>
-          <Text style={styles.spotlightSub} numberOfLines={1}>
-            {formatDistance(Math.round(place.distanceMeters ?? 0))} away
-            {rating ? ` · ${rating}` : ''}
-          </Text>
-          <Text style={styles.matchLine}>
-            {match}% match
-          </Text>
-        </View>
-      </View>
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[styles.spotlightCard, cardAnim]}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.spotlightPressLayer} onPress={onPress}>
+          {canReject ? (
+            <TouchableOpacity
+              style={styles.spotlightReject}
+              onPress={e => {
+                e.stopPropagation();
+                playDismissAnim();
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={22} color="rgba(255,255,255,0.92)" />
+            </TouchableOpacity>
+          ) : null}
 
-      <View style={styles.pillRow}>
-        {scored.matchPills.map(p => (
-          <View key={p.kind} style={styles.pill}>
-            <Text style={styles.pillEmoji}>{p.emoji}</Text>
-            <Text style={styles.pillLabel} numberOfLines={1}>
-              {p.label}
-            </Text>
+          <View style={styles.spotlightHeroRow}>
+            <View style={styles.spotlightTitleBlock}>
+              <Text style={styles.spotlightTitle} numberOfLines={3}>
+                {name}
+              </Text>
+              <Text style={styles.spotlightSub} numberOfLines={2}>
+                {formatDistance(Math.round(place.distanceMeters ?? 0))} away
+                {rating ? ` · ${rating}★` : ''}
+                {reviewCount ? ` · ${reviewCount}` : ''}
+              </Text>
+            </View>
+            <View style={styles.matchOrb}>
+              <LinearGradient colors={['#FDBA74', '#F97352']} style={styles.matchOrbGrad}>
+                <Text style={styles.matchOrbPct}>{match}</Text>
+                <Text style={styles.matchOrbLbl}>match</Text>
+              </LinearGradient>
+            </View>
           </View>
-        ))}
-      </View>
 
-      <View style={styles.spotlightActions}>
-        <TouchableOpacity
-          style={[styles.spotlightAction, styles.spotlightActionPrimary, !mapsReady && styles.spotlightActionDisabled]}
-          onPress={e => {
-            e.stopPropagation();
-            if (!mapsReady) return;
-            openMaps(name, lat, lng);
-          }}
-        >
-          <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
-          <Text style={styles.spotlightActionText} numberOfLines={1}>
-            {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-          </Text>
+          <View style={styles.pillRow}>
+            {scored.matchPills.map(p => (
+              <View key={p.kind} style={styles.pill}>
+                <Text style={styles.pillEmoji}>{p.emoji}</Text>
+                <Text style={styles.pillLabel} numberOfLines={1}>
+                  {p.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <Text style={styles.sectionTitle}>Score shape</Text>
+          <MatchShapeRadar raw={scored.raw} stroke={theme.accent} />
+          <EngineStatBars raw={scored.raw} />
+
+          {ai ? (
+            <>
+              <LinearGradient colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.02)']} style={styles.aiOverviewShell}>
+                <Text style={styles.sectionTitle}>AI overview</Text>
+                <Text style={styles.aiOverviewBody}>{ai.summaryGoodBad}</Text>
+              </LinearGradient>
+              <AiInsightDeck ai={ai} accent={theme.accent} />
+            </>
+          ) : (
+            <View style={styles.aiOverviewShell}>
+              <Text style={styles.sectionTitle}>AI overview</Text>
+              <Text style={styles.aiOverviewMuted}>Insights appear here once this place is enriched.</Text>
+            </View>
+          )}
+
+          <View style={styles.spotlightActions}>
+            <TouchableOpacity
+              style={[styles.spotlightAction, styles.spotlightActionPrimary, !mapsReady && styles.spotlightActionDisabled]}
+              onPress={e => {
+                e.stopPropagation();
+                if (!mapsReady) return;
+                openMaps(name, lat, lng);
+              }}
+            >
+              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
+              <Text style={styles.spotlightActionText} numberOfLines={1}>
+                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.spotlightAction, styles.spotlightActionGhost]}
+              onPress={e => {
+                e.stopPropagation();
+                onOpenMap();
+              }}
+            >
+              <Ionicons name="map-outline" size={16} color="#F9A06F" />
+              <Text style={[styles.spotlightActionText, styles.spotlightGhostText]} numberOfLines={1}>
+                Map tab
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.spotlightHint}>Swipe down or tap the close control to skip · tap card for details</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.spotlightAction, styles.spotlightActionGhost]}
-          onPress={e => {
-            e.stopPropagation();
-            onOpenMap();
-          }}
-        >
-          <Ionicons name="map-outline" size={16} color="#F9A06F" />
-          <Text style={[styles.spotlightActionText, styles.spotlightGhostText]} numberOfLines={1}>
-            Map tab
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.spotlightHint}>Tap card for full details</Text>
-    </TouchableOpacity>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -220,6 +416,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const visibleLenRef = useRef(-1);
   const pickIndexRef = useRef(0);
   pickIndexRef.current = pickIndex;
@@ -311,8 +508,11 @@ export default function HomeScreen() {
     }
   }, [visibleList.length, pickIndex]);
 
-  const loadSpotlight = useCallback(async () => {
-    setIsLoading(true);
+  const loadSpotlight = useCallback(async (opts?: { skipFullScreenLoader?: boolean }) => {
+    const skipLoader = opts?.skipFullScreenLoader === true;
+    if (!skipLoader) {
+      setIsLoading(true);
+    }
     setErrorMsg(null);
     startGpsPhase();
     try {
@@ -346,9 +546,20 @@ export default function HomeScreen() {
       setRawPlaces([]);
     } finally {
       snapProgressComplete();
-      setIsLoading(false);
+      if (!skipLoader) {
+        setIsLoading(false);
+      }
     }
-  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase]);
+  }, [onOrchestratorProgress, prefs, snapProgressComplete, startFetchPhase, startGpsPhase]);
+
+  const onPullRefresh = useCallback(async () => {
+    setPullRefreshing(true);
+    try {
+      await loadSpotlight({ skipFullScreenLoader: true });
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [loadSpotlight]);
 
   useEffect(() => {
     if (prefs && session) {
@@ -395,6 +606,14 @@ export default function HomeScreen() {
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={pullRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor="#F97352"
+              colors={['#F97352', '#F9A06F']}
+            />
+          }
         >
           <Text style={[styles.pageTitle, { color: theme.text }]}>Top 10 picks</Text>
 
@@ -409,21 +628,21 @@ export default function HomeScreen() {
           ) : errorMsg ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>{errorMsg}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={loadSpotlight}>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
                 <Text style={styles.retryText}>Try again</Text>
               </TouchableOpacity>
             </View>
           ) : noPlacesAtAll ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>No restaurants matched your filters nearby.</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={loadSpotlight}>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
                 <Text style={styles.retryText}>Refresh</Text>
               </TouchableOpacity>
             </View>
           ) : noOpenPlaces ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>No open restaurants nearby right now.</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={loadSpotlight}>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
                 <Text style={styles.retryText}>Refresh</Text>
               </TouchableOpacity>
             </View>
@@ -444,7 +663,7 @@ export default function HomeScreen() {
                   index,
                 })}
                 renderItem={({ item }) => (
-                  <View style={{ width: CAROUSEL_PAGE, paddingHorizontal: 20 }}>
+                  <View style={{ width: CAROUSEL_PAGE, paddingHorizontal: 10 }}>
                     <SpotlightCard
                       scored={item}
                       canReject={visibleList.length > 1}
@@ -463,7 +682,7 @@ export default function HomeScreen() {
                     const pal = FILMSTRIP_PALETTE[i % FILMSTRIP_PALETTE.length];
                     const active = i === pickIndex;
                     const dist = Math.abs(i - pickIndex);
-                    const scale = dist === 0 ? 1.14 : dist === 1 ? 1.06 : 1;
+                    const scale = dist === 0 ? 1.46 : dist === 1 ? 0.94 : 0.78;
                     const iconName = stripIconForPlaceId(pid);
                     return (
                       <TouchableOpacity
@@ -499,9 +718,10 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   background: { flex: 1 },
-  safeArea: { flex: 1, paddingTop: 44 },
+  safeArea: { flex: 1, paddingTop: 56 },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 18,
     gap: 18,
   },
   pageTitle: {
@@ -552,46 +772,157 @@ const styles = StyleSheet.create({
   },
   retryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
   spotlightCard: {
-    backgroundColor: 'rgba(30,15,30,0.58)',
-    borderRadius: 22,
-    padding: 16,
+    alignSelf: 'center',
+    width: '100%',
+    backgroundColor: 'rgba(22,10,28,0.72)',
+    borderRadius: 26,
+    paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    gap: 14,
+    borderColor: 'rgba(255,255,255,0.12)',
     overflow: 'visible',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
+    elevation: 12,
+  },
+  spotlightPressLayer: {
+    padding: 18,
+    gap: 12,
   },
   spotlightReject: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 12,
+    right: 12,
     zIndex: 4,
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  spotlightTop: { flexDirection: 'row', gap: 14, alignItems: 'center' },
-  spotlightThumbWrap: { width: 96, height: 96, borderRadius: 16, overflow: 'hidden' },
-  spotlightInfo: { flex: 1, gap: 4 },
-  spotlightTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-  spotlightSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
-  matchLine: { fontSize: 16, color: '#BFF5B8', fontWeight: '800', marginTop: 4 },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  spotlightHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  spotlightTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 48,
+    gap: 6,
+  },
+  spotlightTitle: {
+    fontSize: 23,
+    lineHeight: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  spotlightSub: { fontSize: 12, color: 'rgba(255,255,255,0.62)' },
+  matchOrb: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    overflow: 'hidden',
+  },
+  matchOrbGrad: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+  },
+  matchOrbPct: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', marginTop: -2 },
+  matchOrbLbl: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.88)',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     maxWidth: '100%',
   },
-  pillEmoji: { fontSize: 14 },
-  pillLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600', flexShrink: 1 },
-  spotlightActions: { flexDirection: 'row', gap: 10 },
+  pillEmoji: { fontSize: 11 },
+  pillLabel: { color: 'rgba(255,255,255,0.82)', fontSize: 10, fontWeight: '600', flexShrink: 1 },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 4,
+  },
+  radarBlock: { marginTop: 2 },
+  radarLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginTop: -6,
+  },
+  radarLabel: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.45)',
+  },
+  engineBars: { gap: 8, marginTop: 4 },
+  engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  engineBarLabel: { width: 108, fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+  engineBarTrack: {
+    flex: 1,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  engineBarFillWrap: { height: '100%', borderRadius: 5, overflow: 'hidden' },
+  aiOverviewShell: {
+    marginTop: 6,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    gap: 8,
+  },
+  aiOverviewBody: { fontSize: 14, lineHeight: 21, color: 'rgba(255,255,255,0.86)' },
+  aiOverviewMuted: { fontSize: 13, lineHeight: 19, color: 'rgba(255,255,255,0.48)' },
+  aiDeck: { marginTop: 4, gap: 8 },
+  aiColRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 5,
+    marginTop: 4,
+  },
+  aiCol: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5 },
+  aiColTrack: {
+    width: '100%',
+    height: 76,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  aiColFillWrap: {
+    width: '100%',
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    minHeight: 3,
+    overflow: 'hidden',
+  },
+  aiColVal: { fontSize: 10, fontWeight: '800', color: '#FFFFFF' },
+  aiColLbl: { fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.45)', textAlign: 'center' },
+  spotlightActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   spotlightAction: {
     flex: 1,
     flexDirection: 'row',
@@ -612,9 +943,9 @@ const styles = StyleSheet.create({
   spotlightActionText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   spotlightGhostText: { color: '#F9A06F' },
   spotlightHint: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.4)',
     textAlign: 'center',
-    marginTop: -4,
+    marginTop: 2,
   },
 });
