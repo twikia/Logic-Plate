@@ -4,14 +4,18 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RestaurantImage } from '@/core/images';
 import type { ThemeColors } from '@/constants/Themes';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
-import { oneLineVibe, type QuickVoteRestaurant } from '@/utils/quickVote';
+import {
+  healthTierFromPrimaryType,
+  oneLineVibe,
+  type QuickVoteRestaurant,
+} from '@/utils/quickVote';
 
 function healthScoreOf(r: QuickVoteRestaurant): number | null {
   const fromAi = r.aiOverview?.healthScore;
   if (typeof fromAi === 'number' && Number.isFinite(fromAi)) return fromAi;
   const top = (r as { healthScore?: unknown }).healthScore;
   if (typeof top === 'number' && Number.isFinite(top)) return top;
-  return null;
+  return healthTierFromPrimaryType(r.primaryType);
 }
 
 function aiOverviewBody(r: QuickVoteRestaurant): string {
@@ -19,6 +23,8 @@ function aiOverviewBody(r: QuickVoteRestaurant): string {
   if (g) return g;
   const s = r.aiOverview?.summaryGoodBad?.trim();
   if (s) return s;
+  const ed = r.editorialSummary?.text?.trim();
+  if (ed) return ed;
   return '';
 }
 
@@ -28,6 +34,7 @@ type Props = {
   onVote?: () => void;
   showThumbnail?: boolean;
   hideTitle?: boolean;
+  belowOverview?: React.ReactNode;
 };
 
 export function QuickVoteRestaurantCard({
@@ -36,6 +43,7 @@ export function QuickVoteRestaurantCard({
   onVote,
   showThumbnail = true,
   hideTitle = false,
+  belowOverview,
 }: Props) {
   const { formatDistance } = useDistanceFormatter();
   const health = healthScoreOf(r);
@@ -90,6 +98,7 @@ export function QuickVoteRestaurantCard({
           <Text style={[styles.overview, { color: theme.subtext }]}>
             {overview || 'No overview yet for this place.'}
           </Text>
+          {belowOverview}
           {!overview && vibeLine ? (
             <Text style={[styles.vibe, { color: theme.subtext }]} numberOfLines={3}>
               {vibeLine}

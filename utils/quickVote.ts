@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
 import { isOpenNow } from '@/core/isOpenNow';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -21,6 +22,30 @@ export interface QuickVoteRestaurant {
   priceRange?: unknown;
   priceLevel?: string;
   distanceMeters?: number;
+  editorialSummary?: { text?: string };
+}
+
+const PRIMARY_TYPE_HEALTH_TIER: Record<string, number> = {
+  japanese_restaurant: 5,
+  sushi_restaurant: 5,
+  vietnamese_restaurant: 5,
+  mediterranean_restaurant: 4,
+  greek_restaurant: 4,
+  indian_restaurant: 4,
+  mexican_restaurant: 3,
+  italian_restaurant: 3,
+  chinese_restaurant: 3,
+  american_restaurant: 2,
+  hamburger_restaurant: 1,
+  pizza_restaurant: 2,
+  fast_food_restaurant: 1,
+};
+
+export function healthTierFromPrimaryType(primaryType: string | undefined): number | null {
+  if (!primaryType) return null;
+  const tier = PRIMARY_TYPE_HEALTH_TIER[primaryType];
+  if (tier == null) return null;
+  return Math.min(10, Math.max(0, tier * 2));
 }
 
 function isProbablyOpen(r: QuickVoteRestaurant): boolean {
@@ -55,7 +80,8 @@ export async function loadCachedRestaurants(): Promise<QuickVoteRestaurant[]> {
     }
   }
 
-  return all;
+  const ai = await getCachedAiOverviewsForPlaces(all);
+  return mergeAiOverviewsOntoPlaces(all, ai);
 }
 
 export function pickQuickVoteRestaurants(all: QuickVoteRestaurant[]): QuickVoteRestaurant[] {
@@ -95,7 +121,11 @@ export function determineWinner(
 }
 
 export function oneLineVibe(r: QuickVoteRestaurant): string {
-  const raw = r.gemini_summary ?? r.aiOverview?.summaryGoodBad ?? '';
+  const raw =
+    r.gemini_summary ??
+    r.aiOverview?.summaryGoodBad ??
+    r.editorialSummary?.text ??
+    '';
   const line = raw.split('\n')[0]?.trim() ?? '';
   return line.length > 120 ? `${line.slice(0, 117)}…` : line;
 }

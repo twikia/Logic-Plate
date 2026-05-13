@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,7 +19,6 @@ export default function QuickVoteSetupScreen() {
   const [picks, setPicks] = useState<QuickVoteRestaurant[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [cacheError, setCacheError] = useState(false);
-  const didNavigate = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,9 +41,8 @@ export default function QuickVoteSetupScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (loading || cacheError || !picks || picks.length < 5 || didNavigate.current) return;
-    didNavigate.current = true;
+  const start = () => {
+    if (!picks || picks.length < 5) return;
     router.replace({
       pathname: '/groups/quick/preview',
       params: {
@@ -53,7 +51,7 @@ export default function QuickVoteSetupScreen() {
         votesJson: JSON.stringify({}),
       },
     });
-  }, [loading, cacheError, picks, router]);
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
@@ -74,7 +72,11 @@ export default function QuickVoteSetupScreen() {
             Not enough nearby restaurants loaded yet. Go back and let the map load your area first.
           </Text>
         ) : (
-          <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 32 }} />
+          <TouchableOpacity
+            style={[styles.startBtn, { backgroundColor: theme.accent }]}
+            onPress={start}>
+            <Text style={[styles.startBtnText, { color: theme.text }]}>Start voting</Text>
+          </TouchableOpacity>
         )}
       </View>
     </SafeAreaView>
@@ -95,4 +97,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', marginTop: 8 },
   sub: { fontSize: 17, marginTop: 8 },
   warn: { marginTop: 24, fontSize: 16, lineHeight: 22 },
+  startBtn: {
+    marginTop: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  startBtnText: { fontSize: 18, fontWeight: '800' },
 });

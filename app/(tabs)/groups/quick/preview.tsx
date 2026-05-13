@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -35,8 +35,6 @@ function parsePreviewParams(raw: Record<string, string | string[] | undefined>) 
   return { restaurants, voterCount, votesJson, restaurantsJson };
 }
 
-const PREVIEW_MS = 4000;
-
 export default function QuickVotePreviewScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
@@ -54,8 +52,6 @@ export default function QuickVotePreviewScreen() {
       }),
     [restaurantsJsonKey, voterCountKey, votesJsonKey]
   );
-  const advanceRef = useRef<(() => void) | null>(null);
-  const didAdvance = useRef(false);
 
   const [allCached, setAllCached] = useState<QuickVoteRestaurant[] | null>(null);
 
@@ -64,8 +60,7 @@ export default function QuickVotePreviewScreen() {
   }, []);
 
   const goVote = useCallback(() => {
-    if (!parsed || didAdvance.current) return;
-    didAdvance.current = true;
+    if (!parsed) return;
     router.replace({
       pathname: '/groups/quick/vote',
       params: {
@@ -77,21 +72,11 @@ export default function QuickVotePreviewScreen() {
     });
   }, [parsed, router]);
 
-  advanceRef.current = goVote;
-
-  useEffect(() => {
-    if (!parsed) return;
-    didAdvance.current = false;
-    const t = setTimeout(() => advanceRef.current?.(), PREVIEW_MS);
-    return () => clearTimeout(t);
-  }, [parsed, restaurantsJsonKey, voterCountKey, votesJsonKey]);
-
   const reroll = useCallback(() => {
     if (!parsed) return;
     const pool = allCached ?? [];
     const next = pickQuickVoteRestaurants(pool);
     if (next.length < 5) return;
-    didAdvance.current = false;
     router.replace({
       pathname: '/groups/quick/preview',
       params: {
@@ -114,13 +99,10 @@ export default function QuickVotePreviewScreen() {
         <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
           <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={goVote} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Skip</Text>
-        </TouchableOpacity>
       </View>
       <Text style={[styles.header, { color: theme.text }]}>{"Tonight's picks"}</Text>
       <Text style={[styles.sub, { color: theme.subtext }]}>
-        {voterCount} voters · starting vote in a few seconds
+        {voterCount} voters · review the list, then confirm to begin
       </Text>
       {!allCached ? (
         <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />
@@ -132,10 +114,16 @@ export default function QuickVotePreviewScreen() {
       </ScrollView>
       <View style={styles.footer}>
         <TouchableOpacity
+          style={[styles.confirm, { backgroundColor: theme.accent }]}
+          onPress={goVote}>
+          <Text style={[styles.confirmText, { color: theme.text }]}>Confirm & begin voting</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[
             styles.rerollBig,
             {
-              backgroundColor: theme.accent,
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.subtext + '33',
               opacity: !allCached || allCached.length < 10 ? 0.45 : 1,
             },
           ]}
@@ -158,7 +146,7 @@ const styles = StyleSheet.create({
   },
   header: { fontSize: 22, fontWeight: '800', paddingHorizontal: 16, marginTop: 12 },
   sub: { fontSize: 14, paddingHorizontal: 16, marginTop: 6, marginBottom: 8 },
-  list: { padding: 16, paddingBottom: 120, gap: 14 },
+  list: { padding: 16, paddingBottom: 200, gap: 14 },
   footer: {
     position: 'absolute',
     left: 0,
@@ -166,11 +154,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     padding: 16,
     paddingBottom: 20,
+    gap: 12,
   },
-  rerollBig: {
+  confirm: {
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
   },
-  rerollBigText: { fontSize: 18, fontWeight: '800' },
+  confirmText: { fontSize: 18, fontWeight: '800' },
+  rerollBig: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  rerollBigText: { fontSize: 16, fontWeight: '700' },
 });

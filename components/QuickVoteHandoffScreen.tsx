@@ -1,14 +1,10 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useCallback } from 'react';
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
+import { useAppTheme } from '@/context/ThemeContext';
 import {
   determineWinner,
   type QuickVoteRestaurant,
@@ -17,6 +13,7 @@ import {
 type Params = {
   voterName: string;
   votedRestaurantName: string;
+  votedPlaceId: string;
   restaurantsJson: string;
   voterCount: number;
   nextVoter: number;
@@ -29,6 +26,7 @@ export function parseQuickVoteHandoffParams(
   const voterName = typeof raw.voterName === 'string' ? raw.voterName : '';
   const votedRestaurantName =
     typeof raw.votedRestaurantName === 'string' ? raw.votedRestaurantName : '';
+  const votedPlaceId = typeof raw.votedPlaceId === 'string' ? raw.votedPlaceId : '';
   const restaurantsJson =
     typeof raw.restaurantsJson === 'string' ? raw.restaurantsJson : '';
   const votesJson = typeof raw.votesJson === 'string' ? raw.votesJson : '';
@@ -46,6 +44,7 @@ export function parseQuickVoteHandoffParams(
   return {
     voterName,
     votedRestaurantName,
+    votedPlaceId,
     restaurantsJson,
     voterCount,
     nextVoter: Number.isFinite(nextVoter) ? nextVoter : 1,
@@ -53,15 +52,27 @@ export function parseQuickVoteHandoffParams(
   };
 }
 
+const HANDOFF_MS = 8000;
+
 export function QuickVoteHandoffScreen({
   params,
 }: {
   params: Params;
 }) {
+  const { theme } = useAppTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const progress = useRef(new Animated.Value(1)).current;
   const didAdvance = useRef(false);
+
+  const chosenRestaurant = useMemo(() => {
+    if (!params.votedPlaceId) return null;
+    try {
+      const rest = JSON.parse(params.restaurantsJson) as QuickVoteRestaurant[];
+      return rest.find((r) => r.id === params.votedPlaceId) ?? null;
+    } catch {
+      return null;
+    }
+  }, [params.restaurantsJson, params.votedPlaceId]);
 
   const advance = useCallback(() => {
     if (didAdvance.current) return;
@@ -100,14 +111,13 @@ export function QuickVoteHandoffScreen({
   }, [params, router]);
 
   useEffect(() => {
-    const handoffMs = 4000;
     Animated.timing(progress, {
       toValue: 0,
-      duration: handoffMs,
+      duration: HANDOFF_MS,
       useNativeDriver: false,
     }).start();
 
-    const timer = setTimeout(advance, handoffMs);
+    const timer = setTimeout(advance, HANDOFF_MS);
     return () => clearTimeout(timer);
   }, [advance, progress]);
 
@@ -117,62 +127,73 @@ export function QuickVoteHandoffScreen({
   });
 
   return (
-    <Pressable style={[styles.root, { paddingTop: insets.top }]} onPress={advance}>
-      <View style={styles.inner}>
-        <Text style={styles.line1}>{params.voterName} picked</Text>
-        <Text style={styles.restaurant}>{params.votedRestaurantName}</Text>
-        <Text style={styles.pass}>
-          {params.nextVoter <= params.voterCount
-            ? `Pass to Voter ${params.nextVoter}`
-            : 'Tallying results…'}
-        </Text>
-        <View style={styles.barTrack}>
-          <Animated.View style={[styles.barFill, { width: barWidth }]} />
-        </View>
-      </View>
-    </Pressable>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+      <Pressable style={styles.pressFlex} onPress={advance}>
+        <ScrollView
+          contentContainerStyle={styles.scrollInner}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          <Text style={[styles.line1, { color: theme.subtext }]}>{params.voterName} picked</Text>
+          <Text style={[styles.restaurant, { color: theme.text }]}>{params.votedRestaurantName}</Text>
+          {chosenRestaurant ? (
+            <View style={styles.cardWrap}>
+              <QuickVoteRestaurantCard
+                restaurant={chosenRestaurant}
+                theme={theme}
+                showThumbnail
+              />
+            </View>
+          ) : null}
+          <Text style={[styles.pass, { color: theme.subtext }]}>
+            {params.nextVoter <= params.voterCount
+              ? `Pass to Voter ${params.nextVoter}`
+              : 'Tallying results…'}
+          </Text>
+          <Text style={[styles.tapHint, { color: theme.subtext }]}>Tap anywhere to continue</Text>
+          <View style={[styles.barTrack, { backgroundColor: theme.subtext + '22' }]}>
+            <Animated.View style={[styles.barFill, { width: barWidth, backgroundColor: theme.accent }]} />
+          </View>
+        </ScrollView>
+      </Pressable>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#0a0a0c',
-    justifyContent: 'center',
+  safe: { flex: 1 },
+  pressFlex: { flex: 1 },
+  scrollInner: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
     alignItems: 'center',
-  },
-  inner: {
-    paddingHorizontal: 28,
-    alignItems: 'center',
-    width: '100%',
   },
   line1: {
-    color: 'rgba(255,255,255,0.65)',
     fontSize: 17,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   restaurant: {
-    color: '#fff',
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
+  cardWrap: { width: '100%', maxWidth: 520, marginBottom: 16 },
   pass: {
-    color: 'rgba(255,255,255,0.85)',
     fontSize: 18,
-    marginBottom: 32,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
   },
+  tapHint: { fontSize: 14, marginBottom: 20 },
   barTrack: {
     height: 4,
     width: '80%',
-    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 2,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#7dd3fc',
     borderRadius: 2,
   },
 });
