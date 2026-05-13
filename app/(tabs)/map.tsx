@@ -23,6 +23,7 @@ import {
   compareRestaurantsBySort,
   getSortValue,
   lerpRedGreen,
+  markerSortColorForOpenState,
   sortGoodness01,
 } from '@/core/restaurantSort';
 
@@ -466,7 +467,8 @@ export default function MapScreen() {
         ) : null}
         {sortedMarkers.map((item) => {
           const goodness = sortGoodness01(item, mapSortBy, radius);
-          const markerColor = lerpRedGreen(goodness);
+          const sortColor = lerpRedGreen(goodness);
+          const markerColor = markerSortColorForOpenState(sortColor, isOpenNow(item));
           const displayScore = formatMarkerSortLabel(item, mapSortBy, formatDistance);
           return (
             <RestaurantMarker

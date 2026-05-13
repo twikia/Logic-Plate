@@ -151,3 +151,33 @@ export function lerpRedGreen(t: number): string {
   const h = (n: number) => n.toString(16).padStart(2, '0');
   return `#${h(r)}${h(g)}${h(b)}`;
 }
+
+function parseHexRgb(hex: string): { r: number; g: number; b: number } | null {
+  const s = hex.trim().replace('#', '');
+  if (s.length !== 6) return null;
+  const r = parseInt(s.slice(0, 2), 16);
+  const g = parseInt(s.slice(2, 4), 16);
+  const b = parseInt(s.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return null;
+  return { r, g, b };
+}
+
+export function blendHexTowardsGrey(hex: string, mix: number): string {
+  const p = parseHexRgb(hex);
+  if (!p) return hex;
+  const u = Math.max(0, Math.min(1, mix));
+  const gr = 118;
+  const gg = 118;
+  const gb = 122;
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  const r = clamp(p.r + (gr - p.r) * u);
+  const g = clamp(p.g + (gg - p.g) * u);
+  const b = clamp(p.b + (gb - p.b) * u);
+  const h = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+export function markerSortColorForOpenState(sortColor: string, isOpen: boolean): string {
+  if (isOpen) return sortColor;
+  return blendHexTowardsGrey(sortColor, 0.42);
+}
