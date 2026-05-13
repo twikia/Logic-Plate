@@ -79,3 +79,11 @@ export function isOpenNow(place: any): boolean {
   }
   return false;
 }
+
+export function isPlaceLikelyOpenNow(place: any): boolean {
+  const cur = place?.currentOpeningHours;
+  if (cur && typeof cur.openNow === 'boolean') {
+    return cur.openNow === true;
+  }
+  return isOpenNow(place);
+}

@@ -7,6 +7,7 @@ import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
+import { isPlaceLikelyOpenNow } from '@/core/isOpenNow';
 import { RestaurantImage } from '@/core/images';
 import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
 import { scoreRestaurantPool } from '@/core/recommendationEngine';
@@ -29,7 +30,7 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -52,6 +53,25 @@ const FILM_GAP = 2;
 const FILM_STRIP_WIDTH = WINDOW_WIDTH * FILM_STRIP_FRAC;
 const FILM_CARD_W = (FILM_STRIP_WIDTH - 9 * FILM_GAP) / 10;
 const FILM_CARD_H = FILM_CARD_W * 1.55;
+
+const FILMSTRIP_ICONS: React.ComponentProps<typeof Ionicons>['name'][] = [
+  'restaurant-outline',
+  'fast-food-outline',
+  'wine-outline',
+  'cafe-outline',
+  'pizza-outline',
+  'ice-cream-outline',
+  'nutrition-outline',
+  'fish-outline',
+];
+
+function stripIconForPlaceId(id: string): React.ComponentProps<typeof Ionicons>['name'] {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) | 0;
+  }
+  return FILMSTRIP_ICONS[Math.abs(h) % FILMSTRIP_ICONS.length] ?? 'restaurant-outline';
+}
 
 const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
   { bg: 'rgba(249,115,82,0.62)', border: '#FFD4CC', mark: '#3F0D00' },
@@ -81,14 +101,14 @@ function openMaps(name: string, lat: number, lng: number) {
 
 function SpotlightCard({
   scored,
-  pickIndex,
-  pickTotal,
+  canReject,
+  onReject,
   onPress,
   onOpenMap,
 }: {
   scored: ScoredRestaurant;
-  pickIndex: number;
-  pickTotal: number;
+  canReject: boolean;
+  onReject: () => void;
   onPress: () => void;
   onOpenMap: () => void;
 }) {
@@ -103,9 +123,18 @@ function SpotlightCard({
 
   return (
     <TouchableOpacity activeOpacity={0.88} style={styles.spotlightCard} onPress={onPress}>
-      <Text style={styles.spotlightBadge}>
-        Top picks · {pickIndex + 1} / {pickTotal}
-      </Text>
+      {canReject ? (
+        <TouchableOpacity
+          style={styles.spotlightReject}
+          onPress={e => {
+            e.stopPropagation();
+            onReject();
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={22} color="rgba(255,255,255,0.92)" />
+        </TouchableOpacity>
+      ) : null}
       <View style={styles.spotlightTop}>
         <View style={styles.spotlightThumbWrap}>
           <RestaurantImage
@@ -190,6 +219,10 @@ export default function HomeScreen() {
   const [pickIndex, setPickIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
+  const visibleLenRef = useRef(-1);
+  const pickIndexRef = useRef(0);
+  pickIndexRef.current = pickIndex;
 
   const {
     loadingStage,
@@ -200,7 +233,31 @@ export default function HomeScreen() {
     snapProgressComplete,
   } = useRestaurantLoadProgress(isLoading, 'health');
 
-  const topTen = useMemo(() => ranked.slice(0, 10), [ranked]);
+  const openRanked = useMemo(
+    () => ranked.filter(r => isPlaceLikelyOpenNow(r.place)),
+    [ranked]
+  );
+
+  const visibleList = useMemo(() => {
+    return openRanked.filter(r => !rejectedIds.has(String(r.place?.id ?? ''))).slice(0, 10);
+  }, [openRanked, rejectedIds]);
+
+  const rejectPickAt = useCallback(
+    (placeId: string) => {
+      setRejectedIds(prev => {
+        const curList = openRanked.filter(r => !prev.has(String(r.place?.id ?? ''))).slice(0, 10);
+        if (curList.length <= 1) return prev;
+        const idx = curList.findIndex(r => String(r.place?.id ?? '') === placeId);
+        if (idx < 0) return prev;
+        const p = pickIndexRef.current;
+        if (idx < p) setPickIndex(p - 1);
+        else if (idx > p) setPickIndex(p);
+        else setPickIndex(Math.min(p, curList.length - 2));
+        return new Set(prev).add(placeId);
+      });
+    },
+    [openRanked]
+  );
 
   useEffect(() => {
     void getRecommendationPrefs().then(p => {
@@ -233,6 +290,7 @@ export default function HomeScreen() {
       rainyWeather: rainy === true ? true : undefined,
     });
     setRanked(scored);
+    setRejectedIds(new Set());
     setPickIndex(0);
     carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [prefs, session, rawPlaces]);
@@ -242,8 +300,16 @@ export default function HomeScreen() {
   }, [recompute]);
 
   useEffect(() => {
-    setPickIndex(i => Math.min(i, Math.max(0, topTen.length - 1)));
-  }, [topTen.length]);
+    setPickIndex(i => Math.min(i, Math.max(0, visibleList.length - 1)));
+  }, [visibleList.length]);
+
+  useLayoutEffect(() => {
+    if (visibleList.length !== visibleLenRef.current) {
+      visibleLenRef.current = visibleList.length;
+      const i = Math.min(Math.max(0, pickIndex), Math.max(0, visibleList.length - 1));
+      carouselRef.current?.scrollToOffset({ offset: i * CAROUSEL_PAGE, animated: false });
+    }
+  }, [visibleList.length, pickIndex]);
 
   const loadSpotlight = useCallback(async () => {
     setIsLoading(true);
@@ -291,20 +357,20 @@ export default function HomeScreen() {
   }, [loadSpotlight, prefs, session?.radiusMeters]);
 
   const goToPick = useCallback((i: number) => {
-    const max = Math.max(0, topTen.length - 1);
+    const max = Math.max(0, visibleList.length - 1);
     const next = Math.min(Math.max(0, i), max);
     setPickIndex(next);
     carouselRef.current?.scrollToOffset({ offset: next * CAROUSEL_PAGE, animated: true });
-  }, [topTen.length]);
+  }, [visibleList.length]);
 
   const onCarouselMomentumEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const x = e.nativeEvent.contentOffset.x;
       const i = Math.round(x / CAROUSEL_PAGE);
-      const max = Math.max(0, topTen.length - 1);
+      const max = Math.max(0, visibleList.length - 1);
       setPickIndex(Math.min(Math.max(0, i), max));
     },
-    [topTen.length]
+    [visibleList.length]
   );
 
   const openDetails = async (item: ScoredRestaurant) => {
@@ -313,7 +379,8 @@ export default function HomeScreen() {
     router.push('/random-result');
   };
 
-  const emptyAfterLoad = !isLoading && !errorMsg && ranked.length === 0;
+  const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
+  const noOpenPlaces = !isLoading && !errorMsg && ranked.length > 0 && openRanked.length === 0;
   const scrollBottomPad = tabBarHeight + 16;
 
   return (
@@ -346,18 +413,25 @@ export default function HomeScreen() {
                 <Text style={styles.retryText}>Try again</Text>
               </TouchableOpacity>
             </View>
-          ) : emptyAfterLoad ? (
+          ) : noPlacesAtAll ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>No restaurants matched your filters nearby.</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={loadSpotlight}>
                 <Text style={styles.retryText}>Refresh</Text>
               </TouchableOpacity>
             </View>
-          ) : topTen.length > 0 ? (
+          ) : noOpenPlaces ? (
+            <View style={styles.messageBox}>
+              <Text style={styles.messageText}>No open restaurants nearby right now.</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={loadSpotlight}>
+                <Text style={styles.retryText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+          ) : visibleList.length > 0 ? (
             <View style={styles.galleryBlock}>
               <FlatList
                 ref={carouselRef}
-                data={topTen}
+                data={visibleList}
                 keyExtractor={item => String(item.place?.id ?? '')}
                 horizontal
                 pagingEnabled
@@ -369,12 +443,12 @@ export default function HomeScreen() {
                   offset: CAROUSEL_PAGE * index,
                   index,
                 })}
-                renderItem={({ item, index }) => (
+                renderItem={({ item }) => (
                   <View style={{ width: CAROUSEL_PAGE, paddingHorizontal: 20 }}>
                     <SpotlightCard
                       scored={item}
-                      pickIndex={index}
-                      pickTotal={topTen.length}
+                      canReject={visibleList.length > 1}
+                      onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
                       onPress={() => void openDetails(item)}
                       onOpenMap={() => router.push('/map' as any)}
                     />
@@ -383,13 +457,17 @@ export default function HomeScreen() {
               />
               <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
                 <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
-                  {topTen.map((scored, i) => {
+                  {visibleList.map((scored, i) => {
                     const place = scored.place;
+                    const pid = String(place?.id ?? i);
                     const pal = FILMSTRIP_PALETTE[i % FILMSTRIP_PALETTE.length];
                     const active = i === pickIndex;
+                    const dist = Math.abs(i - pickIndex);
+                    const scale = dist === 0 ? 1.14 : dist === 1 ? 1.06 : 1;
+                    const iconName = stripIconForPlaceId(pid);
                     return (
                       <TouchableOpacity
-                        key={String(place?.id ?? i)}
+                        key={pid}
                         activeOpacity={0.85}
                         onPress={() => goToPick(i)}
                         style={[
@@ -399,11 +477,13 @@ export default function HomeScreen() {
                             height: FILM_CARD_H,
                             backgroundColor: pal.bg,
                             borderColor: active ? theme.accent : pal.border,
+                            transform: [{ scale }],
+                            zIndex: active ? 2 : 1,
                           },
                           active && styles.filmstripThumbActive,
                         ]}
                       >
-                        <Text style={[styles.filmstripMark, { color: pal.mark }]}>?</Text>
+                        <Ionicons name={iconName} size={17} color={pal.mark} />
                       </TouchableOpacity>
                     );
                   })}
@@ -436,11 +516,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 12,
   },
   filmstripThumb: {
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: 'visible',
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
@@ -452,10 +532,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.75,
     shadowRadius: 5,
     elevation: 5,
-  },
-  filmstripMark: {
-    fontSize: 15,
-    fontWeight: '900',
   },
   loadingBox: { marginTop: 12 },
   messageBox: {
@@ -482,14 +558,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     gap: 14,
+    overflow: 'visible',
   },
-  spotlightBadge: {
-    alignSelf: 'flex-start',
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#F9A06F',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+  spotlightReject: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   spotlightTop: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   spotlightThumbWrap: { width: 96, height: 96, borderRadius: 16, overflow: 'hidden' },

@@ -1,4 +1,3 @@
-import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import {
   SCENARIO_EMOJIS,
   SCENARIO_LABELS,
@@ -14,12 +13,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
-const AUTO_SCROLL_MS = 48;
-const AUTO_SCROLL_DELTA = 0.65;
+const AUTO_SCROLL_MS = 52;
+const AUTO_SCROLL_DELTA = 1.1;
 const SCENARIO_TRIPLE = [...SCENARIO_ORDER, ...SCENARIO_ORDER, ...SCENARIO_ORDER];
+const USER_PAUSE_MS = 2200;
+const PRESS_IN_DELAY_MS = 140;
 
 export function ScenarioQuickBar() {
   const router = useRouter();
@@ -30,6 +32,20 @@ export function ScenarioQuickBar() {
   const layoutWRef = useRef(0);
   const didInitialJumpRef = useRef(false);
   const suppressScrollSyncRef = useRef(false);
+  const userDraggingRef = useRef(false);
+  const autoScrollPausedRef = useRef(false);
+  const resumeAutoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pauseAutoScroll = useCallback(() => {
+    autoScrollPausedRef.current = true;
+    if (resumeAutoTimerRef.current) clearTimeout(resumeAutoTimerRef.current);
+    resumeAutoTimerRef.current = setTimeout(() => {
+      resumeAutoTimerRef.current = null;
+      if (!userDraggingRef.current) {
+        autoScrollPausedRef.current = false;
+      }
+    }, USER_PAUSE_MS);
+  }, []);
 
   const jumpMargin = useCallback(() => {
     const w = singleCopyWRef.current;
@@ -77,7 +93,12 @@ export function ScenarioQuickBar() {
         scrollXRef.current = e.nativeEvent.contentOffset.x;
         return;
       }
-      let x = e.nativeEvent.contentOffset.x;
+      const raw = e.nativeEvent.contentOffset.x;
+      if (userDraggingRef.current) {
+        scrollXRef.current = raw;
+        return;
+      }
+      let x = raw;
       x = fixLoopBoundaries(x);
       scrollXRef.current = x;
     },
@@ -102,7 +123,14 @@ export function ScenarioQuickBar() {
   );
 
   useEffect(() => {
+    return () => {
+      if (resumeAutoTimerRef.current) clearTimeout(resumeAutoTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     const id = setInterval(() => {
+      if (autoScrollPausedRef.current || userDraggingRef.current) return;
       const singleW = singleCopyWRef.current;
       const layoutW = layoutWRef.current;
       if (singleW < 80 || layoutW < 40) return;
@@ -118,11 +146,22 @@ export function ScenarioQuickBar() {
     return () => clearInterval(id);
   }, [jumpMargin]);
 
+  const syncLoopAfterUserScroll = useCallback(() => {
+    const singleW = singleCopyWRef.current;
+    const layoutW = layoutWRef.current;
+    if (singleW < 80 || layoutW < 40) return;
+    let x = scrollXRef.current;
+    x = fixLoopBoundaries(x);
+    scrollXRef.current = x;
+  }, [fixLoopBoundaries]);
+
   const chips = useMemo(
     () =>
       SCENARIO_TRIPLE.map((scenario, i) => (
-        <AnimatedPressable
+        <TouchableOpacity
           key={`${i}-${scenario}`}
+          activeOpacity={0.82}
+          delayPressIn={PRESS_IN_DELAY_MS}
           style={[
             styles.chip,
             {
@@ -138,19 +177,44 @@ export function ScenarioQuickBar() {
           <Text style={[styles.label, { color: theme.text }]} numberOfLines={1}>
             {SCENARIO_LABELS[scenario]}
           </Text>
-        </AnimatedPressable>
+        </TouchableOpacity>
       )),
     [router, theme.glassBackground, theme.text]
   );
 
   return (
-    <View style={styles.wrap}>
+    <View
+      style={styles.wrap}
+      onTouchStart={() => {
+        pauseAutoScroll();
+      }}
+      onTouchEnd={() => {
+        pauseAutoScroll();
+      }}
+      onTouchCancel={() => {
+        pauseAutoScroll();
+      }}
+    >
       <ScrollView
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        onScrollBeginDrag={() => {
+          userDraggingRef.current = true;
+          pauseAutoScroll();
+        }}
+        onScrollEndDrag={() => {
+          userDraggingRef.current = false;
+          pauseAutoScroll();
+          syncLoopAfterUserScroll();
+        }}
+        onMomentumScrollEnd={() => {
+          userDraggingRef.current = false;
+          pauseAutoScroll();
+          syncLoopAfterUserScroll();
+        }}
         onContentSizeChange={w => onContentSizeChange(w)}
         onLayout={onLayout}
         contentContainerStyle={styles.row}
@@ -169,7 +233,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 4,
     paddingHorizontal: 4,
-    paddingRight: 24,
+    paddingRight: 56,
   },
   chip: {
     flexDirection: 'row',
