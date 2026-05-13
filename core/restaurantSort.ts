@@ -103,6 +103,34 @@ export function compareRestaurantsBySort(a: RestaurantSortInput, b: RestaurantSo
   return vb - va;
 }
 
+export function mapSortRawHigherIsGreener(
+  r: RestaurantSortInput,
+  sortBy: RandomSortBy
+): number {
+  if (sortBy === 'distance') {
+    const d = r.distanceMeters;
+    if (typeof d !== 'number' || !Number.isFinite(d)) return NaN;
+    return -d;
+  }
+  if (sortBy === 'price') {
+    const v = getSortValue(r, sortBy);
+    if (v >= 999 || v < 0) return NaN;
+    return 3 - v;
+  }
+  if (sortBy === 'rating') {
+    const v = r.rating;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return NaN;
+    return v;
+  }
+  if (sortBy === 'overall') {
+    if (!r.aiOverview) return NaN;
+    return getSortValue(r, sortBy);
+  }
+  const v = getSortValue(r, sortBy);
+  if (v < 0 || !Number.isFinite(v)) return NaN;
+  return v;
+}
+
 export function sortGoodness01(
   r: RestaurantSortInput,
   sortBy: RandomSortBy,
@@ -139,45 +167,15 @@ export function sortGoodness01(
 
 export function lerpRedGreen(t: number): string {
   const u = Math.max(0, Math.min(1, t));
-  const r0 = 0xef;
-  const g0 = 0x44;
-  const b0 = 0x44;
-  const r1 = 0x22;
-  const g1 = 0xc5;
-  const b1 = 0x5e;
+  const r0 = 0xff;
+  const g0 = 0x00;
+  const b0 = 0x00;
+  const r1 = 0x00;
+  const g1 = 0xd9;
+  const b1 = 0x38;
   const r = Math.round(r0 + (r1 - r0) * u);
   const g = Math.round(g0 + (g1 - g0) * u);
   const b = Math.round(b0 + (b1 - b0) * u);
   const h = (n: number) => n.toString(16).padStart(2, '0');
   return `#${h(r)}${h(g)}${h(b)}`;
-}
-
-function parseHexRgb(hex: string): { r: number; g: number; b: number } | null {
-  const s = hex.trim().replace('#', '');
-  if (s.length !== 6) return null;
-  const r = parseInt(s.slice(0, 2), 16);
-  const g = parseInt(s.slice(2, 4), 16);
-  const b = parseInt(s.slice(4, 6), 16);
-  if ([r, g, b].some((n) => Number.isNaN(n))) return null;
-  return { r, g, b };
-}
-
-export function blendHexTowardsGrey(hex: string, mix: number): string {
-  const p = parseHexRgb(hex);
-  if (!p) return hex;
-  const u = Math.max(0, Math.min(1, mix));
-  const gr = 118;
-  const gg = 118;
-  const gb = 122;
-  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
-  const r = clamp(p.r + (gr - p.r) * u);
-  const g = clamp(p.g + (gg - p.g) * u);
-  const b = clamp(p.b + (gb - p.b) * u);
-  const h = (n: number) => n.toString(16).padStart(2, '0');
-  return `#${h(r)}${h(g)}${h(b)}`;
-}
-
-export function markerSortColorForOpenState(sortColor: string, isOpen: boolean): string {
-  if (isOpen) return sortColor;
-  return blendHexTowardsGrey(sortColor, 0.42);
 }

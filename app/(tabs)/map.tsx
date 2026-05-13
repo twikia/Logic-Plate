@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
+import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,26 +24,26 @@ import {
   compareRestaurantsBySort,
   getSortValue,
   lerpRedGreen,
-  markerSortColorForOpenState,
-  sortGoodness01,
+  mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
 
 function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionicons>['name'] {
-  if (!primaryType) return 'restaurant';
+  if (!primaryType) return 'restaurant-outline';
   const t = primaryType.toLowerCase();
-  if (t.includes('pizza')) return 'pizza';
-  if (t.includes('coffee') || t.includes('cafe') || t.includes('cafeteria') || t.includes('coffee_shop')) return 'cafe';
-  if (t.includes('bar') || t.includes('pub') || t.includes('brewery') || t.includes('wine')) return 'beer';
-  if (t.includes('bakery') || t.includes('dessert') || t.includes('ice_cream') || t.includes('chocolate') || t.includes('confection') || t.includes('candy') || t.includes('donut')) return 'ice-cream';
-  if (t.includes('fast_food') || t.includes('hamburger')) return 'fast-food';
-  if (t.includes('seafood') || t.includes('sushi') || t.includes('fish')) return 'fish';
+  if (t.includes('pizza')) return 'pizza-outline';
+  if (t.includes('coffee') || t.includes('cafe') || t.includes('cafeteria') || t.includes('coffee_shop')) return 'cafe-outline';
+  if (t.includes('wine')) return 'wine-outline';
+  if (t.includes('bar') || t.includes('pub') || t.includes('brewery')) return 'beer-outline';
+  if (t.includes('bakery') || t.includes('dessert') || t.includes('ice_cream') || t.includes('chocolate') || t.includes('confection') || t.includes('candy') || t.includes('donut')) return 'ice-cream-outline';
+  if (t.includes('fast_food') || t.includes('hamburger')) return 'fast-food-outline';
+  if (t.includes('seafood') || t.includes('sushi') || t.includes('fish')) return 'fish-outline';
   if (t.includes('sandwich') || t.includes('sub')) return 'nutrition-outline';
   if (t.includes('steak') || t.includes('bbq') || t.includes('barbecue')) return 'flame-outline';
-  if (t.includes('mexican') || t.includes('taco')) return 'fast-food';
+  if (t.includes('mexican') || t.includes('taco')) return 'fast-food-outline';
   if (t.includes('indian')) return 'restaurant-outline';
-  if (t.includes('thai') || t.includes('vietnamese') || t.includes('ramen') || t.includes('noodle')) return 'restaurant';
+  if (t.includes('thai') || t.includes('vietnamese') || t.includes('ramen') || t.includes('noodle')) return 'restaurant-outline';
   if (t.includes('italian')) return 'restaurant-outline';
-  return 'restaurant';
+  return 'restaurant-outline';
 }
 
 function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
@@ -52,8 +53,9 @@ function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: 
     return typeof item.rating === 'number' && item.rating > 0 ? item.rating.toFixed(1) : '—';
   }
   if (sortBy === 'overall') {
+    if (!item.aiOverview) return '—';
     const s = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel);
-    return s > 0 ? s.toFixed(1) : '—';
+    return s.toFixed(1);
   }
   const raw = getSortValue(item, sortBy);
   return raw >= 0 ? raw.toFixed(1) : '—';
@@ -66,11 +68,15 @@ function MapSheetAiScores({
   ph,
   isDark,
   theme,
+  overallScore,
+  overallPh,
 }: {
   ai?: AiOverview | null;
   ph: boolean;
   isDark: boolean;
   theme: MapThemeSlice;
+  overallScore: number | null;
+  overallPh: boolean;
 }) {
   const border = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
   const num = (x: number | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
@@ -114,6 +120,15 @@ function MapSheetAiScores({
       <View style={styles.infoSectionHeader}>
         <Ionicons name="analytics-outline" size={15} color="#C9A0FF" />
         <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI scores</Text>
+      </View>
+      <View style={[styles.aiOverallRow, { borderColor: border }]}>
+        <View style={styles.aiOverallLeft}>
+          <Ionicons name="ribbon-outline" size={18} color="#C9A0FF" />
+          <Text style={[styles.aiOverallLabel, { color: theme.subtext }]}>Overall Platebound</Text>
+        </View>
+        <Text style={[styles.aiOverallVal, { color: theme.text }]}>
+          {overallPh ? AI_OVERVIEW_FIELD_PLACEHOLDER : overallScore != null ? `${overallScore.toFixed(1)}/10` : '—'}
+        </Text>
       </View>
       <ScrollView
         horizontal
@@ -160,15 +175,19 @@ function MapSheetAiScores({
   );
 }
 
-function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
-  item: any; accentColor: string; displayScore: string | number; onPress: () => void;
+function RestaurantMarker({ item, accentColor, iconColor, displayScore, onPress }: {
+  item: any;
+  accentColor: string;
+  iconColor: string;
+  displayScore: string | number;
+  onPress: () => void;
 }) {
   const [tracksChanges, setTracksChanges] = useState(true);
   useEffect(() => {
     setTracksChanges(true);
-    const timer = setTimeout(() => setTracksChanges(false), 500);
+    const timer = setTimeout(() => setTracksChanges(false), 1200);
     return () => clearTimeout(timer);
-  }, [item.id, accentColor, displayScore]);
+  }, [item.id, accentColor, iconColor, displayScore]);
 
   const iconName = getCuisineIcon(item.primaryType);
   const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
@@ -181,10 +200,10 @@ function RestaurantMarker({ item, accentColor, displayScore, onPress }: {
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
-      <View collapsable={false} style={styles.markerRoot}>
+      <View collapsable={false} style={styles.markerRoot} renderToHardwareTextureAndroid={true}>
         <View style={styles.markerWrap}>
           <View style={[styles.markerPill, { borderColor: accentColor }]}>
-            <Ionicons name={iconName} size={20} color={accentColor} />
+            <Ionicons name={iconName} size={20} color={iconColor} />
             <Text style={styles.markerLabel} numberOfLines={1}>
               {scoreText}
             </Text>
@@ -203,6 +222,33 @@ const MAX_RADIUS_METERS = 16093.4; // 10 miles
 const DEFAULT_RADIUS_METERS = 4000;
 const DEG_PER_MILE = 1 / 69;
 const MAX_DELTA = MAX_MILES * DEG_PER_MILE;
+
+function markerInRegion(lat: number, lng: number, reg: Region): boolean {
+  const halfLat = reg.latitudeDelta / 2;
+  const halfLng = reg.longitudeDelta / 2;
+  return (
+    lat >= reg.latitude - halfLat &&
+    lat <= reg.latitude + halfLat &&
+    lng >= reg.longitude - halfLng &&
+    lng <= reg.longitude + halfLng
+  );
+}
+
+function finiteMapColorBounds(items: any[], sortBy: RandomSortBy): { min: number; max: number } | null {
+  const vals = items
+    .map((r) => mapSortRawHigherIsGreener(r, sortBy))
+    .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+  if (vals.length === 0) return null;
+  return { min: Math.min(...vals), max: Math.max(...vals) };
+}
+
+function mapColorT(raw: number, bounds: { min: number; max: number } | null): number {
+  if (!Number.isFinite(raw) || !bounds) return 0.5;
+  if (bounds.max > bounds.min) {
+    return Math.max(0, Math.min(1, (raw - bounds.min) / (bounds.max - bounds.min)));
+  }
+  return 0.5;
+}
 
 // --- Helper for opening maps ---
 function openMaps(name: string, lat: number, lng: number) {
@@ -227,6 +273,8 @@ export default function MapScreen() {
   const { formatDistance, formatLabel } = useDistanceFormatter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
+  const selectedRestaurantRef = useRef<any | null>(null);
+  const sheetSnapRef = useRef<'peek' | 'full'>('peek');
 
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
@@ -241,6 +289,10 @@ export default function MapScreen() {
   const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('overall');
   const [showSortPicker, setShowSortPicker] = useState(false);
   const [openStatusEpoch, setOpenStatusEpoch] = useState(0);
+  const [sheetSnap, setSheetSnap] = useState<'peek' | 'full'>('peek');
+
+  selectedRestaurantRef.current = selectedRestaurant;
+  sheetSnapRef.current = sheetSnap;
 
   // Animation for bottom sheet
   const sheetAnim = useRef(new Animated.Value(height)).current;
@@ -253,6 +305,21 @@ export default function MapScreen() {
     () => [...restaurants].sort((a, b) => compareRestaurantsBySort(a, b, mapSortBy)),
     [restaurants, mapSortBy]
   );
+
+  const markersInMapView = useMemo(() => {
+    if (!region) return sortedMarkers;
+    return sortedMarkers.filter((item) =>
+      markerInRegion(item.location.latitude, item.location.longitude, region)
+    );
+  }, [sortedMarkers, region]);
+
+  const markerColorBounds = useMemo(() => {
+    let b = finiteMapColorBounds(markersInMapView, mapSortBy);
+    if (!b && sortedMarkers.length > 0) {
+      b = finiteMapColorBounds(sortedMarkers, mapSortBy);
+    }
+    return b;
+  }, [markersInMapView, sortedMarkers, mapSortBy]);
 
   useEffect(() => {
     initMap();
@@ -363,14 +430,19 @@ export default function MapScreen() {
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 10,
       onPanResponderMove: (_, gestureState) => {
-        const newValue = (selectedRestaurant ? height * 0.45 : height) + gestureState.dy;
+        const baseY = selectedRestaurantRef.current
+          ? sheetSnapRef.current === 'full'
+            ? height * 0.15
+            : height * 0.45
+          : height;
+        const newValue = baseY + gestureState.dy;
         if (newValue > height * 0.1 && newValue < height) {
           sheetAnim.setValue(newValue);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy < -50) {
-          // Swipe Up - Full(ish) height
+          setSheetSnap('full');
           Animated.spring(sheetAnim, {
             toValue: height * 0.15,
             useNativeDriver: false,
@@ -378,10 +450,9 @@ export default function MapScreen() {
             friction: 8,
           }).start();
         } else if (gestureState.dy > 100) {
-          // Swipe Down - Close
           closeSheet();
         } else {
-          // Snap back to mid
+          setSheetSnap('peek');
           Animated.spring(sheetAnim, {
             toValue: height * 0.45,
             useNativeDriver: false,
@@ -394,6 +465,7 @@ export default function MapScreen() {
   ).current;
 
   const handleMarkerPress = (restaurant: any) => {
+    setSheetSnap('peek');
     setSelectedRestaurant(restaurant);
     // Move map to center on restaurant slightly offset
     mapRef.current?.animateToRegion({
@@ -412,6 +484,7 @@ export default function MapScreen() {
   };
 
   const closeSheet = () => {
+    setSheetSnap('peek');
     Animated.timing(sheetAnim, {
       toValue: height,
       duration: 300,
@@ -437,6 +510,15 @@ export default function MapScreen() {
   void openStatusEpoch;
   const sheetPriceLabel = selectedRestaurant ? formatPlacePriceLabel(selectedRestaurant) : '';
   const sheetOpenNow = selectedRestaurant ? isOpenNow(selectedRestaurant) : false;
+  const sheetOverallScore =
+    selectedRestaurant?.aiOverview != null
+      ? calculatePlateboundScore(
+          selectedRestaurant.aiOverview,
+          selectedRestaurant.rating,
+          selectedRestaurant.priceLevel
+        )
+      : null;
+  const sheetScrollMaxHeight = sheetSnap === 'full' ? height * 0.72 : height * 0.34;
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkTheme ? '#1E0F1E' : '#FDF8F5' }]}>
@@ -466,15 +548,18 @@ export default function MapScreen() {
           />
         ) : null}
         {sortedMarkers.map((item) => {
-          const goodness = sortGoodness01(item, mapSortBy, radius);
-          const sortColor = lerpRedGreen(goodness);
-          const markerColor = markerSortColorForOpenState(sortColor, isOpenNow(item));
+          const raw = mapSortRawHigherIsGreener(item, mapSortBy);
+          const t = mapColorT(raw, markerColorBounds);
+          const sortColor = Number.isFinite(raw) ? lerpRedGreen(t) : '#6B7280';
+          const open = isOpenNow(item);
+          const iconColor = open ? sortColor : '#9CA3AF';
           const displayScore = formatMarkerSortLabel(item, mapSortBy, formatDistance);
           return (
             <RestaurantMarker
               key={item.id}
               item={item}
-              accentColor={markerColor}
+              accentColor={sortColor}
+              iconColor={iconColor}
               displayScore={displayScore}
               onPress={() => handleMarkerPress(item)}
             />
@@ -640,8 +725,8 @@ export default function MapScreen() {
         </View>
 
         {selectedRestaurant && (
-          <ScrollView
-            style={styles.sheetScrollView}
+          <GestureScrollView
+            style={[styles.sheetScrollView, { maxHeight: sheetScrollMaxHeight }]}
             contentContainerStyle={[
               styles.sheetContent,
               {
@@ -651,6 +736,7 @@ export default function MapScreen() {
             showsVerticalScrollIndicator={false}
             collapsable={false}
             nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.sheetHeader}>
               <View style={{ flex: 1 }}>
@@ -667,6 +753,12 @@ export default function MapScreen() {
             </View>
 
             <View style={styles.metaRow}>
+              <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
+                <Ionicons name="ribbon-outline" size={14} color="#C9A0FF" />
+                <Text style={[styles.metaText, { color: theme.text }]}>
+                  {sheetOverallScore != null ? `${sheetOverallScore.toFixed(1)} overall` : '—'}
+                </Text>
+              </View>
               <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
                 <Ionicons name="star" size={14} color="#FFD700" />
                 <Text style={[styles.metaText, { color: theme.text }]}>{selectedRestaurant.rating?.toFixed(1) || 'N/A'}</Text>
@@ -749,6 +841,8 @@ export default function MapScreen() {
               ph={!selectedRestaurant.aiOverview}
               isDark={isDarkTheme}
               theme={{ text: theme.text, subtext: theme.subtext, accent: theme.accent }}
+              overallScore={sheetOverallScore}
+              overallPh={!selectedRestaurant.aiOverview}
             />
 
             {selectedRestaurant.nationalPhoneNumber ? (
@@ -783,7 +877,7 @@ export default function MapScreen() {
             ) : null}
 
             <View style={{ height: 40 }} />
-          </ScrollView>
+          </GestureScrollView>
         )}
       </Animated.View>
     </View>
@@ -921,6 +1015,19 @@ const styles = StyleSheet.create({
   infoSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
   infoSectionTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
   infoSectionBody: { fontSize: 13, lineHeight: 19 },
+  aiOverallRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  aiOverallLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
+  aiOverallLabel: { fontSize: 13, fontWeight: '700', flex: 1 },
+  aiOverallVal: { fontSize: 18, fontWeight: '900' },
   macrosBlock: { fontSize: 12, lineHeight: 18, marginTop: 12 },
   aiStripRow: {
     flexDirection: 'row',
