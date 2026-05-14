@@ -109,7 +109,14 @@ export default function GroupVoteScreen() {
 
   const endVoting = async () => {
     if (!sessionId) return;
-    await supabase.from('group_sessions').update({ status: 'complete' }).eq('id', sessionId);
+    const { error } = await supabase.from('group_sessions').update({ status: 'complete' }).eq('id', sessionId);
+    if (error) {
+      Alert.alert(
+        'Could not end voting',
+        `${error.message}${error.code ? ` (${error.code})` : ''}`
+      );
+      return;
+    }
     goWinner();
   };
 

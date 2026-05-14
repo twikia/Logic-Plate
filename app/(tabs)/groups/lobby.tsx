@@ -16,6 +16,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { formatEdgeFunctionFailure, logEdgeFunctionFailure } from '@/core/supabaseFunctionErrors';
 import { supabase } from '@/core/supabaseClient';
 import { getLocation } from '@/core/locationCache';
 import { getCellsInRadius } from '@/core/h3Utils';
@@ -66,7 +67,14 @@ export default function GroupLobbyScreen() {
         setLoading(false);
         return;
       }
-      const { data, error: fnErr } = await supabase.functions.invoke('create-group-session', {
+      if (!appSecret) {
+        setError(
+          'EXPO_PUBLIC_APP_SECRET is not set in this app build. It must match the APP_SECRET secret on your Supabase Edge Functions so create-group-session can authorize.'
+        );
+        setLoading(false);
+        return;
+      }
+      const invokeResult = await supabase.functions.invoke('create-group-session', {
         body: {
           cellIds,
           hostUserId: user?.id ?? null,
@@ -74,11 +82,11 @@ export default function GroupLobbyScreen() {
         },
         headers: { 'x-app-secret': appSecret },
       });
+      const { data, error: fnErr } = invokeResult;
       if (cancelled) return;
       if (fnErr || !data || (data as { error?: string }).error) {
-        setError(
-          fnErr?.message ?? (data as { error?: string })?.error ?? 'Could not create session.'
-        );
+        logEdgeFunctionFailure('create-group-session', invokeResult);
+        setError(formatEdgeFunctionFailure('create-group-session', invokeResult));
         setLoading(false);
         return;
       }
@@ -140,14 +148,22 @@ export default function GroupLobbyScreen() {
 
   const everyoneIn = async () => {
     if (!sessionId || responses.length < 2) return;
+    if (!appSecret) {
+      setError(
+        'EXPO_PUBLIC_APP_SECRET is not set in this app build. It must match APP_SECRET on Supabase for reconcile-group to run.'
+      );
+      return;
+    }
     setReconciling(true);
-    const { data, error: fnErr } = await supabase.functions.invoke('reconcile-group', {
+    const invokeResult = await supabase.functions.invoke('reconcile-group', {
       body: { sessionId },
       headers: { 'x-app-secret': appSecret },
     });
     setReconciling(false);
+    const { data, error: fnErr } = invokeResult;
     if (fnErr || (data as { error?: string })?.error) {
-      setError(fnErr?.message ?? (data as { error?: string })?.error ?? 'Reconcile failed.');
+      logEdgeFunctionFailure('reconcile-group', invokeResult);
+      setError(formatEdgeFunctionFailure('reconcile-group', invokeResult));
       return;
     }
     router.replace({ pathname: '/groups/vote', params: { sessionId } });

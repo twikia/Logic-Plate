@@ -28,11 +28,31 @@ serve(async (req) => {
 
   const expectedSecret = Deno.env.get("APP_SECRET");
   const incomingSecret = req.headers.get("x-app-secret");
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!expectedSecret) {
+    return new Response(
+      JSON.stringify({
+        error: "server_misconfigured",
+        detail:
+          "APP_SECRET is not set for Edge Functions. In Supabase: Project Settings → Edge Functions → add secret APP_SECRET to match EXPO_PUBLIC_APP_SECRET in the app.",
+      }),
+      {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+  if (incomingSecret !== expectedSecret) {
+    return new Response(
+      JSON.stringify({
+        error: "Unauthorized",
+        detail:
+          "x-app-secret header did not match server APP_SECRET. Check EXPO_PUBLIC_APP_SECRET in the app .env and APP_SECRET in Supabase.",
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   let body: { cellIds?: string[]; hostUserId?: string | null; mode?: string | null };

@@ -443,3 +443,13 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/set-username/deno.json"
 entrypoint = "./functions/set-username/index.ts"
+
+[functions.create-group-session]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/create-group-session/index.ts"
+
+[functions.reconcile-group]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/reconcile-group/index.ts"
