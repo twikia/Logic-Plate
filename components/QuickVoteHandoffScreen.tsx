@@ -1,9 +1,8 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
   determineWinner,
@@ -63,16 +62,6 @@ export function QuickVoteHandoffScreen({
   const router = useRouter();
   const progress = useRef(new Animated.Value(1)).current;
   const didAdvance = useRef(false);
-
-  const chosenRestaurant = useMemo(() => {
-    if (!params.votedPlaceId) return null;
-    try {
-      const rest = JSON.parse(params.restaurantsJson) as QuickVoteRestaurant[];
-      return rest.find((r) => r.id === params.votedPlaceId) ?? null;
-    } catch {
-      return null;
-    }
-  }, [params.restaurantsJson, params.votedPlaceId]);
 
   const advance = useCallback(() => {
     if (didAdvance.current) return;
@@ -135,15 +124,6 @@ export function QuickVoteHandoffScreen({
           keyboardShouldPersistTaps="handled">
           <Text style={[styles.line1, { color: theme.subtext }]}>{params.voterName} picked</Text>
           <Text style={[styles.restaurant, { color: theme.text }]}>{params.votedRestaurantName}</Text>
-          {chosenRestaurant ? (
-            <View style={styles.cardWrap}>
-              <QuickVoteRestaurantCard
-                restaurant={chosenRestaurant}
-                theme={theme}
-                showThumbnail
-              />
-            </View>
-          ) : null}
           <Text style={[styles.pass, { color: theme.subtext }]}>
             {params.nextVoter <= params.voterCount
               ? `Pass to Voter ${params.nextVoter}`
@@ -178,7 +158,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  cardWrap: { width: '100%', maxWidth: 520, marginBottom: 16 },
   pass: {
     fontSize: 18,
     fontWeight: '600',

@@ -62,6 +62,8 @@ export default function VoteByCodePage() {
   const [picks, setPicks] = useState<RestaurantPick[]>([]);
   const [tallies, setTallies] = useState<Record<string, number>>({});
   const [hasVoted, setHasVoted] = useState(false);
+  const [voteErr, setVoteErr] = useState<string | null>(null);
+  const [responseErr, setResponseErr] = useState<string | null>(null);
   const [winnerPlace, setWinnerPlace] = useState<RestaurantPick | null>(null);
 
   const loadSession = useCallback(async () => {
@@ -209,7 +211,13 @@ export default function VoteByCodePage() {
       })
       .select('id')
       .single();
-    if (error) return;
+    if (error) {
+      setResponseErr(
+        `${error.message}${error.code ? ` (${error.code})` : ''}. Answers can only be submitted while the host is still collecting responses.`
+      );
+      return;
+    }
+    setResponseErr(null);
     setResponseId((data?.id as string) ?? null);
     setStep(4);
   };
@@ -221,7 +229,14 @@ export default function VoteByCodePage() {
       place_id: placeId,
       voter_response_id: responseId,
     });
-    if (!error) setHasVoted(true);
+    if (error) {
+      setVoteErr(
+        `${error.message}${error.code ? ` (${error.code})` : ''}. Votes are only accepted after the host starts the round (session status voting).`
+      );
+      return;
+    }
+    setVoteErr(null);
+    setHasVoted(true);
   };
 
   useEffect(() => {
@@ -369,6 +384,11 @@ export default function VoteByCodePage() {
       {step === 3 ? (
         <div className="space-y-3">
           <h1 className="text-2xl font-bold mb-4">Tonight I care most about:</h1>
+          {responseErr ? (
+            <p className="text-red-400 text-sm mb-2" role="alert">
+              {responseErr}
+            </p>
+          ) : null}
           {(
             [
               ['affordable', '💸', 'Keeping it affordable'],
@@ -408,6 +428,11 @@ export default function VoteByCodePage() {
       {step === 4 && session.status === 'voting' ? (
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">Pick your favorite</h1>
+          {voteErr ? (
+            <p className="text-red-400 text-sm" role="alert">
+              {voteErr}
+            </p>
+          ) : null}
           {picks.map((r) => {
             const v = tallies[r.id] ?? 0;
             const maxT = Math.max(...Object.values(tallies), 1);

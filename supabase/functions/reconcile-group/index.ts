@@ -52,11 +52,31 @@ serve(async (req) => {
 
   const expectedSecret = Deno.env.get("APP_SECRET");
   const incomingSecret = req.headers.get("x-app-secret");
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!expectedSecret) {
+    return new Response(
+      JSON.stringify({
+        error: "server_misconfigured",
+        detail:
+          "APP_SECRET is not set for Edge Functions. In Supabase: Project Settings → Edge Functions → add secret APP_SECRET to match EXPO_PUBLIC_APP_SECRET in the app.",
+      }),
+      {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+  if (incomingSecret !== expectedSecret) {
+    return new Response(
+      JSON.stringify({
+        error: "Unauthorized",
+        detail:
+          "x-app-secret header did not match server APP_SECRET. Check EXPO_PUBLIC_APP_SECRET in the app .env and APP_SECRET in Supabase.",
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   let body: { sessionId?: string };
@@ -240,6 +260,20 @@ serve(async (req) => {
   while (top5.length < 5 && overflow.length > 0) {
     const next = overflow.shift();
     if (next) top5.push(next);
+  }
+
+  if (top5.length === 0) {
+    return new Response(
+      JSON.stringify({
+        error: "no_restaurants_for_picks",
+        detail:
+          "No cached restaurants matched this session area and filters. Open Platebound on a phone, load the map near the group so the cache fills, then start a new session.",
+      }),
+      {
+        status: 422,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   const { error: upErr } = await supabase

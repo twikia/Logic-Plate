@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -70,7 +71,13 @@ export default function VibeQuestionsScreen() {
         .select('id')
         .single();
       setSubmitting(false);
-      if (error) return;
+      if (error) {
+        Alert.alert(
+          'Could not save your answers',
+          `${error.message}${error.code ? ` (${error.code})` : ''}\n\nIf the host already started voting or the session expired, ask them to start a new group.`
+        );
+        return;
+      }
       const responseId = data?.id as string | undefined;
       if (flow === 'passphone') {
         router.back();
