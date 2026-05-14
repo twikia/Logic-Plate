@@ -27,25 +27,6 @@ import {
   mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
 
-function getCuisineIcon(primaryType?: string): React.ComponentProps<typeof Ionicons>['name'] {
-  if (!primaryType) return 'restaurant-outline';
-  const t = primaryType.toLowerCase();
-  if (t.includes('pizza')) return 'pizza-outline';
-  if (t.includes('coffee') || t.includes('cafe') || t.includes('cafeteria') || t.includes('coffee_shop')) return 'cafe-outline';
-  if (t.includes('wine')) return 'wine-outline';
-  if (t.includes('bar') || t.includes('pub') || t.includes('brewery')) return 'beer-outline';
-  if (t.includes('bakery') || t.includes('dessert') || t.includes('ice_cream') || t.includes('chocolate') || t.includes('confection') || t.includes('candy') || t.includes('donut')) return 'ice-cream-outline';
-  if (t.includes('fast_food') || t.includes('hamburger')) return 'fast-food-outline';
-  if (t.includes('seafood') || t.includes('sushi') || t.includes('fish')) return 'fish-outline';
-  if (t.includes('sandwich') || t.includes('sub')) return 'nutrition-outline';
-  if (t.includes('steak') || t.includes('bbq') || t.includes('barbecue')) return 'flame-outline';
-  if (t.includes('mexican') || t.includes('taco')) return 'fast-food-outline';
-  if (t.includes('indian')) return 'restaurant-outline';
-  if (t.includes('thai') || t.includes('vietnamese') || t.includes('ramen') || t.includes('noodle')) return 'restaurant-outline';
-  if (t.includes('italian')) return 'restaurant-outline';
-  return 'restaurant-outline';
-}
-
 function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
   if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
   if (sortBy === 'price') return formatPlacePriceLabel(item) || '—';
@@ -175,41 +156,26 @@ function MapSheetAiScores({
   );
 }
 
-function RestaurantMarker({ item, accentColor, iconColor, displayScore, onPress }: {
+function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
   item: any;
-  accentColor: string;
-  iconColor: string;
+  markerColor: string;
   displayScore: string | number;
   onPress: () => void;
 }) {
-  const [tracksChanges, setTracksChanges] = useState(true);
-  useEffect(() => {
-    setTracksChanges(true);
-    const timer = setTimeout(() => setTracksChanges(false), 1200);
-    return () => clearTimeout(timer);
-  }, [item.id, accentColor, iconColor, displayScore]);
-
-  const iconName = getCuisineIcon(item.primaryType);
   const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
 
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
       onPress={onPress}
-      tracksViewChanges={tracksChanges}
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
-      <View collapsable={false} style={styles.markerRoot} renderToHardwareTextureAndroid={true}>
-        <View style={styles.markerWrap}>
-          <View style={[styles.markerPill, { borderColor: accentColor }]}>
-            <Ionicons name={iconName} size={20} color={iconColor} />
-            <Text style={styles.markerLabel} numberOfLines={1}>
-              {scoreText}
-            </Text>
-          </View>
-          <View style={[styles.markerTip, { backgroundColor: accentColor }]} />
-        </View>
+      <View style={[styles.markerBadge, { backgroundColor: markerColor }]}>
+        <Ionicons name="restaurant" size={16} color="#FFFFFF" />
+        <Text style={styles.markerLabel} numberOfLines={1}>
+          {scoreText}
+        </Text>
       </View>
     </Marker>
   );
@@ -217,8 +183,9 @@ function RestaurantMarker({ item, accentColor, iconColor, displayScore, onPress 
 
 const { width, height } = Dimensions.get('window');
 const MAP_RESULTS_KEY = 'map_results';
+const MAP_RADIUS_OPTIONS = [1000, 2000, 4000, 8000];
 const MAX_MILES = 10;
-const MAX_RADIUS_METERS = 16093.4; // 10 miles
+const MAX_RADIUS_METERS = 8000;
 const DEFAULT_RADIUS_METERS = 4000;
 const DEG_PER_MILE = 1 / 69;
 const MAX_DELTA = MAX_MILES * DEG_PER_MILE;
@@ -314,12 +281,8 @@ export default function MapScreen() {
   }, [sortedMarkers, region]);
 
   const markerColorBounds = useMemo(() => {
-    let b = finiteMapColorBounds(markersInMapView, mapSortBy);
-    if (!b && sortedMarkers.length > 0) {
-      b = finiteMapColorBounds(sortedMarkers, mapSortBy);
-    }
-    return b;
-  }, [markersInMapView, sortedMarkers, mapSortBy]);
+    return finiteMapColorBounds(markersInMapView, mapSortBy);
+  }, [markersInMapView, mapSortBy]);
 
   useEffect(() => {
     initMap();
@@ -551,15 +514,12 @@ export default function MapScreen() {
           const raw = mapSortRawHigherIsGreener(item, mapSortBy);
           const t = mapColorT(raw, markerColorBounds);
           const sortColor = Number.isFinite(raw) ? lerpRedGreen(t) : '#6B7280';
-          const open = isOpenNow(item);
-          const iconColor = open ? sortColor : '#9CA3AF';
           const displayScore = formatMarkerSortLabel(item, mapSortBy, formatDistance);
           return (
             <RestaurantMarker
               key={item.id}
               item={item}
-              accentColor={sortColor}
-              iconColor={iconColor}
+              markerColor={sortColor}
               displayScore={displayScore}
               onPress={() => handleMarkerPress(item)}
             />
@@ -597,7 +557,7 @@ export default function MapScreen() {
 
           {showRadiusPicker && (
             <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              {[1000, 2000, 4000, 8000, 16000].map((r) => (
+              {MAP_RADIUS_OPTIONS.map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[
@@ -929,37 +889,23 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
-  markerRoot: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingTop: 10,
-    paddingHorizontal: 12,
-    overflow: 'visible',
-  },
-  markerWrap: {
-    alignItems: 'center',
-  },
-  markerPill: {
+  markerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A0A1A',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 2.5,
-    gap: 5,
+    justifyContent: 'center',
+    minWidth: 66,
+    height: 34,
+    paddingHorizontal: 9,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   markerLabel: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     letterSpacing: -0.3,
-  },
-  markerTip: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 2,
+    marginLeft: 4,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   sortBtn: {
