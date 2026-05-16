@@ -51,6 +51,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
 const WINDOW_HEIGHT = Dimensions.get('window').height;
+const SPOTLIGHT_RADAR_HEIGHT = Math.round(
+  Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
+);
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const FILM_STRIP_FRAC = 0.66;
 const FILM_GAP = 2;
@@ -154,7 +157,7 @@ function RestaurantScorePentagon({ ai, stroke }: { ai: AiOverview | null | undef
     .join(' ');
   return (
     <View style={styles.radarBlock}>
-      <Svg width="100%" height={118} viewBox="-8 -10 116 120" preserveAspectRatio="xMidYMid meet">
+      <Svg width="100%" height={SPOTLIGHT_RADAR_HEIGHT} viewBox="-8 -10 116 120" preserveAspectRatio="xMidYMid meet">
         <Polygon points={polygonRing(cx, cy, R * 0.35, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R * 0.68, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.16)" strokeWidth={0.45} />
@@ -313,8 +316,7 @@ function SpotlightCard({
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Match engine</Text>
-        <View style={styles.scoreShapeRow}>
+        <View style={styles.scoreShapeCol}>
           <View style={styles.scorePentagonCol}>
             <RestaurantScorePentagon ai={ai} stroke={theme.accent} />
           </View>
@@ -556,10 +558,7 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
           style={styles.homeScroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: scrollBottomPad, flexGrow: 1 },
-          ]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
           showsVerticalScrollIndicator={false}
           alwaysBounceVertical={Platform.OS === 'ios'}
           refreshControl={
@@ -790,23 +789,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 4,
-  },
-  scoreShapeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+  scoreShapeCol: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 14,
   },
   scorePentagonCol: {
-    width: 128,
-    flexShrink: 0,
-    alignItems: 'center',
+    width: '100%',
+    alignItems: 'stretch',
   },
   scoreBarsCol: {
     flex: 1,
