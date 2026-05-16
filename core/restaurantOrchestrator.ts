@@ -116,10 +116,10 @@ async function loadNearbyRestaurantsInternal(
       if (Array.isArray(data.failedCells) && data.failedCells.length > 0) {
         console.error('Edge function reported failed cells:', data.failedCells);
       }
-      data.newlyFetchedRestaurants.forEach((result: { cellId: string; places: any[] }) => {
-        writeCache(result.cellId, result.places);
+      for (const result of data.newlyFetchedRestaurants as { cellId: string; places: any[] }[]) {
+        await writeCache(result.cellId, result.places);
         allRestaurants = allRestaurants.concat(result.places);
-      });
+      }
       if (allRestaurants.length === 0) {
         throw new Error('Restaurant fetch failed: edge function returned zero restaurants.');
       }

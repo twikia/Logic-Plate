@@ -77,11 +77,12 @@ export const readCacheBulk = async (
           }
         }
 
-        // Single multiSet to backfill AsyncStorage — fire and forget
         if (backfillPairs.length > 0) {
-          AsyncStorage.multiSet(backfillPairs).catch(e =>
-            console.error('AsyncStorage multiSet backfill error:', e)
-          );
+          try {
+            await AsyncStorage.multiSet(backfillPairs);
+          } catch (e) {
+            console.error('AsyncStorage multiSet backfill error:', e);
+          }
         }
       }
     } catch (err) {

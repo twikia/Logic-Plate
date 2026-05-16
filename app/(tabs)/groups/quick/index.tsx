@@ -1,5 +1,6 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -29,26 +30,28 @@ export default function QuickVoteSetupScreen() {
   const [cacheError, setCacheError] = useState(false);
   const [voterCount, setVoterCount] = useState(DEFAULT_VOTER_COUNT);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const all = await loadCachedRestaurants();
-      const chosen = pickQuickVoteRestaurants(all);
-      if (cancelled) return;
-      if (chosen.length < 5) {
-        setCacheError(true);
-        setPicks(null);
-      } else {
-        setCacheError(false);
-        setPicks(chosen);
-      }
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        setLoading(true);
+        const all = await loadCachedRestaurants();
+        const chosen = pickQuickVoteRestaurants(all);
+        if (cancelled) return;
+        if (chosen.length < 5) {
+          setCacheError(true);
+          setPicks(null);
+        } else {
+          setCacheError(false);
+          setPicks(chosen);
+        }
+        setLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   const bumpVoters = (delta: number) => {
     setVoterCount((n) => Math.min(MAX_VOTERS, Math.max(MIN_VOTERS, n + delta)));
@@ -83,7 +86,7 @@ export default function QuickVoteSetupScreen() {
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 32 }} />
           ) : cacheError ? (
             <Text style={[styles.warn, { color: theme.text }]}>
-              Not enough nearby restaurants loaded yet. Go back and let the map load your area first.
+              Not enough nearby restaurants in local cache yet. Open Home or Map and wait for places to finish loading, then try again.
             </Text>
           ) : (
             <>
