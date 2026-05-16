@@ -46,7 +46,7 @@ import {
   type DimensionValue,
 } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import Svg, { Polygon } from 'react-native-svg';
+import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
@@ -115,53 +115,84 @@ function polygonRing(cx: number, cy: number, radius: number, n: number) {
   }).join(' ');
 }
 
-function scoreTen(ai: AiOverview | null | undefined, key: keyof AiOverview): number | null {
+function scoreAxis(ai: AiOverview | null | undefined, key: keyof AiOverview): number | null {
   if (!ai) return null;
   const v = ai[key];
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
+function formatAxisReading(max: 5 | 10, s: number | null): string {
+  if (s == null) return '—';
+  if (max === 10) return `${clampScore(s, max).toFixed(1)}/${max}`;
+  return `${Math.round(clampScore(s, max))}/${max}`;
+}
+
 function RestaurantScorePentagon({ ai, stroke }: { ai: AiOverview | null | undefined; stroke: string }) {
   const n = 5;
-  const axes: { key: keyof AiOverview; short: string }[] = [
-    { key: 'healthScore', short: 'Health' },
-    { key: 'tasteScore', short: 'Taste' },
-    { key: 'valueForMoneyScore', short: 'Value for money' },
-    { key: 'dateWorthiness', short: 'Date worthiness' },
-    { key: 'speedScore', short: 'Speed' },
+  const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
+    { key: 'healthScore', corner: 'Health', max: 10 },
+    { key: 'tasteScore', corner: 'Taste', max: 5 },
+    { key: 'valueForMoneyScore', corner: 'Value', max: 5 },
+    { key: 'dateWorthiness', corner: 'Date', max: 5 },
+    { key: 'speedScore', corner: 'Speed', max: 5 },
   ];
-  const vals = axes.map(({ key }) => {
-    const s = scoreTen(ai, key);
-    return s == null ? 0 : clampScore(s, 10);
+  const norms = axes.map(({ key, max }) => {
+    const s = scoreAxis(ai, key);
+    if (s == null) return 0;
+    return clampScore(s, max) / max;
   });
   const cx = 50;
   const cy = 50;
-  const R = 34;
-  const fillPts = vals
-    .map((v, i) => {
+  const R = 26;
+  const labelR = 36;
+  const fillPts = norms
+    .map((norm, i) => {
       const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
-      const r = (v / 10) * R;
+      const r = norm * R;
       return `${cx + r * Math.cos(t)},${cy + r * Math.sin(t)}`;
     })
     .join(' ');
   return (
     <View style={styles.radarBlock}>
-      <Svg width="100%" height={92} viewBox="0 0 100 92" preserveAspectRatio="xMidYMid meet">
+      <Svg width="100%" height={118} viewBox="-8 -10 116 120" preserveAspectRatio="xMidYMid meet">
         <Polygon points={polygonRing(cx, cy, R * 0.35, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R * 0.68, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.16)" strokeWidth={0.45} />
         <Polygon points={fillPts} fill={`${stroke}55`} stroke={stroke} strokeWidth={1.1} strokeLinejoin="round" />
-      </Svg>
-      <View style={styles.radarLabelCol}>
-        {axes.map(({ key, short }) => {
-          const s = scoreTen(ai, key);
+        {axes.map(({ key, corner, max }, i) => {
+          const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+          const lx = cx + labelR * Math.cos(t);
+          const ly = cy + labelR * Math.sin(t);
+          const s = scoreAxis(ai, key);
+          const reading = formatAxisReading(max, s);
           return (
-            <Text key={short} style={styles.radarLabelLine} numberOfLines={2}>
-              {short} {s == null ? '—' : s.toFixed(1)}
-            </Text>
+            <G key={corner}>
+              <SvgText
+                x={lx}
+                y={ly - 2.2}
+                fill="rgba(255,255,255,0.62)"
+                fontSize={4.4}
+                fontWeight="700"
+                textAnchor="middle"
+                alignmentBaseline="middle"
+              >
+                {corner}
+              </SvgText>
+              <SvgText
+                x={lx}
+                y={ly + 3.4}
+                fill="rgba(255,255,255,0.45)"
+                fontSize={3.6}
+                fontWeight="600"
+                textAnchor="middle"
+                alignmentBaseline="middle"
+              >
+                {reading}
+              </SvgText>
+            </G>
           );
         })}
-      </View>
+      </Svg>
     </View>
   );
 }
@@ -288,6 +319,7 @@ function SpotlightCard({
             <RestaurantScorePentagon ai={ai} stroke={theme.accent} />
           </View>
           <View style={styles.scoreBarsCol}>
+            <Text style={styles.valueMatchHeading}>value match </Text>
             <EngineStatBars raw={scored.raw} />
           </View>
         </View>
@@ -523,7 +555,14 @@ export default function HomeScreen() {
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
+          scrollEnabled={false}
+          bounces={false}
+          alwaysBounceVertical={false}
+          overScrollMode="never"
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: scrollBottomPad, flexGrow: 1 },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -766,7 +805,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   scorePentagonCol: {
-    width: 120,
+    width: 128,
     flexShrink: 0,
     alignItems: 'center',
   },
@@ -774,20 +813,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  valueMatchHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: 'rgba(255,255,255,0.55)',
+    marginBottom: 2,
+  },
   radarBlock: { width: '100%', marginTop: 0 },
-  radarLabelCol: {
-    marginTop: 4,
-    gap: 2,
-    width: '100%',
-    alignItems: 'flex-start',
-    paddingLeft: 2,
-  },
-  radarLabelLine: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)',
-    lineHeight: 12,
-  },
   engineBars: { gap: 6, marginTop: 0 },
   engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   engineBarLabel: { width: 72, fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
