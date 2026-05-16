@@ -555,15 +555,13 @@ export default function HomeScreen() {
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
-          scrollEnabled={false}
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
+          style={styles.homeScroll}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: scrollBottomPad, flexGrow: 1 },
           ]}
           showsVerticalScrollIndicator={false}
+          alwaysBounceVertical={Platform.OS === 'ios'}
           refreshControl={
             <RefreshControl
               refreshing={pullRefreshing}
@@ -670,6 +668,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   background: { flex: 1 },
   safeArea: { flex: 1, paddingTop: 56 },
+  homeScroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 18,
