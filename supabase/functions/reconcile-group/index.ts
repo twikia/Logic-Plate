@@ -7,6 +7,24 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type, x-app-secret",
 };
 
+function resolveServiceRoleKey(): string {
+  const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (legacy) return legacy;
+  const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const d = parsed.default;
+    if (typeof d === "string" && d.trim()) return d.trim();
+    for (const v of Object.values(parsed)) {
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
 const DIETARY_VETO_MAP: Record<string, string[]> = {
   vegan: ["steakhouse", "burger_restaurant", "seafood_restaurant", "barbecue_restaurant"],
   vegetarian: ["steakhouse", "burger_restaurant", "barbecue_restaurant"],
@@ -98,7 +116,7 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const serviceKey = resolveServiceRoleKey();
   if (!supabaseUrl || !serviceKey) {
     return new Response(JSON.stringify({ error: "server_misconfigured" }), {
       status: 500,
