@@ -174,7 +174,6 @@ function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
       onPress={onPress}
       zIndex={10}
       anchor={{ x: 0.5, y: (MARKER_PAD + MARKER_BADGE_H) / MARKER_WRAP_H }}
-      tracksViewChanges={false}
     >
       <View style={styles.markerWrap}>
         <View style={[styles.markerBadge, { backgroundColor: markerColor }]}>
