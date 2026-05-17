@@ -136,9 +136,10 @@ const styles = StyleSheet.create({
   back: { fontSize: 17, fontWeight: '600' },
   centerWrap: {
     flex: 1,
+    width: '100%',
     justifyContent: 'center',
+    alignSelf: 'stretch',
     paddingHorizontal: 24,
-    paddingBottom: 32,
   },
   body: {
     width: '100%',

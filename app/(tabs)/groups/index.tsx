@@ -24,7 +24,7 @@ export default function GroupsScreen() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState('');
 
-  const goLobby = (mode: 'passphone' | 'qr' | 'code') => {
+  const goLobby = (mode: 'passphone' | 'qr') => {
     router.push({ pathname: '/groups/lobby', params: { mode } });
   };
 
@@ -62,24 +62,10 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Decide Together</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Vote together!</Text>
         <TopProfileButton />
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <TouchableOpacity
-          style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => goLobby('qr')}>
-          <Text style={[styles.modeEmoji]}>📷</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>Generate QR Code</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => goLobby('code')}>
-          <Text style={[styles.modeEmoji]}>🔢</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>Share a Code</Text>
-        </TouchableOpacity>
-
-        <Text style={[styles.or, { color: theme.subtext }]}>or join a session</Text>
         <View style={styles.joinRow}>
           <TextInput
             style={[
@@ -99,6 +85,13 @@ export default function GroupsScreen() {
             <Text style={[styles.joinBtnText, { color: theme.text }]}>Join</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
+          onPress={() => goLobby('qr')}>
+          <Text style={[styles.modeEmoji]}>📷</Text>
+          <Text style={[styles.modeText, { color: theme.text }]}>Create session</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.modeBtn, { backgroundColor: theme.cardBackground, marginTop: 8 }]}
@@ -132,7 +125,6 @@ const styles = StyleSheet.create({
   },
   modeEmoji: { fontSize: 22 },
   modeText: { fontSize: 18, fontWeight: '700' },
-  or: { textAlign: 'center', marginTop: 16, marginBottom: 4, fontSize: 15 },
   joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   input: {
     flex: 1,
