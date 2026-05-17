@@ -33,112 +33,146 @@ function resolveServiceRoleKey(): string {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const expectedSecret = Deno.env.get("APP_SECRET");
-  const incomingSecret = req.headers.get("x-app-secret");
-  if (!expectedSecret) {
-    return new Response(
-      JSON.stringify({
-        error: "server_misconfigured",
-        detail:
-          "APP_SECRET is not set for Edge Functions. In Supabase: Project Settings → Edge Functions → add secret APP_SECRET to match EXPO_PUBLIC_APP_SECRET in the app.",
-      }),
-      {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-  if (incomingSecret !== expectedSecret) {
-    return new Response(
-      JSON.stringify({
-        error: "Unauthorized",
-        detail:
-          "x-app-secret header did not match server APP_SECRET. Check EXPO_PUBLIC_APP_SECRET in the app .env and APP_SECRET in Supabase.",
-      }),
-      {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-
-  let body: { cellIds?: string[]; hostUserId?: string | null; mode?: string | null };
   try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: "invalid_json" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    if (req.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders });
+    }
 
-  const cellIds = Array.isArray(body.cellIds) ? body.cellIds.filter((x) => typeof x === "string") : [];
-  if (cellIds.length === 0) {
-    return new Response(JSON.stringify({ error: "cellIds required" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "method_not_allowed" }), {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceKey = resolveServiceRoleKey();
-  if (!supabaseUrl || !serviceKey) {
-    return new Response(JSON.stringify({ error: "server_misconfigured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    const expectedSecret = Deno.env.get("APP_SECRET");
+    const incomingSecret = req.headers.get("x-app-secret");
+    if (!expectedSecret) {
+      console.error("[create-group-session] APP_SECRET env var is not set");
+      return new Response(
+        JSON.stringify({
+          error: "server_misconfigured",
+          detail:
+            "APP_SECRET is not set for Edge Functions. In Supabase: Project Settings → Edge Functions → add secret APP_SECRET to match EXPO_PUBLIC_APP_SECRET in the app.",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    if (incomingSecret !== expectedSecret) {
+      console.error("[create-group-session] x-app-secret mismatch");
+      return new Response(
+        JSON.stringify({
+          error: "Unauthorized",
+          detail:
+            "x-app-secret header did not match server APP_SECRET. Check EXPO_PUBLIC_APP_SECRET in the app .env and APP_SECRET in Supabase.",
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
-  const supabase = createClient(supabaseUrl, serviceKey);
+    let body: { cellIds?: string[]; hostUserId?: string | null; mode?: string | null };
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "invalid_json" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-  let code = generateCode();
-  for (let i = 0; i < 8; i++) {
-    const { data } = await supabase
+    const cellIds = Array.isArray(body.cellIds) ? body.cellIds.filter((x) => typeof x === "string") : [];
+    if (cellIds.length === 0) {
+      return new Response(JSON.stringify({ error: "cellIds required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceKey = resolveServiceRoleKey();
+    if (!supabaseUrl || !serviceKey) {
+      console.error(
+        `[create-group-session] server_misconfigured: SUPABASE_URL=${!!supabaseUrl} serviceKey=${!!serviceKey}`,
+      );
+      return new Response(
+        JSON.stringify({
+          error: "server_misconfigured",
+          detail: !serviceKey
+            ? "SUPABASE_SERVICE_ROLE_KEY is not available. Set it under Project Settings → Edge Functions → Secrets."
+            : "SUPABASE_URL is not available.",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    let code = generateCode();
+    for (let i = 0; i < 8; i++) {
+      const { data } = await supabase
+        .from("group_sessions")
+        .select("id")
+        .eq("code", code)
+        .maybeSingle();
+      if (!data) break;
+      code = generateCode();
+    }
+
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const hostUserId =
+      typeof body.hostUserId === "string" && body.hostUserId.length > 0 ? body.hostUserId : null;
+    const mode = typeof body.mode === "string" && body.mode.length > 0 ? body.mode : null;
+
+    const { data, error } = await supabase
       .from("group_sessions")
-      .select("id")
-      .eq("code", code)
-      .maybeSingle();
-    if (!data) break;
-    code = generateCode();
-  }
+      .insert({
+        code,
+        host_user_id: hostUserId,
+        mode,
+        cell_ids: cellIds,
+        status: "collecting",
+        expires_at: expiresAt,
+      })
+      .select()
+      .single();
 
-  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-  const hostUserId =
-    typeof body.hostUserId === "string" && body.hostUserId.length > 0 ? body.hostUserId : null;
-  const mode = typeof body.mode === "string" && body.mode.length > 0 ? body.mode : null;
+    if (error) {
+      console.error("[create-group-session] DB insert error:", error.message, error.code);
+      return new Response(
+        JSON.stringify({
+          error: error.message,
+          detail: error.code === "42P01"
+            ? "The group_sessions table does not exist. Apply the group_voting migration to your Supabase project."
+            : error.details ?? undefined,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
-  const { data, error } = await supabase
-    .from("group_sessions")
-    .insert({
-      code,
-      host_user_id: hostUserId,
-      mode,
-      cell_ids: cellIds,
-      status: "collecting",
-      expires_at: expiresAt,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ session: data }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[create-group-session] unhandled exception:", message);
+    return new Response(
+      JSON.stringify({ error: "internal_error", detail: message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
-
-  return new Response(JSON.stringify({ session: data }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 });
