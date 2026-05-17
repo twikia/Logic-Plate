@@ -35,6 +35,10 @@ export default function LoginScreen() {
     setMessage(null);
     setGuestBusy(true);
     try {
+      if (isGuest) {
+        router.replace('/(tabs)' as any);
+        return;
+      }
       const { error } = await supabase.auth.signInAnonymously();
       if (error) {
         setMessage(error.message);

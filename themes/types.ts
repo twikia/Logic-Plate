@@ -25,4 +25,6 @@ export interface ThemeColors {
   /** When present, the card border renders as an animated rotating neon gradient
    *  using these four color stops: [stop0, stop1, stop2, stop3]. */
   neonColors?: [string, string, string, string];
+  /** When true (default), neon card borders rotate. When false, a fixed diagonal cyan→magenta border is used. */
+  neonBorderSpin?: boolean;
 }
