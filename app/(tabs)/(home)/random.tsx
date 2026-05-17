@@ -32,6 +32,7 @@ import {
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import {
+  getScenarioPreferredSort,
   isScenarioKey,
   restaurantMatchesScenario,
   SCENARIO_LABELS,
@@ -330,6 +331,7 @@ export default function RandomScreen() {
     if (!paramScenario) return;
     setScenarioKey(paramScenario);
     setScenarioFilterEnabled(true);
+    setSortBy(getScenarioPreferredSort(paramScenario));
   }, [paramScenario]);
 
   useEffect(() => {
@@ -381,7 +383,11 @@ export default function RandomScreen() {
           setSelectedPrices(new Set(saved.selectedPrices));
           setMinRating(saved.minRating);
           setSelectedCuisines(new Set(saved.selectedCuisines));
-          setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
+          if (paramScenario) {
+            setSortBy(getScenarioPreferredSort(paramScenario));
+          } else {
+            setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
+          }
           const [s1, s2] = cutoffsToSlots(mergeRandomAiCutoffs(saved.minAiCutoffs));
           setAiSlot1(s1);
           setAiSlot2(s2);

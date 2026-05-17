@@ -54,6 +54,9 @@ const WINDOW_HEIGHT = Dimensions.get('window').height;
 const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
+const SPOTLIGHT_RADAR_INLINE_HEIGHT = Math.round(
+  Math.min(WINDOW_HEIGHT * 0.22, WINDOW_WIDTH * 0.44, 172)
+);
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const FILM_STRIP_FRAC = 0.66;
 const FILM_GAP = 2;
@@ -130,7 +133,15 @@ function formatAxisReading(max: 5 | 10, s: number | null): string {
   return `${Math.round(clampScore(s, max))}/${max}`;
 }
 
-function RestaurantScorePentagon({ ai, stroke }: { ai: AiOverview | null | undefined; stroke: string }) {
+function RestaurantScorePentagon({
+  ai,
+  stroke,
+  svgHeight = SPOTLIGHT_RADAR_HEIGHT,
+}: {
+  ai: AiOverview | null | undefined;
+  stroke: string;
+  svgHeight?: number;
+}) {
   const n = 5;
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
     { key: 'healthScore', corner: 'Health', max: 10 },
@@ -157,7 +168,7 @@ function RestaurantScorePentagon({ ai, stroke }: { ai: AiOverview | null | undef
     .join(' ');
   return (
     <View style={styles.radarBlock}>
-      <Svg width="100%" height={SPOTLIGHT_RADAR_HEIGHT} viewBox="-8 -10 116 120" preserveAspectRatio="xMidYMid meet">
+      <Svg width="100%" height={svgHeight} viewBox="-8 -10 116 120" preserveAspectRatio="xMidYMid meet">
         <Polygon points={polygonRing(cx, cy, R * 0.35, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R * 0.68, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.16)" strokeWidth={0.45} />
@@ -200,7 +211,7 @@ function RestaurantScorePentagon({ ai, stroke }: { ai: AiOverview | null | undef
   );
 }
 
-function EngineStatBars({ raw }: { raw: ScoredRestaurant['raw'] }) {
+function EngineStatBars({ raw, compact }: { raw: ScoredRestaurant['raw']; compact?: boolean }) {
   const rows: { label: string; value: number; colors: [string, string] }[] = [
     { label: 'Distance', value: raw.distance, colors: ['#7DD3FC', '#38BDF8'] },
     { label: 'Health', value: raw.health, colors: ['#86EFAC', '#4ADE80'] },
@@ -209,12 +220,12 @@ function EngineStatBars({ raw }: { raw: ScoredRestaurant['raw'] }) {
     { label: 'Novelty', value: raw.novelty, colors: ['#C4B5FD', '#A78BFA'] },
   ];
   return (
-    <View style={styles.engineBars}>
+    <View style={[styles.engineBars, compact && styles.engineBarsCompact]}>
       {rows.map(row => {
         return (
-          <View key={row.label} style={styles.engineBarRow}>
-            <Text style={styles.engineBarLabel}>{row.label}</Text>
-            <View style={styles.engineBarTrack}>
+          <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
+            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact]}>{row.label}</Text>
+            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact]}>
               <View style={[styles.engineBarFillWrap, { width: `${clampScore(row.value, 100)}%` as DimensionValue }]}>
                 <LinearGradient
                   colors={row.colors}
@@ -316,13 +327,13 @@ function SpotlightCard({
           </View>
         </View>
 
-        <View style={styles.scoreShapeCol}>
+        <View style={styles.scoreShapeRow}>
           <View style={styles.scorePentagonCol}>
-            <RestaurantScorePentagon ai={ai} stroke={theme.accent} />
+            <RestaurantScorePentagon ai={ai} stroke={theme.accent} svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT} />
           </View>
           <View style={styles.scoreBarsCol}>
             <Text style={styles.valueMatchHeading}>value match </Text>
-            <EngineStatBars raw={scored.raw} />
+            <EngineStatBars raw={scored.raw} compact />
           </View>
         </View>
 
@@ -789,30 +800,35 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  scoreShapeCol: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 14,
+  scoreShapeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   scorePentagonCol: {
-    width: '100%',
+    flex: 1.38,
+    minWidth: 0,
     alignItems: 'stretch',
   },
   scoreBarsCol: {
-    flex: 1,
+    flex: 0.62,
     minWidth: 0,
+    justifyContent: 'center',
   },
   valueMatchHeading: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
     color: 'rgba(255,255,255,0.55)',
     marginBottom: 2,
   },
   radarBlock: { width: '100%', marginTop: 0 },
   engineBars: { gap: 6, marginTop: 0 },
+  engineBarsCompact: { gap: 3, marginTop: 0 },
   engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  engineBarRowCompact: { gap: 4 },
   engineBarLabel: { width: 72, fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+  engineBarLabelCompact: { width: 52, fontSize: 8.5 },
   engineBarTrack: {
     flex: 1,
     height: 7,
@@ -821,6 +837,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     maxWidth: '100%',
   },
+  engineBarTrackCompact: { height: 5, borderRadius: 3 },
   engineBarFillWrap: { height: '100%', borderRadius: 4, overflow: 'hidden' },
   spotlightActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   spotlightAction: {
