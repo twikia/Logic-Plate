@@ -72,7 +72,7 @@ export const readCacheBulk = async (
             hits.set(row.id, row.restaurants);
             backfillPairs.push([
               `cell_${row.id}`,
-              JSON.stringify({ restaurants: row.restaurants, fetched_at: row.fetched_at }),
+              JSON.stringify({ restaurants: row.restaurants, fetched_at: new Date().toISOString() }),
             ]);
           }
         }
