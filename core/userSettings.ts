@@ -11,7 +11,7 @@ const DEFAULT_RADIUS = 4000;
 const DEFAULT_UNIT = 'km';
 const DEFAULT_VOLUME = 0.5;
 const DEFAULT_HAPTICS = true;
-const DEFAULT_THEME = 'sunset_blush';
+const DEFAULT_THEME = 'neon_dark';
 
 
 export type DistanceUnit = 'km' | 'mi';

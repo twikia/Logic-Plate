@@ -166,7 +166,7 @@ export function ScenarioQuickBar() {
             styles.chip,
             {
               backgroundColor: theme.glassBackground,
-              borderColor: 'rgba(255,255,255,0.12)',
+              borderColor: theme.cardBorderColor,
             },
           ]}
           onPress={() => {
@@ -179,7 +179,7 @@ export function ScenarioQuickBar() {
           </Text>
         </TouchableOpacity>
       )),
-    [router, theme.glassBackground, theme.text]
+    [router, theme.glassBackground, theme.cardBorderColor, theme.text]
   );
 
   return (
