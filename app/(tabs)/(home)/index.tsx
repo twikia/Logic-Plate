@@ -32,6 +32,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Linking,
@@ -433,6 +434,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
+  const [filmstripRefreshing, setFilmstripRefreshing] = useState(false);
   const visibleLenRef = useRef(-1);
   const pickIndexRef = useRef(0);
   pickIndexRef.current = pickIndex;
@@ -595,11 +597,17 @@ export default function HomeScreen() {
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
   const homeBottomPad = tabBarHeight + 12;
 
-  const restoreAllFilmstripPicks = useCallback(() => {
+  const onFilmstripRefresh = useCallback(async () => {
+    setFilmstripRefreshing(true);
     setRejectedIds(new Set());
     setPickIndex(0);
     carouselRef.current?.scrollToOffset({ offset: 0, animated: true });
-  }, []);
+    try {
+      await loadSpotlight({ skipFullScreenLoader: true });
+    } finally {
+      setFilmstripRefreshing(false);
+    }
+  }, [loadSpotlight]);
 
   return (
     <LinearGradient
@@ -647,6 +655,9 @@ export default function HomeScreen() {
                 keyExtractor={item => String(item.place?.id ?? '')}
                 horizontal
                 pagingEnabled
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
                 showsHorizontalScrollIndicator={false}
                 onMomentumScrollEnd={onCarouselMomentumEnd}
                 getItemLayout={(_, index) => ({
@@ -674,12 +685,17 @@ export default function HomeScreen() {
               <View style={styles.filmstripBar}>
                 <TouchableOpacity
                   style={styles.filmstripRefreshBtn}
-                  onPress={restoreAllFilmstripPicks}
+                  onPress={() => void onFilmstripRefresh()}
+                  disabled={filmstripRefreshing}
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   accessibilityRole="button"
-                  accessibilityLabel="Restore all picks"
+                  accessibilityLabel="Refresh picks"
                 >
-                  <Ionicons name="refresh-outline" size={22} color={theme.accent} />
+                  {filmstripRefreshing ? (
+                    <ActivityIndicator size="small" color={theme.accent} />
+                  ) : (
+                    <Ionicons name="refresh-outline" size={22} color={theme.accent} />
+                  )}
                 </TouchableOpacity>
                 <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
                 <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
