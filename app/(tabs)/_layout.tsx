@@ -1,6 +1,7 @@
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,9 +25,19 @@ interface AnimatedTabIconProps {
   iconColor: string;
   dimColor: string;
   highlightBg: string;
+  neonSide?: boolean;
 }
 
-function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimColor, highlightBg }: AnimatedTabIconProps) {
+function AnimatedTabIcon({
+  onPress,
+  isActive,
+  iconOn,
+  iconOff,
+  iconColor,
+  dimColor,
+  highlightBg,
+  neonSide,
+}: AnimatedTabIconProps) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -44,14 +55,25 @@ function AnimatedTabIcon({ onPress, isActive, iconOn, iconOff, iconColor, dimCol
       }}
       style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
     >
-      <View style={{
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: isActive ? highlightBg : 'transparent',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}>
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor:
+            neonSide && isActive
+              ? 'rgba(0,255,255,0.12)'
+              : neonSide
+                ? 'transparent'
+                : isActive
+                  ? highlightBg
+                  : 'transparent',
+          borderWidth: neonSide && isActive ? 1 : 0,
+          borderColor: neonSide && isActive ? 'rgba(0,255,255,0.55)' : 'transparent',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
         <Animated.View style={animStyle}>
           <Ionicons
             size={24}
@@ -73,17 +95,19 @@ export default function TabLayout() {
 
   const tabBarStyle = useMemo(
     () => ({
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.neonColors ? '#000000' : theme.cardBackground,
       borderTopWidth: 0,
       height: 52 + insets.bottom,
       paddingBottom: insets.bottom,
       paddingTop: 4,
     }),
-    [theme.cardBackground, insets.bottom]
+    [theme.cardBackground, theme.neonColors, insets.bottom]
   );
 
   const isMap = pathname.startsWith('/map');
   const isGroups = pathname.startsWith('/groups');
+  const neon = Boolean(theme.neonColors);
+  const neonColors = theme.neonColors;
 
   return (
     <Tabs
@@ -104,9 +128,10 @@ export default function TabLayout() {
               isActive={isGroups}
               iconOn="people"
               iconOff="people-outline"
-              iconColor={theme.text}
-              dimColor={theme.subtext}
+              iconColor={neon ? '#FFFFFF' : theme.text}
+              dimColor={neon ? 'rgba(255,255,255,0.42)' : theme.subtext}
               highlightBg={theme.accent}
+              neonSide={neon}
             />
           ),
         }}
@@ -132,16 +157,53 @@ export default function TabLayout() {
                   width: 56,
                   height: 56,
                   borderRadius: 28,
-                  backgroundColor: theme.accent,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.22,
-                  shadowRadius: 4,
-                  elevation: 4,
-                }}>
-                <Ionicons size={28} name="home" color={theme.text} />
+                  shadowColor: neon ? '#00FFFF' : '#000',
+                  shadowOffset: { width: 0, height: neon ? 0 : 2 },
+                  shadowOpacity: neon ? 0.88 : 0.22,
+                  shadowRadius: neon ? 14 : 4,
+                  elevation: neon ? 12 : 4,
+                }}
+              >
+                {neon && neonColors ? (
+                  <LinearGradient
+                    colors={neonColors}
+                    start={{ x: 0, y: 1 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      padding: 2.5,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        borderRadius: 25.5,
+                        backgroundColor: '#000000',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Ionicons size={28} name="home" color="#FFFFFF" />
+                    </View>
+                  </LinearGradient>
+                ) : (
+                  <View
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      backgroundColor: theme.accent,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Ionicons size={28} name="home" color={theme.text} />
+                  </View>
+                )}
               </AnimatedPressable>
             </View>
           ),
@@ -157,9 +219,10 @@ export default function TabLayout() {
               isActive={isMap}
               iconOn="map"
               iconOff="map-outline"
-              iconColor={theme.text}
-              dimColor={theme.subtext}
+              iconColor={neon ? '#FFFFFF' : theme.text}
+              dimColor={neon ? 'rgba(255,255,255,0.42)' : theme.subtext}
               highlightBg={theme.accent}
+              neonSide={neon}
             />
           ),
         }}

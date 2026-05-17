@@ -5,6 +5,7 @@ import {
 } from '@/core/scenarioFilters';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   LayoutChangeEvent,
@@ -155,32 +156,61 @@ export function ScenarioQuickBar() {
     scrollXRef.current = x;
   }, [fixLoopBoundaries]);
 
-  const chips = useMemo(
-    () =>
-      SCENARIO_TRIPLE.map((scenario, i) => (
-        <TouchableOpacity
-          key={`${i}-${scenario}`}
-          activeOpacity={0.82}
-          delayPressIn={PRESS_IN_DELAY_MS}
-          style={[
-            styles.chip,
-            {
-              backgroundColor: theme.glassBackground,
-              borderColor: theme.cardBorderColor,
-            },
-          ]}
-          onPress={() => {
-            router.push({ pathname: '/random', params: { scenario } });
-          }}
-        >
+  const chips = useMemo(() => {
+    const neon = Boolean(theme.neonColors);
+    const neonColors = theme.neonColors;
+    return SCENARIO_TRIPLE.map((scenario, i) => {
+      const inner = (
+        <>
           <Text style={styles.emoji}>{SCENARIO_EMOJIS[scenario]}</Text>
           <Text style={[styles.label, { color: theme.text }]} numberOfLines={1}>
             {SCENARIO_LABELS[scenario]}
           </Text>
+        </>
+      );
+      return (
+        <TouchableOpacity
+          key={`${i}-${scenario}`}
+          activeOpacity={0.82}
+          delayPressIn={PRESS_IN_DELAY_MS}
+          style={neon ? styles.chipNeonOuter : undefined}
+          onPress={() => {
+            router.push({ pathname: '/random', params: { scenario } });
+          }}
+        >
+          {neon && neonColors ? (
+            <LinearGradient
+              colors={neonColors}
+              start={{ x: 0, y: 1 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.chipNeonGrad}
+            >
+              <View
+                style={[
+                  styles.chipNeonInner,
+                  { backgroundColor: theme.cardBackground },
+                ]}
+              >
+                {inner}
+              </View>
+            </LinearGradient>
+          ) : (
+            <View
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: theme.glassBackground,
+                  borderColor: theme.cardBorderColor,
+                },
+              ]}
+            >
+              {inner}
+            </View>
+          )}
         </TouchableOpacity>
-      )),
-    [router, theme.glassBackground, theme.cardBorderColor, theme.text]
-  );
+      );
+    });
+  }, [router, theme.cardBackground, theme.cardBorderColor, theme.glassBackground, theme.neonColors, theme.text]);
 
   return (
     <View
@@ -241,6 +271,22 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 20,
     borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  chipNeonOuter: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  chipNeonGrad: {
+    borderRadius: 20,
+    padding: 1,
+  },
+  chipNeonInner: {
+    borderRadius: 19,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 14,
   },

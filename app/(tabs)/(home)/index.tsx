@@ -30,7 +30,7 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -53,7 +53,15 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  LinearGradient as SvgLinearGradient,
+  Polygon,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
@@ -103,6 +111,131 @@ const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
   { bg: 'rgba(250,112,154,0.55)', border: '#FFE4E9', mark: '#4A0D24' },
 ];
 
+const NEON_CYAN = '#00FFFF';
+const NEON_MAGENTA = '#FF00FF';
+const DEFAULT_NEON_RING_COLORS: [string, string, string, string] = [
+  NEON_CYAN,
+  '#9400FF',
+  NEON_MAGENTA,
+  NEON_CYAN,
+];
+
+const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
+  { bg: 'rgba(0,35,48,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(40,0,48,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(0,28,32,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(32,0,40,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(0,24,36,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(36,0,28,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(0,32,40,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(28,0,36,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(0,30,44,0.92)', mark: '#FFFFFF' },
+  { bg: 'rgba(44,0,32,0.92)', mark: '#FFFFFF' },
+];
+
+function HomeNeonTitle({ text, width }: { text: string; width: number }) {
+  const gid = useId().replace(/:/g, '');
+  const h = 42;
+  return (
+    <View style={{ height: h, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+      <Svg width={width} height={h}>
+        <Defs>
+          <SvgLinearGradient id={`htl-${gid}`} x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={NEON_CYAN} />
+            <Stop offset="1" stopColor={NEON_MAGENTA} />
+          </SvgLinearGradient>
+        </Defs>
+        <SvgText
+          fill={`url(#htl-${gid})`}
+          fontSize={29}
+          fontWeight="800"
+          x={width / 2}
+          y={31}
+          textAnchor="middle"
+        >
+          {text}
+        </SvgText>
+      </Svg>
+    </View>
+  );
+}
+
+function SegmentedMatchGauge({
+  match,
+  ringColors,
+}: {
+  match: number;
+  ringColors: [string, string, string, string];
+}) {
+  const gid = useId().replace(/:/g, '');
+  const size = 78;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = 28;
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Svg
+        width={size}
+        height={size}
+        style={{ position: 'absolute', left: 0, top: 0 }}
+        pointerEvents="none"
+      >
+        <Defs>
+          <SvgLinearGradient id={`mg-${gid}`} x1="0" y1="1" x2="1" y2="0">
+            <Stop offset="0" stopColor={ringColors[0]} />
+            <Stop offset="0.45" stopColor={ringColors[1]} />
+            <Stop offset="1" stopColor={ringColors[2]} />
+          </SvgLinearGradient>
+        </Defs>
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke={`url(#mg-${gid})`}
+          strokeWidth={3}
+          strokeDasharray="11 8"
+          strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+      </Svg>
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={styles.matchOrbPct}>{match}</Text>
+        <Text style={styles.matchOrbLbl}>match</Text>
+      </View>
+    </View>
+  );
+}
+
+function NeonOutlinePad({
+  borderRadius,
+  neonColors,
+  children,
+}: {
+  borderRadius: number;
+  neonColors: [string, string, string, string];
+  children: React.ReactNode;
+}) {
+  return (
+    <LinearGradient
+      colors={neonColors}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 0 }}
+      style={{ borderRadius, padding: 1.5 }}
+    >
+      <View
+        style={{
+          borderRadius: borderRadius - 1.5,
+          backgroundColor: '#000000',
+          overflow: 'hidden',
+        }}
+      >
+        {children}
+      </View>
+    </LinearGradient>
+  );
+}
+
 function openMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
   if (Platform.OS === 'ios') {
@@ -146,12 +279,14 @@ function RestaurantScorePentagon({
   gridColor = 'rgba(255,255,255,0.10)',
   labelColor = 'rgba(255,255,255,0.62)',
   svgHeight = SPOTLIGHT_RADAR_HEIGHT,
+  neon,
 }: {
   ai: AiOverview | null | undefined;
   stroke: string;
   gridColor?: string;
   labelColor?: string;
   svgHeight?: number;
+  neon?: boolean;
 }) {
   const n = 5;
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
@@ -177,13 +312,17 @@ function RestaurantScorePentagon({
       return `${cx + r * Math.cos(t)},${cy + r * Math.sin(t)}`;
     })
     .join(' ');
+  const ringStroke = neon ? NEON_CYAN : stroke;
+  const ringGrid = neon ? 'rgba(0,255,255,0.2)' : gridColor;
+  const ringLabel = neon ? 'rgba(255,255,255,0.78)' : labelColor;
+  const fillTint = neon ? `${NEON_CYAN}44` : `${stroke}55`;
   return (
     <View style={styles.radarBlock}>
       <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
-        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={gridColor} strokeWidth={0.35} />
-        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={gridColor} strokeWidth={0.35} />
-        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={gridColor} strokeWidth={0.45} />
-        <Polygon points={fillPts} fill={`${stroke}55`} stroke={stroke} strokeWidth={1.25} strokeLinejoin="round" />
+        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={neon ? 0.5 : 0.35} />
+        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={neon ? 0.5 : 0.35} />
+        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={neon ? 0.55 : 0.45} />
+        <Polygon points={fillPts} fill={fillTint} stroke={ringStroke} strokeWidth={neon ? 1.45 : 1.25} strokeLinejoin="round" />
         {axes.map(({ key, corner, max }, i) => {
           const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
           const lx = cx + labelR * Math.cos(t);
@@ -195,7 +334,7 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly - 2.4}
-                fill={labelColor}
+                fill={ringLabel}
                 fontSize={5}
                 fontWeight="700"
                 textAnchor="middle"
@@ -206,7 +345,7 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly + 3.6}
-                fill={labelColor}
+                fill={ringLabel}
                 fontSize={4.1}
                 fontWeight="600"
                 textAnchor="middle"
@@ -222,22 +361,24 @@ function RestaurantScorePentagon({
   );
 }
 
-function EngineStatBars({ raw, compact }: { raw: ScoredRestaurant['raw']; compact?: boolean }) {
+function EngineStatBars({ raw, compact, neon }: { raw: ScoredRestaurant['raw']; compact?: boolean; neon?: boolean }) {
   const { theme } = useAppTheme();
   const rows: { label: string; value: number; colors: [string, string] }[] = [
-    { label: 'Distance', value: raw.distance, colors: ['#7DD3FC', '#38BDF8'] },
-    { label: 'Health', value: raw.health, colors: ['#86EFAC', '#4ADE80'] },
-    { label: 'Price', value: raw.price, colors: ['#FDE68A', '#FBBF24'] },
-    { label: 'Rated', value: raw.rating, colors: ['#FBCFE8', '#F472B6'] },
-    { label: 'Novelty', value: raw.novelty, colors: ['#C4B5FD', '#A78BFA'] },
+    { label: 'Distance', value: raw.distance, colors: ['#38BDF8', '#0EA5E9'] },
+    { label: 'Health', value: raw.health, colors: ['#4ADE80', '#22C55E'] },
+    { label: 'Price', value: raw.price, colors: ['#FACC15', '#EAB308'] },
+    { label: 'Rated', value: raw.rating, colors: ['#F472B6', '#EC4899'] },
+    { label: 'Novelty', value: raw.novelty, colors: ['#C084FC', '#A855F7'] },
   ];
+  const labelCol = neon ? '#FFFFFF' : theme.subtext;
+  const trackBg = neon ? 'rgba(255,255,255,0.08)' : theme.glassBackground;
   return (
     <View style={[styles.engineBars, compact && styles.engineBarsCompact]}>
       {rows.map(row => {
         return (
           <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
-            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: theme.subtext }]}>{row.label}</Text>
-            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact, { backgroundColor: theme.glassBackground }]}>
+            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
+            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact, { backgroundColor: trackBg }]}>
               <View style={[styles.engineBarFillWrap, { width: `${clampScore(row.value, 100)}%` as DimensionValue }]}>
                 <LinearGradient
                   colors={row.colors}
@@ -281,6 +422,9 @@ function SpotlightCard({
     typeof place.userRatingCount === 'number' && place.userRatingCount > 0
       ? `${place.userRatingCount.toLocaleString()} reviews`
       : null;
+
+  const neonUi = Boolean(theme.neonColors);
+  const ringColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
 
   const ty = useSharedValue(0);
   const opacity = useSharedValue(1);
@@ -350,10 +494,14 @@ function SpotlightCard({
               </Text>
             </View>
             <View style={styles.matchOrb}>
-              <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
-                <Text style={styles.matchOrbPct}>{match}</Text>
-                <Text style={styles.matchOrbLbl}>match</Text>
-              </LinearGradient>
+              {neonUi ? (
+                <SegmentedMatchGauge match={match} ringColors={ringColors} />
+              ) : (
+                <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
+                  <Text style={styles.matchOrbPct}>{match}</Text>
+                  <Text style={styles.matchOrbLbl}>match</Text>
+                </LinearGradient>
+              )}
             </View>
           </View>
 
@@ -365,51 +513,114 @@ function SpotlightCard({
                 gridColor={theme.radarGridColor}
                 labelColor={theme.subtext}
                 svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
+                neon={neonUi}
               />
             </View>
             <View style={styles.scoreBarsCol}>
-              <Text style={[styles.valueMatchHeading, { color: theme.subtext }]}>value match </Text>
-              <EngineStatBars raw={scored.raw} compact />
+              <Text
+                style={[
+                  styles.valueMatchHeading,
+                  { color: neonUi ? 'rgba(255,255,255,0.72)' : theme.subtext },
+                  neonUi && styles.valueMatchHeadingNeon,
+                ]}
+              >
+                value match
+              </Text>
+              <EngineStatBars raw={scored.raw} compact neon={neonUi} />
             </View>
           </View>
 
           <View style={styles.spotlightActions}>
-            <TouchableOpacity
-              style={[
-                styles.spotlightAction,
-                styles.spotlightActionPrimaryBase,
-                { backgroundColor: theme.accent },
-                !mapsReady && styles.spotlightActionDisabled,
-              ]}
-              onPress={e => {
-                e.stopPropagation();
-                if (!mapsReady) return;
-                openMaps(name, lat, lng);
-              }}
-            >
-              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
-              <Text style={styles.spotlightActionText} numberOfLines={1}>
-                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.spotlightAction,
-                styles.spotlightActionGhostBase,
-                { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
-              ]}
-              onPress={e => {
-                e.stopPropagation();
-                onOpenMap();
-              }}
-            >
-              <Ionicons name="map-outline" size={16} color={theme.accent} />
-              <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
-                Map tab
-              </Text>
-            </TouchableOpacity>
+            {neonUi ? (
+              <>
+                <TouchableOpacity
+                  style={[!mapsReady && styles.spotlightActionDisabled, { flex: 1 }]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    if (!mapsReady) return;
+                    openMaps(name, lat, lng);
+                  }}
+                  disabled={!mapsReady}
+                  activeOpacity={0.88}
+                >
+                  <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
+                    <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
+                      <Ionicons
+                        name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
+                        size={16}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
+                        {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+                      </Text>
+                    </View>
+                  </NeonOutlinePad>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  onPress={e => {
+                    e.stopPropagation();
+                    onOpenMap();
+                  }}
+                  activeOpacity={0.88}
+                >
+                  <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
+                    <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
+                      <Ionicons name="map-outline" size={16} color="#FFFFFF" />
+                      <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
+                        Map tab
+                      </Text>
+                    </View>
+                  </NeonOutlinePad>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.spotlightAction,
+                    styles.spotlightActionPrimaryBase,
+                    { backgroundColor: theme.accent },
+                    !mapsReady && styles.spotlightActionDisabled,
+                  ]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    if (!mapsReady) return;
+                    openMaps(name, lat, lng);
+                  }}
+                >
+                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
+                  <Text style={styles.spotlightActionText} numberOfLines={1}>
+                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.spotlightAction,
+                    styles.spotlightActionGhostBase,
+                    { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+                  ]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    onOpenMap();
+                  }}
+                >
+                  <Ionicons name="map-outline" size={16} color={theme.accent} />
+                  <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
+                    Map tab
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-          <Text style={[styles.spotlightHint, { color: theme.subtext }]}>Tap for more details.</Text>
+          <Text
+            style={[
+              styles.spotlightHint,
+              { color: neonUi ? 'rgba(160,160,170,0.95)' : theme.subtext },
+            ]}
+          >
+            Tap for more details.
+          </Text>
         </TouchableOpacity>
       </NeonBorderCard>
     </Animated.View>
@@ -596,6 +807,12 @@ export default function HomeScreen() {
 
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
   const homeBottomPad = tabBarHeight + 12;
+  const rootNeon = Boolean(theme.neonColors);
+  const stripNeonColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
+  const titleText =
+    !isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
+      ? `Top ${visibleList.length} picks`
+      : 'Top 10 picks';
 
   const onFilmstripRefresh = useCallback(async () => {
     setFilmstripRefreshing(true);
@@ -609,21 +826,16 @@ export default function HomeScreen() {
     }
   }, [loadSpotlight]);
 
-  return (
-    <LinearGradient
-      colors={theme.gradient}
-      start={{ x: 0, y: 1 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.background}
-    >
+  const homeBody = (
+    <>
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
-          <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>
-            {!isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
-              ? `Top ${visibleList.length} picks`
-              : 'Top 10 picks'}
-          </Text>
+          {rootNeon ? (
+            <HomeNeonTitle text={titleText} width={WINDOW_WIDTH - 32} />
+          ) : (
+            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{titleText}</Text>
+          )}
 
           <ScenarioQuickBar />
 
@@ -698,44 +910,107 @@ export default function HomeScreen() {
                   )}
                 </TouchableOpacity>
                 <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
-                <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
-                  {visibleList.map((scored, i) => {
-                    const place = scored.place;
-                    const pid = String(place?.id ?? i);
-                    const pal = FILMSTRIP_PALETTE[i % FILMSTRIP_PALETTE.length];
-                    const active = i === pickIndex;
-                    const dist = Math.abs(i - pickIndex);
-                    const scale = dist === 0 ? 1.46 : dist === 1 ? 0.94 : 0.78;
-                    const iconName = stripIconForPlaceId(pid);
-                    return (
-                      <TouchableOpacity
-                        key={pid}
-                        activeOpacity={0.85}
-                        onPress={() => goToPick(i)}
-                        style={[
-                          styles.filmstripThumb,
-                          {
-                            width: FILM_CARD_W,
-                            height: FILM_CARD_H,
-                            backgroundColor: pal.bg,
-                            borderColor: active ? theme.accent : pal.border,
-                            transform: [{ scale }],
-                            zIndex: active ? 2 : 1,
-                          },
-                          active && styles.filmstripThumbActive,
-                        ]}
-                      >
-                        <Ionicons name={iconName} size={17} color={pal.mark} />
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                  <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
+                    {visibleList.map((scored, i) => {
+                      const place = scored.place;
+                      const pid = String(place?.id ?? i);
+                      const palStd = FILMSTRIP_PALETTE[i % FILMSTRIP_PALETTE.length];
+                      const palNeon = FILMSTRIP_PALETTE_NEON[i % FILMSTRIP_PALETTE_NEON.length];
+                      const active = i === pickIndex;
+                      const dist = Math.abs(i - pickIndex);
+                      const scale = dist === 0 ? 1.46 : dist === 1 ? 0.94 : 0.78;
+                      const iconName = stripIconForPlaceId(pid);
+                      if (rootNeon) {
+                        return (
+                          <TouchableOpacity
+                            key={pid}
+                            activeOpacity={0.85}
+                            onPress={() => goToPick(i)}
+                            style={[
+                              styles.filmstripThumbNeonOuter,
+                              {
+                                width: FILM_CARD_W,
+                                height: FILM_CARD_H,
+                                transform: [{ scale }],
+                                zIndex: active ? 2 : 1,
+                              },
+                            ]}
+                          >
+                            {active ? (
+                              <LinearGradient
+                                colors={stripNeonColors}
+                                start={{ x: 0, y: 1 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.filmstripThumbNeonGrad}
+                              >
+                                <View
+                                  style={[
+                                    styles.filmstripThumbNeonInner,
+                                    { backgroundColor: palNeon.bg },
+                                  ]}
+                                >
+                                  <Ionicons name={iconName} size={17} color={palNeon.mark} />
+                                </View>
+                              </LinearGradient>
+                            ) : (
+                              <View
+                                style={[
+                                  styles.filmstripThumbNeonInner,
+                                  {
+                                    backgroundColor: palNeon.bg,
+                                    borderWidth: 1,
+                                    borderColor: 'rgba(0,255,255,0.38)',
+                                  },
+                                ]}
+                              >
+                                <Ionicons name={iconName} size={17} color={palNeon.mark} />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      }
+                      return (
+                        <TouchableOpacity
+                          key={pid}
+                          activeOpacity={0.85}
+                          onPress={() => goToPick(i)}
+                          style={[
+                            styles.filmstripThumb,
+                            {
+                              width: FILM_CARD_W,
+                              height: FILM_CARD_H,
+                              backgroundColor: palStd.bg,
+                              borderColor: active ? theme.accent : palStd.border,
+                              transform: [{ scale }],
+                              zIndex: active ? 2 : 1,
+                            },
+                            active && styles.filmstripThumbActive,
+                          ]}
+                        >
+                          <Ionicons name={iconName} size={17} color={palStd.mark} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
             </View>
           ) : null}
         </View>
       </SafeAreaView>
+    </>
+  );
+
+  return rootNeon ? (
+    <View style={[styles.background, { backgroundColor: '#000000' }]}>{homeBody}</View>
+  ) : (
+    <LinearGradient
+      colors={theme.gradient}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.background}
+    >
+      {homeBody}
     </LinearGradient>
   );
 }
@@ -802,6 +1077,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.75,
     shadowRadius: 5,
     elevation: 5,
+  },
+  filmstripThumbNeonOuter: {
+    borderRadius: 10,
+    overflow: 'visible',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filmstripThumbNeonGrad: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    padding: 2.5,
+    shadowColor: '#00FFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  filmstripThumbNeonInner: {
+    flex: 1,
+    borderRadius: 7.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingBox: { marginTop: 12 },
   messageBox: {
@@ -888,6 +1186,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 2,
   },
+  valueMatchHeadingNeon: {
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    fontSize: 9,
+  },
   radarBlock: { width: '100%', marginTop: 0 },
   engineBars: { gap: 6, marginTop: 0 },
   engineBarsCompact: { gap: 3, marginTop: 0 },
@@ -905,6 +1208,21 @@ const styles = StyleSheet.create({
   engineBarTrackCompact: { height: 5, borderRadius: 3 },
   engineBarFillWrap: { height: '100%', borderRadius: 4, overflow: 'hidden' },
   spotlightActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  spotlightActionInnerNeon: {
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  spotlightActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  spotlightActionTextNeon: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   spotlightAction: {
     flex: 1,
     flexDirection: 'row',

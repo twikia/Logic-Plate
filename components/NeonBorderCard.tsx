@@ -52,6 +52,22 @@ export function NeonBorderCard({
     );
   }
 
+  const spin = theme.neonBorderSpin !== false;
+
+  if (!spin) {
+    return (
+      <NeonStaticBorder
+        borderRadius={borderRadius}
+        neonColors={theme.neonColors}
+        cardBackground={theme.cardBackground}
+        outerStyle={outerStyle}
+        innerStyle={innerStyle}
+      >
+        {children}
+      </NeonStaticBorder>
+    );
+  }
+
   return (
     <NeonAnimatedBorder
       borderRadius={borderRadius}
@@ -62,6 +78,59 @@ export function NeonBorderCard({
     >
       {children}
     </NeonAnimatedBorder>
+  );
+}
+
+function NeonStaticBorder({
+  children,
+  borderRadius,
+  neonColors,
+  cardBackground,
+  outerStyle,
+  innerStyle,
+}: {
+  children: React.ReactNode;
+  borderRadius: number;
+  neonColors: [string, string, string, string];
+  cardBackground: string;
+  outerStyle?: ViewStyle;
+  innerStyle?: ViewStyle;
+}) {
+  return (
+    <View
+      style={[
+        {
+          borderRadius,
+          overflow: 'hidden',
+          shadowColor: '#00FFFF',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.45,
+          shadowRadius: 14,
+          elevation: 10,
+        },
+        outerStyle,
+      ]}
+    >
+      <LinearGradient
+        colors={neonColors}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 0 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View
+        style={[
+          {
+            margin: 2,
+            borderRadius: borderRadius - 2,
+            backgroundColor: cardBackground,
+            overflow: 'hidden',
+          },
+          innerStyle,
+        ]}
+      >
+        {children}
+      </View>
+    </View>
   );
 }
 
