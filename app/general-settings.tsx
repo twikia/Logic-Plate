@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import * as Haptics from 'expo-haptics';
 import { 
   getDistanceUnit, setDistanceUnit, 

@@ -8,7 +8,7 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
@@ -91,7 +91,7 @@ function SkeletonCard() {
         Animated.timing(pulse, { toValue: 0.4, duration: 800, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [pulse]);
   return (
     <Animated.View style={[styles.card, { opacity: pulse }]}>
       <View style={{ height: 120, backgroundColor: 'rgba(255,255,255,0.08)' }} />
@@ -211,7 +211,7 @@ function RestaurantCard({
 
     loadPhotos();
     return () => { cancelled = true; };
-  }, [item?.id, name, lat, lng, item?.photos, cuisineKey]);
+  }, [item?.id, name, lat, lng, item?.photos, cuisineKey, item.primaryType, item.websiteUri]);
 
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={onOpenOverview}>
@@ -306,12 +306,7 @@ export default function ResultsScreen() {
     snapProgressComplete,
   } = useRestaurantLoadProgress(isLoading, 'cuisine');
 
-  useEffect(() => {
-    getSearchRadius().then(setRadius);
-    loadResults();
-  }, []);
-
-  const loadResults = async (forceRefetch = false, isRefresh = false) => {
+  const loadResults = useCallback(async (forceRefetch = false, isRefresh = false) => {
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     startGpsPhase();
@@ -377,7 +372,18 @@ export default function ResultsScreen() {
       setIsLoading(false);
       setOpenCheckEpoch((e) => e + 1);
     }
-  };
+  }, [
+    cuisineKey,
+    onOrchestratorProgress,
+    snapProgressComplete,
+    startFetchPhase,
+    startGpsPhase,
+  ]);
+
+  useEffect(() => {
+    getSearchRadius().then(setRadius);
+    void loadResults();
+  }, [loadResults]);
 
   const changeRadius = async (val: number) => {
     setRadius(val);

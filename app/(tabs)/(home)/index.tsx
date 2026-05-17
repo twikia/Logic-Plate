@@ -437,8 +437,8 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (session) sessionRadiusRef.current = session.radiusMeters;
-  }, [session?.radiusMeters]);
+    if (session != null) sessionRadiusRef.current = session.radiusMeters;
+  }, [session]);
 
   const recompute = useCallback(async () => {
     const coords = coordsRef.current;
@@ -532,7 +532,7 @@ export default function HomeScreen() {
     if (prefs && session) {
       void loadSpotlight();
     }
-  }, [loadSpotlight, prefs, session?.radiusMeters]);
+  }, [loadSpotlight, prefs, session]);
 
   const goToPick = useCallback((i: number) => {
     const max = Math.max(0, visibleList.length - 1);

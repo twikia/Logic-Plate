@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -184,11 +184,8 @@ function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
 const { width, height } = Dimensions.get('window');
 const MAP_RESULTS_KEY = 'map_results';
 const MAP_RADIUS_OPTIONS = [1000, 2000, 4000, 8000];
-const MAX_MILES = 10;
 const MAX_RADIUS_METERS = 8000;
 const DEFAULT_RADIUS_METERS = 4000;
-const DEG_PER_MILE = 1 / 69;
-const MAX_DELTA = MAX_MILES * DEG_PER_MILE;
 
 function markerInRegion(lat: number, lng: number, reg: Region): boolean {
   const halfLat = reg.latitudeDelta / 2;
@@ -247,7 +244,7 @@ export default function MapScreen() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
   const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(true);
   const [locationProgress] = useState(new Animated.Value(0));
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -284,59 +281,7 @@ export default function MapScreen() {
     return finiteMapColorBounds(markersInMapView, mapSortBy);
   }, [markersInMapView, mapSortBy]);
 
-  useEffect(() => {
-    initMap();
-  }, []);
-
-  const initMap = async () => {
-    setIsLocating(true);
-    
-    // Start progress bar animation
-    Animated.timing(locationProgress, {
-      toValue: 0.9,
-      duration: 3000,
-      useNativeDriver: false,
-    }).start();
-
-    const [coords, savedRadius] = await Promise.all([
-      getLocation(),
-      getSearchRadius()
-    ]);
-
-    const initialRadius = Math.min(savedRadius, MAX_RADIUS_METERS);
-    setRadius(initialRadius);
-
-    if (coords) {
-      // Finish progress
-      Animated.timing(locationProgress, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: false,
-      }).start(() => {
-        setIsLocating(false);
-      });
-
-      setUserCoords(coords);
-      setSearchCenter(coords);
-      
-      const initialRegion = {
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02 * (width / height),
-      };
-      setRegion(initialRegion);
-      
-      // Auto-zoom/animate to location immediately
-      mapRef.current?.animateToRegion(initialRegion, 1000);
-      
-      loadRestaurants(coords.latitude, coords.longitude, initialRadius);
-    } else {
-      setIsLocating(false);
-    }
-  };
-
-  const loadRestaurants = async (lat: number, lng: number, r: number) => {
+  const loadRestaurants = useCallback(async (lat: number, lng: number, r: number) => {
     setIsLoading(true);
     setSearchCenter({ latitude: lat, longitude: lng });
     const cacheKey = `${MAP_RESULTS_KEY}_${Math.round(r)}`;
@@ -371,7 +316,56 @@ export default function MapScreen() {
       setIsLoading(false);
       setOpenStatusEpoch((e) => e + 1);
     }
-  };
+  }, []);
+
+  const initMap = useCallback(async () => {
+    setIsLocating(true);
+
+    Animated.timing(locationProgress, {
+      toValue: 0.9,
+      duration: 3000,
+      useNativeDriver: false,
+    }).start();
+
+    const [coords, savedRadius] = await Promise.all([
+      getLocation(),
+      getSearchRadius()
+    ]);
+
+    const initialRadius = Math.min(savedRadius, MAX_RADIUS_METERS);
+    setRadius(initialRadius);
+
+    if (coords) {
+      Animated.timing(locationProgress, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: false,
+      }).start(() => {
+        setIsLocating(false);
+      });
+
+      setUserCoords(coords);
+      setSearchCenter(coords);
+
+      const initialRegion = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02 * (width / height),
+      };
+      setRegion(initialRegion);
+
+      mapRef.current?.animateToRegion(initialRegion, 1000);
+
+      void loadRestaurants(coords.latitude, coords.longitude, initialRadius);
+    } else {
+      setIsLocating(false);
+    }
+  }, [loadRestaurants, locationProgress]);
+
+  useEffect(() => {
+    void initMap();
+  }, [initMap]);
 
   const onRegionChangeComplete = (newRegion: Region) => {
     setRegion(newRegion);
@@ -868,11 +862,6 @@ const darkMapStyle = [
   { "featureType": "transit", "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
   { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#000000" }] },
   { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#3d3d3d" }] }
-];
-
-const lightMapStyle = [
-  { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
-  { "featureType": "transit", "stylers": [{ "visibility": "off" }] }
 ];
 
 const styles = StyleSheet.create({

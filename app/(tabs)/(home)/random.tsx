@@ -6,7 +6,7 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
@@ -101,7 +101,7 @@ function SkeletonRow() {
         Animated.timing(pulse, { toValue: 0.4, duration: 800, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [pulse]);
   return (
     <Animated.View style={[styles.row, { opacity: pulse }]}>
       <View style={styles.skeletonThumb} />
@@ -264,6 +264,8 @@ export default function RandomScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
   const [radius, setRadius] = useState(4000);
+  const radiusRef = useRef(radius);
+  radiusRef.current = radius;
   const [showRadius, setShowRadius] = useState(false);
   const { formatLabel } = useDistanceFormatter();
 
@@ -320,39 +322,8 @@ export default function RandomScreen() {
     (scenarioFilterEnabled && scenarioKey ? 1 : 0) +
     (Object.values(minAiCutoffs).filter((v) => v > 0).length);
 
-  useEffect(() => {
-    getSearchRadius().then(r => {
-      setRadius(r);
-      loadResults(r);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!paramScenario) return;
-    setScenarioKey(paramScenario);
-    setScenarioFilterEnabled(true);
-    setSortBy(getScenarioPreferredSort(paramScenario));
-  }, [paramScenario]);
-
-  useEffect(() => {
-    if (!hydratedRef.current || isLoading || errorMsg) return;
-    saveRandomPickerState({
-      v: 1,
-      filter,
-      openOnly,
-      selectedPrices: Array.from(selectedPrices),
-      minRating,
-      selectedCuisines: Array.from(selectedCuisines),
-      sortBy,
-      minAiCutoffs: minAiCutoffs,
-      selectedIds: Array.from(selected),
-      scenarioKey,
-      scenarioFilterEnabled,
-    });
-  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, minAiCutoffs, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
-
-  const loadResults = async (r?: number, isRefresh = false) => {
-    const searchRadius = r ?? radius;
+  const loadResults = useCallback(async (r?: number, isRefresh = false) => {
+    const searchRadius = r ?? radiusRef.current;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
     startGpsPhase();
@@ -429,7 +400,38 @@ export default function RandomScreen() {
       hydratedRef.current = true;
       setOpenCheckEpoch((e) => e + 1);
     }
-  };
+  }, [onOrchestratorProgress, paramScenario, startFetchPhase, startGpsPhase, snapProgressComplete]);
+
+  useEffect(() => {
+    getSearchRadius().then(r => {
+      setRadius(r);
+      void loadResults(r);
+    });
+  }, [loadResults]);
+
+  useEffect(() => {
+    if (!paramScenario) return;
+    setScenarioKey(paramScenario);
+    setScenarioFilterEnabled(true);
+    setSortBy(getScenarioPreferredSort(paramScenario));
+  }, [paramScenario]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || isLoading || errorMsg) return;
+    saveRandomPickerState({
+      v: 1,
+      filter,
+      openOnly,
+      selectedPrices: Array.from(selectedPrices),
+      minRating,
+      selectedCuisines: Array.from(selectedCuisines),
+      sortBy,
+      minAiCutoffs: minAiCutoffs,
+      selectedIds: Array.from(selected),
+      scenarioKey,
+      scenarioFilterEnabled,
+    });
+  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, minAiCutoffs, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -362,7 +362,7 @@ export default function RandomResultScreen() {
     return () => {
       cancelled = true;
     };
-  }, [place.id, place.displayName?.text, place.location?.latitude, place.location?.longitude]);
+  }, [place.id, place.displayName?.text, place.location?.latitude, place.location?.longitude, place.primaryType, place.websiteUri]);
   const aiOverview = place.aiOverview;
   const ph = !aiOverview;
 
