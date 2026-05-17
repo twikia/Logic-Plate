@@ -2,6 +2,7 @@ import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
+import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -136,10 +137,14 @@ function formatAxisReading(max: 5 | 10, s: number | null): string {
 function RestaurantScorePentagon({
   ai,
   stroke,
+  gridColor = 'rgba(255,255,255,0.10)',
+  labelColor = 'rgba(255,255,255,0.62)',
   svgHeight = SPOTLIGHT_RADAR_HEIGHT,
 }: {
   ai: AiOverview | null | undefined;
   stroke: string;
+  gridColor?: string;
+  labelColor?: string;
   svgHeight?: number;
 }) {
   const n = 5;
@@ -169,9 +174,9 @@ function RestaurantScorePentagon({
   return (
     <View style={styles.radarBlock}>
       <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
-        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
-        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
-        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.16)" strokeWidth={0.45} />
+        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={gridColor} strokeWidth={0.35} />
+        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={gridColor} strokeWidth={0.35} />
+        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={gridColor} strokeWidth={0.45} />
         <Polygon points={fillPts} fill={`${stroke}55`} stroke={stroke} strokeWidth={1.25} strokeLinejoin="round" />
         {axes.map(({ key, corner, max }, i) => {
           const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
@@ -184,7 +189,7 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly - 2.4}
-                fill="rgba(255,255,255,0.62)"
+                fill={labelColor}
                 fontSize={5}
                 fontWeight="700"
                 textAnchor="middle"
@@ -195,7 +200,7 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly + 3.6}
-                fill="rgba(255,255,255,0.45)"
+                fill={labelColor}
                 fontSize={4.1}
                 fontWeight="600"
                 textAnchor="middle"
@@ -212,6 +217,7 @@ function RestaurantScorePentagon({
 }
 
 function EngineStatBars({ raw, compact }: { raw: ScoredRestaurant['raw']; compact?: boolean }) {
+  const { theme } = useAppTheme();
   const rows: { label: string; value: number; colors: [string, string] }[] = [
     { label: 'Distance', value: raw.distance, colors: ['#7DD3FC', '#38BDF8'] },
     { label: 'Health', value: raw.health, colors: ['#86EFAC', '#4ADE80'] },
@@ -224,8 +230,8 @@ function EngineStatBars({ raw, compact }: { raw: ScoredRestaurant['raw']; compac
       {rows.map(row => {
         return (
           <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
-            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact]}>{row.label}</Text>
-            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact]}>
+            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: theme.subtext }]}>{row.label}</Text>
+            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact, { backgroundColor: theme.glassBackground }]}>
               <View style={[styles.engineBarFillWrap, { width: `${clampScore(row.value, 100)}%` as DimensionValue }]}>
                 <LinearGradient
                   colors={row.colors}
@@ -293,79 +299,96 @@ function SpotlightCard({
   }));
 
   return (
-    <Animated.View style={[styles.spotlightCard, cardAnim]}>
-      <TouchableOpacity activeOpacity={0.92} style={styles.spotlightPressLayer} onPress={onPress}>
-        {canReject ? (
-          <TouchableOpacity
-            style={styles.spotlightReject}
-            onPress={e => {
-              e.stopPropagation();
-              playDismissAnim();
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={22} color="rgba(255,255,255,0.92)" />
-          </TouchableOpacity>
-        ) : null}
+    <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
+      <NeonBorderCard borderRadius={26}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.spotlightPressLayer} onPress={onPress}>
+          {canReject ? (
+            <TouchableOpacity
+              style={styles.spotlightReject}
+              onPress={e => {
+                e.stopPropagation();
+                playDismissAnim();
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={22} color="rgba(255,255,255,0.92)" />
+            </TouchableOpacity>
+          ) : null}
 
-        <View style={styles.spotlightHeroRow}>
-          <View style={styles.spotlightTitleBlock}>
-            <Text style={styles.spotlightTitle} numberOfLines={3}>
-              {name}
-            </Text>
-            <Text style={styles.spotlightSub} numberOfLines={2}>
-              {formatDistance(Math.round(place.distanceMeters ?? 0))} away
-              {rating ? ` · ${rating}★` : ''}
-              {reviewCount ? ` · ${reviewCount}` : ''}
-            </Text>
+          <View style={styles.spotlightHeroRow}>
+            <View style={styles.spotlightTitleBlock}>
+              <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={3}>
+                {name}
+              </Text>
+              <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={2}>
+                {formatDistance(Math.round(place.distanceMeters ?? 0))} away
+                {rating ? ` · ${rating}★` : ''}
+                {reviewCount ? ` · ${reviewCount}` : ''}
+              </Text>
+            </View>
+            <View style={styles.matchOrb}>
+              <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
+                <Text style={styles.matchOrbPct}>{match}</Text>
+                <Text style={styles.matchOrbLbl}>match</Text>
+              </LinearGradient>
+            </View>
           </View>
-          <View style={styles.matchOrb}>
-            <LinearGradient colors={['#FDBA74', '#F97352']} style={styles.matchOrbGrad}>
-              <Text style={styles.matchOrbPct}>{match}</Text>
-              <Text style={styles.matchOrbLbl}>match</Text>
-            </LinearGradient>
-          </View>
-        </View>
 
-        <View style={styles.scoreShapeRow}>
-          <View style={styles.scorePentagonCol}>
-            <RestaurantScorePentagon ai={ai} stroke={theme.accent} svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT} />
+          <View style={styles.scoreShapeRow}>
+            <View style={styles.scorePentagonCol}>
+              <RestaurantScorePentagon
+                ai={ai}
+                stroke={theme.accent}
+                gridColor={theme.radarGridColor}
+                labelColor={theme.subtext}
+                svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
+              />
+            </View>
+            <View style={styles.scoreBarsCol}>
+              <Text style={[styles.valueMatchHeading, { color: theme.subtext }]}>value match </Text>
+              <EngineStatBars raw={scored.raw} compact />
+            </View>
           </View>
-          <View style={styles.scoreBarsCol}>
-            <Text style={styles.valueMatchHeading}>value match </Text>
-            <EngineStatBars raw={scored.raw} compact />
-          </View>
-        </View>
 
-        <View style={styles.spotlightActions}>
-          <TouchableOpacity
-            style={[styles.spotlightAction, styles.spotlightActionPrimary, !mapsReady && styles.spotlightActionDisabled]}
-            onPress={e => {
-              e.stopPropagation();
-              if (!mapsReady) return;
-              openMaps(name, lat, lng);
-            }}
-          >
-            <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
-            <Text style={styles.spotlightActionText} numberOfLines={1}>
-              {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.spotlightAction, styles.spotlightActionGhost]}
-            onPress={e => {
-              e.stopPropagation();
-              onOpenMap();
-            }}
-          >
-            <Ionicons name="map-outline" size={16} color="#F9A06F" />
-            <Text style={[styles.spotlightActionText, styles.spotlightGhostText]} numberOfLines={1}>
-              Map tab
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.spotlightHint}>Tap for more details.</Text>
-      </TouchableOpacity>
+          <View style={styles.spotlightActions}>
+            <TouchableOpacity
+              style={[
+                styles.spotlightAction,
+                styles.spotlightActionPrimaryBase,
+                { backgroundColor: theme.accent },
+                !mapsReady && styles.spotlightActionDisabled,
+              ]}
+              onPress={e => {
+                e.stopPropagation();
+                if (!mapsReady) return;
+                openMaps(name, lat, lng);
+              }}
+            >
+              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
+              <Text style={styles.spotlightActionText} numberOfLines={1}>
+                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.spotlightAction,
+                styles.spotlightActionGhostBase,
+                { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+              ]}
+              onPress={e => {
+                e.stopPropagation();
+                onOpenMap();
+              }}
+            >
+              <Ionicons name="map-outline" size={16} color={theme.accent} />
+              <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
+                Map tab
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.spotlightHint, { color: theme.subtext }]}>Tap for more details.</Text>
+        </TouchableOpacity>
+      </NeonBorderCard>
     </Animated.View>
   );
 }
@@ -588,7 +611,7 @@ export default function HomeScreen() {
             />
           }
         >
-          <Text style={[styles.pageTitle, { color: theme.text }]}>
+          <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>
             {!isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
               ? `Top ${visibleList.length} picks`
               : 'Top 10 picks'}
@@ -742,20 +765,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   retryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
-  spotlightCard: {
+  spotlightCardOuter: {
     alignSelf: 'center',
     width: '100%',
-    backgroundColor: 'rgba(22,10,28,0.72)',
-    borderRadius: 26,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     overflow: 'visible',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.35,
-    shadowRadius: 22,
-    elevation: 12,
   },
   spotlightPressLayer: {
     padding: 18,
@@ -788,9 +801,8 @@ const styles = StyleSheet.create({
     fontSize: 23,
     lineHeight: 28,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
-  spotlightSub: { fontSize: 12, color: 'rgba(255,255,255,0.62)' },
+  spotlightSub: { fontSize: 12 },
   matchOrb: {
     width: 78,
     height: 78,
@@ -830,7 +842,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
-    color: 'rgba(255,255,255,0.55)',
     marginBottom: 2,
   },
   radarBlock: { width: '100%', marginTop: 0 },
@@ -838,13 +849,12 @@ const styles = StyleSheet.create({
   engineBarsCompact: { gap: 3, marginTop: 0 },
   engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   engineBarRowCompact: { gap: 4 },
-  engineBarLabel: { width: 72, fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+  engineBarLabel: { width: 72, fontSize: 10, fontWeight: '600' },
   engineBarLabelCompact: { width: 52, fontSize: 8.5 },
   engineBarTrack: {
     flex: 1,
     height: 7,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
     maxWidth: '100%',
   },
@@ -861,18 +871,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 10,
   },
-  spotlightActionPrimary: { backgroundColor: '#F97352' },
-  spotlightActionGhost: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
+  spotlightActionPrimaryBase: {},
+  spotlightActionGhostBase: { borderWidth: 1 },
   spotlightActionDisabled: { opacity: 0.45 },
   spotlightActionText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
-  spotlightGhostText: { color: '#F9A06F' },
   spotlightHint: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
     textAlign: 'center',
     marginTop: 2,
   },
