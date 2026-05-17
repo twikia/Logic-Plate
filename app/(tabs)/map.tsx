@@ -156,10 +156,6 @@ function MapSheetAiScores({
   );
 }
 
-const MARKER_PAD = 12;
-const MARKER_BADGE_H = 34;
-const MARKER_WRAP_H = MARKER_BADGE_H + MARKER_PAD * 2;
-
 function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
   item: any;
   markerColor: string;
@@ -173,15 +169,13 @@ function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
       onPress={onPress}
       zIndex={10}
-      anchor={{ x: 0.5, y: (MARKER_PAD + MARKER_BADGE_H) / MARKER_WRAP_H }}
+      anchor={{ x: 0.5, y: 1 }}
     >
-      <View style={styles.markerWrap}>
-        <View style={[styles.markerBadge, { backgroundColor: markerColor }]}>
-          <Ionicons name="restaurant" size={16} color="#FFFFFF" />
-          <Text style={styles.markerLabel} numberOfLines={1}>
-            {scoreText}
-          </Text>
-        </View>
+      <View style={[styles.markerBadge, { backgroundColor: markerColor }]}>
+        <Ionicons name="restaurant" size={10} color="#FFFFFF" />
+        <Text style={styles.markerLabel} numberOfLines={1}>
+          {scoreText}
+        </Text>
       </View>
     </Marker>
   );
@@ -895,17 +889,12 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
-  markerWrap: {
-    padding: MARKER_PAD,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   markerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 66,
-    height: MARKER_BADGE_H,
+    height: 34,
     paddingHorizontal: 9,
     borderRadius: 17,
     borderWidth: 2,
@@ -913,10 +902,10 @@ const styles = StyleSheet.create({
   },
   markerLabel: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: -0.3,
-    marginLeft: 4,
+    marginLeft: 2,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   sortBtn: {
