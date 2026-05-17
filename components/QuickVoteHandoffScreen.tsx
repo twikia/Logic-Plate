@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/context/ThemeContext';
@@ -118,12 +118,8 @@ export function QuickVoteHandoffScreen({
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <Pressable style={styles.pressFlex} onPress={advance}>
-        <ScrollView
-          contentContainerStyle={styles.scrollInner}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
-          <Text style={[styles.line1, { color: theme.subtext }]}>{params.voterName} picked</Text>
-          <Text style={[styles.restaurant, { color: theme.text }]}>{params.votedRestaurantName}</Text>
+        <View style={styles.inner}>
+          <Text style={[styles.voteCasted, { color: theme.text }]}>Vote casted!</Text>
           <Text style={[styles.pass, { color: theme.subtext }]}>
             {params.nextVoter <= params.voterCount
               ? `Pass to Voter ${params.nextVoter}`
@@ -133,7 +129,7 @@ export function QuickVoteHandoffScreen({
           <View style={[styles.barTrack, { backgroundColor: theme.subtext + '22' }]}>
             <Animated.View style={[styles.barFill, { width: barWidth, backgroundColor: theme.accent }]} />
           </View>
-        </ScrollView>
+        </View>
       </Pressable>
     </SafeAreaView>
   );
@@ -142,19 +138,15 @@ export function QuickVoteHandoffScreen({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   pressFlex: { flex: 1 },
-  scrollInner: {
+  inner: {
+    flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  line1: {
-    fontSize: 17,
-    marginBottom: 8,
-  },
-  restaurant: {
-    fontSize: 24,
-    fontWeight: '700',
+  voteCasted: {
+    fontSize: 28,
+    fontWeight: '800',
     textAlign: 'center',
     marginBottom: 16,
   },
