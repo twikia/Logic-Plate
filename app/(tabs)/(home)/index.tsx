@@ -55,7 +55,7 @@ const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
 const SPOTLIGHT_RADAR_INLINE_HEIGHT = Math.round(
-  Math.min(WINDOW_HEIGHT * 0.22, WINDOW_WIDTH * 0.44, 172)
+  Math.min(WINDOW_HEIGHT * 0.28, WINDOW_WIDTH * 0.5, 220)
 );
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const FILM_STRIP_FRAC = 0.66;
@@ -157,8 +157,8 @@ function RestaurantScorePentagon({
   });
   const cx = 50;
   const cy = 50;
-  const R = 26;
-  const labelR = 36;
+  const R = 40;
+  const labelR = 47;
   const fillPts = norms
     .map((norm, i) => {
       const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
@@ -168,11 +168,11 @@ function RestaurantScorePentagon({
     .join(' ');
   return (
     <View style={styles.radarBlock}>
-      <Svg width="100%" height={svgHeight} viewBox="-8 -10 116 120" preserveAspectRatio="xMidYMid meet">
-        <Polygon points={polygonRing(cx, cy, R * 0.35, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
-        <Polygon points={polygonRing(cx, cy, R * 0.68, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
+      <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
+        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
+        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.35} />
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.16)" strokeWidth={0.45} />
-        <Polygon points={fillPts} fill={`${stroke}55`} stroke={stroke} strokeWidth={1.1} strokeLinejoin="round" />
+        <Polygon points={fillPts} fill={`${stroke}55`} stroke={stroke} strokeWidth={1.25} strokeLinejoin="round" />
         {axes.map(({ key, corner, max }, i) => {
           const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
           const lx = cx + labelR * Math.cos(t);
@@ -183,9 +183,9 @@ function RestaurantScorePentagon({
             <G key={corner}>
               <SvgText
                 x={lx}
-                y={ly - 2.2}
+                y={ly - 2.4}
                 fill="rgba(255,255,255,0.62)"
-                fontSize={4.4}
+                fontSize={5}
                 fontWeight="700"
                 textAnchor="middle"
                 alignmentBaseline="middle"
@@ -194,9 +194,9 @@ function RestaurantScorePentagon({
               </SvgText>
               <SvgText
                 x={lx}
-                y={ly + 3.4}
+                y={ly + 3.6}
                 fill="rgba(255,255,255,0.45)"
-                fontSize={3.6}
+                fontSize={4.1}
                 fontWeight="600"
                 textAnchor="middle"
                 alignmentBaseline="middle"
@@ -387,6 +387,8 @@ export default function HomeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
   const [pullRefreshing, setPullRefreshing] = useState(false);
+  const [homeScrollViewportH, setHomeScrollViewportH] = useState(0);
+  const [homeScrollContentH, setHomeScrollContentH] = useState(0);
   const visibleLenRef = useRef(-1);
   const pickIndexRef = useRef(0);
   pickIndexRef.current = pickIndex;
@@ -401,13 +403,13 @@ export default function HomeScreen() {
   } = useRestaurantLoadProgress(isLoading, 'health');
 
   const visibleList = useMemo(() => {
-    return ranked.filter(r => !rejectedIds.has(String(r.place?.id ?? ''))).slice(0, 10);
+    return ranked.slice(0, 10).filter(r => !rejectedIds.has(String(r.place?.id ?? '')));
   }, [ranked, rejectedIds]);
 
   const rejectPickAt = useCallback(
     (placeId: string) => {
       setRejectedIds(prev => {
-        const curList = ranked.filter(r => !prev.has(String(r.place?.id ?? ''))).slice(0, 10);
+        const curList = ranked.slice(0, 10).filter(r => !prev.has(String(r.place?.id ?? '')));
         if (curList.length <= 1) return prev;
         const idx = curList.findIndex(r => String(r.place?.id ?? '') === placeId);
         if (idx < 0) return prev;
@@ -557,6 +559,8 @@ export default function HomeScreen() {
 
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
   const scrollBottomPad = tabBarHeight + 16;
+  const homeScrollEnabled =
+    homeScrollViewportH > 0 && homeScrollContentH > homeScrollViewportH + 2;
 
   return (
     <LinearGradient
@@ -571,7 +575,10 @@ export default function HomeScreen() {
           style={styles.homeScroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
           showsVerticalScrollIndicator={false}
-          alwaysBounceVertical={Platform.OS === 'ios'}
+          scrollEnabled={homeScrollEnabled}
+          alwaysBounceVertical={homeScrollEnabled && Platform.OS === 'ios'}
+          onLayout={e => setHomeScrollViewportH(e.nativeEvent.layout.height)}
+          onContentSizeChange={(_, h) => setHomeScrollContentH(h)}
           refreshControl={
             <RefreshControl
               refreshing={pullRefreshing}
@@ -581,7 +588,11 @@ export default function HomeScreen() {
             />
           }
         >
-          <Text style={[styles.pageTitle, { color: theme.text }]}>Top 10 picks</Text>
+          <Text style={[styles.pageTitle, { color: theme.text }]}>
+            {!isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
+              ? `Top ${visibleList.length} picks`
+              : 'Top 10 picks'}
+          </Text>
 
           <ScenarioQuickBar />
 
@@ -806,12 +817,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   scorePentagonCol: {
-    flex: 1.38,
+    flex: 1.55,
     minWidth: 0,
     alignItems: 'stretch',
   },
   scoreBarsCol: {
-    flex: 0.62,
+    flex: 0.55,
     minWidth: 0,
     justifyContent: 'center',
   },
