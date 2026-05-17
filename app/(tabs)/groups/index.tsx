@@ -2,7 +2,6 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -65,41 +64,57 @@ export default function GroupsScreen() {
         <Text style={[styles.headerTitle, { color: theme.text }]}>Vote together!</Text>
         <TopProfileButton />
       </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.joinRow}>
-          <TextInput
-            style={[
-              styles.input,
-              { color: theme.text, borderColor: theme.subtext + '44', backgroundColor: theme.cardBackground },
-            ]}
-            placeholder="Enter code"
-            placeholderTextColor={theme.subtext}
-            autoCapitalize="characters"
-            maxLength={8}
-            value={joinCode}
-            onChangeText={setJoinCode}
-          />
-          <TouchableOpacity
-            style={[styles.joinBtn, { backgroundColor: theme.accent }]}
-            onPress={onJoin}>
-            <Text style={[styles.joinBtnText, { color: theme.text }]}>Join</Text>
-          </TouchableOpacity>
+
+      <View style={styles.centerContent}>
+        <View style={styles.joinSection}>
+          <Text style={[styles.joinLabel, { color: theme.subtext }]}>Have a code?</Text>
+          <View style={styles.joinRow}>
+            <TextInput
+              style={[
+                styles.input,
+                { color: theme.text, borderColor: theme.accent + '66', backgroundColor: theme.cardBackground },
+              ]}
+              placeholder="Enter code"
+              placeholderTextColor={theme.subtext}
+              autoCapitalize="characters"
+              maxLength={8}
+              value={joinCode}
+              onChangeText={setJoinCode}
+            />
+            <TouchableOpacity
+              style={[styles.joinBtn, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
+              onPress={onJoin}>
+              <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>Join</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
+          <Text style={[styles.dividerText, { color: theme.subtext }]}>or start one</Text>
+          <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
         </View>
 
         <TouchableOpacity
-          style={[styles.modeBtn, { backgroundColor: theme.cardBackground }]}
+          style={[
+            styles.glowBtn,
+            { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent },
+          ]}
           onPress={() => goLobby('qr')}>
-          <Text style={[styles.modeEmoji]}>📷</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>Create session</Text>
+          <Text style={styles.glowBtnEmoji}>📷</Text>
+          <Text style={[styles.glowBtnText, { color: theme.text }]}>Create session</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.modeBtn, { backgroundColor: theme.cardBackground, marginTop: 8 }]}
+          style={[
+            styles.glowBtn,
+            { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
+          ]}
           onPress={() => router.push('/groups/quick')}>
-          <Text style={[styles.modeEmoji]}>⚡</Text>
-          <Text style={[styles.modeText, { color: theme.text }]}>Quick Vote</Text>
+          <Text style={styles.glowBtnEmoji}>⚡</Text>
+          <Text style={[styles.glowBtnText, { color: theme.text }]}>Quick Vote</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -110,30 +125,74 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 4,
   },
   headerTitle: { fontSize: 22, fontWeight: '800' },
-  scroll: { padding: 16, gap: 12, paddingBottom: 40 },
-  modeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 48,
   },
-  modeEmoji: { fontSize: 22 },
-  modeText: { fontSize: 18, fontWeight: '700' },
+  joinSection: {
+    marginBottom: 4,
+  },
+  joinLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
   joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 17,
+    letterSpacing: 2,
   },
-  joinBtn: { paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12 },
+  joinBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
   joinBtnText: { fontWeight: '800', fontSize: 16 },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 28,
+  },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  glowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+  glowBtnEmoji: { fontSize: 24 },
+  glowBtnText: { fontSize: 18, fontWeight: '700' },
 });

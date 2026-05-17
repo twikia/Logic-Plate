@@ -171,11 +171,11 @@ function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
       zIndex={10}
       anchor={{ x: 0.5, y: 1 }}
     >
-      <View style={[styles.markerBadge, { backgroundColor: markerColor }]}>
-        <Ionicons name="restaurant" size={10} color="#FFFFFF" />
-        <Text style={styles.markerLabel} numberOfLines={1}>
-          {scoreText}
-        </Text>
+      <View style={styles.markerOuter}>
+        <Text style={styles.markerScoreTag}>{scoreText}</Text>
+        <View style={[styles.markerPin, { backgroundColor: markerColor }]}>
+          <Ionicons name="restaurant" size={14} color="#FFFFFF" />
+        </View>
       </View>
     </Marker>
   );
@@ -878,23 +878,35 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
-  markerBadge: {
-    flexDirection: 'row',
+  markerOuter: {
+    alignItems: 'flex-start',
+    paddingTop: 2,
+    paddingLeft: 2,
+  },
+  markerScoreTag: {
+    color: '#FFFFFF',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.95)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    marginBottom: 1,
+    marginLeft: 1,
+  },
+  markerPin: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 66,
-    height: 34,
-    paddingHorizontal: 9,
-    borderRadius: 17,
     borderWidth: 2,
     borderColor: '#FFFFFF',
-  },
-  markerLabel: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-    marginLeft: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   sortBtn: {
