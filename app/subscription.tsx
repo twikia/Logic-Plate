@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View, ScrollView, Pressable, Animated as RNAnimated } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -56,7 +56,6 @@ export default function SubscriptionScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
-  const scrollX = useRef(new RNAnimated.Value(0)).current;
 
   const handleCycleChange = (cycle: BillingCycle) => {
     setBillingCycle(cycle);
