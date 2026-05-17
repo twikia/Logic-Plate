@@ -32,21 +32,27 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   type DimensionValue,
 } from 'react-native';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -278,6 +284,7 @@ function SpotlightCard({
 
   const ty = useSharedValue(0);
   const opacity = useSharedValue(1);
+  const panStartY = useSharedValue(0);
 
   const rejectRef = useRef(onReject);
   rejectRef.current = onReject;
@@ -285,36 +292,52 @@ function SpotlightCard({
     rejectRef.current();
   }, []);
 
-  const playDismissAnim = useCallback(() => {
-    const target = WINDOW_HEIGHT * 0.55;
-    ty.value = withTiming(target, { duration: 280 }, finished => {
-      if (finished) runOnJS(fireReject)();
-    });
-    opacity.value = withTiming(0, { duration: 260 });
-  }, [fireReject, opacity, ty]);
+  const placeId = String(place?.id ?? '');
+  useEffect(() => {
+    ty.value = 0;
+    opacity.value = 1;
+  }, [placeId, ty, opacity]);
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(canReject)
+        .activeOffsetY(14)
+        .failOffsetX([-32, 32])
+        .onStart(() => {
+          panStartY.value = ty.value;
+        })
+        .onUpdate(e => {
+          const next = panStartY.value + e.translationY;
+          const clamped = next > 0 ? next : 0;
+          ty.value = clamped;
+          opacity.value = Math.max(0.38, 1 - clamped / 420);
+        })
+        .onEnd(e => {
+          const dismiss = ty.value > 108 || e.velocityY > 720;
+          if (dismiss) {
+            const target = WINDOW_HEIGHT * 0.55;
+            ty.value = withTiming(target, { duration: 280 }, finished => {
+              if (finished) runOnJS(fireReject)();
+            });
+            opacity.value = withTiming(0, { duration: 260 });
+          } else {
+            ty.value = withSpring(0, { damping: 20, stiffness: 260 });
+            opacity.value = withSpring(1, { damping: 20, stiffness: 260 });
+          }
+        }),
+    [canReject, fireReject, opacity, panStartY, ty]
+  );
 
   const cardAnim = useAnimatedStyle(() => ({
     transform: [{ translateY: ty.value }],
     opacity: opacity.value,
   }));
 
-  return (
+  const cardInner = (
     <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
       <NeonBorderCard borderRadius={26}>
         <TouchableOpacity activeOpacity={0.92} style={styles.spotlightPressLayer} onPress={onPress}>
-          {canReject ? (
-            <TouchableOpacity
-              style={styles.spotlightReject}
-              onPress={e => {
-                e.stopPropagation();
-                playDismissAnim();
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={22} color="rgba(255,255,255,0.92)" />
-            </TouchableOpacity>
-          ) : null}
-
           <View style={styles.spotlightHeroRow}>
             <View style={styles.spotlightTitleBlock}>
               <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={3}>
@@ -391,6 +414,8 @@ function SpotlightCard({
       </NeonBorderCard>
     </Animated.View>
   );
+
+  return canReject ? <GestureDetector gesture={panGesture}>{cardInner}</GestureDetector> : cardInner;
 }
 
 export default function HomeScreen() {
@@ -409,9 +434,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
-  const [pullRefreshing, setPullRefreshing] = useState(false);
-  const [homeScrollViewportH, setHomeScrollViewportH] = useState(0);
-  const [homeScrollContentH, setHomeScrollContentH] = useState(0);
+  const [filmstripRefreshing, setFilmstripRefreshing] = useState(false);
   const visibleLenRef = useRef(-1);
   const pickIndexRef = useRef(0);
   pickIndexRef.current = pickIndex;
@@ -542,15 +565,6 @@ export default function HomeScreen() {
     }
   }, [onOrchestratorProgress, prefs, snapProgressComplete, startFetchPhase, startGpsPhase]);
 
-  const onPullRefresh = useCallback(async () => {
-    setPullRefreshing(true);
-    try {
-      await loadSpotlight({ skipFullScreenLoader: true });
-    } finally {
-      setPullRefreshing(false);
-    }
-  }, [loadSpotlight]);
-
   useEffect(() => {
     if (prefs && session) {
       void loadSpotlight();
@@ -581,9 +595,19 @@ export default function HomeScreen() {
   };
 
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
-  const scrollBottomPad = tabBarHeight + 16;
-  const homeScrollEnabled =
-    homeScrollViewportH > 0 && homeScrollContentH > homeScrollViewportH + 2;
+  const homeBottomPad = tabBarHeight + 12;
+
+  const onFilmstripRefresh = useCallback(async () => {
+    setFilmstripRefreshing(true);
+    setRejectedIds(new Set());
+    setPickIndex(0);
+    carouselRef.current?.scrollToOffset({ offset: 0, animated: true });
+    try {
+      await loadSpotlight({ skipFullScreenLoader: true });
+    } finally {
+      setFilmstripRefreshing(false);
+    }
+  }, [loadSpotlight]);
 
   return (
     <LinearGradient
@@ -594,23 +618,7 @@ export default function HomeScreen() {
     >
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <ScrollView
-          style={styles.homeScroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={homeScrollEnabled}
-          alwaysBounceVertical={homeScrollEnabled && Platform.OS === 'ios'}
-          onLayout={e => setHomeScrollViewportH(e.nativeEvent.layout.height)}
-          onContentSizeChange={(_, h) => setHomeScrollContentH(h)}
-          refreshControl={
-            <RefreshControl
-              refreshing={pullRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor="#F97352"
-              colors={['#F97352', '#F9A06F']}
-            />
-          }
-        >
+        <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
           <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>
             {!isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
               ? `Top ${visibleList.length} picks`
@@ -647,7 +655,9 @@ export default function HomeScreen() {
                 keyExtractor={item => String(item.place?.id ?? '')}
                 horizontal
                 pagingEnabled
-                nestedScrollEnabled
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
                 showsHorizontalScrollIndicator={false}
                 onMomentumScrollEnd={onCarouselMomentumEnd}
                 getItemLayout={(_, index) => ({
@@ -656,7 +666,7 @@ export default function HomeScreen() {
                   index,
                 })}
                 renderItem={({ item }) => (
-                  <View style={{ width: CAROUSEL_PAGE, paddingHorizontal: 10 }}>
+                  <View style={styles.carouselPage}>
                     <SpotlightCard
                       scored={item}
                       canReject={visibleList.length > 1}
@@ -664,10 +674,30 @@ export default function HomeScreen() {
                       onPress={() => void openDetails(item)}
                       onOpenMap={() => router.push('/map' as any)}
                     />
+                    {visibleList.length > 1 ? (
+                      <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
+                        Swipe down on the card to dismiss this pick.
+                      </Text>
+                    ) : null}
                   </View>
                 )}
               />
-              <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
+              <View style={styles.filmstripBar}>
+                <TouchableOpacity
+                  style={styles.filmstripRefreshBtn}
+                  onPress={() => void onFilmstripRefresh()}
+                  disabled={filmstripRefreshing}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh picks"
+                >
+                  {filmstripRefreshing ? (
+                    <ActivityIndicator size="small" color={theme.accent} />
+                  ) : (
+                    <Ionicons name="refresh-outline" size={22} color={theme.accent} />
+                  )}
+                </TouchableOpacity>
+                <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
                 <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
                   {visibleList.map((scored, i) => {
                     const place = scored.place;
@@ -700,10 +730,11 @@ export default function HomeScreen() {
                     );
                   })}
                 </View>
+                </View>
               </View>
             </View>
           ) : null}
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -712,8 +743,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   background: { flex: 1 },
   safeArea: { flex: 1, paddingTop: 56 },
-  homeScroll: { flex: 1 },
-  scrollContent: {
+  homeContent: {
+    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 18,
     gap: 18,
@@ -724,13 +755,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  galleryBlock: { marginHorizontal: -20 },
+  galleryBlock: { marginHorizontal: -20, flexGrow: 0 },
+  carouselPage: {
+    width: CAROUSEL_PAGE,
+    paddingHorizontal: 10,
+  },
+  cardSwipeTooltip: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 8,
+    lineHeight: 16,
+  },
+  filmstripBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    gap: 4,
+  },
+  filmstripRefreshBtn: {
+    paddingVertical: 4,
+    paddingRight: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   filmstripWrap: { alignSelf: 'center' },
   filmstripRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   filmstripThumb: {
     borderRadius: 8,
@@ -774,18 +830,6 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
-  spotlightReject: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    zIndex: 4,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
   spotlightHeroRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -794,7 +838,7 @@ const styles = StyleSheet.create({
   spotlightTitleBlock: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 48,
+    paddingRight: 4,
     gap: 6,
   },
   spotlightTitle: {
