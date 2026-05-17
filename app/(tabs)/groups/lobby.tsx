@@ -16,7 +16,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { formatEdgeFunctionFailure, logEdgeFunctionFailure } from '@/core/supabaseFunctionErrors';
+import { logEdgeFunctionFailureAsync } from '@/core/supabaseFunctionErrors';
 import { supabase } from '@/core/supabaseClient';
 import { getLocation } from '@/core/locationCache';
 import { getCellsInRadius } from '@/core/h3Utils';
@@ -85,8 +85,8 @@ export default function GroupLobbyScreen() {
       const { data, error: fnErr } = invokeResult;
       if (cancelled) return;
       if (fnErr || !data || (data as { error?: string }).error) {
-        logEdgeFunctionFailure('create-group-session', invokeResult);
-        setError(formatEdgeFunctionFailure('create-group-session', invokeResult));
+        const msg = await logEdgeFunctionFailureAsync('create-group-session', invokeResult);
+        setError(msg);
         setLoading(false);
         return;
       }
@@ -162,8 +162,8 @@ export default function GroupLobbyScreen() {
     setReconciling(false);
     const { data, error: fnErr } = invokeResult;
     if (fnErr || (data as { error?: string })?.error) {
-      logEdgeFunctionFailure('reconcile-group', invokeResult);
-      setError(formatEdgeFunctionFailure('reconcile-group', invokeResult));
+      const msg = await logEdgeFunctionFailureAsync('reconcile-group', invokeResult);
+      setError(msg);
       return;
     }
     router.replace({ pathname: '/groups/vote', params: { sessionId } });
