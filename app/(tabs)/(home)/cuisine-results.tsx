@@ -292,7 +292,7 @@ export default function ResultsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [radius, setRadius] = useState(4000);
+  const [radius, setRadius] = useState(3000);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);

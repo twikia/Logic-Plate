@@ -19,7 +19,7 @@ const LABELS: Record<number, string> = {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [radius, setRadius] = useState(4000);
+  const [radius, setRadius] = useState(3000);
 
   useEffect(() => {
     getSearchRadius().then(setRadius);

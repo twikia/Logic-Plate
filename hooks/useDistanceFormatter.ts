@@ -25,6 +25,7 @@ export function useDistanceFormatter() {
 
   const formatLabel = (meters: number): string => {
     if (unit === 'mi') {
+      if (meters === 3000) return '1.5 mi';
       const miles = meters * 0.000621371;
       return `${miles.toFixed(1)} mi`;
     } else {
