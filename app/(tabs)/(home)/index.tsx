@@ -56,8 +56,12 @@ import Animated, {
 import Svg, {
   Circle,
   Defs,
+  FeGaussianBlur,
+  Filter,
   G,
+  Line as SvgLine,
   LinearGradient as SvgLinearGradient,
+  Pattern,
   Polygon,
   Stop,
   Text as SvgText,
@@ -160,18 +164,22 @@ function HomeNeonTitle({ text, width }: { text: string; width: number }) {
   );
 }
 
-function SegmentedMatchGauge({
+function MatchGauge({
   match,
-  ringColors,
+  arcColors,
+  textColor = '#FFFFFF',
 }: {
   match: number;
-  ringColors: [string, string, string, string];
+  arcColors: [string, string];
+  textColor?: string;
 }) {
   const gid = useId().replace(/:/g, '');
   const size = 78;
   const cx = size / 2;
   const cy = size / 2;
   const r = 28;
+  const C = 2 * Math.PI * r;
+  const fillC = (Math.min(100, Math.max(0, match)) / 100) * C;
   return (
     <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
       <Svg
@@ -182,9 +190,8 @@ function SegmentedMatchGauge({
       >
         <Defs>
           <SvgLinearGradient id={`mg-${gid}`} x1="0" y1="1" x2="1" y2="0">
-            <Stop offset="0" stopColor={ringColors[0]} />
-            <Stop offset="0.45" stopColor={ringColors[1]} />
-            <Stop offset="1" stopColor={ringColors[2]} />
+            <Stop offset="0" stopColor={arcColors[0]} />
+            <Stop offset="1" stopColor={arcColors[1]} />
           </SvgLinearGradient>
         </Defs>
         <Circle
@@ -192,16 +199,27 @@ function SegmentedMatchGauge({
           cy={cy}
           r={r}
           fill="none"
+          stroke="rgba(128,128,128,0.18)"
+          strokeWidth={2.5}
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
           stroke={`url(#mg-${gid})`}
-          strokeWidth={3}
-          strokeDasharray="11 8"
+          strokeWidth={3.5}
+          strokeDasharray={`${fillC} ${C}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${cx} ${cy})`}
         />
       </Svg>
       <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={styles.matchOrbPct}>{match}</Text>
-        <Text style={styles.matchOrbLbl}>match</Text>
+        <Text style={[styles.matchOrbPct, { color: textColor }]}>{match}</Text>
+        <Text style={[styles.matchOrbLbl, { color: textColor }]}>match</Text>
       </View>
     </View>
   );
@@ -280,6 +298,8 @@ function RestaurantScorePentagon({
   labelColor = 'rgba(255,255,255,0.62)',
   svgHeight = SPOTLIGHT_RADAR_HEIGHT,
   neon,
+  variant = 'solid',
+  gradientColors,
 }: {
   ai: AiOverview | null | undefined;
   stroke: string;
@@ -287,7 +307,10 @@ function RestaurantScorePentagon({
   labelColor?: string;
   svgHeight?: number;
   neon?: boolean;
+  variant?: 'solid' | 'gradient' | 'sketch';
+  gradientColors?: [string, string];
 }) {
+  const gid = useId().replace(/:/g, '');
   const n = 5;
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
     { key: 'healthScore', corner: 'Health', max: 10 },
@@ -312,17 +335,197 @@ function RestaurantScorePentagon({
       return `${cx + r * Math.cos(t)},${cy + r * Math.sin(t)}`;
     })
     .join(' ');
+
+  const useGradient = neon || variant === 'gradient';
+  const useSketch = !neon && variant === 'sketch';
+
   const ringStroke = neon ? NEON_CYAN : stroke;
-  const ringGrid = neon ? 'rgba(0,255,255,0.2)' : gridColor;
-  const ringLabel = neon ? 'rgba(255,255,255,0.78)' : labelColor;
-  const fillTint = neon ? `${NEON_CYAN}44` : `${stroke}55`;
+  const ringGrid = useSketch
+    ? 'rgba(0,0,0,0.08)'
+    : neon
+    ? 'rgba(0,255,255,0.2)'
+    : gridColor;
+  const ringLabel = useSketch
+    ? labelColor
+    : neon
+    ? 'rgba(255,255,255,0.78)'
+    : labelColor;
+  const gridSW = useSketch ? 0.3 : neon ? 0.5 : 0.35;
+  const outerGridSW = useSketch ? 0.35 : neon ? 0.55 : 0.45;
+  const polygonSW = useSketch ? 1.5 : neon ? 1.45 : 1.25;
+
+  const gradFrom = neon ? NEON_CYAN : gradientColors?.[0] ?? stroke;
+  const gradTo = neon ? NEON_MAGENTA : gradientColors?.[1] ?? stroke;
+  const fillValue = useGradient
+    ? `url(#pf-${gid})`
+    : useSketch
+    ? 'transparent'
+    : `${stroke}55`;
+
+  if (useSketch) {
+    return (
+      <View style={styles.radarBlock}>
+        <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
+          <Defs>
+            <Filter id={`wcf-${gid}`} x="-25%" y="-25%" width="150%" height="150%" filterUnits="objectBoundingBox">
+              <FeGaussianBlur stdDeviation={3.2} />
+            </Filter>
+            <Pattern
+              id={`bsp-${gid}`}
+              x="0"
+              y="0"
+              width="13"
+              height="13"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(-32 50 50)"
+            >
+              <SvgLine x1="-4" y1="0" x2="17" y2="0" stroke={stroke} strokeWidth="6" strokeLinecap="round" strokeOpacity="0.07" />
+              <SvgLine x1="-4" y1="6.5" x2="17" y2="6.5" stroke={stroke} strokeWidth="4.5" strokeLinecap="round" strokeOpacity="0.05" />
+              <SvgLine x1="-4" y1="13" x2="17" y2="13" stroke={stroke} strokeWidth="5" strokeLinecap="round" strokeOpacity="0.06" />
+            </Pattern>
+            <Pattern
+              id={`bsp2-${gid}`}
+              x="0"
+              y="0"
+              width="11"
+              height="11"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(55 50 50)"
+            >
+              <SvgLine x1="-4" y1="0" x2="15" y2="0" stroke={stroke} strokeWidth="3.5" strokeLinecap="round" strokeOpacity="0.04" />
+              <SvgLine x1="-4" y1="5.5" x2="15" y2="5.5" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.03" />
+            </Pattern>
+          </Defs>
+
+          {/* Pencil-drawn grid rings */}
+          <Polygon
+            points={polygonRing(cx, cy, R * 0.34, n)}
+            fill="none"
+            stroke={ringGrid}
+            strokeWidth={0.3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="4 0.7 2.5 0.6 3.5 0.7 1.8 0.5"
+          />
+          <Polygon
+            points={polygonRing(cx, cy, R * 0.67, n)}
+            fill="none"
+            stroke={ringGrid}
+            strokeWidth={0.3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="5 0.8 3 0.6 4 0.7 2 0.6"
+          />
+          <Polygon
+            points={polygonRing(cx, cy, R, n)}
+            fill="none"
+            stroke={ringGrid}
+            strokeWidth={0.35}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="5.5 0.8 3.5 0.7 4.5 0.8 2.5 0.6"
+          />
+
+          {/* Watercolor fill — blurred base wash for soft bleeding edges */}
+          <Polygon
+            points={fillPts}
+            fill={stroke}
+            fillOpacity={0.18}
+            filter={`url(#wcf-${gid})`}
+          />
+          {/* Flat base wash */}
+          <Polygon points={fillPts} fill={stroke} fillOpacity={0.1} />
+          {/* Cross-hatch brush stroke texture — two directions */}
+          <Polygon points={fillPts} fill={`url(#bsp-${gid})`} />
+          <Polygon points={fillPts} fill={`url(#bsp2-${gid})`} />
+
+          {/* Brush stroke outline — wide halo layer */}
+          <Polygon
+            points={fillPts}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={5.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeOpacity={0.12}
+          />
+          {/* Brush stroke outline — medium body with irregular dashes */}
+          <Polygon
+            points={fillPts}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={2.2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeOpacity={0.45}
+            strokeDasharray="7.5 0.8 4.5 0.6 6.5 0.8 3 0.5 5 0.7"
+          />
+          {/* Brush stroke outline — thin bristle edge */}
+          <Polygon
+            points={fillPts}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={0.9}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeOpacity={0.72}
+            strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1"
+          />
+
+          {axes.map(({ key, corner, max }, i) => {
+            const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+            const lx = cx + labelR * Math.cos(t);
+            const ly = cy + labelR * Math.sin(t);
+            const s = scoreAxis(ai, key);
+            const reading = formatAxisReading(max, s);
+            return (
+              <G key={corner}>
+                <SvgText
+                  x={lx}
+                  y={ly - 2.4}
+                  fill={ringLabel}
+                  fontSize={5}
+                  fontWeight="700"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                >
+                  {corner}
+                </SvgText>
+                <SvgText
+                  x={lx}
+                  y={ly + 3.6}
+                  fill={ringLabel}
+                  fontSize={4.1}
+                  fontWeight="600"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                >
+                  {reading}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.radarBlock}>
       <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
-        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={neon ? 0.5 : 0.35} />
-        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={neon ? 0.5 : 0.35} />
-        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={neon ? 0.55 : 0.45} />
-        <Polygon points={fillPts} fill={fillTint} stroke={ringStroke} strokeWidth={neon ? 1.45 : 1.25} strokeLinejoin="round" />
+        <Defs>
+          {useGradient && (
+            <SvgLinearGradient id={`pf-${gid}`} x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={gradFrom} stopOpacity={0.58} />
+              <Stop offset="0.5" stopColor={neon ? '#9400FF' : gradFrom} stopOpacity={0.42} />
+              <Stop offset="1" stopColor={gradTo} stopOpacity={0.52} />
+            </SvgLinearGradient>
+          )}
+        </Defs>
+        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={gridSW} />
+        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={gridSW} />
+        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={outerGridSW} />
+        <Polygon points={fillPts} fill={fillValue} stroke={ringStroke} strokeWidth={polygonSW} strokeLinejoin="round" />
         {axes.map(({ key, corner, max }, i) => {
           const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
           const lx = cx + labelR * Math.cos(t);
@@ -372,9 +575,20 @@ function EngineStatBars({ raw, compact, neon }: { raw: ScoredRestaurant['raw']; 
   ];
   const labelCol = neon ? '#FFFFFF' : theme.subtext;
   const trackBg = neon ? 'rgba(255,255,255,0.08)' : theme.glassBackground;
+  const useDots = !neon && theme.statBarVariant === 'dots';
+
   return (
     <View style={[styles.engineBars, compact && styles.engineBarsCompact]}>
       {rows.map(row => {
+        if (useDots) {
+          const dotSize = Math.round(7 + (clampScore(row.value, 100) / 100) * 7);
+          return (
+            <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
+              <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
+              <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: row.colors[0] }} />
+            </View>
+          );
+        }
         return (
           <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
             <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
@@ -425,6 +639,10 @@ function SpotlightCard({
 
   const neonUi = Boolean(theme.neonColors);
   const ringColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
+  const orbVariant = theme.matchOrbVariant ?? 'segmented';
+  const orbTextColor = theme.matchOrbTextColor ?? '#FFFFFF';
+  const radarVar = theme.radarVariant ?? 'solid';
+  const btnVariant = theme.buttonVariant ?? 'primary-ghost';
 
   const ty = useSharedValue(0);
   const opacity = useSharedValue(1);
@@ -494,13 +712,17 @@ function SpotlightCard({
               </Text>
             </View>
             <View style={styles.matchOrb}>
-              {neonUi ? (
-                <SegmentedMatchGauge match={match} ringColors={ringColors} />
-              ) : (
+              {orbVariant === 'gradient' ? (
                 <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
-                  <Text style={styles.matchOrbPct}>{match}</Text>
-                  <Text style={styles.matchOrbLbl}>match</Text>
+                  <Text style={[styles.matchOrbPct, { color: orbTextColor }]}>{match}</Text>
+                  <Text style={[styles.matchOrbLbl, { color: orbTextColor }]}>match</Text>
                 </LinearGradient>
+              ) : (
+                <MatchGauge
+                  match={match}
+                  arcColors={neonUi ? [ringColors[0], ringColors[2]] as [string, string] : theme.matchOrbColors}
+                  textColor={orbTextColor}
+                />
               )}
             </View>
           </View>
@@ -514,6 +736,8 @@ function SpotlightCard({
                 labelColor={theme.subtext}
                 svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
                 neon={neonUi}
+                variant={radarVar}
+                gradientColors={neonUi ? undefined : theme.matchOrbColors}
               />
             </View>
             <View style={styles.scoreBarsCol}>
@@ -574,6 +798,43 @@ function SpotlightCard({
                   </NeonOutlinePad>
                 </TouchableOpacity>
               </>
+            ) : btnVariant === 'outline-outline' ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.spotlightAction,
+                    styles.spotlightActionGhostBase,
+                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
+                    !mapsReady && styles.spotlightActionDisabled,
+                  ]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    if (!mapsReady) return;
+                    openMaps(name, lat, lng);
+                  }}
+                >
+                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
+                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.spotlightAction,
+                    styles.spotlightActionGhostBase,
+                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
+                  ]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    onOpenMap();
+                  }}
+                >
+                  <Ionicons name="map-outline" size={16} color={theme.text} />
+                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+                    Map tab
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <>
                 <TouchableOpacity
@@ -613,14 +874,6 @@ function SpotlightCard({
               </>
             )}
           </View>
-          <Text
-            style={[
-              styles.spotlightHint,
-              { color: neonUi ? 'rgba(160,160,170,0.95)' : theme.subtext },
-            ]}
-          >
-            Tap for more details.
-          </Text>
         </TouchableOpacity>
       </NeonBorderCard>
     </Animated.View>
@@ -886,11 +1139,9 @@ export default function HomeScreen() {
                       onPress={() => void openDetails(item)}
                       onOpenMap={() => router.push('/map' as any)}
                     />
-                    {visibleList.length > 1 ? (
-                      <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
-                        Swipe down on the card to dismiss this pick.
-                      </Text>
-                    ) : null}
+                    <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
+                      {visibleList.length > 1 ? 'Tap for details  ·  swipe ↓ to skip' : 'Tap for details'}
+                    </Text>
                   </View>
                 )}
               />
@@ -1237,9 +1488,4 @@ const styles = StyleSheet.create({
   spotlightActionGhostBase: { borderWidth: 1 },
   spotlightActionDisabled: { opacity: 0.45 },
   spotlightActionText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
-  spotlightHint: {
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 2,
-  },
 });
