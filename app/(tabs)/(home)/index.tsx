@@ -20,6 +20,7 @@ import {
   type ScoredRestaurant,
   type SessionOverrides,
 } from '@/core/recommendationTypes';
+import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
   getNearbyRestaurants,
   isRestaurantLoadSupersededError,
@@ -34,7 +35,6 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef,
 import {
   ActivityIndicator,
   Dimensions,
-  FlatList,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -45,7 +45,7 @@ import {
   View,
   type DimensionValue,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { FlatList, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -77,6 +77,7 @@ const SPOTLIGHT_RADAR_INLINE_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.28, WINDOW_WIDTH * 0.5, 220)
 );
 const CAROUSEL_PAGE = WINDOW_WIDTH;
+const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
 const FILM_STRIP_FRAC = 0.66;
 const FILM_GAP = 2;
 const FILM_STRIP_WIDTH = WINDOW_WIDTH * FILM_STRIP_FRAC;
@@ -660,12 +661,18 @@ function SpotlightCard({
     opacity.value = 1;
   }, [placeId, ty, opacity]);
 
+  const pressRef = useRef(onPress);
+  pressRef.current = onPress;
+  const firePress = useCallback(() => {
+    pressRef.current();
+  }, []);
+
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
         .enabled(canReject)
-        .activeOffsetY(14)
-        .failOffsetX([-32, 32])
+        .activeOffsetY(10)
+        .failOffsetX([-24, 24])
         .onStart(() => {
           panStartY.value = ty.value;
         })
@@ -676,7 +683,7 @@ function SpotlightCard({
           opacity.value = Math.max(0.38, 1 - clamped / 420);
         })
         .onEnd(e => {
-          const dismiss = ty.value > 108 || e.velocityY > 720;
+          const dismiss = ty.value > 96 || e.velocityY > 620;
           if (dismiss) {
             const target = WINDOW_HEIGHT * 0.55;
             ty.value = withTiming(target, { duration: 280 }, finished => {
@@ -691,6 +698,22 @@ function SpotlightCard({
     [canReject, fireReject, opacity, panStartY, ty]
   );
 
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDistance(14)
+        .maxDuration(280)
+        .onEnd((_e, success) => {
+          if (success) runOnJS(firePress)();
+        }),
+    [firePress]
+  );
+
+  const cardGesture = useMemo(
+    () => (canReject ? Gesture.Exclusive(panGesture, tapGesture) : tapGesture),
+    [canReject, panGesture, tapGesture]
+  );
+
   const cardAnim = useAnimatedStyle(() => ({
     transform: [{ translateY: ty.value }],
     opacity: opacity.value,
@@ -699,7 +722,7 @@ function SpotlightCard({
   const cardInner = (
     <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
       <NeonBorderCard borderRadius={26}>
-        <TouchableOpacity activeOpacity={0.92} style={styles.spotlightPressLayer} onPress={onPress}>
+        <View style={styles.spotlightPressLayer}>
           <View style={styles.spotlightHeroRow}>
             <View style={styles.spotlightTitleBlock}>
               <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={3}>
@@ -874,12 +897,12 @@ function SpotlightCard({
               </>
             )}
           </View>
-        </TouchableOpacity>
+        </View>
       </NeonBorderCard>
     </Animated.View>
   );
 
-  return canReject ? <GestureDetector gesture={panGesture}>{cardInner}</GestureDetector> : cardInner;
+  return <GestureDetector gesture={cardGesture}>{cardInner}</GestureDetector>;
 }
 
 export default function HomeScreen() {
@@ -992,6 +1015,7 @@ export default function HomeScreen() {
     }
     setErrorMsg(null);
     startGpsPhase();
+    let hadCachedPlaces = false;
     try {
       const coords = await getLocation(false);
       if (!coords) {
@@ -1002,25 +1026,39 @@ export default function HomeScreen() {
       coordsRef.current = coords;
       const p = prefs ?? (await getRecommendationPrefs());
       const rad = sessionRadiusRef.current || radiusIdToMeters(p.defaultRadius);
+      const cacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(rad)}`;
+      const cached = await getCachedResults(cacheKey);
+      if (cached && cached.length > 0) {
+        hadCachedPlaces = true;
+        setRawPlaces(cached);
+        if (!skipLoader) {
+          setIsLoading(false);
+        }
+        snapProgressComplete();
+      }
       startFetchPhase();
       const all = await getNearbyRestaurants(
         coords.latitude,
         coords.longitude,
         rad,
-        onOrchestratorProgress,
+        hadCachedPlaces ? undefined : onOrchestratorProgress,
         {
           onAiReady: enriched => {
+            void setCachedResults(cacheKey, enriched);
             setRawPlaces(enriched);
           },
         }
       );
+      await setCachedResults(cacheKey, all);
       setRawPlaces(all);
     } catch (e) {
       if (isRestaurantLoadSupersededError(e)) {
         return;
       }
-      setErrorMsg('Could not load restaurants nearby.');
-      setRawPlaces([]);
+      if (!hadCachedPlaces) {
+        setErrorMsg('Could not load restaurants nearby.');
+        setRawPlaces([]);
+      }
     } finally {
       snapProgressComplete();
       if (!skipLoader) {
