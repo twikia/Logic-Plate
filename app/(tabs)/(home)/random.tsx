@@ -263,7 +263,7 @@ export default function RandomScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
-  const [radius, setRadius] = useState(4000);
+  const [radius, setRadius] = useState(3000);
   const radiusRef = useRef(radius);
   radiusRef.current = radius;
   const [showRadius, setShowRadius] = useState(false);

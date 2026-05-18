@@ -7,7 +7,7 @@ const HAPTICS_KEY = 'haptics_enabled';
 const THEME_KEY = 'app_theme';
 
 
-const DEFAULT_RADIUS = 4000;
+const DEFAULT_RADIUS = 3000;
 const DEFAULT_UNIT = 'km';
 const DEFAULT_VOLUME = 0.5;
 const DEFAULT_HAPTICS = true;
@@ -17,12 +17,7 @@ const DEFAULT_THEME = 'neon_dark';
 export type DistanceUnit = 'km' | 'mi';
 
 export const getSearchRadius = async (): Promise<number> => {
-  try {
-    const val = await AsyncStorage.getItem(RADIUS_KEY);
-    return val ? parseInt(val, 10) : DEFAULT_RADIUS;
-  } catch {
-    return DEFAULT_RADIUS;
-  }
+  return DEFAULT_RADIUS;
 };
 
 export const setSearchRadius = async (meters: number): Promise<void> => {

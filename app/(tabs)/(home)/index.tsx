@@ -634,7 +634,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const sessionRadiusRef = useRef(4000);
+  const sessionRadiusRef = useRef(3000);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
