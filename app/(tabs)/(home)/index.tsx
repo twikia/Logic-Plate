@@ -160,18 +160,22 @@ function HomeNeonTitle({ text, width }: { text: string; width: number }) {
   );
 }
 
-function SegmentedMatchGauge({
+function MatchGauge({
   match,
-  ringColors,
+  arcColors,
+  textColor = '#FFFFFF',
 }: {
   match: number;
-  ringColors: [string, string, string, string];
+  arcColors: [string, string];
+  textColor?: string;
 }) {
   const gid = useId().replace(/:/g, '');
   const size = 78;
   const cx = size / 2;
   const cy = size / 2;
   const r = 28;
+  const C = 2 * Math.PI * r;
+  const fillC = (Math.min(100, Math.max(0, match)) / 100) * C;
   return (
     <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
       <Svg
@@ -182,9 +186,8 @@ function SegmentedMatchGauge({
       >
         <Defs>
           <SvgLinearGradient id={`mg-${gid}`} x1="0" y1="1" x2="1" y2="0">
-            <Stop offset="0" stopColor={ringColors[0]} />
-            <Stop offset="0.45" stopColor={ringColors[1]} />
-            <Stop offset="1" stopColor={ringColors[2]} />
+            <Stop offset="0" stopColor={arcColors[0]} />
+            <Stop offset="1" stopColor={arcColors[1]} />
           </SvgLinearGradient>
         </Defs>
         <Circle
@@ -192,16 +195,27 @@ function SegmentedMatchGauge({
           cy={cy}
           r={r}
           fill="none"
+          stroke="rgba(128,128,128,0.18)"
+          strokeWidth={2.5}
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
           stroke={`url(#mg-${gid})`}
-          strokeWidth={3}
-          strokeDasharray="11 8"
+          strokeWidth={3.5}
+          strokeDasharray={`${fillC} ${C}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${cx} ${cy})`}
         />
       </Svg>
       <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={styles.matchOrbPct}>{match}</Text>
-        <Text style={styles.matchOrbLbl}>match</Text>
+        <Text style={[styles.matchOrbPct, { color: textColor }]}>{match}</Text>
+        <Text style={[styles.matchOrbLbl, { color: textColor }]}>match</Text>
       </View>
     </View>
   );
@@ -280,6 +294,8 @@ function RestaurantScorePentagon({
   labelColor = 'rgba(255,255,255,0.62)',
   svgHeight = SPOTLIGHT_RADAR_HEIGHT,
   neon,
+  variant = 'solid',
+  gradientColors,
 }: {
   ai: AiOverview | null | undefined;
   stroke: string;
@@ -287,7 +303,10 @@ function RestaurantScorePentagon({
   labelColor?: string;
   svgHeight?: number;
   neon?: boolean;
+  variant?: 'solid' | 'gradient' | 'sketch';
+  gradientColors?: [string, string];
 }) {
+  const gid = useId().replace(/:/g, '');
   const n = 5;
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
     { key: 'healthScore', corner: 'Health', max: 10 },
@@ -312,17 +331,49 @@ function RestaurantScorePentagon({
       return `${cx + r * Math.cos(t)},${cy + r * Math.sin(t)}`;
     })
     .join(' ');
+
+  const useGradient = neon || variant === 'gradient';
+  const useSketch = !neon && variant === 'sketch';
+
   const ringStroke = neon ? NEON_CYAN : stroke;
-  const ringGrid = neon ? 'rgba(0,255,255,0.2)' : gridColor;
-  const ringLabel = neon ? 'rgba(255,255,255,0.78)' : labelColor;
-  const fillTint = neon ? `${NEON_CYAN}44` : `${stroke}55`;
+  const ringGrid = useSketch
+    ? 'rgba(0,0,0,0.07)'
+    : neon
+    ? 'rgba(0,255,255,0.2)'
+    : gridColor;
+  const ringLabel = useSketch
+    ? labelColor
+    : neon
+    ? 'rgba(255,255,255,0.78)'
+    : labelColor;
+  const gridSW = useSketch ? 0.25 : neon ? 0.5 : 0.35;
+  const outerGridSW = useSketch ? 0.3 : neon ? 0.55 : 0.45;
+  const polygonSW = useSketch ? 1.5 : neon ? 1.45 : 1.25;
+
+  const gradFrom = neon ? NEON_CYAN : gradientColors?.[0] ?? stroke;
+  const gradTo = neon ? NEON_MAGENTA : gradientColors?.[1] ?? stroke;
+  const fillValue = useGradient
+    ? `url(#pf-${gid})`
+    : useSketch
+    ? `${stroke}28`
+    : `${stroke}55`;
+
   return (
     <View style={styles.radarBlock}>
       <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
-        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={neon ? 0.5 : 0.35} />
-        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={neon ? 0.5 : 0.35} />
-        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={neon ? 0.55 : 0.45} />
-        <Polygon points={fillPts} fill={fillTint} stroke={ringStroke} strokeWidth={neon ? 1.45 : 1.25} strokeLinejoin="round" />
+        <Defs>
+          {useGradient && (
+            <SvgLinearGradient id={`pf-${gid}`} x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={gradFrom} stopOpacity={0.58} />
+              <Stop offset="0.5" stopColor={neon ? '#9400FF' : gradFrom} stopOpacity={0.42} />
+              <Stop offset="1" stopColor={gradTo} stopOpacity={0.52} />
+            </SvgLinearGradient>
+          )}
+        </Defs>
+        <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={gridSW} />
+        <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={gridSW} />
+        <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={outerGridSW} />
+        <Polygon points={fillPts} fill={fillValue} stroke={ringStroke} strokeWidth={polygonSW} strokeLinejoin="round" />
         {axes.map(({ key, corner, max }, i) => {
           const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
           const lx = cx + labelR * Math.cos(t);
@@ -372,9 +423,20 @@ function EngineStatBars({ raw, compact, neon }: { raw: ScoredRestaurant['raw']; 
   ];
   const labelCol = neon ? '#FFFFFF' : theme.subtext;
   const trackBg = neon ? 'rgba(255,255,255,0.08)' : theme.glassBackground;
+  const useDots = !neon && theme.statBarVariant === 'dots';
+
   return (
     <View style={[styles.engineBars, compact && styles.engineBarsCompact]}>
       {rows.map(row => {
+        if (useDots) {
+          const dotSize = Math.round(7 + (clampScore(row.value, 100) / 100) * 7);
+          return (
+            <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
+              <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
+              <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: row.colors[0] }} />
+            </View>
+          );
+        }
         return (
           <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
             <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
@@ -425,6 +487,10 @@ function SpotlightCard({
 
   const neonUi = Boolean(theme.neonColors);
   const ringColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
+  const orbVariant = theme.matchOrbVariant ?? 'segmented';
+  const orbTextColor = theme.matchOrbTextColor ?? '#FFFFFF';
+  const radarVar = theme.radarVariant ?? 'solid';
+  const btnVariant = theme.buttonVariant ?? 'primary-ghost';
 
   const ty = useSharedValue(0);
   const opacity = useSharedValue(1);
@@ -494,13 +560,17 @@ function SpotlightCard({
               </Text>
             </View>
             <View style={styles.matchOrb}>
-              {neonUi ? (
-                <SegmentedMatchGauge match={match} ringColors={ringColors} />
-              ) : (
+              {orbVariant === 'gradient' ? (
                 <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
-                  <Text style={styles.matchOrbPct}>{match}</Text>
-                  <Text style={styles.matchOrbLbl}>match</Text>
+                  <Text style={[styles.matchOrbPct, { color: orbTextColor }]}>{match}</Text>
+                  <Text style={[styles.matchOrbLbl, { color: orbTextColor }]}>match</Text>
                 </LinearGradient>
+              ) : (
+                <MatchGauge
+                  match={match}
+                  arcColors={neonUi ? [ringColors[0], ringColors[2]] as [string, string] : theme.matchOrbColors}
+                  textColor={orbTextColor}
+                />
               )}
             </View>
           </View>
@@ -514,6 +584,8 @@ function SpotlightCard({
                 labelColor={theme.subtext}
                 svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
                 neon={neonUi}
+                variant={radarVar}
+                gradientColors={neonUi ? undefined : theme.matchOrbColors}
               />
             </View>
             <View style={styles.scoreBarsCol}>
@@ -574,6 +646,43 @@ function SpotlightCard({
                   </NeonOutlinePad>
                 </TouchableOpacity>
               </>
+            ) : btnVariant === 'outline-outline' ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.spotlightAction,
+                    styles.spotlightActionGhostBase,
+                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
+                    !mapsReady && styles.spotlightActionDisabled,
+                  ]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    if (!mapsReady) return;
+                    openMaps(name, lat, lng);
+                  }}
+                >
+                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
+                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.spotlightAction,
+                    styles.spotlightActionGhostBase,
+                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
+                  ]}
+                  onPress={e => {
+                    e.stopPropagation();
+                    onOpenMap();
+                  }}
+                >
+                  <Ionicons name="map-outline" size={16} color={theme.text} />
+                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+                    Map tab
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <>
                 <TouchableOpacity
@@ -613,14 +722,6 @@ function SpotlightCard({
               </>
             )}
           </View>
-          <Text
-            style={[
-              styles.spotlightHint,
-              { color: neonUi ? 'rgba(160,160,170,0.95)' : theme.subtext },
-            ]}
-          >
-            Tap for more details.
-          </Text>
         </TouchableOpacity>
       </NeonBorderCard>
     </Animated.View>
@@ -886,11 +987,9 @@ export default function HomeScreen() {
                       onPress={() => void openDetails(item)}
                       onOpenMap={() => router.push('/map' as any)}
                     />
-                    {visibleList.length > 1 ? (
-                      <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
-                        Swipe down on the card to dismiss this pick.
-                      </Text>
-                    ) : null}
+                    <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
+                      {visibleList.length > 1 ? 'Tap for details  ·  swipe ↓ to skip' : 'Tap for details'}
+                    </Text>
                   </View>
                 )}
               />
@@ -1237,9 +1336,4 @@ const styles = StyleSheet.create({
   spotlightActionGhostBase: { borderWidth: 1 },
   spotlightActionDisabled: { opacity: 0.45 },
   spotlightActionText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
-  spotlightHint: {
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 2,
-  },
 });

@@ -27,4 +27,25 @@ export interface ThemeColors {
   neonColors?: [string, string, string, string];
   /** When true (default), neon card borders rotate. When false, a fixed diagonal cyan→magenta border is used. */
   neonBorderSpin?: boolean;
+
+  // ── Swappable element variants ──────────────────────────────────────────
+  /** How the match-score orb is rendered.
+   *  'segmented' → score-responsive arc gauge (default for all themes).
+   *  'gradient'  → solid filled gradient circle (e.g. sketch/paper theme). */
+  matchOrbVariant?: 'segmented' | 'gradient';
+  /** Text color on the match orb. Defaults to '#FFFFFF'. */
+  matchOrbTextColor?: string;
+  /** How the radar pentagon is rendered.
+   *  'solid'    → flat tinted fill (default).
+   *  'gradient' → multi-stop SVG gradient fill.
+   *  'sketch'   → lighter fill, thin rings, dark labels (paper/hand-drawn look). */
+  radarVariant?: 'solid' | 'gradient' | 'sketch';
+  /** How the value-match stat indicators are rendered.
+   *  'bars' → gradient progress bar with track background (default).
+   *  'dots' → solid-colour spark bar with no track, cleaner for light themes. */
+  statBarVariant?: 'bars' | 'dots';
+  /** How the two action buttons on the spotlight card are rendered.
+   *  'primary-ghost'     → first button accent-filled, second ghost (default).
+   *  'outline-outline'   → both buttons outlined, no fill. */
+  buttonVariant?: 'primary-ghost' | 'outline-outline';
 }
