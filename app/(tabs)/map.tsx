@@ -170,7 +170,6 @@ function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
       onPress={onPress}
       zIndex={10}
       anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={false}
     >
       <View style={[styles.markerPin, { backgroundColor: markerColor }]}>
         <Text style={styles.markerScoreText}>{scoreText}</Text>
