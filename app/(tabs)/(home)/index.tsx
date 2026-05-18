@@ -56,8 +56,12 @@ import Animated, {
 import Svg, {
   Circle,
   Defs,
+  FeGaussianBlur,
+  Filter,
   G,
+  Line as SvgLine,
   LinearGradient as SvgLinearGradient,
+  Pattern,
   Polygon,
   Stop,
   Text as SvgText,
@@ -337,7 +341,7 @@ function RestaurantScorePentagon({
 
   const ringStroke = neon ? NEON_CYAN : stroke;
   const ringGrid = useSketch
-    ? 'rgba(0,0,0,0.07)'
+    ? 'rgba(0,0,0,0.08)'
     : neon
     ? 'rgba(0,255,255,0.2)'
     : gridColor;
@@ -346,8 +350,8 @@ function RestaurantScorePentagon({
     : neon
     ? 'rgba(255,255,255,0.78)'
     : labelColor;
-  const gridSW = useSketch ? 0.25 : neon ? 0.5 : 0.35;
-  const outerGridSW = useSketch ? 0.3 : neon ? 0.55 : 0.45;
+  const gridSW = useSketch ? 0.3 : neon ? 0.5 : 0.35;
+  const outerGridSW = useSketch ? 0.35 : neon ? 0.55 : 0.45;
   const polygonSW = useSketch ? 1.5 : neon ? 1.45 : 1.25;
 
   const gradFrom = neon ? NEON_CYAN : gradientColors?.[0] ?? stroke;
@@ -355,8 +359,156 @@ function RestaurantScorePentagon({
   const fillValue = useGradient
     ? `url(#pf-${gid})`
     : useSketch
-    ? `${stroke}28`
+    ? 'transparent'
     : `${stroke}55`;
+
+  if (useSketch) {
+    return (
+      <View style={styles.radarBlock}>
+        <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
+          <Defs>
+            <Filter id={`wcf-${gid}`} x="-25%" y="-25%" width="150%" height="150%" filterUnits="objectBoundingBox">
+              <FeGaussianBlur stdDeviation={3.2} />
+            </Filter>
+            <Pattern
+              id={`bsp-${gid}`}
+              x="0"
+              y="0"
+              width="13"
+              height="13"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(-32 50 50)"
+            >
+              <SvgLine x1="-4" y1="0" x2="17" y2="0" stroke={stroke} strokeWidth="6" strokeLinecap="round" strokeOpacity="0.07" />
+              <SvgLine x1="-4" y1="6.5" x2="17" y2="6.5" stroke={stroke} strokeWidth="4.5" strokeLinecap="round" strokeOpacity="0.05" />
+              <SvgLine x1="-4" y1="13" x2="17" y2="13" stroke={stroke} strokeWidth="5" strokeLinecap="round" strokeOpacity="0.06" />
+            </Pattern>
+            <Pattern
+              id={`bsp2-${gid}`}
+              x="0"
+              y="0"
+              width="11"
+              height="11"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(55 50 50)"
+            >
+              <SvgLine x1="-4" y1="0" x2="15" y2="0" stroke={stroke} strokeWidth="3.5" strokeLinecap="round" strokeOpacity="0.04" />
+              <SvgLine x1="-4" y1="5.5" x2="15" y2="5.5" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.03" />
+            </Pattern>
+          </Defs>
+
+          {/* Pencil-drawn grid rings */}
+          <Polygon
+            points={polygonRing(cx, cy, R * 0.34, n)}
+            fill="none"
+            stroke={ringGrid}
+            strokeWidth={0.3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="4 0.7 2.5 0.6 3.5 0.7 1.8 0.5"
+          />
+          <Polygon
+            points={polygonRing(cx, cy, R * 0.67, n)}
+            fill="none"
+            stroke={ringGrid}
+            strokeWidth={0.3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="5 0.8 3 0.6 4 0.7 2 0.6"
+          />
+          <Polygon
+            points={polygonRing(cx, cy, R, n)}
+            fill="none"
+            stroke={ringGrid}
+            strokeWidth={0.35}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="5.5 0.8 3.5 0.7 4.5 0.8 2.5 0.6"
+          />
+
+          {/* Watercolor fill — blurred base wash for soft bleeding edges */}
+          <Polygon
+            points={fillPts}
+            fill={stroke}
+            fillOpacity={0.18}
+            filter={`url(#wcf-${gid})`}
+          />
+          {/* Flat base wash */}
+          <Polygon points={fillPts} fill={stroke} fillOpacity={0.1} />
+          {/* Cross-hatch brush stroke texture — two directions */}
+          <Polygon points={fillPts} fill={`url(#bsp-${gid})`} />
+          <Polygon points={fillPts} fill={`url(#bsp2-${gid})`} />
+
+          {/* Brush stroke outline — wide halo layer */}
+          <Polygon
+            points={fillPts}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={5.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeOpacity={0.12}
+          />
+          {/* Brush stroke outline — medium body with irregular dashes */}
+          <Polygon
+            points={fillPts}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={2.2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeOpacity={0.45}
+            strokeDasharray="7.5 0.8 4.5 0.6 6.5 0.8 3 0.5 5 0.7"
+          />
+          {/* Brush stroke outline — thin bristle edge */}
+          <Polygon
+            points={fillPts}
+            fill="none"
+            stroke={stroke}
+            strokeWidth={0.9}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeOpacity={0.72}
+            strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1"
+          />
+
+          {axes.map(({ key, corner, max }, i) => {
+            const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+            const lx = cx + labelR * Math.cos(t);
+            const ly = cy + labelR * Math.sin(t);
+            const s = scoreAxis(ai, key);
+            const reading = formatAxisReading(max, s);
+            return (
+              <G key={corner}>
+                <SvgText
+                  x={lx}
+                  y={ly - 2.4}
+                  fill={ringLabel}
+                  fontSize={5}
+                  fontWeight="700"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                >
+                  {corner}
+                </SvgText>
+                <SvgText
+                  x={lx}
+                  y={ly + 3.6}
+                  fill={ringLabel}
+                  fontSize={4.1}
+                  fontWeight="600"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                >
+                  {reading}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.radarBlock}>
