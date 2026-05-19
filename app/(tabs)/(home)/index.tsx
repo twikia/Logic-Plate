@@ -13,11 +13,12 @@ import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
 import { scoreRestaurantPool } from '@/core/recommendationEngine';
 import { getRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
-  defaultGroupToSessionChip,
   inferMealTypeFromClock,
   radiusIdToMeters,
   type RecommendationPrefsV1,
   type ScoredRestaurant,
+  DEFAULT_SESSION_BUDGET,
+  DEFAULT_SESSION_GROUP,
   type SessionOverrides,
 } from '@/core/recommendationTypes';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
@@ -961,8 +962,8 @@ export default function HomeScreen() {
       setPrefs(p);
       setSession({
         mealType: inferMealTypeFromClock(),
-        groupSize: defaultGroupToSessionChip(p.defaultGroupSize),
-        budgetCeiling: p.budgetCeiling,
+        groupSize: DEFAULT_SESSION_GROUP,
+        budgetCeiling: DEFAULT_SESSION_BUDGET,
         radiusMeters: radiusIdToMeters(p.defaultRadius),
         sessionMood: null,
       });
@@ -976,12 +977,10 @@ export default function HomeScreen() {
   const recompute = useCallback(async () => {
     const coords = coordsRef.current;
     if (!prefs || !session || !coords || rawPlaces.length === 0) return;
-    const visits = await loadVisits();
     const rainy = await fetchIsLikelyRainNow(coords.latitude, coords.longitude);
     const scored = scoreRestaurantPool(rawPlaces, {
       prefs,
       session,
-      visits,
       userLat: coords.latitude,
       userLng: coords.longitude,
       rainyWeather: rainy === true ? true : undefined,

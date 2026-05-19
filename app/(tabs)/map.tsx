@@ -18,6 +18,7 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
 import { isOpenNow } from '@/core/isOpenNow';
+import { markerIconForPlace } from '@/core/markerIcons';
 import type { RandomSortBy } from '@/core/randomPickerState';
 import {
   SORT_OPTIONS,
@@ -164,16 +165,20 @@ function RestaurantMarker({ item, markerColor, displayScore, isOpen, onPress }: 
   onPress: () => void;
 }) {
   const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
+  const iconName = markerIconForPlace(item);
 
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
       onPress={onPress}
       zIndex={10}
-      anchor={{ x: 0.5, y: 0.5 }}
+      anchor={{ x: 0.5, y: 1 }}
     >
-      <View style={[styles.markerPin, { backgroundColor: markerColor, opacity: isOpen ? 1 : 0.4 }]}>
-        <Text style={styles.markerScoreText}>{scoreText}</Text>
+      <View style={styles.markerOuter}>
+        <Text style={[styles.markerScoreTag, { opacity: isOpen ? 1 : 0.55 }]}>{scoreText}</Text>
+        <View style={[styles.markerPin, { backgroundColor: markerColor, opacity: isOpen ? 1 : 0.4 }]}>
+          <Ionicons name={iconName} size={13} color="#FFFFFF" />
+        </View>
       </View>
     </Marker>
   );
@@ -877,6 +882,21 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
+  markerOuter: {
+    alignItems: 'center',
+    paddingTop: 2,
+    paddingHorizontal: 4,
+  },
+  markerScoreTag: {
+    color: '#FFFFFF',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.95)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    marginBottom: 1,
+  },
   markerPin: {
     width: 26,
     height: 26,
@@ -890,12 +910,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 8,
-  },
-  markerScoreText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: -0.3,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   sortBtn: {

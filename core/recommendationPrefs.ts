@@ -5,9 +5,7 @@ import { TOP_CUISINE_TILES } from './recommendationCuisines';
 import {
   DEFAULT_PREFS_V1,
   DEFAULT_WEIGHTS,
-  type DefaultGroupSize,
   type DefaultRadiusId,
-  type DietaryFilterId,
   type ImportanceLevel,
   type RecommendationPrefsV1,
   type RecommendationWeights,
@@ -83,25 +81,6 @@ function sanitizeWeights(w: Partial<RecommendationWeights> | Record<string, unkn
   return out;
 }
 
-function sanitizeDietary(raw: unknown): DietaryFilterId[] {
-  if (!Array.isArray(raw)) return [];
-  const allowed = new Set<string>([
-    'vegetarian',
-    'vegan',
-    'halal',
-    'kosher',
-    'gluten_free',
-    'dairy_free',
-    'nut_allergy',
-  ]);
-  return raw.filter((x): x is DietaryFilterId => typeof x === 'string' && allowed.has(x));
-}
-
-function sanitizeGroupSize(x: unknown): DefaultGroupSize {
-  const s = ['solo', 'partner', 'small_group', 'big_group', 'varies'];
-  return s.includes(x as string) ? (x as DefaultGroupSize) : 'solo';
-}
-
 function sanitizeRadius(x: unknown): DefaultRadiusId {
   const s = ['walking', 'short_drive', 'worth_trip'];
   return s.includes(x as string) ? (x as DefaultRadiusId) : 'short_drive';
@@ -113,50 +92,16 @@ function sanitizeFavoriteCuisines(raw: unknown): string[] {
   return out.length > 0 ? out : [...DEFAULT_PREFS_V1.favoriteCuisines];
 }
 
-export function deriveNoveltyPressureFromWeights(weights: RecommendationWeights): number {
-  return clamp(((weights.cuisineVariety - 1) / 4) * 100, 0, 100);
-}
-
 export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | null): RecommendationPrefsV1 {
   if (!raw || raw.v !== 1) return { ...DEFAULT_PREFS_V1 };
   const weights = sanitizeWeights(raw.weights);
-  const noveltyFromWeights = deriveNoveltyPressureFromWeights(weights);
   return {
     v: 1,
     onboardingComplete: !!raw.onboardingComplete,
-    defaultGroupSize: sanitizeGroupSize(raw.defaultGroupSize),
     weights,
-    dietaryFilters: sanitizeDietary(raw.dietaryFilters),
-    budgetCeiling: clamp(
-      typeof raw.budgetCeiling === 'number' && Number.isFinite(raw.budgetCeiling) ? raw.budgetCeiling : 20,
-      5,
-      100
-    ),
     favoriteCuisines: sanitizeFavoriteCuisines(raw.favoriteCuisines),
     defaultRadius: sanitizeRadius(raw.defaultRadius),
-    openNowOnly: !!raw.openNowOnly,
-    minimumRatingThreshold: clamp(
-      typeof raw.minimumRatingThreshold === 'number' && Number.isFinite(raw.minimumRatingThreshold)
-        ? raw.minimumRatingThreshold
-        : 3.5,
-      1,
-      5
-    ),
-    noveltyPressure: clamp(
-      typeof raw.noveltyPressure === 'number' && Number.isFinite(raw.noveltyPressure)
-        ? raw.noveltyPressure
-        : noveltyFromWeights,
-      0,
-      100
-    ),
-    penalizeRepeats: raw.penalizeRepeats !== false,
-    cuisineRepeatWindowDays: clamp(
-      typeof raw.cuisineRepeatWindowDays === 'number' && Number.isFinite(raw.cuisineRepeatWindowDays)
-        ? Math.round(raw.cuisineRepeatWindowDays)
-        : 7,
-      1,
-      30
-    ),
+    openNowOnly: true,
   };
 }
 
@@ -173,11 +118,7 @@ export async function getRecommendationPrefs(): Promise<RecommendationPrefsV1> {
 
 export async function saveRecommendationPrefs(prefs: RecommendationPrefsV1): Promise<void> {
   const merged = mergeRecommendationPrefs(prefs);
-  const withDerived = {
-    ...merged,
-    noveltyPressure: deriveNoveltyPressureFromWeights(merged.weights),
-  };
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(withDerived));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
 }
 
 export async function markOnboardingComplete(partial?: Partial<RecommendationPrefsV1>): Promise<void> {
