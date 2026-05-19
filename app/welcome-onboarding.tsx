@@ -5,10 +5,13 @@ import {
   type DefaultGroupSize,
   type DefaultRadiusId,
   type DietaryFilterId,
+  type ImportanceLevel,
   type RecommendationPrefsV1,
   type RecommendationWeights,
   radiusIdToMeters,
 } from '@/core/recommendationTypes';
+import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
+import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
 import { setSearchRadius } from '@/core/userSettings';
@@ -21,6 +24,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -38,13 +42,9 @@ const GROUP_OPTIONS: { id: DefaultGroupSize; label: string; icon: keyof typeof I
   { id: 'varies', label: 'It varies', icon: 'shuffle' },
 ];
 
-const WEIGHT_LABELS: { key: keyof RecommendationWeights; label: string; hint: string }[] = [
-  { key: 'distance', label: 'How close it is', hint: 'Prefer spots nearby' },
-  { key: 'health', label: 'How wholesome the food is', hint: 'Lighter, less processed' },
-  { key: 'price', label: 'Sticking to budget', hint: 'Great food without overspending' },
-  { key: 'rating', label: 'Crowd-tested quality', hint: 'Trusted reviews' },
-  { key: 'novelty', label: 'Trying something different', hint: 'Mix it up vs favorites' },
-];
+const METRIC_PAGE_START = 1;
+const METRIC_PAGE_COUNT = PRIORITY_METRIC_SCREENS.length;
+const CUISINE_PAGE = METRIC_PAGE_START + METRIC_PAGE_COUNT + 2;
 
 const DIETARY: { id: DietaryFilterId | 'none'; label: string }[] = [
   { id: 'none', label: 'No restrictions' },
@@ -63,7 +63,7 @@ const RADIUS_OPTIONS: { id: DefaultRadiusId; label: string; sub: string }[] = [
   { id: 'worth_trip', label: 'Worth the trip', sub: 'Under ~30 min / 8km' },
 ];
 
-const STEPS = 6;
+const STEPS = 8;
 
 export default function WelcomeOnboardingScreen() {
   const router = useRouter();
@@ -141,9 +141,13 @@ export default function WelcomeOnboardingScreen() {
     weights,
   ]);
 
+  const setWeight = (key: keyof RecommendationWeights, level: ImportanceLevel) => {
+    setWeights(w => ({ ...w, [key]: level }));
+  };
+
   const goNext = () => {
     if (page < STEPS - 1) {
-      if (page === 4 && favoriteCuisines.length === 0) return;
+      if (page === CUISINE_PAGE && favoriteCuisines.length === 0) return;
       listRef.current?.scrollToIndex({ index: page + 1, animated: true });
     } else {
       void finish();
@@ -189,36 +193,19 @@ export default function WelcomeOnboardingScreen() {
         </View>
       );
     }
-    if (index === 1) {
+    if (index >= METRIC_PAGE_START && index < METRIC_PAGE_START + METRIC_PAGE_COUNT) {
+      const screenIdx = index - METRIC_PAGE_START;
       return (
-        <View style={[styles.page, { width: SCREEN_W }]}>
-          <Text style={[styles.title, { color: theme.text }]}>What matters most to you?</Text>
-          <Text style={[styles.sub, { color: theme.subtext }]}>Drag each bar — they tune how we score places.</Text>
-          <View style={{ gap: 14 }}>
-            {WEIGHT_LABELS.map(row => (
-              <View key={row.key} style={styles.sliderBlock}>
-                <View style={styles.sliderHead}>
-                  <Text style={[styles.sliderLabel, { color: theme.text }]}>{row.label}</Text>
-                  <Text style={[styles.sliderVal, { color: theme.accent }]}>{Math.round(weights[row.key])}</Text>
-                </View>
-                <Text style={[styles.sliderHint, { color: theme.subtext }]}>{row.hint}</Text>
-                <Slider
-                  minimumValue={0}
-                  maximumValue={100}
-                  step={1}
-                  value={weights[row.key]}
-                  onValueChange={v => setWeights(w => ({ ...w, [row.key]: v }))}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor="rgba(255,255,255,0.15)"
-                  thumbTintColor="#FFFFFF"
-                />
-              </View>
-            ))}
-          </View>
-        </View>
+        <ScrollView
+          style={{ width: SCREEN_W }}
+          contentContainerStyle={styles.page}
+          showsVerticalScrollIndicator={false}
+        >
+          <PriorityMetricsPanel weights={weights} onWeightChange={setWeight} screenIndex={screenIdx} />
+        </ScrollView>
       );
     }
-    if (index === 2) {
+    if (index === METRIC_PAGE_START + METRIC_PAGE_COUNT) {
       return (
         <View style={[styles.page, { width: SCREEN_W }]}>
           <Text style={[styles.title, { color: theme.text }]}>Dietary needs</Text>
@@ -244,7 +231,7 @@ export default function WelcomeOnboardingScreen() {
         </View>
       );
     }
-    if (index === 3) {
+    if (index === METRIC_PAGE_START + METRIC_PAGE_COUNT + 1) {
       return (
         <View style={[styles.page, { width: SCREEN_W }]}>
           <Text style={[styles.title, { color: theme.text }]}>Typical budget per meal</Text>
@@ -264,7 +251,7 @@ export default function WelcomeOnboardingScreen() {
         </View>
       );
     }
-    if (index === 4) {
+    if (index === CUISINE_PAGE) {
       return (
         <View style={[styles.page, { width: SCREEN_W }]}>
           <Text style={[styles.title, { color: theme.text }]}>Cuisines you love</Text>
@@ -350,8 +337,12 @@ export default function WelcomeOnboardingScreen() {
         <View style={styles.footer}>
           <Pressable
             onPress={goNext}
-            style={[styles.primaryBtn, { backgroundColor: theme.accent }, page === 4 && favoriteCuisines.length === 0 && { opacity: 0.45 }]}
-            disabled={page === 4 && favoriteCuisines.length === 0}
+            style={[
+              styles.primaryBtn,
+              { backgroundColor: theme.accent },
+              page === CUISINE_PAGE && favoriteCuisines.length === 0 && { opacity: 0.45 },
+            ]}
+            disabled={page === CUISINE_PAGE && favoriteCuisines.length === 0}
           >
             <Text style={styles.primaryBtnText}>{page === STEPS - 1 ? 'Start exploring' : 'Continue'}</Text>
             <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
