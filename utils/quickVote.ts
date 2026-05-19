@@ -49,8 +49,6 @@ export function healthTierFromPrimaryType(primaryType: string | undefined): numb
 }
 
 function isProbablyOpen(r: QuickVoteRestaurant): boolean {
-  if (r.currentOpeningHours?.openNow === true) return true;
-  if (r.currentSecondaryOpeningHours?.openNow === true) return true;
   return isOpenNow(r);
 }
 

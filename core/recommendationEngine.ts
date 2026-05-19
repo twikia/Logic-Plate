@@ -3,7 +3,6 @@ import { isOpenNow } from './isOpenNow';
 import { placeMatchesFavoriteCuisine } from './recommendationCuisines';
 import { getRecommendationPrefs } from './recommendationPrefs';
 import type { RecommendationWeights } from './recommendationTypes';
-import { loadVisits } from './recommendationVisitHistory';
 import type {
   MatchPillKind,
   MealTypeContext,
@@ -13,9 +12,6 @@ import type {
   SessionMood,
   SessionOverrides,
 } from './recommendationTypes';
-import type { VisitRecord } from './recommendationVisitHistory';
-import { wasCuisineVisitedRecently, wasPlaceVisitedRecently } from './recommendationVisitHistory';
-
 const HEALTH_BASE: Record<string, number> = {
   health_food_restaurant: 5,
   salad_shop: 5,
@@ -151,58 +147,7 @@ function aiScore0to5(ai: AiOverview | undefined, key: keyof AiOverview, fallback
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(5, v)) * 20 : fallback;
 }
 
-function ratingConfidenceMultiplier(userRatingCount?: number | null): number {
-  const n = typeof userRatingCount === 'number' && userRatingCount > 0 ? userRatingCount : 8;
-  return Math.min(1, Math.log10(n + 1) / Math.log10(400));
-}
-
-function failsDietary(place: any, filters: RecommendationPrefsV1['dietaryFilters']): boolean {
-  if (!filters.length) return false;
-  const pt = String(place?.primaryType || '').toLowerCase();
-  const types = new Set<string>((place?.types || []).map((t: string) => String(t).toLowerCase()));
-  const hasType = (x: string) => pt === x || types.has(x);
-
-  for (const f of filters) {
-    if (f === 'vegan') {
-      const meaty = [
-        'steak_house',
-        'hamburger_restaurant',
-        'hot_dog_restaurant',
-        'barbecue_restaurant',
-        'chicken_shop',
-        'seafood_restaurant',
-        'fish_and_chips_restaurant',
-      ];
-      if (meaty.some(hasType)) return true;
-    }
-    if (f === 'vegetarian') {
-      const bad = ['steak_house', 'hamburger_restaurant', 'hot_dog_restaurant', 'barbecue_restaurant'];
-      if (bad.some(hasType)) return true;
-    }
-    if (f === 'halal') {
-      if (hasType('liquor_store') || pt === 'wine_bar') return true;
-    }
-    if (f === 'kosher') {
-      if (hasType('seafood_restaurant') || hasType('steak_house')) return true;
-    }
-    if (f === 'gluten_free') {
-      if (hasType('bakery') || hasType('donut_shop') || hasType('bagel_shop')) return true;
-    }
-    if (f === 'dairy_free') {
-      if (hasType('ice_cream_shop') || hasType('dessert_restaurant')) return true;
-    }
-    if (f === 'nut_allergy') {
-      if (hasType('bakery') || hasType('dessert_shop') || hasType('chocolate_shop')) return true;
-    }
-  }
-  return false;
-}
-
-function hardExcludeOpenNow(place: any, openNowOnly: boolean): boolean {
-  if (!openNowOnly) return false;
-  if (place?.currentOpeningHours && typeof place.currentOpeningHours.openNow === 'boolean') {
-    return place.currentOpeningHours.openNow === false;
-  }
+function hardExcludeClosed(place: any): boolean {
   return !isOpenNow(place);
 }
 
@@ -234,8 +179,7 @@ function rawPriceScore(place: any, budgetCeiling: number): number {
 
 function rawRatingScore(place: any): number {
   const r = typeof place?.rating === 'number' ? place.rating : 0;
-  const base = (r / 5) * 100;
-  return base * ratingConfidenceMultiplier(place?.userRatingCount);
+  return (r / 5) * 100;
 }
 
 function rawSpeedScore(place: any): number {
@@ -294,10 +238,7 @@ function rawCuisineVarietyScore(place: any, favoriteCuisines: string[]): number 
 function rawCuisineCompositeScore(
   place: any,
   favoriteCuisines: string[],
-  weights: RecommendationWeights,
-  penalizeRepeats: boolean,
-  windowDays: number,
-  visits: VisitRecord[]
+  weights: RecommendationWeights
 ): number {
   const fit = rawCuisineFitScore(place, favoriteCuisines);
   const variety = rawCuisineVarietyScore(place, favoriteCuisines);
@@ -307,15 +248,6 @@ function rawCuisineCompositeScore(
   let score = fit * adherenceP * (0.35 + cuisineP * 0.65) + variety * varietyP * (0.35 + cuisineP * 0.35);
   if (adherenceP < 0.15 && varietyP < 0.15) {
     score = fit * 0.5 + variety * 0.5;
-  }
-
-  if (penalizeRepeats) {
-    const pid = String(place?.id || '');
-    const prim = String(place?.primaryType || '');
-    let repeatFactor = 1;
-    if (pid && wasPlaceVisitedRecently(visits, pid, windowDays)) repeatFactor *= 0.35;
-    else if (prim && wasCuisineVisitedRecently(visits, prim, windowDays)) repeatFactor *= 0.55;
-    score *= repeatFactor;
   }
   return Math.max(0, Math.min(100, score));
 }
@@ -391,12 +323,6 @@ function timeFreshnessModifier(place: any, meal: MealTypeContext, weekendDinnerL
     }
   }
 
-  const weekdayDescriptions: string[] = place?.currentOpeningHours?.weekdayDescriptions || [];
-  const todayLine = weekdayDescriptions[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
-  if (typeof todayLine === 'string' && /(\d+:\d+\s*[AP]M)/i.test(todayLine)) {
-    m -= 0;
-  }
-
   if (weekendDinnerLive && place?.liveMusic === true) m += 10;
   return m;
 }
@@ -462,14 +388,13 @@ export function applyRerollDiversityQueue(ranked: ScoredRestaurant[], maxSamePri
 export type ScoreContextInput = {
   prefs: RecommendationPrefsV1;
   session: SessionOverrides;
-  visits: VisitRecord[];
   userLat: number;
   userLng: number;
   rainyWeather?: boolean;
 };
 
 export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): ScoredRestaurant[] {
-  const { prefs, session, visits, rainyWeather } = ctx;
+  const { prefs, session, rainyWeather } = ctx;
   const nw = normWeights(prefs.weights);
   const radius = session.radiusMeters;
   const weekend = [0, 6].includes(new Date().getDay());
@@ -477,10 +402,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
 
   const filtered = places.filter(place => {
     if (String(place?.businessStatus || 'OPERATIONAL') !== 'OPERATIONAL') return false;
-    if (failsDietary(place, prefs.dietaryFilters)) return false;
-    if (hardExcludeOpenNow(place, prefs.openNowOnly)) return false;
-    const rating = typeof place?.rating === 'number' ? place.rating : 0;
-    if (rating < prefs.minimumRatingThreshold) return false;
+    if (hardExcludeClosed(place)) return false;
     const dm = typeof place?.distanceMeters === 'number' ? place.distanceMeters : Infinity;
     if (!Number.isFinite(dm) || dm > radius) return false;
     return true;
@@ -496,14 +418,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     const proteinRaw = rawProteinScore(place);
     const calorieRaw = rawCalorieScore(place);
     const tasteRaw = rawTasteScore(place);
-    const cuisineRaw = rawCuisineCompositeScore(
-      place,
-      prefs.favoriteCuisines,
-      prefs.weights,
-      prefs.penalizeRepeats,
-      prefs.cuisineRepeatWindowDays,
-      visits
-    );
+    const cuisineRaw = rawCuisineCompositeScore(place, prefs.favoriteCuisines, prefs.weights);
 
     const healthBlend =
       hRaw * 0.45 + workoutRaw * 0.2 + proteinRaw * 0.2 + calorieRaw * 0.15;
@@ -575,6 +490,5 @@ export async function scoreWithLoadedPrefs(
   rainyWeather?: boolean
 ): Promise<ScoredRestaurant[]> {
   const prefs = await getRecommendationPrefs();
-  const visits = await loadVisits();
-  return scoreRestaurantPool(places, { prefs, session, visits, userLat, userLng, rainyWeather });
+  return scoreRestaurantPool(places, { prefs, session, userLat, userLng, rainyWeather });
 }

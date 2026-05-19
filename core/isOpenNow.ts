@@ -1,26 +1,66 @@
 type Period = { open: number; close: number };
 
+type GooglePeriodPoint = { day?: number; hour?: number; minute?: number };
+type GooglePeriod = { open?: GooglePeriodPoint; close?: GooglePeriodPoint };
+
+export type PlaceLocalTime = { googleWeekday: number; nowMins: number };
+
+/** Monday=0 … Sunday=6 (weekdayDescriptions index). */
+export function getPlaceLocalTime(place: any): PlaceLocalTime {
+  const offsetMin =
+    typeof place?.utcOffsetMinutes === 'number' && Number.isFinite(place.utcOffsetMinutes)
+      ? place.utcOffsetMinutes
+      : -new Date().getTimezoneOffset();
+  const device = new Date();
+  const utcMs = device.getTime() + device.getTimezoneOffset() * 60000;
+  const localMs = utcMs + offsetMin * 60000;
+  const local = new Date(localMs);
+  const sunDay = local.getUTCDay();
+  const googleWeekday = (sunDay + 6) % 7;
+  const nowMins = local.getUTCHours() * 60 + local.getUTCMinutes();
+  return { googleWeekday, nowMins };
+}
+
 function parseTime(t: string): number | null {
-  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!m) return null;
-  let hours = parseInt(m[1], 10);
-  const mins = parseInt(m[2], 10);
-  const ampm = m[3].toUpperCase();
-  if (ampm === 'PM' && hours !== 12) hours += 12;
-  if (ampm === 'AM' && hours === 12) hours = 0;
-  return hours * 60 + mins;
+  const trimmed = t.trim();
+  let m = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m) {
+    let hours = parseInt(m[1], 10);
+    const mins = parseInt(m[2], 10);
+    const ampm = m[3].toUpperCase();
+    if (ampm === 'PM' && hours !== 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + mins;
+  }
+  m = trimmed.match(/^(\d{1,2})\s*(AM|PM)$/i);
+  if (m) {
+    let hours = parseInt(m[1], 10);
+    const ampm = m[2].toUpperCase();
+    if (ampm === 'PM' && hours !== 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    return hours * 60;
+  }
+  m = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (m) {
+    const hours = parseInt(m[1], 10);
+    const mins = parseInt(m[2], 10);
+    if (hours >= 0 && hours < 24 && mins >= 0 && mins < 60) return hours * 60 + mins;
+  }
+  return null;
 }
 
 function parsePeriods(line: string): Period[] | 'open24' | 'closed' {
   const afterColon = line.split(/:\s(.+)/)[1] ?? '';
   if (!afterColon) return 'closed';
   if (/open 24 hours/i.test(afterColon)) return 'open24';
-  if (/closed/i.test(afterColon)) return 'closed';
+  if (/^\s*closed\s*$/i.test(afterColon)) return 'closed';
 
   const periods: Period[] = [];
   const segments = afterColon.split(/,\s*/);
   for (const seg of segments) {
-    const rm = seg.match(/(\d+:\d+\s*[AP]M)\s*[–\-]\s*(\d+:\d+\s*[AP]M)/i);
+    const rm = seg.match(
+      /(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\s*[\u2013\u2014\-–]\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM))/i
+    );
     if (!rm) continue;
     const open = parseTime(rm[1]);
     const close = parseTime(rm[2]);
@@ -30,24 +70,74 @@ function parsePeriods(line: string): Period[] | 'open24' | 'closed' {
   return periods.length ? periods : 'closed';
 }
 
-function isOpenFromWeekdayDescriptions(
-  descriptions: string[],
-  googleDay: number,
-  nowMins: number
-): boolean {
-  const todayLine = descriptions[googleDay];
-  if (!todayLine) return false;
-
-  const result = parsePeriods(todayLine);
-  if (result === 'open24') return true;
-  if (result === 'closed') return false;
-
-  return result.some(({ open, close }) => {
+function isOpenForMins(periods: Period[], nowMins: number): boolean {
+  return periods.some(({ open, close }) => {
     if (close > open) {
       return nowMins >= open && nowMins < close;
     }
     return nowMins >= open || nowMins < close;
   });
+}
+
+function isOpenFromWeekdayDescriptions(
+  descriptions: string[],
+  googleWeekday: number,
+  nowMins: number
+): boolean {
+  const todayLine = descriptions[googleWeekday];
+  if (!todayLine) return false;
+
+  const result = parsePeriods(todayLine);
+  if (result === 'open24') return true;
+  if (result === 'closed') return false;
+  return isOpenForMins(result, nowMins);
+}
+
+function periodPointToMins(p: GooglePeriodPoint | undefined): number | null {
+  if (!p || typeof p.hour !== 'number' || typeof p.minute !== 'number') return null;
+  if (p.hour < 0 || p.hour > 23 || p.minute < 0 || p.minute > 59) return null;
+  return p.hour * 60 + p.minute;
+}
+
+function isOpenFromGooglePeriods(periods: GooglePeriod[], sunDay: number, nowMins: number): boolean {
+  for (const period of periods) {
+    const open = period.open;
+    const close = period.close;
+    if (!open || typeof open.day !== 'number') continue;
+    const openMins = periodPointToMins(open);
+    const closeMins = periodPointToMins(close);
+    if (openMins == null) continue;
+
+    const openDay = open.day;
+    const closeDay = typeof close?.day === 'number' ? close.day : openDay;
+
+    if (closeMins == null) {
+      if (openDay === sunDay && nowMins >= openMins) return true;
+      continue;
+    }
+
+    if (openDay === closeDay) {
+      if (openDay !== sunDay) continue;
+      if (closeMins > openMins) {
+        if (nowMins >= openMins && nowMins < closeMins) return true;
+      } else if (nowMins >= openMins || nowMins < closeMins) return true;
+      continue;
+    }
+
+    const daysBetween = (closeDay - openDay + 7) % 7;
+    if (daysBetween === 0) continue;
+
+    if (sunDay === openDay && nowMins >= openMins) return true;
+    if (daysBetween > 1) {
+      let d = (openDay + 1) % 7;
+      while (d !== closeDay) {
+        if (sunDay === d) return true;
+        d = (d + 1) % 7;
+      }
+    }
+    if (sunDay === closeDay && nowMins < closeMins) return true;
+  }
+  return false;
 }
 
 function weekdayDescriptionSets(place: any): string[][] {
@@ -66,24 +156,57 @@ function weekdayDescriptionSets(place: any): string[][] {
   );
 }
 
-export function isOpenNow(place: any): boolean {
-  const sets = weekdayDescriptionSets(place);
-  if (sets.length === 0) return false;
+function googlePeriodSets(place: any): GooglePeriod[][] {
+  const hasCurrent =
+    (place.currentOpeningHours?.periods?.length ?? 0) > 0 ||
+    (place.currentSecondaryOpeningHours?.periods?.length ?? 0) > 0;
 
-  const now = new Date();
-  const googleDay = (now.getDay() + 6) % 7;
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  if (hasCurrent) {
+    return [place.currentOpeningHours?.periods, place.currentSecondaryOpeningHours?.periods].filter(
+      (x): x is GooglePeriod[] => Array.isArray(x) && x.length > 0
+    );
+  }
 
-  for (const descriptions of sets) {
-    if (isOpenFromWeekdayDescriptions(descriptions, googleDay, nowMins)) return true;
+  return [place.regularOpeningHours?.periods, place.regularSecondaryOpeningHours?.periods].filter(
+    (x): x is GooglePeriod[] => Array.isArray(x) && x.length > 0
+  );
+}
+
+function openNowFromHoursFields(place: any): boolean | null {
+  const cur = place?.currentOpeningHours;
+  if (cur && typeof cur.openNow === 'boolean') return cur.openNow;
+  const sec = place?.currentSecondaryOpeningHours;
+  if (sec && typeof sec.openNow === 'boolean') return sec.openNow;
+  return null;
+}
+
+function isOpenFromParsedHours(place: any): boolean {
+  const { googleWeekday, nowMins } = getPlaceLocalTime(place);
+  const offsetMin =
+    typeof place?.utcOffsetMinutes === 'number' && Number.isFinite(place.utcOffsetMinutes)
+      ? place.utcOffsetMinutes
+      : -new Date().getTimezoneOffset();
+  const device = new Date();
+  const utcMs = device.getTime() + device.getTimezoneOffset() * 60000;
+  const localMs = utcMs + offsetMin * 60000;
+  const sunDay = new Date(localMs).getUTCDay();
+
+  for (const periods of googlePeriodSets(place)) {
+    if (isOpenFromGooglePeriods(periods, sunDay, nowMins)) return true;
+  }
+
+  for (const descriptions of weekdayDescriptionSets(place)) {
+    if (isOpenFromWeekdayDescriptions(descriptions, googleWeekday, nowMins)) return true;
   }
   return false;
 }
 
+export function isOpenNow(place: any): boolean {
+  const flagged = openNowFromHoursFields(place);
+  if (flagged != null) return flagged;
+  return isOpenFromParsedHours(place);
+}
+
 export function isPlaceLikelyOpenNow(place: any): boolean {
-  const cur = place?.currentOpeningHours;
-  if (cur && typeof cur.openNow === 'boolean') {
-    return cur.openNow === true;
-  }
   return isOpenNow(place);
 }

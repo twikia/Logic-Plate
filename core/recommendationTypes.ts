@@ -36,18 +36,14 @@ export type SessionMood = 'comfort' | 'light' | 'adventurous' | 'quick' | 'speci
 export type RecommendationPrefsV1 = {
   v: 1;
   onboardingComplete: boolean;
-  defaultGroupSize: DefaultGroupSize;
   weights: RecommendationWeights;
-  dietaryFilters: DietaryFilterId[];
-  budgetCeiling: number;
   favoriteCuisines: string[];
   defaultRadius: DefaultRadiusId;
   openNowOnly: boolean;
-  minimumRatingThreshold: number;
-  noveltyPressure: number;
-  penalizeRepeats: boolean;
-  cuisineRepeatWindowDays: number;
 };
+
+export const DEFAULT_SESSION_BUDGET = 20;
+export const DEFAULT_SESSION_GROUP: SessionGroupChip = 'solo';
 
 export type SessionOverrides = {
   mealType: MealTypeContext;
@@ -110,17 +106,10 @@ export const DEFAULT_WEIGHTS: RecommendationWeights = {
 export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {
   v: 1,
   onboardingComplete: false,
-  defaultGroupSize: 'solo',
   weights: { ...DEFAULT_WEIGHTS },
-  dietaryFilters: [],
-  budgetCeiling: 20,
   favoriteCuisines: ['italian'],
   defaultRadius: 'short_drive',
-  openNowOnly: false,
-  minimumRatingThreshold: 3.5,
-  noveltyPressure: 50,
-  penalizeRepeats: true,
-  cuisineRepeatWindowDays: 7,
+  openNowOnly: true,
 };
 
 export function radiusIdToMeters(id: DefaultRadiusId): number {
