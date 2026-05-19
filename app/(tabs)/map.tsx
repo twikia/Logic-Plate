@@ -156,10 +156,11 @@ function MapSheetAiScores({
   );
 }
 
-function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
+function RestaurantMarker({ item, markerColor, displayScore, isOpen, onPress }: {
   item: any;
   markerColor: string;
   displayScore: string | number;
+  isOpen: boolean;
   onPress: () => void;
 }) {
   const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
@@ -171,7 +172,7 @@ function RestaurantMarker({ item, markerColor, displayScore, onPress }: {
       zIndex={10}
       anchor={{ x: 0.5, y: 0.5 }}
     >
-      <View style={[styles.markerPin, { backgroundColor: markerColor }]}>
+      <View style={[styles.markerPin, { backgroundColor: markerColor, opacity: isOpen ? 1 : 0.4 }]}>
         <Text style={styles.markerScoreText}>{scoreText}</Text>
       </View>
     </Marker>
@@ -512,6 +513,7 @@ export default function MapScreen() {
               item={item}
               markerColor={sortColor}
               displayScore={displayScore}
+              isOpen={isOpenNow(item)}
               onPress={() => handleMarkerPress(item)}
             />
           );
@@ -876,22 +878,22 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
   },
   markerPin: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
     shadowColor: '#000',
-    shadowOpacity: 0.45,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 8,
   },
   markerScoreText: {
     color: '#FFFFFF',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '800',
     letterSpacing: -0.3,
   },
