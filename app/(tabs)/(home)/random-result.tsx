@@ -1,5 +1,7 @@
-import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
+import { AiOverviewScoresPanel } from '@/components/AiOverviewScoresPanel';
+import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -23,7 +25,6 @@ import { getCurrentRestaurant, subscribeCurrentRestaurant } from '../../../core/
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
-import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '../../../core/aiOverviewCache';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,196 +96,88 @@ function PhotoCarousel({ restaurantId, photos }: { restaurantId: string; photos:
 
 // ─── Info Pill ────────────────────────────────────────────────────────────────
 
-function InfoPill({ icon, label, color = 'rgba(255,255,255,0.65)' }: {
+function InfoPill({
+  icon,
+  label,
+  color,
+  theme,
+}: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   color?: string;
+  theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
+  const c = color ?? theme.subtext;
   return (
-    <View style={styles.infoPill}>
-      <Ionicons name={icon} size={13} color={color} />
-      <Text style={[styles.infoPillText, { color }]}>{label}</Text>
+    <View style={[styles.infoPill, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }]}>
+      <Ionicons name={icon} size={13} color={c} />
+      <Text style={[styles.infoPillText, { color: c }]}>{label}</Text>
     </View>
   );
 }
 
-function TenPointBar({
-  label,
-  value,
-  icon,
-  emoji,
-  placeholder,
+function ThemedSection({
+  children,
+  theme,
+  onPress,
 }: {
-  label: string;
-  value: number | undefined;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  emoji: string;
-  placeholder?: boolean;
+  children: React.ReactNode;
+  theme: ReturnType<typeof useAppTheme>['theme'];
+  onPress?: () => void;
 }) {
-  if (placeholder) {
-    return (
-      <View style={styles.scoreCard}>
-        <View style={styles.scoreCardTop}>
-          <Text style={styles.scoreEmoji}>{emoji}</Text>
-          <Ionicons name={icon} size={15} color="#F9A06F" />
-          <Text style={styles.scoreCardLabel}>{label}</Text>
-          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-        </View>
-        <View style={styles.tenTrack} />
-      </View>
-    );
-  }
-  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  const pct = Math.max(0, Math.min(1, v / 10));
-  return (
-    <View style={styles.scoreCard}>
-      <View style={styles.scoreCardTop}>
-        <Text style={styles.scoreEmoji}>{emoji}</Text>
-        <Ionicons name={icon} size={15} color="#F9A06F" />
-        <Text style={styles.scoreCardLabel}>{label}</Text>
-        <Text style={styles.scoreCardVal}>{v.toFixed(1)}/10</Text>
-      </View>
-      <View style={styles.tenTrack}>
-        <View style={[styles.tenFill, { width: `${pct * 100}%` }]} />
-      </View>
+  const inner = (
+    <View style={[styles.section, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }]}>
+      {children}
     </View>
   );
-}
-
-function SpeedBar({ value, placeholder }: { value: number | undefined; placeholder?: boolean }) {
-  if (placeholder) {
+  if (onPress) {
     return (
-      <View style={styles.scoreCard}>
-        <View style={styles.scoreCardTop}>
-          <Text style={styles.scoreEmoji}>⏱️</Text>
-          <Ionicons name="timer-outline" size={15} color="#F9A06F" />
-          <Text style={styles.scoreCardLabel}>Speed</Text>
-          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-        </View>
-        <View style={styles.speedScaleRow}>
-          <Text style={styles.speedScaleText}>🐌 0 slow</Text>
-          <Text style={styles.speedScaleText}>5 fast ⚡</Text>
-        </View>
-        <View style={styles.tenTrack} />
-      </View>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+        {inner}
+      </TouchableOpacity>
     );
   }
-  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  const pct = Math.max(0, Math.min(1, v / 5));
-  return (
-    <View style={styles.scoreCard}>
-      <View style={styles.scoreCardTop}>
-        <Text style={styles.scoreEmoji}>⏱️</Text>
-        <Ionicons name="timer-outline" size={15} color="#F9A06F" />
-        <Text style={styles.scoreCardLabel}>Speed</Text>
-        <Text style={styles.scoreCardVal}>{v.toFixed(0)}/5</Text>
-      </View>
-      <View style={styles.speedScaleRow}>
-        <Text style={styles.speedScaleText}>🐌 0 slow</Text>
-        <Text style={styles.speedScaleText}>5 fast ⚡</Text>
-      </View>
-      <View style={styles.tenTrack}>
-        <View style={[styles.tenFill, { width: `${pct * 100}%` }]} />
-      </View>
-    </View>
-  );
+  return inner;
 }
 
-function EnergySustainBar({ value, placeholder }: { value: number | undefined; placeholder?: boolean }) {
-  if (placeholder) {
-    return (
-      <View style={styles.scoreCard}>
-        <View style={styles.scoreCardTop}>
-          <Text style={styles.scoreEmoji}>🔋</Text>
-          <Ionicons name="pulse-outline" size={15} color="#7EC8E3" />
-          <Text style={styles.scoreCardLabel}>Energy sustain</Text>
-          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-        </View>
-        <View style={styles.speedScaleRow}>
-          <Text style={styles.speedScaleText}>⚡ 0 crashy</Text>
-          <Text style={styles.speedScaleText}>5 slow sustain</Text>
-        </View>
-        <View style={styles.tenTrack} />
-      </View>
-    );
-  }
-  const v = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  const pct = Math.max(0, Math.min(1, v / 5));
-  return (
-    <View style={styles.scoreCard}>
-      <View style={styles.scoreCardTop}>
-        <Text style={styles.scoreEmoji}>🔋</Text>
-        <Ionicons name="pulse-outline" size={15} color="#7EC8E3" />
-        <Text style={styles.scoreCardLabel}>Energy sustain</Text>
-        <Text style={styles.scoreCardVal}>{v.toFixed(0)}/5</Text>
-      </View>
-      <View style={styles.speedScaleRow}>
-        <Text style={styles.speedScaleText}>⚡ 0 crashy</Text>
-        <Text style={styles.speedScaleText}>5 slow sustain</Text>
-      </View>
-      <View style={styles.tenTrack}>
-        <View style={[styles.tenFill, { width: `${pct * 100}%`, backgroundColor: '#7EC8E3' }]} />
-      </View>
-    </View>
-  );
-}
-
-function FiveStarRow({ label, value, emoji, placeholder }: { label: string; value: number | undefined; emoji: string; placeholder?: boolean }) {
-  if (placeholder) {
-    return (
-      <View style={styles.scoreCard}>
-        <View style={styles.scoreCardTop}>
-          <Text style={styles.scoreEmoji}>{emoji}</Text>
-          <Text style={styles.scoreCardLabel}>{label}</Text>
-          <Text style={styles.scoreCardVal}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-        </View>
-      </View>
-    );
-  }
-  const rounded = Math.max(0, Math.min(5, Math.round(typeof value === 'number' && Number.isFinite(value) ? value : 0)));
-  return (
-    <View style={styles.scoreCard}>
-      <View style={styles.scoreCardTop}>
-        <Text style={styles.scoreEmoji}>{emoji}</Text>
-        <Text style={styles.scoreCardLabel}>{label}</Text>
-        <View style={styles.scoreStars}>
-          {Array.from({ length: 5 }, (_, i) => (
-            <Ionicons key={i} name={i < rounded ? 'star' : 'star-outline'} size={15} color="#FFD66B" />
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ─── Hours Section ────────────────────────────────────────────────────────────
-
-function HoursSection({ weekdays }: { weekdays: string[] }) {
+function HoursSection({
+  weekdays,
+  theme,
+}: {
+  weekdays: string[];
+  theme: ReturnType<typeof useAppTheme>['theme'];
+}) {
   const [open, setOpen] = useState(false);
   if (!weekdays?.length) return null;
-  const today = new Date().getDay(); // 0=Sun … 6=Sat → weekdays[0] = Monday
-  const todayIndex = (today + 6) % 7; // convert to Mon=0 index
+  const today = new Date().getDay();
+  const todayIndex = (today + 6) % 7;
 
   return (
-    <TouchableOpacity style={styles.section} onPress={() => setOpen(v => !v)} activeOpacity={0.8}>
-      <View style={styles.sectionHeader}>
-        <Ionicons name="time-outline" size={16} color="#F9A06F" />
-        <Text style={styles.sectionTitle}>Opening Hours</Text>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color="rgba(255,255,255,0.4)" />
-      </View>
-      {open && (
-        <View style={styles.hoursList}>
-          {weekdays.map((line, i) => (
-            <Text
-              key={i}
-              style={[styles.hoursLine, i === todayIndex && styles.hoursLineToday]}
-            >
-              {line}
-            </Text>
-          ))}
+    <ThemedSection theme={theme}>
+      <TouchableOpacity onPress={() => setOpen((v) => !v)} activeOpacity={0.8}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="time-outline" size={16} color={theme.tint} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Opening Hours</Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.subtext} />
         </View>
-      )}
-    </TouchableOpacity>
+        {open && (
+          <View style={styles.hoursList}>
+            {weekdays.map((line, i) => (
+              <Text
+                key={i}
+                style={[
+                  styles.hoursLine,
+                  { color: i === todayIndex ? '#4CD964' : theme.subtext },
+                  i === todayIndex && styles.hoursLineToday,
+                ]}
+              >
+                {line}
+              </Text>
+            ))}
+          </View>
+        )}
+      </TouchableOpacity>
+    </ThemedSection>
   );
 }
 
@@ -294,6 +187,7 @@ export default function RandomResultScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
 
   // Read the selected restaurant from memory — avoids the expensive JSON.parse
   // of a large URL param which was blocking the screen mount on every navigation.
@@ -387,17 +281,20 @@ export default function RandomResultScreen() {
   };
 
   return (
-    <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
+    <LinearGradient colors={theme.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
       <SafeAreaView style={styles.safe} edges={['top']}>
 
         {/* Header */}
         <View style={styles.header}>
-          <AnimatedPressable style={styles.iconBtn} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <AnimatedPressable
+            style={[styles.iconBtn, { backgroundColor: theme.glassBackground }]}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
           </AnimatedPressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>Your Pick</Text>
-          <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
-            <Ionicons name="share-outline" size={22} color="#FFFFFF" />
+          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>Your Pick</Text>
+          <TouchableOpacity onPress={handleShare} style={[styles.iconBtn, { backgroundColor: theme.glassBackground }]}>
+            <Ionicons name="share-outline" size={22} color={theme.text} />
           </TouchableOpacity>
         </View>
 
@@ -408,7 +305,7 @@ export default function RandomResultScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              tintColor="#FFFFFF"
+              tintColor={theme.text}
               onRefresh={() => {
                 setRefreshing(true);
                 setLiveOpenEpoch((e) => e + 1);
@@ -424,12 +321,12 @@ export default function RandomResultScreen() {
           {/* Name + type badge */}
           <View style={styles.nameRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{name}</Text>
-              {type ? <Text style={styles.typeText}>{type}</Text> : null}
+              <Text style={[styles.name, { color: theme.text }]}>{name}</Text>
+              {type ? <Text style={[styles.typeText, { color: theme.subtext }]}>{type}</Text> : null}
             </View>
             {price ? (
-              <View style={styles.pricePill}>
-                <Text style={styles.priceText}>{price}</Text>
+              <View style={[styles.pricePill, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }]}>
+                <Text style={[styles.priceText, { color: theme.tint }]}>{price}</Text>
               </View>
             ) : null}
           </View>
@@ -441,232 +338,91 @@ export default function RandomResultScreen() {
                 icon="star"
                 label={`${rating}${reviews ? `  (${reviews.toLocaleString()})` : ''}`}
                 color="#FFD700"
+                theme={theme}
               />
             )}
-            <InfoPill icon="navigate-outline" label={dist} color="#F9A06F" />
+            <InfoPill icon="navigate-outline" label={dist} color={theme.tint} theme={theme} />
             <InfoPill
               icon={isOpen ? 'checkmark-circle-outline' : 'close-circle-outline'}
               label={isOpen ? 'Open Now' : 'Closed'}
               color={isOpen ? '#4CD964' : '#FF6B6B'}
+              theme={theme}
             />
           </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="heart-outline" size={16} color="#A8D5A2" />
-              <Text style={[styles.sectionTitle, { color: '#A8D5A2' }]}>Health score</Text>
-              <Text style={styles.healthScoreBadge}>
-                {typeof aiOverview?.healthScore === 'number'
-                  ? `${aiOverview.healthScore.toFixed(1)}/10`
-                  : AI_OVERVIEW_FIELD_PLACEHOLDER}
-              </Text>
-            </View>
-            <View style={styles.healthBar}>
-              <View
-                style={[
-                  styles.healthFill,
-                  { width: `${ph ? 0 : ((aiOverview!.healthScore ?? 0) / 10) * 100}%` },
-                ]}
-              />
-            </View>
-          </View>
+          <NeonBorderCard borderRadius={22} outerStyle={styles.mainCardOuter} innerStyle={styles.mainCardInner}>
+            <AiOverviewScoresPanel
+              ai={aiOverview}
+              ph={ph}
+              theme={theme}
+              googleRating={place.rating}
+              priceLevel={place.priceLevel}
+            />
+          </NeonBorderCard>
 
-          {/* Address */}
           {address ? (
-            <TouchableOpacity style={styles.section} onPress={copyAddress} activeOpacity={0.85}>
+            <ThemedSection theme={theme} onPress={copyAddress}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="location-outline" size={16} color="#F9A06F" />
-                <Text style={styles.sectionTitle}>Address</Text>
-                <Ionicons name="copy-outline" size={15} color="rgba(255,255,255,0.45)" />
+                <Ionicons name="location-outline" size={16} color={theme.tint} />
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Address</Text>
+                <Ionicons name="copy-outline" size={15} color={theme.subtext} />
               </View>
-              <Text style={styles.sectionBody}>{address}</Text>
-              <Text style={styles.copyHint}>{addressCopied ? 'Copied to clipboard' : 'Tap to copy'}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {/* Phone */}
-          {phone ? (
-            <TouchableOpacity
-              style={styles.section}
-              onPress={() => Linking.openURL(`tel:${phone}`)}
-            >
-              <View style={styles.sectionHeader}>
-                <Ionicons name="call-outline" size={16} color="#F9A06F" />
-                <Text style={styles.sectionTitle}>Phone</Text>
-                <Ionicons name="open-outline" size={13} color="rgba(255,255,255,0.35)" />
-              </View>
-              <Text style={[styles.sectionBody, { color: '#F9A06F' }]}>{phone}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {/* Website */}
-          {website ? (
-            <TouchableOpacity
-              style={styles.section}
-              onPress={() => Linking.openURL(website)}
-            >
-              <View style={styles.sectionHeader}>
-                <Ionicons name="globe-outline" size={16} color="#F9A06F" />
-                <Text style={styles.sectionTitle}>Website</Text>
-                <Ionicons name="open-outline" size={13} color="rgba(255,255,255,0.35)" />
-              </View>
-              <Text style={[styles.sectionBody, { color: '#F9A06F' }]} numberOfLines={1}>{website}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {/* Opening hours */}
-          <HoursSection weekdays={weekdays} />
-
-          <>
-            <View style={[styles.section, styles.aiSection]}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="sparkles-outline" size={16} color="#C9A0FF" />
-                <Text style={[styles.sectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
-              </View>
-              {ph ? (
-                <Text style={styles.sectionBody}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-              ) : (
-                <AiOverviewSummaryBody
-                  text={aiOverview!.summaryGoodBad || 'No summary yet.'}
-                  style={styles.sectionBody}
-                />
-              )}
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>👅</Text>
-                <Ionicons name="restaurant-outline" size={16} color="#FFB84D" />
-                <Text style={styles.sectionTitle}>Flavor & value</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <FiveStarRow label="Taste" value={aiOverview?.tasteScore} emoji="👅" placeholder={ph} />
-                <FiveStarRow label="Value for money" value={aiOverview?.valueForMoneyScore} emoji="💵" placeholder={ph} />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>⚡</Text>
-                <Ionicons name="flash-outline" size={16} color="#F9A06F" />
-                <Text style={styles.sectionTitle}>Convenience</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <SpeedBar value={aiOverview?.speedScore} placeholder={ph} />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>💪</Text>
-                <Ionicons name="barbell-outline" size={16} color="#F9A06F" />
-                <Text style={styles.sectionTitle}>Recovery</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <TenPointBar label="Workout recovery" value={aiOverview?.workoutRecoveryScore} icon="barbell-outline" emoji="💪" placeholder={ph} />
-                <TenPointBar label="Processed food load" value={aiOverview?.processedScore} icon="nutrition-outline" emoji="🍎" placeholder={ph} />
-                <FiveStarRow label="Hungover recovery" value={aiOverview?.hungoverRecoveryScore} emoji="🥴" placeholder={ph} />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>🌙</Text>
-                <Ionicons name="fast-food-outline" size={16} color="#C9A0FF" />
-                <Text style={styles.sectionTitle}>Cravings & menu</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <FiveStarRow label="Munchy score" value={aiOverview?.munchyScore} emoji="🌙" placeholder={ph} />
-                <FiveStarRow label="Variety" value={aiOverview?.varietyScore} emoji="🔄" placeholder={ph} />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>🍽️</Text>
-                <Ionicons name="restaurant-outline" size={16} color="#FFD66B" />
-                <Text style={styles.sectionTitle}>Nutrition & portions</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <FiveStarRow label="Calorie fit" value={aiOverview?.calorieScore} emoji="🔥" placeholder={ph} />
-                <FiveStarRow label="Protein" value={aiOverview?.proteinScore} emoji="🥩" placeholder={ph} />
-                <FiveStarRow label="Carb balance" value={aiOverview?.carbScore} emoji="🌾" placeholder={ph} />
-                <FiveStarRow label="Macro-friendly tracking" value={aiOverview?.macroFriendlyScore} emoji="📊" placeholder={ph} />
-              </View>
-              {ph ? (
-                <Text style={styles.macrosBlock}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-              ) : aiOverview!.absoluteMacros ? (
-                <Text style={styles.macrosBlock}>{aiOverview.absoluteMacros}</Text>
-              ) : null}
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>💫</Text>
-                <Ionicons name="people-outline" size={16} color="#E9A0C8" />
-                <Text style={styles.sectionTitle}>Vibe & social</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <FiveStarRow label="Date worthiness" value={aiOverview?.dateWorthiness} emoji="💕" placeholder={ph} />
-                <FiveStarRow label="Noise level" value={aiOverview?.noiseLevelEstimate} emoji="🔊" placeholder={ph} />
-                <View style={styles.scoreCard}>
-                  <View style={styles.scoreCardTop}>
-                    <Text style={styles.scoreEmoji}>👥</Text>
-                    <Ionicons name="people-circle-outline" size={15} color="#F9A06F" />
-                    <Text style={styles.scoreCardLabel}>Group sweet spot</Text>
-                    <Text style={styles.scoreCardVal}>
-                      {ph
-                        ? AI_OVERVIEW_FIELD_PLACEHOLDER
-                        : aiOverview!.groupSizeSweetSpot != null
-                          ? `${aiOverview.groupSizeSweetSpot} people`
-                          : '—'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>💻</Text>
-                <Ionicons name="laptop-outline" size={16} color="#9BC99D" />
-                <Text style={styles.sectionTitle}>Solo & work</Text>
-              </View>
-              <View style={styles.scoreCardStack}>
-                <FiveStarRow label="Solo diner friendly" value={aiOverview?.soloDinerScore} emoji="🪑" placeholder={ph} />
-                <EnergySustainBar value={aiOverview?.energySustainScore} placeholder={ph} />
-                <FiveStarRow label="Work friendly (wifi / laptop)" value={aiOverview?.workFriendlyScore} emoji="💻" placeholder={ph} />
-              </View>
-            </View>
-
-            <View style={[styles.section, styles.whoSection]}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.aiSparkle}>🎯</Text>
-                <Ionicons name="person-outline" size={16} color="#B8E0FF" />
-                <Text style={[styles.sectionTitle, { color: '#B8E0FF' }]}>Who is this place for?</Text>
-              </View>
-              <Text style={styles.sectionBody}>
-                {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : aiOverview?.whoThisPlaceIsFor || '—'}
+              <Text style={[styles.sectionBody, { color: theme.subtext }]}>{address}</Text>
+              <Text style={[styles.copyHint, { color: theme.subtext }]}>
+                {addressCopied ? 'Copied to clipboard' : 'Tap to copy'}
               </Text>
-            </View>
-          </>
+            </ThemedSection>
+          ) : null}
 
-          {/* Action buttons */}
+          {phone ? (
+            <ThemedSection theme={theme} onPress={() => Linking.openURL(`tel:${phone}`)}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="call-outline" size={16} color={theme.tint} />
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Phone</Text>
+                <Ionicons name="open-outline" size={13} color={theme.subtext} />
+              </View>
+              <Text style={[styles.sectionBody, { color: theme.tint }]}>{phone}</Text>
+            </ThemedSection>
+          ) : null}
+
+          {website ? (
+            <ThemedSection theme={theme} onPress={() => Linking.openURL(website)}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="globe-outline" size={16} color={theme.tint} />
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Website</Text>
+                <Ionicons name="open-outline" size={13} color={theme.subtext} />
+              </View>
+              <Text style={[styles.sectionBody, { color: theme.tint }]} numberOfLines={1}>
+                {website}
+              </Text>
+            </ThemedSection>
+          ) : null}
+
+          <HoursSection weekdays={weekdays} theme={theme} />
+
           <View style={styles.actions}>
             <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSecondary]}
+              style={[
+                styles.actionBtn,
+                styles.actionBtnSecondary,
+                { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
               onPress={() => router.push('/map' as any)}
             >
-              <Ionicons name="map-outline" size={16} color="#F97352" />
-              <Text style={[styles.actionBtnText, { color: '#F97352' }]}>Find on Local Map</Text>
+              <Ionicons name="map-outline" size={16} color={theme.tint} />
+              <Text style={[styles.actionBtnText, { color: theme.tint }]}>Find on Local Map</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnGhost]}
+              style={[
+                styles.actionBtn,
+                styles.actionBtnGhost,
+                { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+              ]}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="shuffle" size={16} color="rgba(255,255,255,0.6)" />
-              <Text style={[styles.actionBtnText, { color: 'rgba(255,255,255,0.6)' }]}>Pick Again</Text>
+              <Ionicons name="shuffle" size={16} color={theme.subtext} />
+              <Text style={[styles.actionBtnText, { color: theme.subtext }]}>Pick Again</Text>
             </TouchableOpacity>
           </View>
 
@@ -675,17 +431,19 @@ export default function RandomResultScreen() {
 
         {mapsReady && (
           <TouchableOpacity
-            style={[styles.mapsFabFixed, { bottom: fabBottom }]}
+            style={[styles.mapsFabFixed, { bottom: fabBottom, backgroundColor: theme.accent }]}
             onPress={() => openGoogleMaps(name, lat!, lng!)}
             activeOpacity={0.88}
           >
             <Ionicons
               name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
               size={18}
-              color="#FFFFFF"
+              color={theme.matchOrbTextColor ?? '#FFFFFF'}
             />
             <View>
-              <Text style={styles.mapsFabTitle}>Open in {mapsProviderLabel}</Text>
+              <Text style={[styles.mapsFabTitle, { color: theme.matchOrbTextColor ?? '#FFFFFF' }]}>
+                Open in {mapsProviderLabel}
+              </Text>
               <Text style={styles.mapsFabSub}>Directions</Text>
             </View>
           </TouchableOpacity>
@@ -710,10 +468,11 @@ const styles = StyleSheet.create({
   },
   iconBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', flex: 1, textAlign: 'center', marginHorizontal: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center', marginHorizontal: 8 },
+  mainCardOuter: { marginHorizontal: 16, marginBottom: 12 },
+  mainCardInner: { padding: 12 },
 
   // Carousel
   carouselWrap: { position: 'relative' },
@@ -732,7 +491,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#F97352',
     borderRadius: 18,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -756,15 +514,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start',
     paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 10,
   },
-  name: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', lineHeight: 32 },
-  typeText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4, textTransform: 'capitalize' },
+  name: { fontSize: 26, fontWeight: '800', lineHeight: 32 },
+  typeText: { fontSize: 13, marginTop: 4, textTransform: 'capitalize' },
   pricePill: {
-    backgroundColor: 'rgba(249,163,111,0.2)', borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: 'rgba(249,163,111,0.4)',
+    borderWidth: 1,
     marginTop: 4,
   },
-  priceText: { fontSize: 14, fontWeight: '700', color: '#F9A06F' },
+  priceText: { fontSize: 14, fontWeight: '700' },
 
   // Pills row
   pillRow: {
@@ -773,71 +531,25 @@ const styles = StyleSheet.create({
   },
   infoPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12,
+    borderRadius: 12,
     paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
   },
   infoPillText: { fontSize: 13, fontWeight: '600' },
 
-  // Generic section
   section: {
     marginHorizontal: 16, marginBottom: 12,
-    backgroundColor: 'rgba(30,15,30,0.55)', borderRadius: 18,
-    padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 18,
+    padding: 16, borderWidth: 1,
   },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', flex: 1 },
-  sectionBody: { fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 20 },
-  copyHint: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 8, fontWeight: '600' },
-  healthScoreBadge: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#A8D5A2',
-  },
+  sectionTitle: { fontSize: 14, fontWeight: '700', flex: 1 },
+  sectionBody: { fontSize: 14, lineHeight: 20 },
+  copyHint: { fontSize: 11, marginTop: 8, fontWeight: '600' },
 
-  // Hours
   hoursList: { gap: 4 },
-  hoursLine: { fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 20 },
-  hoursLineToday: { color: '#4CD964', fontWeight: '700' },
-
-  // AI section
-  aiSection: { borderColor: 'rgba(201,160,255,0.15)' },
-  aiSparkle: { fontSize: 15, marginRight: -2 },
-  whoSection: { borderColor: 'rgba(184,224,255,0.25)' },
-  scoreCardStack: { gap: 10 },
-  scoreCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  scoreCardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  scoreEmoji: { fontSize: 16 },
-  scoreCardLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.88)', minWidth: 120 },
-  scoreCardVal: { fontSize: 12, fontWeight: '800', color: '#F9A06F' },
-  scoreStars: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  speedScaleRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  speedScaleText: { fontSize: 11, color: 'rgba(255,255,255,0.58)', fontWeight: '700' },
-  tenTrack: {
-    height: 7,
-    marginTop: 10,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-  },
-  tenFill: { height: '100%', borderRadius: 4, backgroundColor: '#68D8A3' },
-  macrosBlock: {
-    marginTop: 12,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    lineHeight: 20,
-    fontWeight: '600',
-  },
-
-  // Health bar
-  healthBar: { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' },
-  healthFill: { height: '100%', backgroundColor: '#4CD964', borderRadius: 3 },
+  hoursLine: { fontSize: 13, lineHeight: 20 },
+  hoursLineToday: { fontWeight: '700' },
 
   // Action buttons
   actions: { marginHorizontal: 16, gap: 10, marginTop: 4 },
@@ -845,13 +557,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderRadius: 16, paddingVertical: 14,
   },
-  actionBtnSecondary: {
-    backgroundColor: 'rgba(249,115,82,0.1)',
-    borderWidth: 1, borderColor: 'rgba(249,115,82,0.4)',
-  },
-  actionBtnGhost: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  actionBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  actionBtnSecondary: { borderWidth: 1 },
+  actionBtnGhost: { borderWidth: 1 },
+  actionBtnText: { fontSize: 15, fontWeight: '700' },
 });
