@@ -1,11 +1,19 @@
 export type DefaultGroupSize = 'solo' | 'partner' | 'small_group' | 'big_group' | 'varies';
 
+export type ImportanceLevel = 1 | 2 | 3 | 4 | 5;
+
 export type RecommendationWeights = {
-  distance: number;
-  health: number;
-  price: number;
-  rating: number;
-  novelty: number;
+  speed: ImportanceLevel;
+  cost: ImportanceLevel;
+  distance: ImportanceLevel;
+  health: ImportanceLevel;
+  workoutRecovery: ImportanceLevel;
+  protein: ImportanceLevel;
+  calories: ImportanceLevel;
+  cuisine: ImportanceLevel;
+  cuisineVariety: ImportanceLevel;
+  cuisineAdherence: ImportanceLevel;
+  taste: ImportanceLevel;
 };
 
 export type DietaryFilterId =
@@ -86,11 +94,17 @@ export type ScoredRestaurant = {
 };
 
 export const DEFAULT_WEIGHTS: RecommendationWeights = {
-  distance: 50,
-  health: 50,
-  price: 50,
-  rating: 50,
-  novelty: 50,
+  speed: 3,
+  cost: 3,
+  distance: 3,
+  health: 3,
+  workoutRecovery: 3,
+  protein: 3,
+  calories: 3,
+  cuisine: 3,
+  cuisineVariety: 3,
+  cuisineAdherence: 3,
+  taste: 3,
 };
 
 export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {

@@ -1,4 +1,6 @@
+import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
 import { useAppTheme } from '@/context/ThemeContext';
+import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
@@ -7,6 +9,7 @@ import {
   type DefaultGroupSize,
   type DefaultRadiusId,
   type DietaryFilterId,
+  type ImportanceLevel,
   type RecommendationPrefsV1,
   type RecommendationWeights,
   radiusIdToMeters,
@@ -18,14 +21,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
-
-const WEIGHT_LABELS: { key: keyof RecommendationWeights; label: string; hint: string }[] = [
-  { key: 'distance', label: 'How close it is', hint: 'Prefer spots nearby' },
-  { key: 'health', label: 'How wholesome the food is', hint: 'Lighter, less processed' },
-  { key: 'price', label: 'Sticking to budget', hint: 'Great food without overspending' },
-  { key: 'rating', label: 'Crowd-tested quality', hint: 'Trusted reviews' },
-  { key: 'novelty', label: 'Trying something different', hint: 'Mix it up vs favorites' },
-];
 
 const GROUP_OPTIONS: { id: DefaultGroupSize; label: string }[] = [
   { id: 'solo', label: 'Just me' },
@@ -75,6 +70,10 @@ export default function RecommendationSettingsScreen() {
     );
   }
 
+  const setWeight = (key: keyof RecommendationWeights, level: ImportanceLevel) => {
+    void persist({ ...prefs, weights: { ...prefs.weights, [key]: level } });
+  };
+
   const toggleDietary = (id: DietaryFilterId | 'none') => {
     if (id === 'none') void persist({ ...prefs, dietaryFilters: [] });
     else {
@@ -105,28 +104,27 @@ export default function RecommendationSettingsScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.sectionLabel, { color: theme.accent }]}>My priorities</Text>
-          {WEIGHT_LABELS.map(row => (
-            <View key={row.key} style={[styles.card, { backgroundColor: theme.buttonBackground }]}>
-              <View style={styles.sliderHead}>
-                <Text style={[styles.rowTitle, { color: theme.text }]}>{row.label}</Text>
-                <Text style={[styles.rowVal, { color: theme.accent }]}>{Math.round(prefs.weights[row.key])}</Text>
-              </View>
-              <Text style={[styles.hint, { color: theme.subtext }]}>{row.hint}</Text>
-              <Slider
-                minimumValue={0}
-                maximumValue={100}
-                step={1}
-                value={prefs.weights[row.key]}
-                onSlidingComplete={v =>
-                  void persist({ ...prefs, weights: { ...prefs.weights, [row.key]: v } })
-                }
-                minimumTrackTintColor={theme.accent}
-                maximumTrackTintColor="rgba(255,255,255,0.12)"
-                thumbTintColor="#FFFFFF"
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>What matters to you</Text>
+          <Text style={[styles.sectionIntro, { color: theme.subtext }]}>
+            Tap an emoji level (1–5) for each factor. Favorite cuisine adherence controls how strongly your picks below influence recommendations.
+          </Text>
+
+          {PRIORITY_METRIC_SCREENS.map((screen, screenIdx) => (
+            <View
+              key={screen.id}
+              style={[styles.metricSection, { backgroundColor: theme.buttonBackground }]}
+            >
+              <Text style={[styles.metricSectionTitle, { color: theme.text }]}>{screen.title}</Text>
+              <Text style={[styles.metricSectionSub, { color: theme.subtext }]}>{screen.subtitle}</Text>
+              <PriorityMetricsPanel
+                weights={prefs.weights}
+                onWeightChange={setWeight}
+                screenIndex={screenIdx}
+                compact
               />
             </View>
           ))}
+
           <Pressable
             style={[styles.resetBtn, { borderColor: theme.accent }]}
             onPress={() => void persist({ ...prefs, weights: { ...DEFAULT_WEIGHTS } })}
@@ -231,6 +229,9 @@ export default function RecommendationSettingsScreen() {
           </View>
 
           <Text style={[styles.miniHead, { color: theme.subtext }]}>Favorite cuisines</Text>
+          <Text style={[styles.cuisineHint, { color: theme.subtext }]}>
+            How much these steer picks is set by Favorite cuisine adherence above.
+          </Text>
           <View style={styles.cGrid}>
             {TOP_CUISINE_TILES.map(t => {
               const on = prefs.favoriteCuisines.includes(t.id);
@@ -254,24 +255,6 @@ export default function RecommendationSettingsScreen() {
           </View>
 
           <Text style={[styles.sectionLabel, { color: theme.accent, marginTop: 24 }]}>Novelty settings</Text>
-          <View style={[styles.card, { backgroundColor: theme.buttonBackground }]}>
-            <View style={styles.sliderHead}>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>Cuisine variety pressure</Text>
-              <Text style={[styles.rowVal, { color: theme.accent }]}>{Math.round(prefs.noveltyPressure)}</Text>
-            </View>
-            <Text style={[styles.hint, { color: theme.subtext }]}>Left: favorites · Right: push new cuisines</Text>
-            <Slider
-              minimumValue={0}
-              maximumValue={100}
-              step={1}
-              value={prefs.noveltyPressure}
-              onSlidingComplete={v => void persist({ ...prefs, noveltyPressure: v })}
-              minimumTrackTintColor={theme.accent}
-              maximumTrackTintColor="rgba(255,255,255,0.12)"
-              thumbTintColor="#FFFFFF"
-            />
-          </View>
-
           <View style={[styles.rowBetween, styles.card, { backgroundColor: theme.buttonBackground }]}>
             <Text style={[styles.rowTitle, { color: theme.text }]}>Penalize repeat visits</Text>
             <Switch
@@ -320,13 +303,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '800' },
   scroll: { padding: 16, paddingBottom: 40 },
   sectionLabel: { fontSize: 13, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10, textTransform: 'uppercase' },
+  sectionIntro: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  metricSection: { borderRadius: 14, padding: 14, marginBottom: 12 },
+  metricSectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  metricSectionSub: { fontSize: 12, marginBottom: 12, lineHeight: 17 },
   miniHead: { fontSize: 12, fontWeight: '600', marginBottom: 8, marginTop: 4 },
   card: { borderRadius: 14, padding: 14, marginBottom: 10 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sliderHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   rowTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
   rowVal: { fontSize: 15, fontWeight: '800' },
-  hint: { fontSize: 11, marginBottom: 6 },
   resetBtn: {
     borderWidth: 1,
     borderRadius: 14,
@@ -340,6 +326,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600' },
   col: { gap: 8, marginBottom: 12 },
   rowPick: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  cuisineHint: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
   cGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
   cTile: {
     width: '31%',

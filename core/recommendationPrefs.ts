@@ -1,11 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { allPriorityMetricKeys } from './recommendationPriorityMetrics';
 import { TOP_CUISINE_TILES } from './recommendationCuisines';
 import {
   DEFAULT_PREFS_V1,
+  DEFAULT_WEIGHTS,
   type DefaultGroupSize,
   type DefaultRadiusId,
   type DietaryFilterId,
+  type ImportanceLevel,
   type RecommendationPrefsV1,
   type RecommendationWeights,
 } from './recommendationTypes';
@@ -14,20 +17,70 @@ const TOP_CUISINE_IDS = new Set(TOP_CUISINE_TILES.map(t => t.id));
 
 const STORAGE_KEY = 'recommendation_prefs_v1';
 
+const LEGACY_WEIGHT_KEYS = ['distance', 'health', 'price', 'rating', 'novelty'] as const;
+
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-function sanitizeWeights(w: Partial<RecommendationWeights> | undefined): RecommendationWeights {
-  const d = DEFAULT_PREFS_V1.weights;
-  const pick = (x: number | undefined) => clamp(typeof x === 'number' && Number.isFinite(x) ? x : 50, 0, 100);
-  return {
-    distance: pick(w?.distance),
-    health: pick(w?.health),
-    price: pick(w?.price),
-    rating: pick(w?.rating),
-    novelty: pick(w?.novelty),
+function toImportanceLevel(x: unknown): ImportanceLevel | null {
+  if (typeof x !== 'number' || !Number.isFinite(x)) return null;
+  const n = Math.round(x);
+  if (n >= 1 && n <= 5) return n as ImportanceLevel;
+  if (x > 5) {
+    if (x <= 20) return 1;
+    if (x <= 40) return 2;
+    if (x <= 60) return 3;
+    if (x <= 80) return 4;
+    return 5;
+  }
+  return null;
+}
+
+function legacyLevelFromHundred(v: number | undefined, fallback: ImportanceLevel): ImportanceLevel {
+  return toImportanceLevel(v) ?? fallback;
+}
+
+function sanitizeWeights(w: Partial<RecommendationWeights> | Record<string, unknown> | undefined): RecommendationWeights {
+  const out = { ...DEFAULT_WEIGHTS };
+  const raw = (w ?? {}) as Record<string, unknown>;
+
+  for (const key of allPriorityMetricKeys()) {
+    const level = toImportanceLevel(raw[key]);
+    if (level != null) out[key] = level;
+  }
+
+  const legacy = raw as {
+    distance?: number;
+    health?: number;
+    price?: number;
+    rating?: number;
+    novelty?: number;
   };
+  const hasLegacy = LEGACY_WEIGHT_KEYS.some(k => typeof legacy[k] === 'number');
+  if (hasLegacy) {
+    if (out.distance === DEFAULT_WEIGHTS.distance && legacy.distance != null) {
+      out.distance = legacyLevelFromHundred(legacy.distance, 3);
+    }
+    if (out.health === DEFAULT_WEIGHTS.health && legacy.health != null) {
+      out.health = legacyLevelFromHundred(legacy.health, 3);
+    }
+    if (out.cost === DEFAULT_WEIGHTS.cost && legacy.price != null) {
+      out.cost = legacyLevelFromHundred(legacy.price, 3);
+    }
+    if (out.taste === DEFAULT_WEIGHTS.taste && legacy.rating != null) {
+      out.taste = legacyLevelFromHundred(legacy.rating, 3);
+    }
+    if (legacy.novelty != null) {
+      const n = legacyLevelFromHundred(legacy.novelty, 3);
+      if (out.cuisineVariety === DEFAULT_WEIGHTS.cuisineVariety) out.cuisineVariety = n;
+      if (out.cuisineAdherence === DEFAULT_WEIGHTS.cuisineAdherence) {
+        out.cuisineAdherence = (6 - n) as ImportanceLevel;
+      }
+    }
+  }
+
+  return out;
 }
 
 function sanitizeDietary(raw: unknown): DietaryFilterId[] {
@@ -60,13 +113,19 @@ function sanitizeFavoriteCuisines(raw: unknown): string[] {
   return out.length > 0 ? out : [...DEFAULT_PREFS_V1.favoriteCuisines];
 }
 
+export function deriveNoveltyPressureFromWeights(weights: RecommendationWeights): number {
+  return clamp(((weights.cuisineVariety - 1) / 4) * 100, 0, 100);
+}
+
 export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | null): RecommendationPrefsV1 {
   if (!raw || raw.v !== 1) return { ...DEFAULT_PREFS_V1 };
+  const weights = sanitizeWeights(raw.weights);
+  const noveltyFromWeights = deriveNoveltyPressureFromWeights(weights);
   return {
     v: 1,
     onboardingComplete: !!raw.onboardingComplete,
     defaultGroupSize: sanitizeGroupSize(raw.defaultGroupSize),
-    weights: sanitizeWeights(raw.weights),
+    weights,
     dietaryFilters: sanitizeDietary(raw.dietaryFilters),
     budgetCeiling: clamp(
       typeof raw.budgetCeiling === 'number' && Number.isFinite(raw.budgetCeiling) ? raw.budgetCeiling : 20,
@@ -84,7 +143,9 @@ export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | n
       5
     ),
     noveltyPressure: clamp(
-      typeof raw.noveltyPressure === 'number' && Number.isFinite(raw.noveltyPressure) ? raw.noveltyPressure : 50,
+      typeof raw.noveltyPressure === 'number' && Number.isFinite(raw.noveltyPressure)
+        ? raw.noveltyPressure
+        : noveltyFromWeights,
       0,
       100
     ),
@@ -112,7 +173,11 @@ export async function getRecommendationPrefs(): Promise<RecommendationPrefsV1> {
 
 export async function saveRecommendationPrefs(prefs: RecommendationPrefsV1): Promise<void> {
   const merged = mergeRecommendationPrefs(prefs);
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  const withDerived = {
+    ...merged,
+    noveltyPressure: deriveNoveltyPressureFromWeights(merged.weights),
+  };
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(withDerived));
 }
 
 export async function markOnboardingComplete(partial?: Partial<RecommendationPrefsV1>): Promise<void> {
