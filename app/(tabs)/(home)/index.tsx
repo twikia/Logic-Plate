@@ -616,13 +616,11 @@ function SpotlightCard({
   canReject,
   onReject,
   onPress,
-  onOpenMap,
 }: {
   scored: ScoredRestaurant;
   canReject: boolean;
   onReject: () => void;
   onPress: () => void;
-  onOpenMap: () => void;
 }) {
   const { theme } = useAppTheme();
   const place = scored.place;
@@ -710,200 +708,192 @@ function SpotlightCard({
     [firePress]
   );
 
-  const cardGesture = useMemo(
-    () => (canReject ? Gesture.Exclusive(panGesture, tapGesture) : tapGesture),
-    [canReject, panGesture, tapGesture]
-  );
-
   const cardAnim = useAnimatedStyle(() => ({
     transform: [{ translateY: ty.value }],
     opacity: opacity.value,
   }));
 
+  const cardBody = (
+    <>
+      <View style={styles.spotlightHeroRow}>
+        <View style={styles.spotlightTitleBlock}>
+          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={3}>
+            {name}
+          </Text>
+          <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={2}>
+            {formatDistance(Math.round(place.distanceMeters ?? 0))} away
+            {rating ? ` · ${rating}★` : ''}
+            {reviewCount ? ` · ${reviewCount}` : ''}
+          </Text>
+        </View>
+        <View style={styles.matchOrb}>
+          {orbVariant === 'gradient' ? (
+            <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
+              <Text style={[styles.matchOrbPct, { color: orbTextColor }]}>{match}</Text>
+              <Text style={[styles.matchOrbLbl, { color: orbTextColor }]}>match</Text>
+            </LinearGradient>
+          ) : (
+            <MatchGauge
+              match={match}
+              arcColors={neonUi ? [ringColors[0], ringColors[2]] as [string, string] : theme.matchOrbColors}
+              textColor={orbTextColor}
+            />
+          )}
+        </View>
+      </View>
+
+      <View style={styles.scoreShapeRow}>
+        <View style={styles.scorePentagonCol}>
+          <RestaurantScorePentagon
+            ai={ai}
+            stroke={theme.accent}
+            gridColor={theme.radarGridColor}
+            labelColor={theme.subtext}
+            svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
+            neon={neonUi}
+            variant={radarVar}
+            gradientColors={neonUi ? undefined : theme.matchOrbColors}
+          />
+        </View>
+        <View style={styles.scoreBarsCol}>
+          <Text
+            style={[
+              styles.valueMatchHeading,
+              { color: neonUi ? 'rgba(255,255,255,0.72)' : theme.subtext },
+              neonUi && styles.valueMatchHeadingNeon,
+            ]}
+          >
+            value match
+          </Text>
+          <EngineStatBars raw={scored.raw} compact neon={neonUi} />
+        </View>
+      </View>
+    </>
+  );
+
+  const cardActions = (
+    <View style={styles.spotlightActions}>
+      {neonUi ? (
+        <>
+          <TouchableOpacity
+            style={[!mapsReady && styles.spotlightActionDisabled, { flex: 1 }]}
+            onPress={() => {
+              if (!mapsReady) return;
+              openMaps(name, lat, lng);
+            }}
+            disabled={!mapsReady}
+            activeOpacity={0.88}
+          >
+            <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
+              <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
+                <Ionicons
+                  name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
+                  {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+                </Text>
+              </View>
+            </NeonOutlinePad>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1 }} onPress={onPress} activeOpacity={0.88}>
+            <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
+              <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
+                <Ionicons name="information-circle-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
+                  Details
+                </Text>
+              </View>
+            </NeonOutlinePad>
+          </TouchableOpacity>
+        </>
+      ) : btnVariant === 'outline-outline' ? (
+        <>
+          <TouchableOpacity
+            style={[
+              styles.spotlightAction,
+              styles.spotlightActionGhostBase,
+              { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
+              !mapsReady && styles.spotlightActionDisabled,
+            ]}
+            onPress={() => {
+              if (!mapsReady) return;
+              openMaps(name, lat, lng);
+            }}
+          >
+            <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
+            <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+              {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.spotlightAction,
+              styles.spotlightActionGhostBase,
+              { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
+            ]}
+            onPress={onPress}
+          >
+            <Ionicons name="information-circle-outline" size={16} color={theme.text} />
+            <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+              Details
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <TouchableOpacity
+            style={[
+              styles.spotlightAction,
+              styles.spotlightActionPrimaryBase,
+              { backgroundColor: theme.accent },
+              !mapsReady && styles.spotlightActionDisabled,
+            ]}
+            onPress={() => {
+              if (!mapsReady) return;
+              openMaps(name, lat, lng);
+            }}
+          >
+            <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
+            <Text style={styles.spotlightActionText} numberOfLines={1}>
+              {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.spotlightAction,
+              styles.spotlightActionGhostBase,
+              { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+            ]}
+            onPress={onPress}
+          >
+            <Ionicons name="information-circle-outline" size={16} color={theme.accent} />
+            <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
+              Details
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+
   const cardInner = (
     <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
       <NeonBorderCard borderRadius={26}>
         <View style={styles.spotlightPressLayer}>
-          <View style={styles.spotlightHeroRow}>
-            <View style={styles.spotlightTitleBlock}>
-              <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={3}>
-                {name}
-              </Text>
-              <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={2}>
-                {formatDistance(Math.round(place.distanceMeters ?? 0))} away
-                {rating ? ` · ${rating}★` : ''}
-                {reviewCount ? ` · ${reviewCount}` : ''}
-              </Text>
-            </View>
-            <View style={styles.matchOrb}>
-              {orbVariant === 'gradient' ? (
-                <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
-                  <Text style={[styles.matchOrbPct, { color: orbTextColor }]}>{match}</Text>
-                  <Text style={[styles.matchOrbLbl, { color: orbTextColor }]}>match</Text>
-                </LinearGradient>
-              ) : (
-                <MatchGauge
-                  match={match}
-                  arcColors={neonUi ? [ringColors[0], ringColors[2]] as [string, string] : theme.matchOrbColors}
-                  textColor={orbTextColor}
-                />
-              )}
-            </View>
-          </View>
-
-          <View style={styles.scoreShapeRow}>
-            <View style={styles.scorePentagonCol}>
-              <RestaurantScorePentagon
-                ai={ai}
-                stroke={theme.accent}
-                gridColor={theme.radarGridColor}
-                labelColor={theme.subtext}
-                svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
-                neon={neonUi}
-                variant={radarVar}
-                gradientColors={neonUi ? undefined : theme.matchOrbColors}
-              />
-            </View>
-            <View style={styles.scoreBarsCol}>
-              <Text
-                style={[
-                  styles.valueMatchHeading,
-                  { color: neonUi ? 'rgba(255,255,255,0.72)' : theme.subtext },
-                  neonUi && styles.valueMatchHeadingNeon,
-                ]}
-              >
-                value match
-              </Text>
-              <EngineStatBars raw={scored.raw} compact neon={neonUi} />
-            </View>
-          </View>
-
-          <View style={styles.spotlightActions}>
-            {neonUi ? (
-              <>
-                <TouchableOpacity
-                  style={[!mapsReady && styles.spotlightActionDisabled, { flex: 1 }]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    if (!mapsReady) return;
-                    openMaps(name, lat, lng);
-                  }}
-                  disabled={!mapsReady}
-                  activeOpacity={0.88}
-                >
-                  <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
-                    <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
-                      <Ionicons
-                        name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
-                        size={16}
-                        color="#FFFFFF"
-                      />
-                      <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
-                        {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                      </Text>
-                    </View>
-                  </NeonOutlinePad>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ flex: 1 }}
-                  onPress={e => {
-                    e.stopPropagation();
-                    onOpenMap();
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
-                    <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
-                      <Ionicons name="map-outline" size={16} color="#FFFFFF" />
-                      <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
-                        Map tab
-                      </Text>
-                    </View>
-                  </NeonOutlinePad>
-                </TouchableOpacity>
-              </>
-            ) : btnVariant === 'outline-outline' ? (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionGhostBase,
-                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
-                    !mapsReady && styles.spotlightActionDisabled,
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    if (!mapsReady) return;
-                    openMaps(name, lat, lng);
-                  }}
-                >
-                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
-                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
-                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionGhostBase,
-                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    onOpenMap();
-                  }}
-                >
-                  <Ionicons name="map-outline" size={16} color={theme.text} />
-                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
-                    Map tab
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionPrimaryBase,
-                    { backgroundColor: theme.accent },
-                    !mapsReady && styles.spotlightActionDisabled,
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    if (!mapsReady) return;
-                    openMaps(name, lat, lng);
-                  }}
-                >
-                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
-                  <Text style={styles.spotlightActionText} numberOfLines={1}>
-                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionGhostBase,
-                    { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    onOpenMap();
-                  }}
-                >
-                  <Ionicons name="map-outline" size={16} color={theme.accent} />
-                  <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
-                    Map tab
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+          <GestureDetector
+            gesture={canReject ? Gesture.Exclusive(panGesture, tapGesture) : tapGesture}
+          >
+            <View>{cardBody}</View>
+          </GestureDetector>
+          {cardActions}
         </View>
       </NeonBorderCard>
     </Animated.View>
   );
 
-  return <GestureDetector gesture={cardGesture}>{cardInner}</GestureDetector>;
+  return cardInner;
 }
 
 export default function HomeScreen() {
@@ -1174,11 +1164,12 @@ export default function HomeScreen() {
                       canReject={visibleList.length > 1}
                       onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
                       onPress={() => void openDetails(item)}
-                      onOpenMap={() => router.push('/map' as any)}
                     />
-                    <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
-                      {visibleList.length > 1 ? 'Tap for details  ·  swipe ↓ to skip' : 'Tap for details'}
-                    </Text>
+                    {visibleList.length > 1 ? (
+                      <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
+                        Swipe ↓ to skip
+                      </Text>
+                    ) : null}
                   </View>
                 )}
               />

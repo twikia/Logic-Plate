@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useRouter, useRootNavigationState, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -6,46 +6,68 @@ import { getRecommendationPrefs } from '@/core/recommendationPrefs';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+function resolveAuthRoute(
+  segments: string[],
+  needsUsername: boolean,
+  onboardingComplete: boolean,
+  isGuest: boolean
+): string | null {
+  const seg0 = segments[0];
+  if (!seg0) return null;
+
+  const seg1 = segments.at(1);
+  const inAuth = seg0 === '(auth)';
+  const onPickUsername = seg1 === 'pick-username';
+  const onLogin = seg1 === 'login';
+  const onWelcome = seg0 === 'welcome-onboarding';
+
+  if (inAuth && onLogin && isGuest) return null;
+
+  if (needsUsername) {
+    return inAuth && onPickUsername ? null : '/(auth)/pick-username';
+  }
+
+  if (!onboardingComplete) {
+    return onWelcome ? null : '/welcome-onboarding';
+  }
+
+  if (inAuth) {
+    return '/(tabs)';
+  }
+
+  return null;
+}
+
 export function AuthGate() {
-  const { loading, needsUsername } = useAuth();
+  const { loading, needsUsername, isGuest } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const navState = useRootNavigationState();
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
-  const [prefsReady, setPrefsReady] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
-    void getRecommendationPrefs().then(p => {
-      setOnboardingComplete(!!p.onboardingComplete);
-      setPrefsReady(true);
-    });
-  }, [loading, segments]);
+    if (!navState?.key || loading) return;
 
-  useEffect(() => {
-    if (!navState?.key || loading || !prefsReady) return;
+    let cancelled = false;
 
-    const seg0 = segments[0];
-    if (!seg0) return;
+    void (async () => {
+      const prefs = await getRecommendationPrefs();
+      if (cancelled) return;
 
-    const inAuth = seg0 === '(auth)';
-    const seg1 = segments.at(1);
-    const onPickUsername = seg1 === 'pick-username';
-    const onLogin = seg1 === 'login';
-    const onWelcome = seg0 === 'welcome-onboarding';
-
-    if (needsUsername && !(inAuth && onPickUsername)) {
-      router.replace('/(auth)/pick-username' as any);
-    } else if (!needsUsername && inAuth && !onLogin) {
-      if (!onboardingComplete) {
-        router.replace('/welcome-onboarding' as any);
-      } else {
-        router.replace('/(tabs)' as any);
+      const target = resolveAuthRoute(
+        segments as string[],
+        needsUsername,
+        !!prefs.onboardingComplete,
+        isGuest
+      );
+      if (target) {
+        router.replace(target as any);
       }
-    } else if (!needsUsername && !inAuth && !onboardingComplete && !onWelcome) {
-      router.replace('/welcome-onboarding' as any);
-    }
-  }, [loading, needsUsername, segments, router, navState?.key, prefsReady, onboardingComplete]);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, needsUsername, isGuest, segments, router, navState?.key]);
 
   useEffect(() => {
     if (!loading) {

@@ -60,7 +60,6 @@ export default function LoginScreen() {
       return;
     }
     await refreshProfile();
-    router.back();
   };
 
   const onEmailAuth = async () => {
@@ -139,7 +138,6 @@ export default function LoginScreen() {
           }
         }
         await refreshProfile();
-        router.back();
       } else {
         await runPasswordSignIn();
       }
@@ -159,7 +157,6 @@ export default function LoginScreen() {
         setMessage(error.message);
       } else if (!error) {
         await refreshProfile();
-        router.back();
       }
     } finally {
       setOauthBusy(null);

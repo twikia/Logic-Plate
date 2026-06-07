@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,13 +18,13 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
 import { isOpenNow } from '@/core/isOpenNow';
-import { markerIconForPlace } from '@/core/markerIcons';
+import { RestaurantMapMarker } from '@/components/map/RestaurantMapMarker';
 import type { RandomSortBy } from '@/core/randomPickerState';
 import {
   SORT_OPTIONS,
   compareRestaurantsBySort,
   getSortValue,
-  lerpRedGreen,
+  mapMarkerScoreColor,
   mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
 
@@ -154,33 +154,6 @@ function MapSheetAiScores({
         <Text style={[styles.macrosBlock, { color: theme.subtext }]}>{ai.absoluteMacros}</Text>
       ) : null}
     </View>
-  );
-}
-
-function RestaurantMarker({ item, markerColor, displayScore, isOpen, onPress }: {
-  item: any;
-  markerColor: string;
-  displayScore: string | number;
-  isOpen: boolean;
-  onPress: () => void;
-}) {
-  const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
-  const iconName = markerIconForPlace(item);
-
-  return (
-    <Marker
-      coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
-      onPress={onPress}
-      zIndex={10}
-      anchor={{ x: 0.5, y: 1 }}
-    >
-      <View style={styles.markerOuter}>
-        <Text style={[styles.markerScoreTag, { opacity: isOpen ? 1 : 0.55 }]}>{scoreText}</Text>
-        <View style={[styles.markerPin, { backgroundColor: markerColor, opacity: isOpen ? 1 : 0.4 }]}>
-          <Ionicons name={iconName} size={13} color="#FFFFFF" />
-        </View>
-      </View>
-    </Marker>
   );
 }
 
@@ -510,10 +483,10 @@ export default function MapScreen() {
         {sortedMarkers.map((item) => {
           const raw = mapSortRawHigherIsGreener(item, mapSortBy);
           const t = mapColorT(raw, markerColorBounds);
-          const sortColor = Number.isFinite(raw) ? lerpRedGreen(t) : '#6B7280';
+          const sortColor = Number.isFinite(raw) ? mapMarkerScoreColor(t) : '#6B7280';
           const displayScore = formatMarkerSortLabel(item, mapSortBy, formatDistance);
           return (
-            <RestaurantMarker
+            <RestaurantMapMarker
               key={item.id}
               item={item}
               markerColor={sortColor}
@@ -881,35 +854,6 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
-  },
-  markerOuter: {
-    alignItems: 'center',
-    paddingTop: 2,
-    paddingHorizontal: 4,
-  },
-  markerScoreTag: {
-    color: '#FFFFFF',
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(0,0,0,0.95)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-    marginBottom: 1,
-  },
-  markerPin: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.7)',
-    shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 8,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   sortBtn: {

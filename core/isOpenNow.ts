@@ -3,22 +3,24 @@ type Period = { open: number; close: number };
 type GooglePeriodPoint = { day?: number; hour?: number; minute?: number };
 type GooglePeriod = { open?: GooglePeriodPoint; close?: GooglePeriodPoint };
 
-export type PlaceLocalTime = { googleWeekday: number; nowMins: number };
+export type PlaceLocalTime = { googleWeekday: number; nowMins: number; sunDay: number };
 
-/** Monday=0 … Sunday=6 (weekdayDescriptions index). */
+/** Google utcOffsetMinutes: add to UTC to get place-local civil time (e.g. US Eastern = -300). */
+function placeUtcOffsetMinutes(place: any): number {
+  if (typeof place?.utcOffsetMinutes === 'number' && Number.isFinite(place.utcOffsetMinutes)) {
+    return place.utcOffsetMinutes;
+  }
+  return -new Date().getTimezoneOffset();
+}
+
+/** Monday=0 … Sunday=6 (weekdayDescriptions index). sunDay: 0=Sunday (Google periods). */
 export function getPlaceLocalTime(place: any): PlaceLocalTime {
-  const offsetMin =
-    typeof place?.utcOffsetMinutes === 'number' && Number.isFinite(place.utcOffsetMinutes)
-      ? place.utcOffsetMinutes
-      : -new Date().getTimezoneOffset();
-  const device = new Date();
-  const utcMs = device.getTime() + device.getTimezoneOffset() * 60000;
-  const localMs = utcMs + offsetMin * 60000;
-  const local = new Date(localMs);
+  const offsetMin = placeUtcOffsetMinutes(place);
+  const local = new Date(Date.now() + offsetMin * 60_000);
   const sunDay = local.getUTCDay();
   const googleWeekday = (sunDay + 6) % 7;
   const nowMins = local.getUTCHours() * 60 + local.getUTCMinutes();
-  return { googleWeekday, nowMins };
+  return { googleWeekday, nowMins, sunDay };
 }
 
 function parseTime(t: string): number | null {
@@ -180,16 +182,12 @@ function openNowFromHoursFields(place: any): boolean | null {
   return null;
 }
 
+function hasOpeningHoursData(place: any): boolean {
+  return googlePeriodSets(place).length > 0 || weekdayDescriptionSets(place).length > 0;
+}
+
 function isOpenFromParsedHours(place: any): boolean {
-  const { googleWeekday, nowMins } = getPlaceLocalTime(place);
-  const offsetMin =
-    typeof place?.utcOffsetMinutes === 'number' && Number.isFinite(place.utcOffsetMinutes)
-      ? place.utcOffsetMinutes
-      : -new Date().getTimezoneOffset();
-  const device = new Date();
-  const utcMs = device.getTime() + device.getTimezoneOffset() * 60000;
-  const localMs = utcMs + offsetMin * 60000;
-  const sunDay = new Date(localMs).getUTCDay();
+  const { googleWeekday, nowMins, sunDay } = getPlaceLocalTime(place);
 
   for (const periods of googlePeriodSets(place)) {
     if (isOpenFromGooglePeriods(periods, sunDay, nowMins)) return true;
@@ -202,9 +200,9 @@ function isOpenFromParsedHours(place: any): boolean {
 }
 
 export function isOpenNow(place: any): boolean {
+  if (hasOpeningHoursData(place)) return isOpenFromParsedHours(place);
   const flagged = openNowFromHoursFields(place);
-  if (flagged != null) return flagged;
-  return isOpenFromParsedHours(place);
+  return flagged ?? false;
 }
 
 export function isPlaceLikelyOpenNow(place: any): boolean {
