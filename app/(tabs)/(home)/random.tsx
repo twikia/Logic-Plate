@@ -57,7 +57,7 @@ import {
   compareRestaurantsBySort,
   getOverviewMetric,
 } from '../../../core/restaurantSort';
-import { RestaurantImage } from '../../../core/images';
+import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { placeOffersSweets } from '../../../core/placeSweets';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 
@@ -184,6 +184,32 @@ function RestaurantRow({
   const price = formatPlacePriceLabel(item);
   const overall = calculatePlateboundScore(ai, item.rating, item.priceLevel);
   const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
+  const lat = item.location?.latitude;
+  const lng = item.location?.longitude;
+  const [photos, setPhotos] = useState<any[]>(item.photos || []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPhotos = async () => {
+      if (!item?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
+
+      const urls = await fetchRestaurantPhotoUrls({
+        placeId: item.id,
+        name,
+        latitude: lat,
+        longitude: lng,
+        websiteUrl: item.websiteUri || undefined,
+        cuisineKey: item.primaryType?.replace(/_restaurant$/, '') || undefined,
+      });
+
+      if (cancelled) return;
+      setPhotos(urls.length > 0 ? urls.slice(0, 1) : (item.photos || []).slice(0, 1));
+    };
+
+    loadPhotos();
+    return () => { cancelled = true; };
+  }, [item?.id, name, lat, lng, item?.photos, item.primaryType, item.websiteUri]);
 
   return (
     <View style={[styles.row, selected && styles.rowSelected]}>
@@ -195,7 +221,7 @@ function RestaurantRow({
         <View style={styles.thumbWrap}>
           <RestaurantImage
             restaurantId={item.id}
-            photos={item.photos || []}
+            photos={photos}
             width={52}
             height={52}
             quality={200}

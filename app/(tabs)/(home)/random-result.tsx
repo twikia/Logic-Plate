@@ -1,6 +1,7 @@
 import { AiOverviewScoresPanel } from '@/components/AiOverviewScoresPanel';
 import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,10 +9,12 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Dimensions,
-  Linking, Platform,
+  Linking,
+  Platform,
   RefreshControl,
   ScrollView,
   Share,
@@ -20,7 +23,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Text as SvgText } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getCurrentRestaurant,
   setMapFocusRestaurant,
@@ -29,6 +33,14 @@ import {
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const HERO_HEIGHT = 340;
+const ARC_R = 42;
+const ARC_CX = 60;
+const ARC_CY = 58;
+const ARC_LEN = Math.PI * ARC_R;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,104 +57,158 @@ function openGoogleMaps(name: string, lat: number, lng: number) {
   }
 }
 
-// ─── Photo carousel (uses decoupled RestaurantImage) ────────────────────────────────────
+function scoreColor(s: number) {
+  if (s >= 8) return '#4CD964';
+  if (s >= 6.5) return '#FFD700';
+  if (s >= 4.5) return '#FF9500';
+  return '#FF6B6B';
+}
 
-function PhotoCarousel({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
-  const [active, setActive] = useState(0);
+// ─── Hero Photo ───────────────────────────────────────────────────────────────
+
+function HeroPhoto({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
   const screenWidth = Dimensions.get('window').width;
-  // Show up to 4 slides — matches our three-tier TARGET_PHOTOS count
-  const slideCount = Math.min(4, (photos || []).length);
+  const heroPhoto = (photos || [])[0];
 
-  if (!slideCount) {
+  if (!heroPhoto) {
     return (
-      <View style={styles.photoEmpty}>
-        <Ionicons name="restaurant-outline" size={48} color="rgba(255,255,255,0.15)" />
+      <View style={[styles.photoEmpty, { height: HERO_HEIGHT }]}>
+        <Ionicons name="restaurant-outline" size={64} color="rgba(255,255,255,0.10)" />
       </View>
     );
   }
 
   return (
-    <View style={styles.carouselWrap}>
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={e => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width);
-          setActive(idx);
-        }}
-      >
-        {Array.from({ length: slideCount }, (_, i) => {
-          // Each slide gets a single photo — RestaurantImage handles fallback internally
-          const slidePhoto = photos[i] ? [photos[i]] : [];
-          return (
-            <RestaurantImage
-              key={`${restaurantId}_slide_${i}`}
-              restaurantId={`${restaurantId}_slide_${i}`}
-              photos={slidePhoto}
-              width={screenWidth}
-              height={240}
-              quality={800}
-              loadDelay={i === 0 ? 100 : 300}
-            />
-          );
-        })}
-      </ScrollView>
-      {/* Dots */}
-      <View style={styles.dotRow}>
-        {Array.from({ length: slideCount }, (_, i) => (
-          <View key={i} style={[styles.dot, i === active && styles.dotActive]} />
-        ))}
-      </View>
-    </View>
+    <RestaurantImage
+      restaurantId={restaurantId}
+      photos={[heroPhoto]}
+      width={screenWidth}
+      height={HERO_HEIGHT}
+      quality={800}
+      loadDelay={100}
+    />
   );
 }
 
-// ─── Info Pill ────────────────────────────────────────────────────────────────
+// ─── Score Arc Gauge ──────────────────────────────────────────────────────────
 
-function InfoPill({
+function ScoreGauge({
+  score,
+  theme,
+}: {
+  score: number;
+  theme: ReturnType<typeof useAppTheme>['theme'];
+}) {
+  const clamped = Math.min(10, Math.max(0, score));
+  const dashFill = (clamped / 10) * ARC_LEN;
+  const color = scoreColor(clamped);
+  const d = `M ${ARC_CX - ARC_R} ${ARC_CY} A ${ARC_R} ${ARC_R} 0 0 1 ${ARC_CX + ARC_R} ${ARC_CY}`;
+
+  return (
+    <Svg width="100%" height={70} viewBox="0 0 120 70" preserveAspectRatio="xMidYMid meet">
+      <Path
+        d={d}
+        stroke="rgba(255,255,255,0.08)"
+        strokeWidth={11}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <Path
+        d={d}
+        stroke={color}
+        strokeWidth={11}
+        fill="none"
+        strokeDasharray={`${dashFill} ${ARC_LEN}`}
+        strokeLinecap="round"
+      />
+      <SvgText
+        x={ARC_CX}
+        y={ARC_CY - 13}
+        fill={theme.text}
+        fontSize={21}
+        fontWeight="800"
+        textAnchor="middle"
+        alignmentBaseline="middle"
+      >
+        {clamped.toFixed(1)}
+      </SvgText>
+      <SvgText
+        x={ARC_CX}
+        y={ARC_CY - 1}
+        fill={theme.subtext}
+        fontSize={8}
+        textAnchor="middle"
+        alignmentBaseline="middle"
+      >
+        out of 10
+      </SvgText>
+    </Svg>
+  );
+}
+
+// ─── Stat Tile ────────────────────────────────────────────────────────────────
+
+function StatTile({
   icon,
+  value,
   label,
   color,
   theme,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
+  value: string;
   label: string;
-  color?: string;
+  color: string;
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
-  const c = color ?? theme.subtext;
   return (
-    <View style={[styles.infoPill, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }]}>
-      <Ionicons name={icon} size={13} color={c} />
-      <Text style={[styles.infoPillText, { color: c }]}>{label}</Text>
+    <View style={[styles.statTile, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }]}>
+      <View style={[styles.statIconBg, { backgroundColor: color + '28' }]}>
+        <Ionicons name={icon} size={15} color={color} />
+      </View>
+      <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{value}</Text>
+      <Text style={[styles.statLabel, { color: theme.subtext }]}>{label}</Text>
     </View>
   );
 }
 
-function ThemedSection({
-  children,
+// ─── Contact Row ──────────────────────────────────────────────────────────────
+
+function ContactRow({
+  icon,
+  value,
+  hint,
   theme,
   onPress,
+  accentColor,
 }: {
-  children: React.ReactNode;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  value: string;
+  hint?: string;
   theme: ReturnType<typeof useAppTheme>['theme'];
   onPress?: () => void;
+  accentColor?: string;
 }) {
-  const inner = (
-    <View style={[styles.section, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }]}>
-      {children}
+  const tintColor = accentColor ?? theme.text;
+  const row = (
+    <View style={styles.contactRow}>
+      <View style={[styles.contactIconBg, { backgroundColor: theme.tint + '22' }]}>
+        <Ionicons name={icon} size={16} color={theme.tint} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.contactValue, { color: tintColor }]} numberOfLines={2}>{value}</Text>
+        {hint ? <Text style={[styles.contactHint, { color: theme.subtext }]}>{hint}</Text> : null}
+      </View>
+      {onPress ? <Ionicons name="chevron-forward" size={13} color={theme.subtext} style={{ opacity: 0.6 }} /> : null}
     </View>
   );
   if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
-        {inner}
-      </TouchableOpacity>
-    );
+    return <TouchableOpacity onPress={onPress} activeOpacity={0.72}>{row}</TouchableOpacity>;
   }
-  return inner;
+  return row;
 }
+
+// ─── Hours Section ────────────────────────────────────────────────────────────
 
 function HoursSection({
   weekdays,
@@ -157,14 +223,16 @@ function HoursSection({
   const todayIndex = (today + 6) % 7;
 
   return (
-    <ThemedSection theme={theme}>
-      <TouchableOpacity onPress={() => setOpen((v) => !v)} activeOpacity={0.8}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name="time-outline" size={16} color={theme.tint} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Opening Hours</Text>
+    <View style={[styles.card, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }]}>
+      <TouchableOpacity onPress={() => setOpen(v => !v)} activeOpacity={0.8}>
+        <View style={styles.cardRow}>
+          <View style={[styles.contactIconBg, { backgroundColor: theme.tint + '22' }]}>
+            <Ionicons name="time-outline" size={16} color={theme.tint} />
+          </View>
+          <Text style={[styles.cardRowLabel, { color: theme.text }]}>Opening Hours</Text>
           <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={theme.subtext} />
         </View>
-        {open && (
+        {open ? (
           <View style={styles.hoursList}>
             {weekdays.map((line, i) => (
               <Text
@@ -179,9 +247,9 @@ function HoursSection({
               </Text>
             ))}
           </View>
-        )}
+        ) : null}
       </TouchableOpacity>
-    </ThemedSection>
+    </View>
   );
 }
 
@@ -193,8 +261,6 @@ export default function RandomResultScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
 
-  // Read the selected restaurant from memory — avoids the expensive JSON.parse
-  // of a large URL param which was blocking the screen mount on every navigation.
   const [, setSelectionEpoch] = useState(0);
   useEffect(() => subscribeCurrentRestaurant(() => setSelectionEpoch(e => e + 1)), []);
 
@@ -203,9 +269,19 @@ export default function RandomResultScreen() {
   const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 450, delay: 180, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 450, delay: 180, useNativeDriver: true }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
   useFocusEffect(
     useCallback(() => {
-      setLiveOpenEpoch((e) => e + 1);
+      setLiveOpenEpoch(e => e + 1);
     }, [])
   );
 
@@ -221,55 +297,51 @@ export default function RandomResultScreen() {
   const lng = place.location?.longitude;
   const { formatDistance } = useDistanceFormatter();
   const distM = Math.round(place.distanceMeters ?? 0);
-  const dist = `${formatDistance(distM)} away`;
+  const dist = formatDistance(distM);
   void liveOpenEpoch;
   const isOpen = isOpenNow(place);
-  const weekdays = place.currentOpeningHours?.weekdayDescriptions
-    ?? place.regularOpeningHours?.weekdayDescriptions
-    ?? [];
+  const weekdays =
+    place.currentOpeningHours?.weekdayDescriptions ??
+    place.regularOpeningHours?.weekdayDescriptions ??
+    [];
   const [photos, setPhotos] = useState<any[]>(place.photos || []);
   const [addressCopied, setAddressCopied] = useState(false);
+  const aiOverview = place.aiOverview;
+  const ph = !aiOverview;
+  const plateboundScore =
+    !ph ? calculatePlateboundScore(aiOverview, place.rating, place.priceLevel) : null;
 
   useEffect(() => {
     let cancelled = false;
 
     const loadPhotos = async () => {
-      const placeId   = place.id;
+      const placeId = place.id;
       const placeName = place.displayName?.text;
-      const placeLat  = place.location?.latitude;
-      const placeLng  = place.location?.longitude;
+      const placeLat = place.location?.latitude;
+      const placeLng = place.location?.longitude;
 
       if (!placeId || !placeName || typeof placeLat !== 'number' || typeof placeLng !== 'number') return;
 
       const photoUrls = await fetchRestaurantPhotoUrls({
         placeId,
-        name:       placeName,
-        latitude:   placeLat,
-        longitude:  placeLng,
+        name: placeName,
+        latitude: placeLat,
+        longitude: placeLng,
         websiteUrl: place.websiteUri || undefined,
         cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
       });
 
       if (cancelled || photoUrls.length === 0) return;
-
-      setPhotos(photoUrls);
+      setPhotos(photoUrls.slice(0, 1));
     };
 
     loadPhotos();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [place.id, place.displayName?.text, place.location?.latitude, place.location?.longitude, place.primaryType, place.websiteUri]);
-  const aiOverview = place.aiOverview;
-  const ph = !aiOverview;
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `Check out ${name}!\n${address}\n${website || ''}`,
-        title: name,
-      });
+      await Share.share({ message: `Check out ${name}!\n${address}\n${website || ''}`, title: name });
     } catch { }
   };
 
@@ -284,161 +356,235 @@ export default function RandomResultScreen() {
     setTimeout(() => setAddressCopied(false), 2000);
   };
 
+  const hasContact = !!(address || phone || website);
+
   return (
     <LinearGradient colors={theme.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.root}>
 
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Floating header — overlays hero */}
+        <View style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}>
           <AnimatedPressable
-            style={[styles.iconBtn, { backgroundColor: theme.glassBackground }]}
+            style={styles.headerBtn}
             onPress={() => router.back()}
           >
-            <Ionicons name="chevron-back" size={24} color={theme.text} />
+            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </AnimatedPressable>
-          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>Your Pick</Text>
-          <TouchableOpacity onPress={handleShare} style={[styles.iconBtn, { backgroundColor: theme.glassBackground }]}>
-            <Ionicons name="share-outline" size={22} color={theme.text} />
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={handleShare}
+            activeOpacity={0.82}
+          >
+            <Ionicons name="share-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.bodyWrap}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scroll, { paddingBottom: fabBottom + 72 }]}
+          contentContainerStyle={{ paddingBottom: fabBottom + 82 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               tintColor={theme.text}
               onRefresh={() => {
                 setRefreshing(true);
-                setLiveOpenEpoch((e) => e + 1);
+                setLiveOpenEpoch(e => e + 1);
                 setTimeout(() => setRefreshing(false), 300);
               }}
             />
           }
         >
+          {/* ─── Hero ─────────────────────────────────────────────────────── */}
+          <View style={styles.hero}>
+            <HeroPhoto restaurantId={place.id || 'unknown'} photos={photos} />
 
-          {/* Photo carousel */}
-          <PhotoCarousel restaurantId={place.id || 'unknown'} photos={photos} />
+            {/* Gradient fade — transparent → background color */}
+            <LinearGradient
+              colors={['transparent', theme.gradient[0]]}
+              style={styles.heroOverlay}
+              pointerEvents="none"
+            />
 
-          {/* Name + type badge */}
-          <View style={styles.nameRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.name, { color: theme.text }]}>{name}</Text>
-              {type ? <Text style={[styles.typeText, { color: theme.subtext }]}>{type}</Text> : null}
+            {/* Name + type/price overlaid on gradient */}
+            <View style={styles.heroInfo}>
+              <View style={styles.heroBadgeRow}>
+                {type ? (
+                  <View style={styles.typeBadge}>
+                    <Text style={styles.typeBadgeText}>{type}</Text>
+                  </View>
+                ) : null}
+                {price ? (
+                  <View style={[styles.priceBadge, { borderColor: theme.tint + '99' }]}>
+                    <Text style={[styles.priceBadgeText, { color: theme.tint }]}>{price}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.heroName} numberOfLines={2}>{name}</Text>
             </View>
-            {price ? (
-              <View style={[styles.pricePill, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }]}>
-                <Text style={[styles.priceText, { color: theme.tint }]}>{price}</Text>
+          </View>
+
+          {/* ─── Animated content below hero ─────────────────────────────── */}
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+
+            {/* Score card — only when AI data is available */}
+            {plateboundScore != null && !ph ? (
+              <View style={[styles.scoreCard, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }]}>
+                {/* Left: Platebound arc gauge */}
+                <View style={styles.scoreLeft}>
+                  <Text style={[styles.scoreSectionLabel, { color: theme.subtext }]}>Platebound Score</Text>
+                  <ScoreGauge score={plateboundScore} theme={theme} />
+                  <Text style={[styles.scoreBadgeText, { color: scoreColor(plateboundScore) }]}>
+                    {plateboundScore >= 8 ? 'Excellent' : plateboundScore >= 6.5 ? 'Great' : plateboundScore >= 4.5 ? 'Good' : 'Fair'}
+                  </Text>
+                </View>
+
+                <View style={[styles.scoreVerticalDivider, { backgroundColor: theme.cardBorderColor }]} />
+
+                {/* Right: Health + Google rating */}
+                <View style={styles.scoreRight}>
+                  <Text style={[styles.scoreSectionLabel, { color: theme.subtext }]}>Health Score</Text>
+                  <View style={styles.healthNumberRow}>
+                    <Text style={[styles.healthBigNum, { color: '#4CD964' }]}>
+                      {(aiOverview?.healthScore ?? 0).toFixed(1)}
+                    </Text>
+                    <Text style={[styles.healthOutOf, { color: theme.subtext }]}>/10</Text>
+                  </View>
+                  <View style={[styles.healthBarTrack, { backgroundColor: theme.glassBackground }]}>
+                    <View
+                      style={[
+                        styles.healthBarFill,
+                        { width: `${Math.min(100, ((aiOverview?.healthScore ?? 0) / 10) * 100)}%` },
+                      ]}
+                    />
+                  </View>
+
+                  {/* Google rating */}
+                  {rating ? (
+                    <View style={styles.googleRow}>
+                      <View style={[styles.googleIconBg, { backgroundColor: '#FFD70022' }]}>
+                        <Ionicons name="star" size={12} color="#FFD700" />
+                      </View>
+                      <View>
+                        <Text style={[styles.googleRatingNum, { color: theme.text }]}>{rating}</Text>
+                        {reviews ? (
+                          <Text style={[styles.googleReviews, { color: theme.subtext }]}>
+                            {reviews.toLocaleString()} reviews
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             ) : null}
-          </View>
 
-          {/* Quick pills */}
-          <View style={styles.pillRow}>
-            {rating && (
-              <InfoPill
-                icon="star"
-                label={`${rating}${reviews ? `  (${reviews.toLocaleString()})` : ''}`}
-                color="#FFD700"
+            {/* Stats row */}
+            <View style={styles.statsRow}>
+              {rating ? (
+                <StatTile icon="star" value={rating} label="Rating" color="#FFD700" theme={theme} />
+              ) : null}
+              <StatTile icon="navigate-outline" value={dist} label="Distance" color={theme.tint} theme={theme} />
+              <StatTile
+                icon={isOpen ? 'checkmark-circle-outline' : 'close-circle-outline'}
+                value={isOpen ? 'Open' : 'Closed'}
+                label="Status"
+                color={isOpen ? '#4CD964' : '#FF6B6B'}
                 theme={theme}
               />
-            )}
-            <InfoPill icon="navigate-outline" label={dist} color={theme.tint} theme={theme} />
-            <InfoPill
-              icon={isOpen ? 'checkmark-circle-outline' : 'close-circle-outline'}
-              label={isOpen ? 'Open Now' : 'Closed'}
-              color={isOpen ? '#4CD964' : '#FF6B6B'}
-              theme={theme}
-            />
-          </View>
+              {price ? (
+                <StatTile icon="pricetag-outline" value={price} label="Price" color={theme.tint} theme={theme} />
+              ) : null}
+            </View>
 
-          <NeonBorderCard borderRadius={22} outerStyle={styles.mainCardOuter} innerStyle={styles.mainCardInner}>
-            <AiOverviewScoresPanel
-              ai={aiOverview}
-              ph={ph}
-              theme={theme}
-              googleRating={place.rating}
-              priceLevel={place.priceLevel}
-            />
-          </NeonBorderCard>
+            {/* AI scores panel */}
+            <NeonBorderCard borderRadius={22} outerStyle={styles.aiCardOuter} innerStyle={styles.aiCardInner}>
+              <AiOverviewScoresPanel
+                ai={aiOverview}
+                ph={ph}
+                theme={theme}
+                googleRating={place.rating}
+                priceLevel={place.priceLevel}
+              />
+            </NeonBorderCard>
 
-          {address ? (
-            <ThemedSection theme={theme} onPress={copyAddress}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="location-outline" size={16} color={theme.tint} />
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Address</Text>
-                <Ionicons name="copy-outline" size={15} color={theme.subtext} />
+            {/* Contact card */}
+            {hasContact ? (
+              <View style={[styles.card, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }]}>
+                <Text style={[styles.cardSectionLabel, { color: theme.subtext }]}>CONTACT & LOCATION</Text>
+                {address ? (
+                  <ContactRow
+                    icon="location-outline"
+                    value={address}
+                    hint={addressCopied ? '✓ Copied!' : 'Tap to copy'}
+                    theme={theme}
+                    onPress={copyAddress}
+                  />
+                ) : null}
+                {address && (phone || website) ? (
+                  <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
+                ) : null}
+                {phone ? (
+                  <ContactRow
+                    icon="call-outline"
+                    value={phone}
+                    hint="Tap to call"
+                    theme={theme}
+                    onPress={() => Linking.openURL(`tel:${phone}`)}
+                    accentColor={theme.tint}
+                  />
+                ) : null}
+                {phone && website ? (
+                  <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
+                ) : null}
+                {website ? (
+                  <ContactRow
+                    icon="globe-outline"
+                    value={website}
+                    hint="Tap to open"
+                    theme={theme}
+                    onPress={() => Linking.openURL(website)}
+                    accentColor={theme.tint}
+                  />
+                ) : null}
               </View>
-              <Text style={[styles.sectionBody, { color: theme.subtext }]}>{address}</Text>
-              <Text style={[styles.copyHint, { color: theme.subtext }]}>
-                {addressCopied ? 'Copied to clipboard' : 'Tap to copy'}
-              </Text>
-            </ThemedSection>
-          ) : null}
+            ) : null}
 
-          {phone ? (
-            <ThemedSection theme={theme} onPress={() => Linking.openURL(`tel:${phone}`)}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="call-outline" size={16} color={theme.tint} />
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Phone</Text>
-                <Ionicons name="open-outline" size={13} color={theme.subtext} />
-              </View>
-              <Text style={[styles.sectionBody, { color: theme.tint }]}>{phone}</Text>
-            </ThemedSection>
-          ) : null}
+            <HoursSection weekdays={weekdays} theme={theme} />
 
-          {website ? (
-            <ThemedSection theme={theme} onPress={() => Linking.openURL(website)}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="globe-outline" size={16} color={theme.tint} />
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Website</Text>
-                <Ionicons name="open-outline" size={13} color={theme.subtext} />
-              </View>
-              <Text style={[styles.sectionBody, { color: theme.tint }]} numberOfLines={1}>
-                {website}
-              </Text>
-            </ThemedSection>
-          ) : null}
+            {/* Action buttons */}
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: theme.accent }]}
+                onPress={() => {
+                  setMapFocusRestaurant(place);
+                  router.push('/map' as any);
+                }}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="map-outline" size={18} color={theme.matchOrbTextColor ?? '#FFFFFF'} />
+                <Text style={[styles.primaryBtnText, { color: theme.matchOrbTextColor ?? '#FFFFFF' }]}>
+                  Find on Local Map
+                </Text>
+              </TouchableOpacity>
 
-          <HoursSection weekdays={weekdays} theme={theme} />
+              <TouchableOpacity
+                style={[styles.ghostBtn, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }]}
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="shuffle" size={18} color={theme.subtext} />
+                <Text style={[styles.ghostBtnText, { color: theme.subtext }]}>Pick Again</Text>
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                styles.actionBtnSecondary,
-                { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
-              ]}
-              onPress={() => {
-                setMapFocusRestaurant(place);
-                router.push('/map' as any);
-              }}
-            >
-              <Ionicons name="map-outline" size={16} color={theme.tint} />
-              <Text style={[styles.actionBtnText, { color: theme.tint }]}>Find on Local Map</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                styles.actionBtnGhost,
-                { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
-              ]}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons name="shuffle" size={16} color={theme.subtext} />
-              <Text style={[styles.actionBtnText, { color: theme.subtext }]}>Pick Again</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ height: 24 }} />
+            <View style={{ height: 24 }} />
+          </Animated.View>
         </ScrollView>
 
-        {mapsReady && (
+        {/* Maps FAB */}
+        {mapsReady ? (
           <TouchableOpacity
-            style={[styles.mapsFabFixed, { bottom: fabBottom, backgroundColor: theme.accent }]}
+            style={[styles.mapsFab, { bottom: fabBottom, backgroundColor: theme.accent }]}
             onPress={() => openGoogleMaps(name, lat!, lng!)}
             activeOpacity={0.88}
           >
@@ -448,15 +594,14 @@ export default function RandomResultScreen() {
               color={theme.matchOrbTextColor ?? '#FFFFFF'}
             />
             <View>
-              <Text style={[styles.mapsFabTitle, { color: theme.matchOrbTextColor ?? '#FFFFFF' }]}>
+              <Text style={[styles.fabTitle, { color: theme.matchOrbTextColor ?? '#FFFFFF' }]}>
                 Open in {mapsProviderLabel}
               </Text>
-              <Text style={styles.mapsFabSub}>Directions</Text>
+              <Text style={styles.fabSub}>Directions</Text>
             </View>
           </TouchableOpacity>
-        )}
-        </View>
-      </SafeAreaView>
+        ) : null}
+      </View>
     </LinearGradient>
   );
 }
@@ -465,34 +610,324 @@ export default function RandomResultScreen() {
 
 const styles = StyleSheet.create({
   bg: { flex: 1 },
-  safe: { flex: 1 },
-  bodyWrap: { flex: 1 },
-  scroll: { paddingBottom: 20 },
+  root: { flex: 1 },
 
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8,
+  // Floating header
+  floatingHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  iconBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    justifyContent: 'center', alignItems: 'center',
+  headerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center', marginHorizontal: 8 },
-  mainCardOuter: { marginHorizontal: 16, marginBottom: 12 },
-  mainCardInner: { padding: 12 },
 
-  // Carousel
-  carouselWrap: { position: 'relative' },
-  carouselImage: { width: '100%', height: 240 },
+  // Hero
+  hero: { position: 'relative' },
   photoEmpty: {
-    height: 200, backgroundColor: 'rgba(255,255,255,0.04)',
-    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  dotRow: {
-    position: 'absolute', bottom: 10,
-    flexDirection: 'row', alignSelf: 'center', gap: 5,
+  heroOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    pointerEvents: 'none',
   },
-  mapsFabFixed: {
+  heroInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 22,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  typeBadge: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+  },
+  typeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    letterSpacing: 0.2,
+  },
+  priceBadge: {
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  priceBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  heroName: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    lineHeight: 36,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 10,
+  },
+  // Score card
+  scoreCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  scoreLeft: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 8,
+  },
+  scoreVerticalDivider: {
+    width: 1,
+    marginVertical: 14,
+  },
+  scoreRight: {
+    flex: 1,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+  },
+  scoreSectionLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  scoreBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  healthNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  healthBigNum: {
+    fontSize: 38,
+    fontWeight: '900',
+    lineHeight: 42,
+  },
+  healthOutOf: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  healthBarTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  healthBarFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#4CD964',
+  },
+  googleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  googleIconBg: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleRatingNum: {
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  googleReviews: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
+  // Stats row
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 10,
+  },
+  statTile: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    gap: 4,
+  },
+  statIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  statLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+
+  // AI panel
+  aiCardOuter: { marginHorizontal: 16, marginBottom: 10 },
+  aiCardInner: { padding: 12 },
+
+  // Generic card
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+  },
+  cardSectionLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardRowLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+
+  // Contact
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 3,
+  },
+  contactIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  contactHint: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 10,
+    marginLeft: 44,
+  },
+
+  // Hours
+  hoursList: { gap: 3, marginTop: 12, paddingLeft: 44 },
+  hoursLine: { fontSize: 13, lineHeight: 20 },
+  hoursLineToday: { fontWeight: '700' },
+
+  // Actions
+  actions: { marginHorizontal: 16, gap: 10, marginTop: 6 },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  primaryBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  ghostBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+  },
+  ghostBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  // FAB
+  mapsFab: {
     position: 'absolute',
     right: 14,
     flexDirection: 'row',
@@ -511,60 +946,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  mapsFabTitle: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
-  mapsFabSub: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.75)', marginTop: 1 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.35)' },
-  dotActive: { backgroundColor: '#FFFFFF', width: 16 },
-
-  // Name block
-  nameRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 10,
-  },
-  name: { fontSize: 26, fontWeight: '800', lineHeight: 32 },
-  typeText: { fontSize: 13, marginTop: 4, textTransform: 'capitalize' },
-  pricePill: {
-    borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1,
-    marginTop: 4,
-  },
-  priceText: { fontSize: 14, fontWeight: '700' },
-
-  // Pills row
-  pillRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
-    paddingHorizontal: 20, marginBottom: 16,
-  },
-  infoPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1,
-  },
-  infoPillText: { fontSize: 13, fontWeight: '600' },
-
-  section: {
-    marginHorizontal: 16, marginBottom: 12,
-    borderRadius: 18,
-    padding: 16, borderWidth: 1,
-  },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', flex: 1 },
-  sectionBody: { fontSize: 14, lineHeight: 20 },
-  copyHint: { fontSize: 11, marginTop: 8, fontWeight: '600' },
-
-  hoursList: { gap: 4 },
-  hoursLine: { fontSize: 13, lineHeight: 20 },
-  hoursLineToday: { fontWeight: '700' },
-
-  // Action buttons
-  actions: { marginHorizontal: 16, gap: 10, marginTop: 4 },
-  actionBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 16, paddingVertical: 14,
-  },
-  actionBtnSecondary: { borderWidth: 1 },
-  actionBtnGhost: { borderWidth: 1 },
-  actionBtnText: { fontSize: 15, fontWeight: '700' },
+  fabTitle: { fontSize: 14, fontWeight: '800' },
+  fabSub: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.72)', marginTop: 1 },
 });
