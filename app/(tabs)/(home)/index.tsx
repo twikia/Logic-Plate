@@ -14,13 +14,13 @@ import { scoreRestaurantPool } from '@/core/recommendationEngine';
 import { getRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
   inferMealTypeFromClock,
-  radiusIdToMeters,
   type RecommendationPrefsV1,
   type ScoredRestaurant,
   DEFAULT_SESSION_BUDGET,
   DEFAULT_SESSION_GROUP,
   type SessionOverrides,
 } from '@/core/recommendationTypes';
+import { useFocusEffect } from '@react-navigation/native';
 import { DEFAULT_SEARCH_RADIUS_METERS } from '@/core/searchRadiusOptions';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
@@ -903,6 +903,7 @@ export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const sessionRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_METERS);
+  const hasFocusedOnceRef = useRef(false);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
@@ -955,7 +956,7 @@ export default function HomeScreen() {
         mealType: inferMealTypeFromClock(),
         groupSize: DEFAULT_SESSION_GROUP,
         budgetCeiling: DEFAULT_SESSION_BUDGET,
-        radiusMeters: radiusIdToMeters(p.defaultRadius),
+        radiusMeters: DEFAULT_SEARCH_RADIUS_METERS,
         sessionMood: null,
       });
     });
@@ -1014,8 +1015,7 @@ export default function HomeScreen() {
         return;
       }
       coordsRef.current = coords;
-      const p = prefs ?? (await getRecommendationPrefs());
-      const rad = sessionRadiusRef.current || radiusIdToMeters(p.defaultRadius);
+      const rad = DEFAULT_SEARCH_RADIUS_METERS;
       const cacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(rad)}`;
       const cached = await getCachedResults(cacheKey);
       if (cached && cached.length > 0) {
@@ -1062,6 +1062,20 @@ export default function HomeScreen() {
       void loadSpotlight();
     }
   }, [loadSpotlight, prefs, session]);
+
+  useFocusEffect(
+    useCallback(() => {
+      sessionRadiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
+      setSession(s => (s ? { ...s, radiusMeters: DEFAULT_SEARCH_RADIUS_METERS } : s));
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      if (prefs) {
+        void loadSpotlight();
+      }
+    }, [loadSpotlight, prefs])
+  );
 
   const goToPick = useCallback((i: number) => {
     const max = Math.max(0, visibleList.length - 1);

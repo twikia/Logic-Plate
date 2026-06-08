@@ -1,8 +1,9 @@
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,21 +15,17 @@ import {
   DEFAULT_SEARCH_RADIUS_METERS,
   SEARCH_RADIUS_OPTIONS_METERS,
 } from '../../../core/searchRadiusOptions';
-import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { formatLabel } = useDistanceFormatter();
   const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
 
-  useEffect(() => {
-    getSearchRadius().then(setRadius);
-  }, []);
-
-  const selectRadius = async (val: number) => {
-    setRadius(val);
-    await setSearchRadius(val);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      setRadius(DEFAULT_SEARCH_RADIUS_METERS);
+    }, [])
+  );
 
   return (
     <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
@@ -50,7 +47,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 key={step}
                 style={[styles.stepBtn, radius === step && styles.stepBtnActive]}
-                onPress={() => selectRadius(step)}
+                onPress={() => setRadius(step)}
               >
                 <Text style={[styles.stepLabel, radius === step && styles.stepLabelActive]}>
                   {formatLabel(step)}

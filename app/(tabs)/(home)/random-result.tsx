@@ -21,7 +21,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getCurrentRestaurant, subscribeCurrentRestaurant } from '../../../core/currentSelection';
+import {
+  getCurrentRestaurant,
+  setMapFocusRestaurant,
+  subscribeCurrentRestaurant,
+} from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
@@ -407,7 +411,10 @@ export default function RandomResultScreen() {
                 styles.actionBtnSecondary,
                 { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
               ]}
-              onPress={() => router.push('/map' as any)}
+              onPress={() => {
+                setMapFocusRestaurant(place);
+                router.push('/map' as any);
+              }}
             >
               <Ionicons name="map-outline" size={16} color={theme.tint} />
               <Text style={[styles.actionBtnText, { color: theme.tint }]}>Find on Local Map</Text>

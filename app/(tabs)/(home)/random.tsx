@@ -20,6 +20,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import type { AiOverview } from '../../../core/aiOverviewCache';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
@@ -33,7 +34,6 @@ import {
   DEFAULT_SEARCH_RADIUS_METERS,
   SEARCH_RADIUS_OPTIONS_METERS,
 } from '../../../core/searchRadiusOptions';
-import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import {
   getScenarioPreferredSort,
@@ -268,6 +268,7 @@ export default function RandomScreen() {
   const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
   const radiusRef = useRef(radius);
   radiusRef.current = radius;
+  const hasFocusedOnceRef = useRef(false);
   const [showRadius, setShowRadius] = useState(false);
   const { formatLabel } = useDistanceFormatter();
 
@@ -405,11 +406,20 @@ export default function RandomScreen() {
   }, [onOrchestratorProgress, paramScenario, startFetchPhase, startGpsPhase, snapProgressComplete]);
 
   useEffect(() => {
-    getSearchRadius().then(r => {
-      setRadius(r);
-      void loadResults(r);
-    });
+    void loadResults(DEFAULT_SEARCH_RADIUS_METERS);
   }, [loadResults]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setRadius(DEFAULT_SEARCH_RADIUS_METERS);
+      radiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      void loadResults(DEFAULT_SEARCH_RADIUS_METERS);
+    }, [loadResults])
+  );
 
   useEffect(() => {
     if (!paramScenario) return;
@@ -441,9 +451,8 @@ export default function RandomScreen() {
     setRefreshing(false);
   };
 
-  const changeRadius = async (val: number) => {
+  const changeRadius = (val: number) => {
     setRadius(val);
-    await setSearchRadius(val);
     setShowRadius(false);
     loadResults(val);
   };

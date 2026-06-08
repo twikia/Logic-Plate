@@ -21,6 +21,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { isOpenNow } from '../../../core/isOpenNow';
@@ -36,7 +37,6 @@ import {
   DEFAULT_SEARCH_RADIUS_METERS,
   SEARCH_RADIUS_OPTIONS_METERS,
 } from '../../../core/searchRadiusOptions';
-import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { placeOffersSweets } from '../../../core/placeSweets';
 
 
@@ -296,6 +296,8 @@ export default function ResultsScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
+  const radiusRef = useRef(radius);
+  radiusRef.current = radius;
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
@@ -328,10 +330,8 @@ export default function ResultsScreen() {
     }
 
     try {
-      const [coords, r] = await Promise.all([
-        getLocation(isRefresh),
-        getSearchRadius(),
-      ]);
+      const coords = await getLocation(isRefresh);
+      const r = radiusRef.current;
 
       if (!coords) {
         setErrorMsg('Location access is needed to find restaurants near you.\n\nEnable it in Settings → Privacy → Location.');
@@ -383,14 +383,17 @@ export default function ResultsScreen() {
     startGpsPhase,
   ]);
 
-  useEffect(() => {
-    getSearchRadius().then(setRadius);
-    void loadResults();
-  }, [loadResults]);
+  useFocusEffect(
+    useCallback(() => {
+      setRadius(DEFAULT_SEARCH_RADIUS_METERS);
+      radiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
+      void loadResults(true);
+    }, [loadResults])
+  );
 
-  const changeRadius = async (val: number) => {
+  const changeRadius = (val: number) => {
     setRadius(val);
-    await setSearchRadius(val);
+    radiusRef.current = val;
     setShowRadiusPicker(false);
     loadResults(true);
   };

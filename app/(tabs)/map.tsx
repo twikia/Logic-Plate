@@ -8,6 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { consumeMapFocusRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
 import { getNearbyRestaurants, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
@@ -17,7 +19,6 @@ import {
   MAX_SEARCH_RADIUS_METERS,
   SEARCH_RADIUS_OPTIONS_METERS,
 } from '@/core/searchRadiusOptions';
-import { getSearchRadius, setSearchRadius } from '@/core/userSettings';
 import { RestaurantImage } from '@/core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
@@ -227,6 +228,9 @@ export default function MapScreen() {
   const [locationProgress] = useState(new Animated.Value(0));
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
+  const userCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const restaurantsRef = useRef<any[]>([]);
+  const hasFocusedOnceRef = useRef(false);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('overall');
   const [showSortPicker, setShowSortPicker] = useState(false);
@@ -235,6 +239,9 @@ export default function MapScreen() {
 
   selectedRestaurantRef.current = selectedRestaurant;
   sheetSnapRef.current = sheetSnap;
+
+  userCoordsRef.current = userCoords;
+  restaurantsRef.current = restaurants;
 
   // Animation for bottom sheet
   const sheetAnim = useRef(new Animated.Value(height)).current;
@@ -259,6 +266,14 @@ export default function MapScreen() {
     return finiteMapColorBounds(markersInMapView, mapSortBy);
   }, [markersInMapView, mapSortBy]);
 
+  const withSelectedRestaurant = useCallback((list: any[]) => {
+    const selected = selectedRestaurantRef.current;
+    if (selected?.id && !list.some((r) => r.id === selected.id)) {
+      return [...list, selected];
+    }
+    return list;
+  }, []);
+
   const loadRestaurants = useCallback(async (lat: number, lng: number, r: number) => {
     setIsLoading(true);
     setSearchCenter({ latitude: lat, longitude: lng });
@@ -266,7 +281,7 @@ export default function MapScreen() {
     try {
       const cached = await getCachedResults(cacheKey);
       if (cached && cached.length > 0) {
-        setRestaurants(cached);
+        setRestaurants(withSelectedRestaurant(cached));
         setIsLoading(false);
         return;
       }
@@ -275,7 +290,7 @@ export default function MapScreen() {
       const results = await getNearbyRestaurants(lat, lng, r, undefined, {
         onAiReady: async (enriched) => {
           await setCachedResults(cacheKey, enriched);
-          setRestaurants(enriched);
+          setRestaurants(withSelectedRestaurant(enriched));
           setSelectedRestaurant((prev: any) => {
             if (!prev) return null;
             const next = enriched.find((x: any) => x.id === prev.id);
@@ -284,7 +299,7 @@ export default function MapScreen() {
         },
       });
       await setCachedResults(cacheKey, results);
-      setRestaurants(results);
+      setRestaurants(withSelectedRestaurant(results));
     } catch (error) {
       if (isRestaurantLoadSupersededError(error)) {
         return;
@@ -294,7 +309,7 @@ export default function MapScreen() {
       setIsLoading(false);
       setOpenStatusEpoch((e) => e + 1);
     }
-  }, []);
+  }, [withSelectedRestaurant]);
 
   const initMap = useCallback(async () => {
     setIsLocating(true);
@@ -305,13 +320,10 @@ export default function MapScreen() {
       useNativeDriver: false,
     }).start();
 
-    const [coords, savedRadius] = await Promise.all([
-      getLocation(),
-      getSearchRadius()
-    ]);
+    const coords = await getLocation();
 
-    const initialRadius = Math.min(savedRadius, MAX_SEARCH_RADIUS_METERS);
-    setRadius(initialRadius);
+    setRadius(DEFAULT_SEARCH_RADIUS_METERS);
+    const initialRadius = DEFAULT_SEARCH_RADIUS_METERS;
 
     if (coords) {
       Animated.timing(locationProgress, {
@@ -399,15 +411,22 @@ export default function MapScreen() {
     })
   ).current;
 
-  const handleMarkerPress = (restaurant: any) => {
+  const openRestaurantSheet = useCallback((restaurant: any) => {
+    if (typeof restaurant?.location?.latitude !== 'number' || typeof restaurant?.location?.longitude !== 'number') {
+      return;
+    }
+
+    const latDelta = region?.latitudeDelta || 0.015;
+    const lngDelta = region?.longitudeDelta || 0.015 * (width / height);
+
     setSheetSnap('peek');
+    selectedRestaurantRef.current = restaurant;
     setSelectedRestaurant(restaurant);
-    // Move map to center on restaurant slightly offset
     mapRef.current?.animateToRegion({
-      latitude: restaurant.location.latitude - (region?.latitudeDelta || 0.015) * 0.25,
+      latitude: restaurant.location.latitude - latDelta * 0.25,
       longitude: restaurant.location.longitude,
-      latitudeDelta: region?.latitudeDelta || 0.015,
-      longitudeDelta: region?.longitudeDelta || 0.015 * (width / height),
+      latitudeDelta: latDelta,
+      longitudeDelta: lngDelta,
     }, 400);
 
     Animated.spring(sheetAnim, {
@@ -416,7 +435,46 @@ export default function MapScreen() {
       tension: 65,
       friction: 11,
     }).start();
+  }, [region, sheetAnim]);
+
+  const applyMapFocusRestaurant = useCallback((focus: any, list: any[]) => {
+    if (!focus?.id || typeof focus?.location?.latitude !== 'number' || typeof focus?.location?.longitude !== 'number') {
+      return;
+    }
+
+    const match = list.find((r) => r.id === focus.id);
+    const target = match ?? focus;
+
+    if (!list.some((r) => r.id === target.id)) {
+      setRestaurants([...list, target]);
+    }
+
+    openRestaurantSheet(target);
+  }, [openRestaurantSheet]);
+
+  const handleMarkerPress = (restaurant: any) => {
+    openRestaurantSheet(restaurant);
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      const mapFocus = consumeMapFocusRestaurant();
+      if (mapFocus) {
+        applyMapFocusRestaurant(mapFocus, restaurantsRef.current);
+        return;
+      }
+
+      setRadius(DEFAULT_SEARCH_RADIUS_METERS);
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      const coords = userCoordsRef.current;
+      if (coords) {
+        void loadRestaurants(coords.latitude, coords.longitude, DEFAULT_SEARCH_RADIUS_METERS);
+      }
+    }, [applyMapFocusRestaurant, loadRestaurants])
+  );
 
   const closeSheet = () => {
     setSheetSnap('peek');
@@ -427,10 +485,9 @@ export default function MapScreen() {
     }).start(() => setSelectedRestaurant(null));
   };
 
-  const handleRadiusChange = async (newRadius: number) => {
+  const handleRadiusChange = (newRadius: number) => {
     const clamped = Math.min(newRadius, MAX_SEARCH_RADIUS_METERS);
     setRadius(clamped);
-    await setSearchRadius(clamped);
     setShowRadiusPicker(false);
     setShowSortPicker(false);
     if (userCoords) {

@@ -47,3 +47,15 @@ export const clearCurrentRestaurant = () => {
   currentRestaurant = null;
   notify();
 };
+
+let pendingMapFocus: any = null;
+
+export const setMapFocusRestaurant = (restaurant: any) => {
+  pendingMapFocus = restaurant;
+};
+
+export const consumeMapFocusRestaurant = () => {
+  const restaurant = pendingMapFocus;
+  pendingMapFocus = null;
+  return restaurant;
+};
