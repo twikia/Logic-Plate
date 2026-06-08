@@ -12,6 +12,11 @@ import { getLocation } from '@/core/locationCache';
 import { getNearbyRestaurants, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
+import {
+  DEFAULT_SEARCH_RADIUS_METERS,
+  MAX_SEARCH_RADIUS_METERS,
+  SEARCH_RADIUS_OPTIONS_METERS,
+} from '@/core/searchRadiusOptions';
 import { getSearchRadius, setSearchRadius } from '@/core/userSettings';
 import { RestaurantImage } from '@/core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -159,9 +164,6 @@ function MapSheetAiScores({
 
 const { width, height } = Dimensions.get('window');
 const MAP_RESULTS_KEY = 'map_results';
-const MAP_RADIUS_OPTIONS = [1000, 2000, 3000, 4000, 8000];
-const MAX_RADIUS_METERS = 8000;
-const DEFAULT_RADIUS_METERS = 3000;
 
 function markerInRegion(lat: number, lng: number, reg: Region): boolean {
   const halfLat = reg.latitudeDelta / 2;
@@ -224,7 +226,7 @@ export default function MapScreen() {
   const [isLocating, setIsLocating] = useState(true);
   const [locationProgress] = useState(new Animated.Value(0));
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [radius, setRadius] = useState(DEFAULT_RADIUS_METERS);
+  const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('overall');
   const [showSortPicker, setShowSortPicker] = useState(false);
@@ -308,7 +310,7 @@ export default function MapScreen() {
       getSearchRadius()
     ]);
 
-    const initialRadius = Math.min(savedRadius, MAX_RADIUS_METERS);
+    const initialRadius = Math.min(savedRadius, MAX_SEARCH_RADIUS_METERS);
     setRadius(initialRadius);
 
     if (coords) {
@@ -426,7 +428,7 @@ export default function MapScreen() {
   };
 
   const handleRadiusChange = async (newRadius: number) => {
-    const clamped = Math.min(newRadius, MAX_RADIUS_METERS);
+    const clamped = Math.min(newRadius, MAX_SEARCH_RADIUS_METERS);
     setRadius(clamped);
     await setSearchRadius(clamped);
     setShowRadiusPicker(false);
@@ -528,7 +530,7 @@ export default function MapScreen() {
 
           {showRadiusPicker && (
             <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              {MAP_RADIUS_OPTIONS.map((r) => (
+              {SEARCH_RADIUS_OPTIONS_METERS.map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[

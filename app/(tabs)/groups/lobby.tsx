@@ -61,7 +61,7 @@ export default function GroupLobbyScreen() {
       const loc = await getLocation();
       const radius = await getSearchRadius();
       const cellIds =
-        loc != null ? getCellsInRadius(loc.latitude, loc.longitude, Math.min(radius, 8000)) : [];
+        loc != null ? getCellsInRadius(loc.latitude, loc.longitude, radius) : [];
       if (cellIds.length === 0) {
         setError('Location is required to start a group session.');
         setLoading(false);

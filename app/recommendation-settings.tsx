@@ -9,9 +9,7 @@ import {
   type ImportanceLevel,
   type RecommendationPrefsV1,
   type RecommendationWeights,
-  radiusIdToMeters,
 } from '@/core/recommendationTypes';
-import { setSearchRadius } from '@/core/userSettings';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -26,7 +24,6 @@ export default function RecommendationSettingsScreen() {
   const persist = useCallback(async (next: RecommendationPrefsV1) => {
     setPrefs(next);
     await saveRecommendationPrefs(next);
-    await setSearchRadius(radiusIdToMeters(next.defaultRadius));
   }, []);
 
   useEffect(() => {

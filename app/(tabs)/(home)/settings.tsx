@@ -1,3 +1,4 @@
+import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -9,17 +10,16 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  DEFAULT_SEARCH_RADIUS_METERS,
+  SEARCH_RADIUS_OPTIONS_METERS,
+} from '../../../core/searchRadiusOptions';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
-
-const STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
-const LABELS: Record<number, string> = {
-  1000: '1 km', 1500: '1.5 km', 2000: '2 km',
-  2500: '2.5 km', 3000: '3 km', 4000: '4 km', 5000: '5 km', 6000: '6 km', 8000: '8 km',
-};
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [radius, setRadius] = useState(3000);
+  const { formatLabel } = useDistanceFormatter();
+  const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
 
   useEffect(() => {
     getSearchRadius().then(setRadius);
@@ -46,14 +46,14 @@ export default function SettingsScreen() {
           <Text style={styles.sectionSub}>How far to search for restaurants</Text>
 
           <View style={styles.stepsRow}>
-            {STEPS.map((step) => (
+            {SEARCH_RADIUS_OPTIONS_METERS.map((step) => (
               <TouchableOpacity
                 key={step}
                 style={[styles.stepBtn, radius === step && styles.stepBtnActive]}
                 onPress={() => selectRadius(step)}
               >
                 <Text style={[styles.stepLabel, radius === step && styles.stepLabelActive]}>
-                  {LABELS[step]}
+                  {formatLabel(step)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -61,7 +61,7 @@ export default function SettingsScreen() {
 
           <View style={styles.radiusDisplay}>
             <Ionicons name="location" size={20} color="#F9A06F" />
-            <Text style={styles.radiusValue}>Currently searching within {LABELS[radius]}</Text>
+            <Text style={styles.radiusValue}>Currently searching within {formatLabel(radius)}</Text>
           </View>
         </View>
       </SafeAreaView>

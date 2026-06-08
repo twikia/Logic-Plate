@@ -29,6 +29,10 @@ import {
   getNearbyRestaurants,
   isRestaurantLoadSupersededError,
 } from '../../../core/restaurantOrchestrator';
+import {
+  DEFAULT_SEARCH_RADIUS_METERS,
+  SEARCH_RADIUS_OPTIONS_METERS,
+} from '../../../core/searchRadiusOptions';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import {
@@ -87,8 +91,6 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
     'acai_shop',
   ],
 };
-
-const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -263,7 +265,7 @@ export default function RandomScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
-  const [radius, setRadius] = useState(3000);
+  const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
   const radiusRef = useRef(radius);
   radiusRef.current = radius;
   const [showRadius, setShowRadius] = useState(false);
@@ -559,7 +561,7 @@ export default function RandomScreen() {
 
         {showRadius && (
           <View style={styles.radiusPicker}>
-            {RADIUS_STEPS.map(s => (
+            {SEARCH_RADIUS_OPTIONS_METERS.map(s => (
               <TouchableOpacity
                 key={s}
                 style={[styles.radiusOption, radius === s && styles.radiusOptionActive]}

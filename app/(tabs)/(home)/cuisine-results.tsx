@@ -32,6 +32,10 @@ import {
 } from '../../../core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER } from '../../../core/aiOverviewCache';
 import { getCachedResults, setCachedResults } from '../../../core/resultCache';
+import {
+  DEFAULT_SEARCH_RADIUS_METERS,
+  SEARCH_RADIUS_OPTIONS_METERS,
+} from '../../../core/searchRadiusOptions';
 import { getSearchRadius, setSearchRadius } from '../../../core/userSettings';
 import { placeOffersSweets } from '../../../core/placeSweets';
 
@@ -78,7 +82,6 @@ function filterCuisineResults(list: any[], key: string) {
   });
 }
 
-const RADIUS_STEPS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000];
 
 // ─── Skeleton ───────────────────────────────────────────────────────────────
 
@@ -292,7 +295,7 @@ export default function ResultsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [radius, setRadius] = useState(3000);
+  const [radius, setRadius] = useState(DEFAULT_SEARCH_RADIUS_METERS);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
@@ -445,7 +448,7 @@ export default function ResultsScreen() {
 
         {showRadiusPicker && (
           <View style={styles.radiusPicker}>
-            {RADIUS_STEPS.map(s => (
+            {SEARCH_RADIUS_OPTIONS_METERS.map(s => (
               <TouchableOpacity
                 key={s}
                 style={[styles.radiusOption, radius === s && styles.radiusOptionActive]}

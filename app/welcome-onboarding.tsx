@@ -2,17 +2,14 @@ import { useAppTheme } from '@/context/ThemeContext';
 import {
   DEFAULT_PREFS_V1,
   DEFAULT_WEIGHTS,
-  type DefaultRadiusId,
   type ImportanceLevel,
   type RecommendationPrefsV1,
   type RecommendationWeights,
-  radiusIdToMeters,
 } from '@/core/recommendationTypes';
 import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
 import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
-import { setSearchRadius } from '@/core/userSettings';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -34,14 +31,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const METRIC_PAGE_START = 0;
 const METRIC_PAGE_COUNT = PRIORITY_METRIC_SCREENS.length;
 const CUISINE_PAGE = METRIC_PAGE_START + METRIC_PAGE_COUNT;
-const RADIUS_PAGE = CUISINE_PAGE + 1;
-const STEPS = RADIUS_PAGE + 1;
-
-const RADIUS_OPTIONS: { id: DefaultRadiusId; label: string; sub: string }[] = [
-  { id: 'walking', label: 'Walking distance', sub: 'Under ~10 min / 800m' },
-  { id: 'short_drive', label: 'Short drive', sub: 'Under ~15 min / 3km' },
-  { id: 'worth_trip', label: 'Worth the trip', sub: 'Under ~30 min / 8km' },
-];
+const STEPS = CUISINE_PAGE + 1;
 
 export default function WelcomeOnboardingScreen() {
   const router = useRouter();
@@ -51,13 +41,11 @@ export default function WelcomeOnboardingScreen() {
 
   const [weights, setWeights] = useState<RecommendationWeights>({ ...DEFAULT_WEIGHTS });
   const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>(['italian']);
-  const [defaultRadius, setDefaultRadius] = useState<DefaultRadiusId>('short_drive');
 
   useEffect(() => {
     void getRecommendationPrefs().then(p => {
       setWeights({ ...p.weights });
       setFavoriteCuisines([...p.favoriteCuisines]);
-      setDefaultRadius(p.defaultRadius);
     });
   }, []);
 
@@ -72,18 +60,18 @@ export default function WelcomeOnboardingScreen() {
   };
 
   const finish = useCallback(async () => {
+    const existing = await getRecommendationPrefs();
     const prefs: RecommendationPrefsV1 = {
+      ...existing,
       v: 1,
       onboardingComplete: true,
       weights,
       favoriteCuisines: favoriteCuisines.length ? favoriteCuisines : [...DEFAULT_PREFS_V1.favoriteCuisines],
-      defaultRadius,
       openNowOnly: true,
     };
     await saveRecommendationPrefs(prefs);
-    await setSearchRadius(radiusIdToMeters(defaultRadius));
     router.replace('/(tabs)' as any);
-  }, [defaultRadius, favoriteCuisines, router, weights]);
+  }, [favoriteCuisines, router, weights]);
 
   const setWeight = (key: keyof RecommendationWeights, level: ImportanceLevel) => {
     setWeights(w => ({ ...w, [key]: level }));
@@ -128,56 +116,32 @@ export default function WelcomeOnboardingScreen() {
         </ScrollView>
       );
     }
-    if (index === CUISINE_PAGE) {
-      return (
-        <View style={[styles.page, { width: SCREEN_W }]}>
-          <Text style={[styles.title, { color: theme.text }]}>Cuisines you love</Text>
-          <Text style={[styles.sub, { color: theme.subtext }]}>
-            Pick at least one — we still show other cuisines if they rank well.
-          </Text>
-          <View style={styles.cuisineGrid}>
-            {TOP_CUISINE_TILES.map(t => {
-              const on = favoriteCuisines.includes(t.id);
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => toggleCuisine(t.id)}
-                  style={[
-                    styles.cuisineTile,
-                    { borderColor: on ? theme.accent : 'rgba(255,255,255,0.12)' },
-                    on && { backgroundColor: 'rgba(249,115,82,0.12)' },
-                  ]}
-                >
-                  <Text style={styles.cEmoji}>{t.emoji}</Text>
-                  <Text style={[styles.cLabel, { color: theme.text }]} numberOfLines={2}>
-                    {t.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      );
-    }
     return (
       <View style={[styles.page, { width: SCREEN_W }]}>
-        <Text style={[styles.title, { color: theme.text }]}>How far are you willing to go?</Text>
-        <Text style={[styles.sub, { color: theme.subtext }]}>Default search radius — you can change it anytime.</Text>
-        <View style={styles.cardCol}>
-          {RADIUS_OPTIONS.map(r => (
-            <Pressable
-              key={r.id}
-              onPress={() => setDefaultRadius(r.id)}
-              style={[
-                styles.radiusCard,
-                { borderColor: defaultRadius === r.id ? theme.accent : 'rgba(255,255,255,0.12)' },
-                defaultRadius === r.id && { backgroundColor: 'rgba(249,115,82,0.15)' },
-              ]}
-            >
-              <Text style={[styles.bigCardLabel, { color: theme.text }]}>{r.label}</Text>
-              <Text style={[styles.radiusSub, { color: theme.subtext }]}>{r.sub}</Text>
-            </Pressable>
-          ))}
+        <Text style={[styles.title, { color: theme.text }]}>Cuisines you love</Text>
+        <Text style={[styles.sub, { color: theme.subtext }]}>
+          Pick at least one — we still show other cuisines if they rank well.
+        </Text>
+        <View style={styles.cuisineGrid}>
+          {TOP_CUISINE_TILES.map(t => {
+            const on = favoriteCuisines.includes(t.id);
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => toggleCuisine(t.id)}
+                style={[
+                  styles.cuisineTile,
+                  { borderColor: on ? theme.accent : 'rgba(255,255,255,0.12)' },
+                  on && { backgroundColor: 'rgba(249,115,82,0.12)' },
+                ]}
+              >
+                <Text style={styles.cEmoji}>{t.emoji}</Text>
+                <Text style={[styles.cLabel, { color: theme.text }]} numberOfLines={2}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
     );
@@ -248,15 +212,6 @@ const styles = StyleSheet.create({
   page: { paddingHorizontal: 20, paddingTop: 8 },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
   sub: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
-  cardCol: { gap: 10 },
-  radiusCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 6,
-  },
-  bigCardLabel: { fontSize: 16, fontWeight: '700', flex: 1 },
-  radiusSub: { fontSize: 12, marginTop: 4, flexBasis: '100%' },
   cuisineGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
   cuisineTile: {
     width: '47%',

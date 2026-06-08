@@ -1,4 +1,5 @@
 import { getCellsInRadius, getCellCenter } from './h3Utils';
+import { SEARCH_CONFIG } from './searchConfig';
 import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
 import {
@@ -73,7 +74,10 @@ async function loadNearbyRestaurantsInternal(
   options?: GetNearbyRestaurantsOptions
 ): Promise<any[]> {
   const jobSeq = ++latestRestaurantJobSeq;
-  const safeRadius = Math.min(radiusMeters, 8000);
+  const safeRadius = Math.min(radiusMeters, SEARCH_CONFIG.MAX_RADIUS_METERS);
+  const apiCallCap = safeRadius <= SEARCH_CONFIG.SMALL_RADIUS_METERS
+    ? SEARCH_CONFIG.SMALL_RADIUS_API_CAP
+    : SEARCH_CONFIG.LARGE_RADIUS_API_CAP;
 
   const cellIds = getCellsInRadius(userLat, userLng, safeRadius);
   if (cellIds.length === 0) {
@@ -93,13 +97,14 @@ async function loadNearbyRestaurantsInternal(
 
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
-    const missingCellsPayload = uncachedCells.map(cellId => {
+    const cellsToFetch = uncachedCells.slice(0, apiCallCap);
+    const missingCellsPayload = cellsToFetch.map(cellId => {
       const [lat, lng] = getCellCenter(cellId);
       return { cellId, lat, lng };
     });
 
     console.log(
-      `Database cache misses remain for ${uncachedCells.length} cells. Invoking edge function fetch-missing-cells...`
+      `Database cache misses remain for ${uncachedCells.length} cells. Sending ${cellsToFetch.length} (cap: ${apiCallCap}) to fetch-missing-cells...`
     );
     const { data, error } = await supabase.functions.invoke('fetch-missing-cells', {
       body: { missingCells: missingCellsPayload },

@@ -1,13 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_SEARCH_RADIUS_METERS } from './searchRadiusOptions';
 
-const RADIUS_KEY = 'search_radius_meters';
 const DISTANCE_UNIT_KEY = 'distance_unit';
 const AUDIO_VOLUME_KEY = 'audio_volume';
 const HAPTICS_KEY = 'haptics_enabled';
 const THEME_KEY = 'app_theme';
-
-
-const DEFAULT_RADIUS = 3000;
 const DEFAULT_UNIT = 'km';
 const DEFAULT_VOLUME = 0.5;
 const DEFAULT_HAPTICS = true;
@@ -16,14 +13,7 @@ const DEFAULT_THEME = 'neon_dark';
 
 export type DistanceUnit = 'km' | 'mi';
 
-export const getSearchRadius = async (): Promise<number> => {
-  return DEFAULT_RADIUS;
-};
-
-export const setSearchRadius = async (meters: number): Promise<void> => {
-  const clamped = Math.max(1000, Math.min(8000, meters));
-  await AsyncStorage.setItem(RADIUS_KEY, String(clamped));
-};
+export const getSearchRadius = async (): Promise<number> => DEFAULT_SEARCH_RADIUS_METERS;
 
 export const getDistanceUnit = async (): Promise<DistanceUnit> => {
   try {
@@ -76,4 +66,3 @@ export const getTheme = async (): Promise<string> => {
 export const setTheme = async (theme: string): Promise<void> => {
   await AsyncStorage.setItem(THEME_KEY, theme);
 };
-

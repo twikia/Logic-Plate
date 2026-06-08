@@ -21,6 +21,7 @@ import {
   DEFAULT_SESSION_GROUP,
   type SessionOverrides,
 } from '@/core/recommendationTypes';
+import { DEFAULT_SEARCH_RADIUS_METERS } from '@/core/searchRadiusOptions';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
   getNearbyRestaurants,
@@ -901,7 +902,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const sessionRadiusRef = useRef(3000);
+  const sessionRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_METERS);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
