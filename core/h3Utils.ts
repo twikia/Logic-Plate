@@ -2,8 +2,10 @@
  * Phase 2: H3 Cell Utilities Module (Using h3-js v3 for React Native Compatibility)
  */
 
+import { Platform } from 'react-native';
+
 // Polyfill 1: h3-js emscripten build checks for document.currentScript on load
-if (typeof (global as any).document === 'undefined') {
+if (Platform.OS !== 'web' && typeof (global as any).document === 'undefined') {
   (global as any).document = { currentScript: null };
 }
 
