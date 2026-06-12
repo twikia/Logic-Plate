@@ -665,8 +665,10 @@ function SpotlightCard({
     return () => { cancelled = true; };
   }, [place?.id, name, lat, lng]);
 
+  const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
   const ringColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
+  const radarVar = theme.radarVariant ?? 'solid';
   const btnVariant = theme.buttonVariant ?? 'primary-ghost';
 
   const ty = useSharedValue(0);
@@ -739,28 +741,42 @@ function SpotlightCard({
   }));
 
   const cardBody = (
-    <View style={styles.spotlightHeroRow}>
-      <View style={styles.spotlightThumbWrap}>
-        <RestaurantImage
-          restaurantId={String(place?.id ?? '')}
-          photos={photos}
-          width={58}
-          height={58}
-          quality={200}
-          loadDelay={300}
-          borderRadius={12}
+    <>
+      <View style={styles.spotlightHeroRow}>
+        <View style={styles.spotlightThumbWrap}>
+          <RestaurantImage
+            restaurantId={String(place?.id ?? '')}
+            photos={photos}
+            width={72}
+            height={72}
+            quality={200}
+            loadDelay={300}
+            borderRadius={14}
+          />
+        </View>
+        <View style={styles.spotlightTitleBlock}>
+          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
+            {name}
+          </Text>
+          <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
+            {formatDistance(Math.round(place.distanceMeters ?? 0))} away
+            {rating ? ` \u00b7 ${rating} \u2605` : ''}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.scorePentagonCol}>
+        <RestaurantScorePentagon
+          ai={ai}
+          stroke={theme.accent}
+          gridColor={theme.radarGridColor}
+          labelColor={theme.subtext}
+          svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
+          neon={neonUi}
+          variant={radarVar}
+          gradientColors={neonUi ? undefined : theme.matchOrbColors}
         />
       </View>
-      <View style={styles.spotlightTitleBlock}>
-        <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
-          {name}
-        </Text>
-        <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
-          {formatDistance(Math.round(place.distanceMeters ?? 0))} away
-          {rating ? ` \u00b7 ${rating} \u2605` : ''}
-        </Text>
-      </View>
-    </View>
+    </>
   );
 
   const cardActions = (
@@ -1293,9 +1309,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   spotlightThumbWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 12,
+    width: 72,
+    height: 72,
+    borderRadius: 14,
     overflow: 'hidden',
     flexShrink: 0,
   },

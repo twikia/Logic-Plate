@@ -34,6 +34,43 @@ const CUISINE_UNSPLASH_MAP: Record<string, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+type PhotoCacheUpsertRow = {
+  google_place_id: string;
+  og_urls: string[];
+  unsplash_urls: string[];
+  photo_urls: string[];
+  cuisine_key: string | null;
+  updated_at: string;
+  wikimediaUrls: string[];
+};
+
+async function upsertPhotoCache(
+  supabase: ReturnType<typeof createClient>,
+  row: PhotoCacheUpsertRow,
+): Promise<{ code?: string; message?: string } | null> {
+  const base = {
+    google_place_id: row.google_place_id,
+    og_urls: row.og_urls,
+    unsplash_urls: row.unsplash_urls,
+    photo_urls: row.photo_urls,
+    cuisine_key: row.cuisine_key,
+    updated_at: row.updated_at,
+  };
+
+  const { error } = await supabase
+    .from('restaurant_photo_cache')
+    .upsert({ ...base, wikimedia_urls: row.wikimediaUrls }, { onConflict: 'google_place_id' });
+
+  if (!error) return null;
+  if (error.code !== '42703') return error;
+
+  const { error: legacyError } = await supabase
+    .from('restaurant_photo_cache')
+    .upsert({ ...base, mapillary_urls: row.wikimediaUrls }, { onConflict: 'google_place_id' });
+
+  return legacyError;
+}
+
 /**
  * Extracts the OG image from a restaurant's website by fetching its HTML.
  * Returns up to `limit` OG/twitter image URLs.
@@ -324,17 +361,15 @@ serve(async (req) => {
     const photoUrls = [...ogUrls, ...wikimediaUrls, ...unsplashUrls].slice(0, TARGET_PHOTOS);
     console.log(`[Done] Total photos collected: ${photoUrls.length} (OG: ${ogUrls.length}, Wikimedia: ${wikimediaUrls.length}, Unsplash: ${unsplashUrls.length})`);
 
-    const { error: upsertError } = await supabase
-      .from('restaurant_photo_cache')
-      .upsert({
-        google_place_id: place_id,
-        og_urls:         ogUrls,
-        wikimedia_urls:  wikimediaUrls,
-        unsplash_urls:   unsplashUrls,
-        photo_urls:      photoUrls,
-        cuisine_key:     cuisine_key ?? null,
-        updated_at:      new Date().toISOString(),
-      }, { onConflict: 'google_place_id' });
+    const upsertError = await upsertPhotoCache(supabase, {
+      google_place_id: place_id,
+      og_urls:         ogUrls,
+      unsplash_urls:   unsplashUrls,
+      photo_urls:      photoUrls,
+      cuisine_key:     cuisine_key ?? null,
+      updated_at:      new Date().toISOString(),
+      wikimediaUrls,
+    });
 
     if (upsertError) {
       console.error('[Supabase] Cache upsert failed:', upsertError);
@@ -360,14 +395,15 @@ serve(async (req) => {
         const supabaseUrl        = Deno.env.get('SUPABASE_URL') ?? '';
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
         const supabase           = createClient(supabaseUrl, supabaseServiceKey);
-        await supabase.from('restaurant_photo_cache').upsert({
+        await upsertPhotoCache(supabase, {
           google_place_id: requestPlaceId,
           og_urls:         [],
-          wikimedia_urls:  [],
           unsplash_urls:   [],
           photo_urls:      [],
+          cuisine_key:     null,
           updated_at:      new Date().toISOString(),
-        }, { onConflict: 'google_place_id' });
+          wikimediaUrls:   [],
+        });
       } catch (e) {
         console.error('[Supabase] Failed to cache empty result after crash:', e);
       }

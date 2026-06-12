@@ -5,7 +5,7 @@ import { supabase } from '../supabaseClient';
  * Image Cache — Three-tier restaurant photo URL resolution and caching.
  *
  * Tier 1: OG image from the restaurant's own website  (~65% coverage, specific)
- * Tier 2: Mapillary street-level exterior shot         (~50% in cities, real location)
+ * Tier 2: Wikimedia Commons image                      (name/location matched, CC-licensed)
  * Tier 3: Unsplash cuisine-category photo             (100% coverage, generic but beautiful)
  *
  * All URLs are stored permanently — no ToS issues with any source.
@@ -171,11 +171,7 @@ type FetchRestaurantPhotosInput = {
 
 type RestaurantPhotoCacheRow = {
   google_place_id: string;
-  og_urls:         string[] | null;
-  wikimedia_urls:  string[] | null;
-  unsplash_urls:   string[] | null;
   photo_urls:      string[] | null;
-  cuisine_key:     string | null;
   updated_at:      string;
 };
 
@@ -222,7 +218,7 @@ export const fetchRestaurantPhotoUrls = async ({
   // ── L2: Supabase DB ────────────────────────────────────────────────────────
   const { data, error: dbError } = await supabase
     .from('restaurant_photo_cache')
-    .select('google_place_id, og_urls, wikimedia_urls, unsplash_urls, photo_urls, cuisine_key, updated_at')
+    .select('google_place_id, photo_urls, updated_at')
     .eq('google_place_id', placeId)
     .maybeSingle();
 
