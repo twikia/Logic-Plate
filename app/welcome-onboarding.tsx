@@ -8,7 +8,7 @@ import {
 } from '@/core/recommendationTypes';
 import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
 import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
-import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
+import { CuisineRankGrid } from '@/components/CuisineRankGrid';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -48,16 +48,6 @@ export default function WelcomeOnboardingScreen() {
       setFavoriteCuisines([...p.favoriteCuisines]);
     });
   }, []);
-
-  const toggleCuisine = (id: string) => {
-    setFavoriteCuisines(prev => {
-      const s = new Set(prev);
-      if (s.has(id)) s.delete(id);
-      else s.add(id);
-      const out = Array.from(s);
-      return out.length ? out : prev;
-    });
-  };
 
   const finish = useCallback(async () => {
     const existing = await getRecommendationPrefs();
@@ -117,33 +107,22 @@ export default function WelcomeOnboardingScreen() {
       );
     }
     return (
-      <View style={[styles.page, { width: SCREEN_W }]}>
-        <Text style={[styles.title, { color: theme.text }]}>Cuisines you love</Text>
+      <ScrollView
+        style={{ width: SCREEN_W }}
+        contentContainerStyle={styles.page}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.title, { color: theme.text }]}>Rank your top cuisines</Text>
         <Text style={[styles.sub, { color: theme.subtext }]}>
-          Pick at least one — we still show other cuisines if they rank well.
+          Tap up to 5 favorites in order — #1 is your top pick. We still surface other cuisines when they score well.
         </Text>
-        <View style={styles.cuisineGrid}>
-          {TOP_CUISINE_TILES.map(t => {
-            const on = favoriteCuisines.includes(t.id);
-            return (
-              <Pressable
-                key={t.id}
-                onPress={() => toggleCuisine(t.id)}
-                style={[
-                  styles.cuisineTile,
-                  { borderColor: on ? theme.accent : 'rgba(255,255,255,0.12)' },
-                  on && { backgroundColor: 'rgba(249,115,82,0.12)' },
-                ]}
-              >
-                <Text style={styles.cEmoji}>{t.emoji}</Text>
-                <Text style={[styles.cLabel, { color: theme.text }]} numberOfLines={2}>
-                  {t.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+        <CuisineRankGrid
+          ranked={favoriteCuisines}
+          onChange={setFavoriteCuisines}
+          accent={theme.accent}
+          textColor={theme.text}
+        />
+      </ScrollView>
     );
   };
 
@@ -212,18 +191,6 @@ const styles = StyleSheet.create({
   page: { paddingHorizontal: 20, paddingTop: 8 },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
   sub: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
-  cuisineGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
-  cuisineTile: {
-    width: '47%',
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    alignItems: 'center',
-    minHeight: 88,
-    justifyContent: 'center',
-  },
-  cEmoji: { fontSize: 28, marginBottom: 6 },
-  cLabel: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   footer: { padding: 20 },
   primaryBtn: {
     borderRadius: 18,

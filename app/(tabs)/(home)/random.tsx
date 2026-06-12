@@ -37,7 +37,7 @@ import {
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import {
   getScenarioPreferredSort,
-  isScenarioKey,
+  normalizeScenarioKey,
   restaurantMatchesScenario,
   SCENARIO_LABELS,
   type ScenarioKey,
@@ -70,15 +70,27 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
   indian: ['indian_restaurant'],
   thai: ['thai_restaurant'],
   mediterranean: ['mediterranean_restaurant'],
-  cafe: ['cafe', 'coffee_shop'],
-  bars: ['bar'],
+  cafe: ['cafe', 'coffee_shop', 'tea_house'],
+  drinks: ['bar', 'wine_bar', 'sports_bar', 'pub', 'brewery', 'night_club'],
+  non_food: [
+    'bakery',
+    'dessert_shop',
+    'juice_shop',
+    'donut_shop',
+    'candy_store',
+    'chocolate_shop',
+    'confectionery',
+    'ice_cream_shop',
+    'liquor_store',
+    'acai_shop',
+  ],
+  bars: ['bar', 'wine_bar', 'sports_bar', 'pub', 'brewery', 'night_club'],
   smoothies: ['ice_cream_shop', 'juice_shop'],
   seafood: ['seafood_restaurant'],
   steakhouse: ['steak_house'],
   vegan: ['vegan_restaurant', 'vegetarian_restaurant'],
   pizza: ['pizza_restaurant'],
   dessert: [
-    'bakery',
     'dessert_shop',
     'dessert_restaurant',
     'ice_cream_shop',
@@ -91,6 +103,17 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
     'acai_shop',
   ],
 };
+
+const CUISINE_FILTER_LABELS: Record<string, string> = {
+  cafe: 'Café',
+  drinks: 'Drinks',
+  non_food: 'Non-food',
+  bars: 'Bars',
+};
+
+function cuisineFilterLabel(key: string): string {
+  return CUISINE_FILTER_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
+}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -282,8 +305,7 @@ export default function RandomScreen() {
   const paramScenario = useMemo((): ScenarioKey | null => {
     const raw = params.scenario;
     const s = Array.isArray(raw) ? raw[0] : raw;
-    if (!isScenarioKey(s)) return null;
-    return s;
+    return normalizeScenarioKey(s);
   }, [params.scenario]);
 
   const [allResults, setAllResults] = useState<any[]>([]);
@@ -396,8 +418,8 @@ export default function RandomScreen() {
             setScenarioKey(paramScenario);
             setScenarioFilterEnabled(true);
           } else {
-            const sk = saved.scenarioKey;
-            if (isScenarioKey(sk)) {
+            const sk = normalizeScenarioKey(saved.scenarioKey);
+            if (sk) {
               setScenarioKey(sk);
               setScenarioFilterEnabled(saved.scenarioFilterEnabled !== false);
             }
@@ -701,7 +723,7 @@ export default function RandomScreen() {
                   onPress={() => toggleCuisine(key)}
                 >
                   <Text style={[styles.filterPillText, selectedCuisines.has(key) && styles.filterPillTextActive]}>
-                    {key.charAt(0).toUpperCase() + key.slice(1)}
+                    {cuisineFilterLabel(key)}
                   </Text>
                 </TouchableOpacity>
               ))}

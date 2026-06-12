@@ -1,7 +1,7 @@
 import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
 import { useAppTheme } from '@/context/ThemeContext';
 import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
-import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
+import { CuisineRankGrid } from '@/components/CuisineRankGrid';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
   DEFAULT_PREFS_V1,
@@ -40,14 +40,6 @@ export default function RecommendationSettingsScreen() {
 
   const setWeight = (key: keyof RecommendationWeights, level: ImportanceLevel) => {
     void persist({ ...prefs, weights: { ...prefs.weights, [key]: level } });
-  };
-
-  const toggleCuisine = (id: string) => {
-    const s = new Set(prefs.favoriteCuisines);
-    if (s.has(id)) s.delete(id);
-    else s.add(id);
-    const next = Array.from(s);
-    void persist({ ...prefs, favoriteCuisines: next.length ? next : [...DEFAULT_PREFS_V1.favoriteCuisines] });
   };
 
   return (
@@ -91,31 +83,22 @@ export default function RecommendationSettingsScreen() {
             <Text style={[styles.resetText, { color: theme.accent }]}>Reset priorities to defaults</Text>
           </Pressable>
 
-          <Text style={[styles.sectionLabel, { color: theme.accent, marginTop: 24 }]}>Favorite cuisines</Text>
+          <Text style={[styles.sectionLabel, { color: theme.accent, marginTop: 24 }]}>Top cuisines</Text>
           <Text style={[styles.cuisineHint, { color: theme.subtext }]}>
-            How much these steer picks is set by Favorite cuisine adherence in Taste & cuisine above.
+            Rank up to 5 in order. Higher ranks weigh more; adherence is set in Taste & cuisine above.
           </Text>
-          <View style={styles.cGrid}>
-            {TOP_CUISINE_TILES.map(t => {
-              const on = prefs.favoriteCuisines.includes(t.id);
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => toggleCuisine(t.id)}
-                  style={[
-                    styles.cTile,
-                    on && { borderColor: theme.accent, backgroundColor: 'rgba(249,115,82,0.12)' },
-                    { borderColor: 'rgba(255,255,255,0.12)' },
-                  ]}
-                >
-                  <Text style={styles.cEmoji}>{t.emoji}</Text>
-                  <Text style={[styles.cLabel, { color: theme.text }]} numberOfLines={2}>
-                    {t.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <CuisineRankGrid
+            ranked={prefs.favoriteCuisines}
+            onChange={next =>
+              void persist({
+                ...prefs,
+                favoriteCuisines: next.length ? next : [...DEFAULT_PREFS_V1.favoriteCuisines],
+              })
+            }
+            accent={theme.accent}
+            textColor={theme.text}
+            tileWidth="31%"
+          />
 
           <View style={[styles.noteCard, { backgroundColor: theme.buttonBackground }]}>
             <Text style={[styles.noteText, { color: theme.subtext }]}>
@@ -156,18 +139,6 @@ const styles = StyleSheet.create({
   },
   resetText: { fontWeight: '700', fontSize: 14 },
   cuisineHint: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
-  cGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
-  cTile: {
-    width: '31%',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 8,
-    alignItems: 'center',
-    minHeight: 76,
-    justifyContent: 'center',
-  },
-  cEmoji: { fontSize: 22, marginBottom: 4 },
-  cLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
   noteCard: { borderRadius: 14, padding: 14, marginTop: 8 },
   noteText: { fontSize: 13, lineHeight: 19 },
 });

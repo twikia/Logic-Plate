@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthGate } from '@/components/auth/AuthGate';
+import { initDistanceUnit } from '@/core/userSettings';
 import { initLocationCache } from '@/core/locationCache';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppThemeProvider } from '@/context/ThemeContext';
@@ -22,6 +23,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initLocationCache();
+    void initDistanceUnit();
   }, []);
 
   useEffect(() => {

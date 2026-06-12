@@ -1,6 +1,10 @@
 import type { AiOverview } from './aiOverviewCache';
 import { isOpenNow } from './isOpenNow';
-import { placeMatchesFavoriteCuisine } from './recommendationCuisines';
+import {
+  bestFavoriteCuisineRankIndex,
+  cuisineFitScoreForRank,
+  placeMatchesFavoriteCuisine,
+} from './recommendationCuisines';
 import { getRecommendationPrefs } from './recommendationPrefs';
 import type { RecommendationWeights } from './recommendationTypes';
 import type {
@@ -228,7 +232,8 @@ function rawTasteScore(place: any): number {
 }
 
 function rawCuisineFitScore(place: any, favoriteCuisines: string[]): number {
-  return placeMatchesFavoriteCuisine(place, favoriteCuisines) ? 90 : 35;
+  const rankIdx = bestFavoriteCuisineRankIndex(place, favoriteCuisines);
+  return rankIdx == null ? 35 : cuisineFitScoreForRank(rankIdx);
 }
 
 function rawCuisineVarietyScore(place: any, favoriteCuisines: string[]): number {

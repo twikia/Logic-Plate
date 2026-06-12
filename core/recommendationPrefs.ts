@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { allPriorityMetricKeys } from './recommendationPriorityMetrics';
+import { MAX_CUISINE_RANKS } from './cuisineRanking';
 import { TOP_CUISINE_TILES } from './recommendationCuisines';
 import {
   DEFAULT_PREFS_V1,
@@ -88,7 +89,14 @@ function sanitizeRadius(x: unknown): DefaultRadiusId {
 
 function sanitizeFavoriteCuisines(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [...DEFAULT_PREFS_V1.favoriteCuisines];
-  const out = raw.filter((x): x is string => typeof x === 'string' && TOP_CUISINE_IDS.has(x));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== 'string' || !TOP_CUISINE_IDS.has(x) || seen.has(x)) continue;
+    seen.add(x);
+    out.push(x);
+    if (out.length >= MAX_CUISINE_RANKS) break;
+  }
   return out.length > 0 ? out : [...DEFAULT_PREFS_V1.favoriteCuisines];
 }
 
