@@ -195,12 +195,13 @@ function RestaurantRow({
       if (!item?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
 
       const urls = await fetchRestaurantPhotoUrls({
-        placeId: item.id,
+        placeId:          item.id,
         name,
-        latitude: lat,
-        longitude: lng,
-        websiteUrl: item.websiteUri || undefined,
-        cuisineKey: item.primaryType?.replace(/_restaurant$/, '') || undefined,
+        latitude:         lat,
+        longitude:        lng,
+        websiteUrl:       item.websiteUri || undefined,
+        formattedAddress: item.formattedAddress || undefined,
+        cuisineKey:       item.primaryType?.replace(/_restaurant$/, '') || undefined,
       });
 
       if (cancelled) return;
@@ -209,7 +210,7 @@ function RestaurantRow({
 
     loadPhotos();
     return () => { cancelled = true; };
-  }, [item?.id, name, lat, lng, item?.photos, item.primaryType, item.websiteUri]);
+  }, [item?.id, name, lat, lng, item?.photos, item.primaryType, item.websiteUri, item.formattedAddress]);
 
   return (
     <View style={[styles.row, selected && styles.rowSelected]}>

@@ -127,8 +127,7 @@ function openMaps(name: string, lat: number, lng: number) {
 // ─── Photo Strip (Horizontal scroll of images) ────────────────────────────────
 
 function PhotoStrip({ restaurantId, photos }: { restaurantId: string; photos: any[] }) {
-  // Show however many photos we actually have (1–3). Never render empty ghost slots.
-  const displayPhotos = (photos || []).slice(0, 3);
+  const displayPhotos = (photos || []).slice(0, 1);
 
   if (displayPhotos.length === 0) {
     return (
@@ -188,7 +187,7 @@ function RestaurantCard({
   const distance = `${formatDistance(distM)} away`;
   const lat = item.location?.latitude;
   const lng = item.location?.longitude;
-  // Start with Google Places photos as placeholder until three-tier fetch completes
+  // Start with Google Places photos as placeholder until photo fetch completes
   const [photos, setPhotos] = useState<any[]>(item.photos || []);
 
   useEffect(() => {
@@ -198,23 +197,23 @@ function RestaurantCard({
       if (!item?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
 
       const urls = await fetchRestaurantPhotoUrls({
-        placeId:    item.id,
+        placeId:          item.id,
         name,
-        latitude:   lat,
-        longitude:  lng,
-        websiteUrl: item.websiteUri || undefined,
-        cuisineKey: cuisineKey || item.primaryType?.replace(/_restaurant$/, '') || undefined,
+        latitude:         lat,
+        longitude:        lng,
+        websiteUrl:       item.websiteUri || undefined,
+        formattedAddress: item.formattedAddress || undefined,
+        cuisineKey:       cuisineKey || item.primaryType?.replace(/_restaurant$/, '') || undefined,
       });
 
       if (cancelled) return;
 
-      // Use fetched URLs if we got any, otherwise keep the Google fallback
-      setPhotos(urls.length > 0 ? urls.slice(0, 3) : (item.photos || []).slice(0, 3));
+      setPhotos(urls.length > 0 ? urls.slice(0, 1) : (item.photos || []).slice(0, 1));
     };
 
     loadPhotos();
     return () => { cancelled = true; };
-  }, [item?.id, name, lat, lng, item?.photos, cuisineKey, item.primaryType, item.websiteUri]);
+  }, [item?.id, name, lat, lng, item?.photos, cuisineKey, item.primaryType, item.websiteUri, item.formattedAddress]);
 
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={onOpenOverview}>

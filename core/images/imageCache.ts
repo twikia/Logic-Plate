@@ -118,7 +118,7 @@ export const getCachedImageUrl = async (restaurantId: string): Promise<string | 
   }
 };
 
-// ─── Photo URL List Cache (for three-tier photo lists) ───────────────────────
+// ─── Photo URL List Cache ────────────────────────────────────────────────────
 
 /**
  * Clears all cached image data (memory + disk).
@@ -165,13 +165,14 @@ type FetchRestaurantPhotosInput = {
   latitude: number;
   longitude: number;
   websiteUrl?: string;
+  formattedAddress?: string;
   cuisineKey?: string;
 };
 
 type RestaurantPhotoCacheRow = {
   google_place_id: string;
   og_urls:         string[] | null;
-  mapillary_urls:  string[] | null;
+  wikimedia_urls:  string[] | null;
   unsplash_urls:   string[] | null;
   photo_urls:      string[] | null;
   cuisine_key:     string | null;
@@ -181,13 +182,13 @@ type RestaurantPhotoCacheRow = {
 // ─── Main Fetch Function ──────────────────────────────────────────────────────
 
 /**
- * Returns the ordered list of photo URLs for a restaurant, running the three-tier
- * fallback pipeline if necessary and caching results locally + in Supabase.
+ * Returns the ordered list of photo URLs for a restaurant, running the fallback
+ * pipeline if necessary and caching results locally + in Supabase.
  *
  * Priority: Local AsyncStorage → Supabase DB → Edge Function (live fetch).
  *
- * Photo order returned:  OG image → Mapillary → Unsplash
- * Max photos:            4 (or 1 Unsplash-only if Tiers 1+2 both return 0)
+ * Photo order returned:  OG image → Wikimedia Commons → Unsplash
+ * Max photos:            1
  */
 export const fetchRestaurantPhotoUrls = async ({
   placeId,
@@ -195,6 +196,7 @@ export const fetchRestaurantPhotoUrls = async ({
   latitude,
   longitude,
   websiteUrl,
+  formattedAddress,
   cuisineKey,
 }: FetchRestaurantPhotosInput): Promise<string[]> => {
   if (!placeId || !name || Number.isNaN(latitude) || Number.isNaN(longitude)) {
@@ -220,7 +222,7 @@ export const fetchRestaurantPhotoUrls = async ({
   // ── L2: Supabase DB ────────────────────────────────────────────────────────
   const { data, error: dbError } = await supabase
     .from('restaurant_photo_cache')
-    .select('google_place_id, og_urls, mapillary_urls, unsplash_urls, photo_urls, cuisine_key, updated_at')
+    .select('google_place_id, og_urls, wikimedia_urls, unsplash_urls, photo_urls, cuisine_key, updated_at')
     .eq('google_place_id', placeId)
     .maybeSingle();
 
@@ -240,16 +242,17 @@ export const fetchRestaurantPhotoUrls = async ({
     }
   }
 
-  // ── L3: Edge Function (live fetch from all three sources) ─────────────────
+  // ── L3: Edge Function (live fetch from all sources) ───────────────────────
   console.log(`[ImageCache] Calling fetch-restaurant-photos for "${name}" (${placeId})`);
   const { data: invoked, error: invokeError } = await supabase.functions.invoke('fetch-restaurant-photos', {
     body: {
-      place_id:    placeId,
+      place_id:          placeId,
       name,
       latitude,
       longitude,
-      website_url: websiteUrl ?? null,
-      cuisine_key: cuisineKey ?? null,
+      website_url:       websiteUrl ?? null,
+      formatted_address: formattedAddress ?? null,
+      cuisine_key:       cuisineKey ?? null,
     },
     headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET ?? '' },
   });
