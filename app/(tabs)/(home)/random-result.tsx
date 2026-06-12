@@ -576,6 +576,39 @@ export default function RandomResultScreen() {
                     </Text>
                   </>
                 ) : null}
+                {aiOverview?.absoluteMacros ? (
+                  <>
+                    <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardEmoji}>🧬</Text>
+                      <Text style={[styles.cardTitle, { color: theme.text }]}>Typical macros</Text>
+                    </View>
+                    {macroPills.length > 0 ? (
+                      <View style={styles.macroRow}>
+                        {macroPills.map(p => (
+                          <View
+                            key={p.label}
+                            style={[
+                              styles.macroPill,
+                              {
+                                backgroundColor: theme.glassBackground,
+                                borderColor: theme.cardBorderColor,
+                              },
+                            ]}
+                          >
+                            <Text style={styles.macroEmoji}>{p.emoji}</Text>
+                            <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
+                            <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={[styles.bodyText, { color: theme.subtext }]}>
+                        {aiOverview.absoluteMacros}
+                      </Text>
+                    )}
+                  </>
+                ) : null}
               </View>
             ) : null}
 
@@ -616,37 +649,73 @@ export default function RandomResultScreen() {
               </CollapsibleDrawer>
             ) : null}
 
-            {!ph && aiOverview?.absoluteMacros ? (
+            {!ph ? (
               <CollapsibleDrawer
-                title="Typical Macros"
-                preview="🧬 Typical macros available"
+                title="Nutrition & portions"
                 icon="nutrition-outline"
                 theme={theme}
+                preview={
+                  aiOverview?.absoluteMacros
+                    ? '🧬 Macro estimates available'
+                    : '📊 Nutrition scores available'
+                }
               >
-                {macroPills.length > 0 ? (
-                  <View style={styles.macroRow}>
-                    {macroPills.map(p => (
-                      <View
-                        key={p.label}
-                        style={[
-                          styles.macroPill,
-                          {
-                            backgroundColor: theme.glassBackground,
-                            borderColor: theme.cardBorderColor,
-                          },
-                        ]}
-                      >
-                        <Text style={styles.macroEmoji}>{p.emoji}</Text>
-                        <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
-                        <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={[styles.bodyText, { color: theme.subtext }]}>
-                    {aiOverview.absoluteMacros}
-                  </Text>
-                )}
+                <View style={styles.chipsGrid}>
+                  <MetricChip
+                    emoji="🔥"
+                    label="Calorie fit"
+                    value={aiOverview?.calorieScore}
+                    max={5}
+                    theme={theme}
+                  />
+                  <MetricChip
+                    emoji="🥩"
+                    label="Protein"
+                    value={aiOverview?.proteinScore}
+                    max={5}
+                    theme={theme}
+                  />
+                  <MetricChip
+                    emoji="🌾"
+                    label="Carb balance"
+                    value={aiOverview?.carbScore}
+                    max={5}
+                    theme={theme}
+                  />
+                  <MetricChip
+                    emoji="📊"
+                    label="Macro-friendly"
+                    value={aiOverview?.macroFriendlyScore}
+                    max={5}
+                    theme={theme}
+                  />
+                </View>
+                {aiOverview?.absoluteMacros ? (
+                  macroPills.length > 0 ? (
+                    <View style={[styles.macroRow, { marginTop: 12 }]}>
+                      {macroPills.map(p => (
+                        <View
+                          key={p.label}
+                          style={[
+                            styles.macroPill,
+                            {
+                              backgroundColor: theme.glassBackground,
+                              borderColor: theme.cardBorderColor,
+                            },
+                          ]}
+                        >
+                          <Text style={styles.macroEmoji}>{p.emoji}</Text>
+                          <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
+                          <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={[styles.bodyText, { color: theme.subtext, marginTop: 12 }]}>
+                      {aiOverview.absoluteMacros}
+                    </Text>
+                  )
+                ) : null}
               </CollapsibleDrawer>
             ) : null}
 

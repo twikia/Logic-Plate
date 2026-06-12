@@ -1,3 +1,4 @@
+import { HapticTab } from '@/components/haptic-tab';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname, useRouter } from 'expo-router';
@@ -13,7 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { HapticTab } from '@/components/haptic-tab';
+import { requestHomeTitleReroll } from '@/core/homeTitle';
 import { useAppTheme } from '@/context/ThemeContext';
 
 
@@ -146,6 +147,7 @@ export default function TabLayout() {
                 onPress={() => {
                   const now = Date.now();
                   if (now - lastPress < 300) {
+                    requestHomeTitleReroll();
                     router.navigate('/(tabs)/(home)/');
                   } else {
                     (props.onPress as (() => void) | undefined)?.();

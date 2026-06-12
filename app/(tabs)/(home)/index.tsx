@@ -28,7 +28,8 @@ import {
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
-import { appendVisit, loadVisits } from '@/core/recommendationVisitHistory';
+import { pickFunHomeTitle, onHomeTitleReroll } from '@/core/homeTitle';
+import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
@@ -76,7 +77,7 @@ const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
 const SPOTLIGHT_RADAR_INLINE_HEIGHT = Math.round(
-  Math.min(WINDOW_HEIGHT * 0.28, WINDOW_WIDTH * 0.5, 220)
+  Math.min(WINDOW_WIDTH * 0.36, 152)
 );
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
@@ -116,17 +117,6 @@ const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
   { bg: 'rgba(251,146,60,0.58)', border: '#FFEDD5', mark: '#431407' },
   { bg: 'rgba(129,140,248,0.55)', border: '#E0E7FF', mark: '#1E1B4B' },
   { bg: 'rgba(250,112,154,0.55)', border: '#FFE4E9', mark: '#4A0D24' },
-];
-
-const FUN_HOME_TITLES = [
-  'Hungry? Start here',
-  'Your top picks nearby',
-  'Ready when you are',
-  'Made for you boss!',
-  "What's good today?",
-  "Todays's best bets",
-  'Picks just for you',
-  "Let's find something good",
 ];
 
 const NEON_CYAN = '#00FFFF';
@@ -764,17 +754,27 @@ function SpotlightCard({
           </Text>
         </View>
       </View>
-      <View style={styles.scorePentagonCol}>
-        <RestaurantScorePentagon
-          ai={ai}
-          stroke={theme.accent}
-          gridColor={theme.radarGridColor}
-          labelColor={theme.subtext}
-          svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
-          neon={neonUi}
-          variant={radarVar}
-          gradientColors={neonUi ? undefined : theme.matchOrbColors}
-        />
+      <View style={styles.scoreShapeRow}>
+        <View style={styles.scorePentagonCol}>
+          <RestaurantScorePentagon
+            ai={ai}
+            stroke={theme.accent}
+            gridColor={theme.radarGridColor}
+            labelColor={theme.subtext}
+            svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
+            neon={neonUi}
+            variant={radarVar}
+            gradientColors={neonUi ? undefined : theme.matchOrbColors}
+          />
+        </View>
+        <View style={styles.scoreBarsCol}>
+          <MatchGauge
+            match={Math.round(Math.min(100, Math.max(0, scored.plateboundScore * 10)))}
+            arcColors={neonUi ? [NEON_CYAN, NEON_MAGENTA] : theme.matchOrbColors}
+            textColor={neonUi ? '#FFFFFF' : theme.text}
+          />
+          <EngineStatBars raw={scored.raw} compact neon={neonUi} />
+        </View>
       </View>
     </>
   );
@@ -1085,10 +1085,9 @@ export default function HomeScreen() {
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
   const homeBottomPad = tabBarHeight + 12;
   const rootNeon = Boolean(theme.neonColors);
-  const [funTitle] = useState(() => FUN_HOME_TITLES[Math.floor(Math.random() * FUN_HOME_TITLES.length)]);
-  const titleText = !isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
-    ? funTitle
-    : 'Finding nearby picks...';
+  const [funTitle, setFunTitle] = useState(pickFunHomeTitle);
+
+  useEffect(() => onHomeTitleReroll(() => setFunTitle(pickFunHomeTitle())), []);
 
   const homeBody = (
     <>
@@ -1096,9 +1095,9 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
           {rootNeon ? (
-            <HomeNeonTitle text={titleText} width={WINDOW_WIDTH - 32} />
+            <HomeNeonTitle text={funTitle} width={WINDOW_WIDTH - 32} />
           ) : (
-            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{titleText}</Text>
+            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
           )}
 
           <ScenarioQuickBar />
@@ -1349,17 +1348,21 @@ const styles = StyleSheet.create({
   scoreShapeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+    marginTop: 2,
   },
   scorePentagonCol: {
-    flex: 1.55,
+    flex: 1.15,
     minWidth: 0,
-    alignItems: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   scoreBarsCol: {
-    flex: 0.55,
+    flex: 0.85,
     minWidth: 0,
     justifyContent: 'center',
+    gap: 6,
   },
   valueMatchHeading: {
     fontSize: 10,
@@ -1372,7 +1375,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.1,
     fontSize: 9,
   },
-  radarBlock: { width: '100%', marginTop: 0 },
+  radarBlock: { width: '100%', marginTop: 0, overflow: 'visible' },
   engineBars: { gap: 6, marginTop: 0 },
   engineBarsCompact: { gap: 3, marginTop: 0 },
   engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

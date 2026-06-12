@@ -4,28 +4,40 @@ import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 
-const SP = 10;
+// BLEED: transparent padding added on all sides so shadow/glow effects
+// are never clipped by the native bitmap boundary, regardless of icon size.
+// Capped at 70px max pill width — BLEED covers any content up to that cap.
+const BLEED = 24;
+const SP = 8;
 
-const PILL_W = 58;
-const PILL_H = 28;
-const PILL_CORNER = 14;
-const TIP_H = 7;
-const TIP_SIDE = 5;
+const PILL_W = 64;
+const PILL_H = 30;
+const PILL_CORNER = 15;
+const TIP_H = 8;
+const TIP_SIDE = 6;
 
-const SEL_PILL_W = 74;
-const SEL_PILL_H = 36;
-const SEL_PILL_CORNER = 18;
-const SEL_TIP_H = 9;
-const SEL_TIP_SIDE = 6;
+const SEL_PILL_W = 86;
+const SEL_PILL_H = 40;
+const SEL_PILL_CORNER = 20;
+const SEL_TIP_H = 10;
+const SEL_TIP_SIDE = 8;
 
-const OUTER_W = SP * 2 + PILL_W;
-const OUTER_H = SP + PILL_H + TIP_H + SP;
-const SEL_OUTER_W = SP * 2 + SEL_PILL_W;
-const SEL_OUTER_H = SP + SEL_PILL_H + SEL_TIP_H + SP;
+// Inner layout dimensions (content area only, no bleed)
+const INNER_W = SP * 2 + PILL_W;
+const INNER_H = SP + PILL_H + TIP_H + SP;
+const SEL_INNER_W = SP * 2 + SEL_PILL_W;
+const SEL_INNER_H = SP + SEL_PILL_H + SEL_TIP_H + SP;
 
+// Total view dimensions = inner + bleed on all sides
+const TOTAL_W = INNER_W + BLEED * 2;
+const TOTAL_H = INNER_H + BLEED * 2;
+const SEL_TOTAL_W = SEL_INNER_W + BLEED * 2;
+const SEL_TOTAL_H = SEL_INNER_H + BLEED * 2;
+
+// Anchor: the tip point is at (center, BLEED + SP + PILL_H + TIP_H) in the view
 const ANCHOR_X = 0.5;
-const ANCHOR_Y = (SP + PILL_H + TIP_H) / OUTER_H;
-const SEL_ANCHOR_Y = (SP + SEL_PILL_H + SEL_TIP_H) / SEL_OUTER_H;
+const ANCHOR_Y = (BLEED + SP + PILL_H + TIP_H) / TOTAL_H;
+const SEL_ANCHOR_Y = (BLEED + SP + SEL_PILL_H + SEL_TIP_H) / SEL_TOTAL_H;
 
 type RestaurantMapMarkerProps = {
   item: any;
@@ -65,14 +77,43 @@ export function RestaurantMapMarker({
   const pillCorner = isSelected ? SEL_PILL_CORNER : PILL_CORNER;
   const tipH = isSelected ? SEL_TIP_H : TIP_H;
   const tipSide = isSelected ? SEL_TIP_SIDE : TIP_SIDE;
-  const outerW = isSelected ? SEL_OUTER_W : OUTER_W;
-  const outerH = isSelected ? SEL_OUTER_H : OUTER_H;
+  const totalW = isSelected ? SEL_TOTAL_W : TOTAL_W;
+  const totalH = isSelected ? SEL_TOTAL_H : TOTAL_H;
   const anchorY = isSelected ? SEL_ANCHOR_Y : ANCHOR_Y;
+  const iconSize = isSelected ? 17 : 13;
+  const fontSize = isSelected ? 14 : 11;
 
-  const pillBg = isSelected ? '#FFFFFF' : markerColor;
-  const contentColor = isSelected ? markerColor : '#FFFFFF';
-  const iconSize = isSelected ? 16 : 13;
-  const fontSize = isSelected ? 13 : 11;
+  // Absolute positions for each layer within the total (bleed-padded) container
+  const pillTop = BLEED + SP;
+  const pillLeft = (totalW - pillW) / 2;
+  const tipTop = pillTop + pillH - 1;
+  const tipLeft = (totalW - tipSide * 2) / 2;
+
+  // Neon glow layers
+  const aura2W = pillW + 10;
+  const aura2H = pillH + 10;
+  const aura2Top = pillTop - 5;
+  const aura2Left = (totalW - aura2W) / 2;
+
+  const aura1W = pillW + 20;
+  const aura1H = pillH + 20;
+  const aura1Top = pillTop - 10;
+  const aura1Left = (totalW - aura1W) / 2;
+
+  const aura0W = pillW + 34;
+  const aura0H = pillH + 34;
+  const aura0Top = pillTop - 17;
+  const aura0Left = (totalW - aura0W) / 2;
+
+  const neonGlowShadow = {
+    shadowColor: markerColor,
+    shadowOpacity: isSelected ? 1.0 : 0.9,
+    shadowRadius: isSelected ? 18 : 11,
+    shadowOffset: { width: 0, height: 0 } as const,
+    elevation: isSelected ? 16 : 9,
+  };
+
+  const iconColor = isSelected ? markerColor : '#FFFFFF';
 
   return (
     <Marker
@@ -84,50 +125,106 @@ export function RestaurantMapMarker({
     >
       <View
         style={{
-          width: outerW,
-          height: outerH,
-          alignItems: 'center',
-          justifyContent: 'flex-start',
-          paddingTop: SP,
-          opacity: isOpen ? 1 : 0.55,
+          width: totalW,
+          height: totalH,
+          opacity: isOpen ? 1 : 0.5,
         }}
         collapsable={false}
       >
+        {/* Outermost diffuse aura (selected only) */}
+        {isSelected && (
+          <View
+            style={{
+              position: 'absolute',
+              top: aura0Top,
+              left: aura0Left,
+              width: aura0W,
+              height: aura0H,
+              borderRadius: pillCorner + 17,
+              backgroundColor: markerColor + '18',
+            }}
+          />
+        )}
+
+        {/* Mid aura ring */}
         <View
           style={{
+            position: 'absolute',
+            top: aura1Top,
+            left: aura1Left,
+            width: aura1W,
+            height: aura1H,
+            borderRadius: pillCorner + 10,
+            backgroundColor: isSelected ? markerColor + '28' : markerColor + '1A',
+          }}
+        />
+
+        {/* Inner aura — carries the shadow for iOS glow */}
+        <View
+          style={{
+            position: 'absolute',
+            top: aura2Top,
+            left: aura2Left,
+            width: aura2W,
+            height: aura2H,
+            borderRadius: pillCorner + 5,
+            backgroundColor: isSelected ? markerColor + '38' : markerColor + '22',
+            ...neonGlowShadow,
+          }}
+        />
+
+        {/* Pill body */}
+        <View
+          style={{
+            position: 'absolute',
+            top: pillTop,
+            left: pillLeft,
             width: pillW,
             height: pillH,
             borderRadius: pillCorner,
-            backgroundColor: pillBg,
-            borderWidth: isSelected ? 2.5 : 0,
+            backgroundColor: isSelected ? 'rgba(10,4,24,0.97)' : 'rgba(6,3,14,0.95)',
+            borderWidth: isSelected ? 2 : 1.5,
             borderColor: markerColor,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 5,
             paddingHorizontal: 9,
-            shadowColor: '#000',
-            shadowOpacity: isSelected ? 0.4 : 0.28,
-            shadowRadius: isSelected ? 10 : 5,
-            shadowOffset: { width: 0, height: isSelected ? 5 : 2 },
-            elevation: isSelected ? 12 : 5,
+            ...neonGlowShadow,
           }}
         >
-          <Ionicons name={iconName} size={iconSize} color={contentColor} />
+          <Ionicons
+            name={iconName}
+            size={iconSize}
+            color={iconColor}
+            style={{
+              textShadowColor: markerColor,
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: isSelected ? 10 : 6,
+            }}
+          />
           <Text
             style={{
               fontSize,
               fontWeight: '800',
-              color: contentColor,
+              color: isSelected ? markerColor : '#FFFFFF',
               letterSpacing: -0.3,
+              textShadowColor: markerColor,
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: isSelected ? 10 : 7,
             }}
             numberOfLines={1}
           >
             {scoreText}
           </Text>
         </View>
+
+        {/* Triangle tip */}
         <View
           style={{
+            position: 'absolute',
+            top: tipTop,
+            left: tipLeft,
             width: 0,
             height: 0,
             borderLeftWidth: tipSide,
@@ -136,7 +233,6 @@ export function RestaurantMapMarker({
             borderLeftColor: 'transparent',
             borderRightColor: 'transparent',
             borderTopColor: markerColor,
-            marginTop: -1,
           }}
         />
       </View>
