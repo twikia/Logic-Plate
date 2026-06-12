@@ -1,7 +1,7 @@
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { AiOverviewRadar } from '@/components/AiOverviewRadar';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
-import { PERFORMANCE_METRICS, VibeStatsPodium } from '@/components/VibeStatsPodium';
+import { NUTRITION_METRICS, PERFORMANCE_METRICS, VibeStatsPodium } from '@/components/VibeStatsPodium';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -138,12 +138,14 @@ function MetricChip({
   value,
   max = 5,
   theme,
+  detail,
 }: {
   emoji: string;
   label: string;
   value: number | undefined;
   max?: 5 | 10;
   theme: ThemeRef;
+  detail?: string;
 }) {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : 0;
   const pct = Math.max(0, Math.min(1, n / max));
@@ -160,6 +162,11 @@ function MetricChip({
       <Text style={[styles.chipLabel, { color: theme.subtext }]} numberOfLines={1}>
         {label}
       </Text>
+      {detail ? (
+        <Text style={[styles.chipDetail, { color: theme.text }]} numberOfLines={1}>
+          {detail}
+        </Text>
+      ) : null}
       <Text style={[styles.chipValue, { color }]}>
         {displayVal}
         <Text style={[styles.chipMax, { color: theme.subtext }]}>/{max}</Text>
@@ -171,24 +178,17 @@ function MetricChip({
   );
 }
 
-function CollapsibleDrawer({
+function SectionCard({
   title,
-  preview,
-  previewNode,
   icon,
   theme,
-  defaultOpen = false,
   children,
 }: {
   title: string;
-  preview?: string;
-  previewNode?: React.ReactNode;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   theme: ThemeRef;
-  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
     <View
       style={[
@@ -196,34 +196,15 @@ function CollapsibleDrawer({
         { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor },
       ]}
     >
-      <TouchableOpacity
-        style={styles.drawerHeader}
-        onPress={() => setOpen(v => !v)}
-        activeOpacity={0.78}
-      >
+      <View style={styles.drawerHeader}>
         <View style={[styles.drawerIconBg, { backgroundColor: theme.tint + '22' }]}>
           <Ionicons name={icon} size={15} color={theme.tint} />
         </View>
         <View style={styles.drawerHeaderText}>
           <Text style={[styles.drawerTitle, { color: theme.text }]}>{title}</Text>
-          {!open && preview ? (
-            <Text style={[styles.drawerPreview, { color: theme.subtext }]} numberOfLines={1}>
-              {preview}
-            </Text>
-          ) : null}
         </View>
-        <Ionicons
-          name={open ? 'chevron-up' : 'chevron-down'}
-          size={16}
-          color={theme.subtext}
-        />
-      </TouchableOpacity>
-      {!open && previewNode ? (
-        <View style={styles.drawerPreviewNode} pointerEvents="none">
-          {previewNode}
-        </View>
-      ) : null}
-      {open ? <View style={styles.drawerBody}>{children}</View> : null}
+      </View>
+      <View style={styles.drawerBody}>{children}</View>
     </View>
   );
 }
@@ -289,17 +270,11 @@ function parseMacroPills(text: string): MacroPill[] {
   return pills;
 }
 
-function getHoursPreview(weekdays: string[], todayIndex: number, open: boolean): string {
-  const today = weekdays[todayIndex];
-  if (!today) return open ? 'See hours' : 'Closed today';
-  if (!open) return 'Closed today';
-  if (/open 24 hours/i.test(today)) return 'Open 24 hours';
-  const closeMatch = today.match(
-    /[\u2013\u2014\-–]\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM))/i
-  );
-  if (closeMatch) return `Open until ${closeMatch[1]}`;
-  const afterColon = today.split(/:\s*/)[1];
-  return afterColon ?? today;
+function extractCalorieEstimate(text: string): string | null {
+  const m =
+    text.match(/(?:~|approx\.?\s*)?(\d{3,4})\s*(?:k?cal|calories?)/i) ??
+    text.match(/calories?[:\s~]*(?:~|approx\.?\s*)?(\d{3,4})/i);
+  return m ? `~${m[1]} kcal` : null;
 }
 
 export default function RandomResultScreen() {
@@ -412,7 +387,9 @@ export default function RandomResultScreen() {
   const macroPills = aiOverview?.absoluteMacros
     ? parseMacroPills(aiOverview.absoluteMacros)
     : [];
-  const hoursPreview = getHoursPreview(weekdays, todayIndex, isOpen);
+  const calorieEstimate = aiOverview?.absoluteMacros
+    ? extractCalorieEstimate(aiOverview.absoluteMacros)
+    : null;
 
   return (
     <LinearGradient
@@ -576,58 +553,13 @@ export default function RandomResultScreen() {
                     </Text>
                   </>
                 ) : null}
-                {aiOverview?.absoluteMacros ? (
-                  <>
-                    <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
-                    <View style={styles.cardHeader}>
-                      <Text style={styles.cardEmoji}>🧬</Text>
-                      <Text style={[styles.cardTitle, { color: theme.text }]}>Typical macros</Text>
-                    </View>
-                    {macroPills.length > 0 ? (
-                      <View style={styles.macroRow}>
-                        {macroPills.map(p => (
-                          <View
-                            key={p.label}
-                            style={[
-                              styles.macroPill,
-                              {
-                                backgroundColor: theme.glassBackground,
-                                borderColor: theme.cardBorderColor,
-                              },
-                            ]}
-                          >
-                            <Text style={styles.macroEmoji}>{p.emoji}</Text>
-                            <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
-                            <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : (
-                      <Text style={[styles.bodyText, { color: theme.subtext }]}>
-                        {aiOverview.absoluteMacros}
-                      </Text>
-                    )}
-                  </>
-                ) : null}
               </View>
             ) : null}
 
             {!ph ? <VibeStatsPodium ai={aiOverview} theme={theme} /> : null}
 
             {!ph ? (
-              <CollapsibleDrawer
-                title="Performance"
-                icon="analytics-outline"
-                theme={theme}
-                previewNode={
-                  <AiOverviewRadar
-                    ai={aiOverview}
-                    theme={theme}
-                    height={72}
-                    neon={!!theme.neonColors}
-                  />
-                }
-              >
+              <SectionCard title="Performance" icon="analytics-outline" theme={theme}>
                 <AiOverviewRadar
                   ai={aiOverview}
                   theme={theme}
@@ -646,88 +578,54 @@ export default function RandomResultScreen() {
                     />
                   ))}
                 </View>
-              </CollapsibleDrawer>
+              </SectionCard>
             ) : null}
 
             {!ph ? (
-              <CollapsibleDrawer
-                title="Nutrition & portions"
-                icon="nutrition-outline"
-                theme={theme}
-                preview={
-                  aiOverview?.absoluteMacros
-                    ? '🧬 Macro estimates available'
-                    : '📊 Nutrition scores available'
-                }
-              >
+              <SectionCard title="Nutrition & portions" icon="nutrition-outline" theme={theme}>
                 <View style={styles.chipsGrid}>
-                  <MetricChip
-                    emoji="🔥"
-                    label="Calorie fit"
-                    value={aiOverview?.calorieScore}
-                    max={5}
-                    theme={theme}
-                  />
-                  <MetricChip
-                    emoji="🥩"
-                    label="Protein"
-                    value={aiOverview?.proteinScore}
-                    max={5}
-                    theme={theme}
-                  />
-                  <MetricChip
-                    emoji="🌾"
-                    label="Carb balance"
-                    value={aiOverview?.carbScore}
-                    max={5}
-                    theme={theme}
-                  />
-                  <MetricChip
-                    emoji="📊"
-                    label="Macro-friendly"
-                    value={aiOverview?.macroFriendlyScore}
-                    max={5}
-                    theme={theme}
-                  />
+                  {NUTRITION_METRICS.map(m => (
+                    <MetricChip
+                      key={m.key}
+                      emoji={m.emoji}
+                      label={m.label}
+                      value={aiOverview?.[m.key] as number | undefined}
+                      max={m.max}
+                      theme={theme}
+                      detail={m.key === 'calorieScore' ? calorieEstimate ?? undefined : undefined}
+                    />
+                  ))}
                 </View>
-                {aiOverview?.absoluteMacros ? (
-                  macroPills.length > 0 ? (
-                    <View style={[styles.macroRow, { marginTop: 12 }]}>
-                      {macroPills.map(p => (
-                        <View
-                          key={p.label}
-                          style={[
-                            styles.macroPill,
-                            {
-                              backgroundColor: theme.glassBackground,
-                              borderColor: theme.cardBorderColor,
-                            },
-                          ]}
-                        >
-                          <Text style={styles.macroEmoji}>{p.emoji}</Text>
-                          <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
-                          <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text style={[styles.bodyText, { color: theme.subtext, marginTop: 12 }]}>
-                      {aiOverview.absoluteMacros}
-                    </Text>
-                  )
+                {macroPills.length > 0 ? (
+                  <View style={[styles.macroRow, { marginTop: 12 }]}>
+                    {macroPills.map(p => (
+                      <View
+                        key={p.label}
+                        style={[
+                          styles.macroPill,
+                          {
+                            backgroundColor: theme.glassBackground,
+                            borderColor: theme.cardBorderColor,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.macroEmoji}>{p.emoji}</Text>
+                        <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
+                        <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
+                      </View>
+                    ))}
+                  </View>
                 ) : null}
-              </CollapsibleDrawer>
+                {aiOverview?.absoluteMacros ? (
+                  <Text style={[styles.bodyText, { color: theme.subtext, marginTop: 12 }]}>
+                    {aiOverview.absoluteMacros}
+                  </Text>
+                ) : null}
+              </SectionCard>
             ) : null}
 
             {hasContact || weekdays.length > 0 ? (
-              <CollapsibleDrawer
-                title="Contact & Hours"
-                preview={
-                  hoursPreview + (address ? ` · ${address.split(',')[0]}` : '')
-                }
-                icon="time-outline"
-                theme={theme}
-              >
+              <SectionCard title="Contact & Hours" icon="time-outline" theme={theme}>
                 {hasContact ? (
                   <>
                     {address ? (
@@ -793,7 +691,7 @@ export default function RandomResultScreen() {
                     </View>
                   </>
                 ) : null}
-              </CollapsibleDrawer>
+              </SectionCard>
             ) : null}
 
             <View style={{ height: 16 }} />
@@ -983,8 +881,6 @@ const styles = StyleSheet.create({
   },
   drawerHeaderText: { flex: 1, gap: 2 },
   drawerTitle: { fontSize: 14, fontWeight: '700' },
-  drawerPreview: { fontSize: 12, fontWeight: '500' },
-  drawerPreviewNode: { paddingHorizontal: 14, paddingBottom: 10, opacity: 0.92 },
   drawerBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
 
   chipsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -997,6 +893,7 @@ const styles = StyleSheet.create({
   },
   chipEmoji: { fontSize: 16 },
   chipLabel: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+  chipDetail: { fontSize: 11, fontWeight: '800', marginTop: 1 },
   chipValue: { fontSize: 12, fontWeight: '800' },
   chipMax: { fontSize: 10, fontWeight: '600' },
   chipTrack: {

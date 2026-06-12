@@ -46,7 +46,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  type DimensionValue,
 } from 'react-native';
 import { FlatList, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -57,7 +56,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
-  Circle,
   Defs,
   FeGaussianBlur,
   Filter,
@@ -76,9 +74,14 @@ const WINDOW_HEIGHT = Dimensions.get('window').height;
 const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
-const SPOTLIGHT_RADAR_INLINE_HEIGHT = Math.round(
-  Math.min(WINDOW_WIDTH * 0.36, 152)
+const SPOTLIGHT_RADAR_CARD_HEIGHT = Math.round(
+  Math.min(WINDOW_WIDTH * 0.52, WINDOW_HEIGHT * 0.28, 240)
 );
+
+function formatReviewCount(count: number): string {
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
+}
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
 const FILM_STRIP_FRAC = 0.66;
@@ -164,67 +167,6 @@ function HomeNeonTitle({ text, width }: { text: string; width: number }) {
           {text}
         </SvgText>
       </Svg>
-    </View>
-  );
-}
-
-function MatchGauge({
-  match,
-  arcColors,
-  textColor = '#FFFFFF',
-}: {
-  match: number;
-  arcColors: [string, string];
-  textColor?: string;
-}) {
-  const gid = useId().replace(/:/g, '');
-  const size = 78;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = 28;
-  const C = 2 * Math.PI * r;
-  const fillC = (Math.min(100, Math.max(0, match)) / 100) * C;
-  return (
-    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-      <Svg
-        width={size}
-        height={size}
-        style={{ position: 'absolute', left: 0, top: 0 }}
-        pointerEvents="none"
-      >
-        <Defs>
-          <SvgLinearGradient id={`mg-${gid}`} x1="0" y1="1" x2="1" y2="0">
-            <Stop offset="0" stopColor={arcColors[0]} />
-            <Stop offset="1" stopColor={arcColors[1]} />
-          </SvgLinearGradient>
-        </Defs>
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="rgba(128,128,128,0.18)"
-          strokeWidth={2.5}
-          strokeDasharray="5 4"
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cy})`}
-        />
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke={`url(#mg-${gid})`}
-          strokeWidth={3.5}
-          strokeDasharray={`${fillC} ${C}`}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cy})`}
-        />
-      </Svg>
-      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={[styles.matchOrbPct, { color: textColor }]}>{match}</Text>
-        <Text style={[styles.matchOrbLbl, { color: textColor }]}>match</Text>
-      </View>
     </View>
   );
 }
@@ -568,51 +510,6 @@ function RestaurantScorePentagon({
   );
 }
 
-function EngineStatBars({ raw, compact, neon }: { raw: ScoredRestaurant['raw']; compact?: boolean; neon?: boolean }) {
-  const { theme } = useAppTheme();
-  const rows: { label: string; value: number; colors: [string, string] }[] = [
-    { label: 'Distance', value: raw.distance, colors: ['#38BDF8', '#0EA5E9'] },
-    { label: 'Health', value: raw.health, colors: ['#4ADE80', '#22C55E'] },
-    { label: 'Price', value: raw.price, colors: ['#FACC15', '#EAB308'] },
-    { label: 'Rated', value: raw.rating, colors: ['#F472B6', '#EC4899'] },
-    { label: 'Novelty', value: raw.novelty, colors: ['#C084FC', '#A855F7'] },
-  ];
-  const labelCol = neon ? '#FFFFFF' : theme.subtext;
-  const trackBg = neon ? 'rgba(255,255,255,0.08)' : theme.glassBackground;
-  const useDots = !neon && theme.statBarVariant === 'dots';
-
-  return (
-    <View style={[styles.engineBars, compact && styles.engineBarsCompact]}>
-      {rows.map(row => {
-        if (useDots) {
-          const dotSize = Math.round(7 + (clampScore(row.value, 100) / 100) * 7);
-          return (
-            <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
-              <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
-              <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: row.colors[0] }} />
-            </View>
-          );
-        }
-        return (
-          <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
-            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
-            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact, { backgroundColor: trackBg }]}>
-              <View style={[styles.engineBarFillWrap, { width: `${clampScore(row.value, 100)}%` as DimensionValue }]}>
-                <LinearGradient
-                  colors={row.colors}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-              </View>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function SpotlightCard({
   scored,
   canReject,
@@ -631,8 +528,9 @@ function SpotlightCard({
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
-  const { formatDistance } = useDistanceFormatter();
+  const { formatDistance, formatWalkingTime } = useDistanceFormatter();
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
+  const reviews = place.userRatingCount;
   const [photos, setPhotos] = useState<any[]>(place.photos || []);
 
   useEffect(() => {
@@ -749,32 +647,25 @@ function SpotlightCard({
             {name}
           </Text>
           <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
-            {formatDistance(Math.round(place.distanceMeters ?? 0))} away
-            {rating ? ` \u00b7 ${rating} \u2605` : ''}
+            {formatDistance(Math.round(place.distanceMeters ?? 0))}
+            {` \u00b7 ${formatWalkingTime(Math.round(place.distanceMeters ?? 0))}`}
+            {rating
+              ? ` \u00b7 ${rating} \u2605${reviews ? ` (${formatReviewCount(reviews)})` : ''}`
+              : ''}
           </Text>
         </View>
       </View>
-      <View style={styles.scoreShapeRow}>
-        <View style={styles.scorePentagonCol}>
-          <RestaurantScorePentagon
-            ai={ai}
-            stroke={theme.accent}
-            gridColor={theme.radarGridColor}
-            labelColor={theme.subtext}
-            svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
-            neon={neonUi}
-            variant={radarVar}
-            gradientColors={neonUi ? undefined : theme.matchOrbColors}
-          />
-        </View>
-        <View style={styles.scoreBarsCol}>
-          <MatchGauge
-            match={Math.round(Math.min(100, Math.max(0, scored.plateboundScore * 10)))}
-            arcColors={neonUi ? [NEON_CYAN, NEON_MAGENTA] : theme.matchOrbColors}
-            textColor={neonUi ? '#FFFFFF' : theme.text}
-          />
-          <EngineStatBars raw={scored.raw} compact neon={neonUi} />
-        </View>
+      <View style={styles.scorePentagonCol}>
+        <RestaurantScorePentagon
+          ai={ai}
+          stroke={theme.accent}
+          gridColor={theme.radarGridColor}
+          labelColor={theme.subtext}
+          svgHeight={SPOTLIGHT_RADAR_CARD_HEIGHT}
+          neon={neonUi}
+          variant={radarVar}
+          gradientColors={neonUi ? undefined : theme.matchOrbColors}
+        />
       </View>
     </>
   );
@@ -1325,72 +1216,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   spotlightSub: { fontSize: 12 },
-  matchOrb: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    overflow: 'hidden',
-  },
-  matchOrbGrad: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 0,
-  },
-  matchOrbPct: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', marginTop: -2 },
-  matchOrbLbl: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: 'rgba(255,255,255,0.88)',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  scoreShapeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 2,
-  },
   scorePentagonCol: {
-    flex: 1.15,
-    minWidth: 0,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
-  },
-  scoreBarsCol: {
-    flex: 0.85,
-    minWidth: 0,
-    justifyContent: 'center',
-    gap: 6,
-  },
-  valueMatchHeading: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  valueMatchHeadingNeon: {
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-    fontSize: 9,
+    marginTop: 2,
   },
   radarBlock: { width: '100%', marginTop: 0, overflow: 'visible' },
-  engineBars: { gap: 6, marginTop: 0 },
-  engineBarsCompact: { gap: 3, marginTop: 0 },
-  engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  engineBarRowCompact: { gap: 4 },
-  engineBarLabel: { width: 72, fontSize: 10, fontWeight: '600' },
-  engineBarLabelCompact: { width: 52, fontSize: 8.5 },
-  engineBarTrack: {
-    flex: 1,
-    height: 7,
-    borderRadius: 4,
-    overflow: 'hidden',
-    maxWidth: '100%',
-  },
-  engineBarTrackCompact: { height: 5, borderRadius: 3 },
-  engineBarFillWrap: { height: '100%', borderRadius: 4, overflow: 'hidden' },
   spotlightActionsCol: { gap: 8, marginTop: 4 },
   spotlightActions: { flexDirection: 'row', gap: 10 },
   spotlightFindMapBtn: {

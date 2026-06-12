@@ -4,11 +4,10 @@ import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 
-// BLEED: transparent padding added on all sides so shadow/glow effects
-// are never clipped by the native bitmap boundary, regardless of icon size.
-// Capped at 70px max pill width — BLEED covers any content up to that cap.
-const BLEED = 24;
-const SP = 8;
+// BLEED: transparent padding on all sides so shadows/glows are never clipped
+// by the native bitmap boundary, regardless of icon size (cap: 70px pill width).
+const BLEED = 22;
+const SP = 10;
 
 const PILL_W = 64;
 const PILL_H = 30;
@@ -22,19 +21,19 @@ const SEL_PILL_CORNER = 20;
 const SEL_TIP_H = 10;
 const SEL_TIP_SIDE = 8;
 
-// Inner layout dimensions (content area only, no bleed)
+// Inner layout (no bleed)
 const INNER_W = SP * 2 + PILL_W;
 const INNER_H = SP + PILL_H + TIP_H + SP;
 const SEL_INNER_W = SP * 2 + SEL_PILL_W;
 const SEL_INNER_H = SP + SEL_PILL_H + SEL_TIP_H + SP;
 
-// Total view dimensions = inner + bleed on all sides
+// Total view = inner + bleed on all four sides
 const TOTAL_W = INNER_W + BLEED * 2;
 const TOTAL_H = INNER_H + BLEED * 2;
 const SEL_TOTAL_W = SEL_INNER_W + BLEED * 2;
 const SEL_TOTAL_H = SEL_INNER_H + BLEED * 2;
 
-// Anchor: the tip point is at (center, BLEED + SP + PILL_H + TIP_H) in the view
+// Pin the tip point to the map coordinate
 const ANCHOR_X = 0.5;
 const ANCHOR_Y = (BLEED + SP + PILL_H + TIP_H) / TOTAL_H;
 const SEL_ANCHOR_Y = (BLEED + SP + SEL_PILL_H + SEL_TIP_H) / SEL_TOTAL_H;
@@ -83,35 +82,22 @@ export function RestaurantMapMarker({
   const iconSize = isSelected ? 17 : 13;
   const fontSize = isSelected ? 14 : 11;
 
-  // Absolute positions for each layer within the total (bleed-padded) container
-  const pillTop = BLEED + SP;
-  const pillLeft = (totalW - pillW) / 2;
-  const tipTop = pillTop + pillH - 1;
-  const tipLeft = (totalW - tipSide * 2) / 2;
-
-  // Neon glow layers
+  // Aura ring positions (absolute, rendered before pill so they appear behind it)
+  const pillTopInView = BLEED + SP; // where normal-flow pill starts
   const aura2W = pillW + 10;
   const aura2H = pillH + 10;
-  const aura2Top = pillTop - 5;
+  const aura2Top = pillTopInView - 5;
   const aura2Left = (totalW - aura2W) / 2;
 
   const aura1W = pillW + 20;
   const aura1H = pillH + 20;
-  const aura1Top = pillTop - 10;
+  const aura1Top = pillTopInView - 10;
   const aura1Left = (totalW - aura1W) / 2;
 
   const aura0W = pillW + 34;
   const aura0H = pillH + 34;
-  const aura0Top = pillTop - 17;
+  const aura0Top = pillTopInView - 17;
   const aura0Left = (totalW - aura0W) / 2;
-
-  const neonGlowShadow = {
-    shadowColor: markerColor,
-    shadowOpacity: isSelected ? 1.0 : 0.9,
-    shadowRadius: isSelected ? 18 : 11,
-    shadowOffset: { width: 0, height: 0 } as const,
-    elevation: isSelected ? 16 : 9,
-  };
 
   const iconColor = isSelected ? markerColor : '#FFFFFF';
 
@@ -123,15 +109,19 @@ export function RestaurantMapMarker({
       anchor={{ x: ANCHOR_X, y: anchorY }}
       tracksViewChanges={tracksViewChanges}
     >
+      {/* Outer container: BLEED pads all sides so shadows are never clipped.
+          Normal-flow children (pill + tip) establish the measured layout for Android. */}
       <View
         style={{
           width: totalW,
           height: totalH,
+          alignItems: 'center',
+          paddingTop: BLEED + SP,
           opacity: isOpen ? 1 : 0.5,
         }}
         collapsable={false}
       >
-        {/* Outermost diffuse aura (selected only) */}
+        {/* Aura rings — absolutely positioned BEFORE the pill so they render behind it */}
         {isSelected && (
           <View
             style={{
@@ -145,8 +135,6 @@ export function RestaurantMapMarker({
             }}
           />
         )}
-
-        {/* Mid aura ring */}
         <View
           style={{
             position: 'absolute',
@@ -158,8 +146,6 @@ export function RestaurantMapMarker({
             backgroundColor: isSelected ? markerColor + '28' : markerColor + '1A',
           }}
         />
-
-        {/* Inner aura — carries the shadow for iOS glow */}
         <View
           style={{
             position: 'absolute',
@@ -169,16 +155,17 @@ export function RestaurantMapMarker({
             height: aura2H,
             borderRadius: pillCorner + 5,
             backgroundColor: isSelected ? markerColor + '38' : markerColor + '22',
-            ...neonGlowShadow,
+            shadowColor: markerColor,
+            shadowOpacity: isSelected ? 1.0 : 0.9,
+            shadowRadius: isSelected ? 18 : 11,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: isSelected ? 16 : 9,
           }}
         />
 
-        {/* Pill body */}
+        {/* Pill — in normal flow so Android measures the marker correctly */}
         <View
           style={{
-            position: 'absolute',
-            top: pillTop,
-            left: pillLeft,
             width: pillW,
             height: pillH,
             borderRadius: pillCorner,
@@ -190,7 +177,11 @@ export function RestaurantMapMarker({
             justifyContent: 'center',
             gap: 5,
             paddingHorizontal: 9,
-            ...neonGlowShadow,
+            shadowColor: markerColor,
+            shadowOpacity: isSelected ? 1.0 : 0.9,
+            shadowRadius: isSelected ? 18 : 11,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: isSelected ? 16 : 9,
           }}
         >
           <Ionicons
@@ -219,12 +210,9 @@ export function RestaurantMapMarker({
           </Text>
         </View>
 
-        {/* Triangle tip */}
+        {/* Tip triangle — in normal flow, sits immediately below pill */}
         <View
           style={{
-            position: 'absolute',
-            top: tipTop,
-            left: tipLeft,
             width: 0,
             height: 0,
             borderLeftWidth: tipSide,
@@ -233,6 +221,7 @@ export function RestaurantMapMarker({
             borderLeftColor: 'transparent',
             borderRightColor: 'transparent',
             borderTopColor: markerColor,
+            marginTop: -1,
           }}
         />
       </View>

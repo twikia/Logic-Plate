@@ -11,14 +11,19 @@ export type PerformanceMetric = {
   max: 5 | 10;
 };
 
+export const NUTRITION_METRICS: PerformanceMetric[] = [
+  { key: 'calorieScore', label: 'Calories', emoji: '🔥', max: 5 },
+  { key: 'proteinScore', label: 'Protein', emoji: '🥩', max: 5 },
+  { key: 'carbScore', label: 'Carb balance', emoji: '🌾', max: 5 },
+  { key: 'macroFriendlyScore', label: 'Macro-friendly', emoji: '📊', max: 5 },
+];
+
 export const PERFORMANCE_METRICS: PerformanceMetric[] = [
   { key: 'tasteScore', label: 'Taste', emoji: '👅', max: 5 },
   { key: 'valueForMoneyScore', label: 'Value', emoji: '💵', max: 5 },
   { key: 'speedScore', label: 'Speed', emoji: '⚡', max: 5 },
   { key: 'workoutRecoveryScore', label: 'Workout', emoji: '💪', max: 10 },
   { key: 'munchyScore', label: 'Munchy', emoji: '🌙', max: 5 },
-  { key: 'calorieScore', label: 'Calories', emoji: '🔥', max: 5 },
-  { key: 'proteinScore', label: 'Protein', emoji: '🥩', max: 5 },
   { key: 'dateWorthiness', label: 'Date', emoji: '💕', max: 5 },
   { key: 'soloDinerScore', label: 'Solo', emoji: '🪑', max: 5 },
   { key: 'energySustainScore', label: 'Energy', emoji: '🔋', max: 5 },
