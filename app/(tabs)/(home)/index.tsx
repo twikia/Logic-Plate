@@ -124,12 +124,6 @@ const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
-const DEFAULT_NEON_RING_COLORS: [string, string, string, string] = [
-  NEON_CYAN,
-  '#9400FF',
-  NEON_MAGENTA,
-  NEON_CYAN,
-];
 
 const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
   { bg: 'rgba(0,35,48,0.92)', mark: '#FFFFFF' },
@@ -168,35 +162,6 @@ function HomeNeonTitle({ text, width }: { text: string; width: number }) {
         </SvgText>
       </Svg>
     </View>
-  );
-}
-
-function NeonOutlinePad({
-  borderRadius,
-  neonColors,
-  children,
-}: {
-  borderRadius: number;
-  neonColors: [string, string, string, string];
-  children: React.ReactNode;
-}) {
-  return (
-    <LinearGradient
-      colors={neonColors}
-      start={{ x: 0, y: 1 }}
-      end={{ x: 1, y: 0 }}
-      style={{ borderRadius, padding: 1.5 }}
-    >
-      <View
-        style={{
-          borderRadius: borderRadius - 1.5,
-          backgroundColor: '#000000',
-          overflow: 'hidden',
-        }}
-      >
-        {children}
-      </View>
-    </LinearGradient>
   );
 }
 
@@ -522,7 +487,6 @@ function SpotlightCard({
   onPress: () => void;
 }) {
   const { theme } = useAppTheme();
-  const router = useRouter();
   const place = scored.place;
   const name = place.displayName?.text || 'Unknown';
   const lat = place.location?.latitude;
@@ -555,12 +519,11 @@ function SpotlightCard({
 
   const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
-  const ringColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
   const radarVar = theme.radarVariant ?? 'solid';
-  const btnVariant = theme.buttonVariant ?? 'primary-ghost';
 
   const ty = useSharedValue(0);
   const opacity = useSharedValue(1);
+  const pressScale = useSharedValue(1);
   const panStartY = useSharedValue(0);
 
   const rejectRef = useRef(onReject);
@@ -617,14 +580,18 @@ function SpotlightCard({
       Gesture.Tap()
         .maxDistance(14)
         .maxDuration(280)
-        .onEnd((_e, success) => {
+        .onBegin(() => {
+          pressScale.value = withTiming(0.98, { duration: 80 });
+        })
+        .onFinalize((_e, success) => {
+          pressScale.value = withSpring(1, { damping: 20, stiffness: 300 });
           if (success) runOnJS(firePress)();
         }),
-    [firePress]
+    [firePress, pressScale]
   );
 
   const cardAnim = useAnimatedStyle(() => ({
-    transform: [{ translateY: ty.value }],
+    transform: [{ translateY: ty.value }, { scale: pressScale.value }],
     opacity: opacity.value,
   }));
 
@@ -643,9 +610,17 @@ function SpotlightCard({
           />
         </View>
         <View style={styles.spotlightTitleBlock}>
-          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
-            {name}
-          </Text>
+          <View style={styles.spotlightTitleRow}>
+            <Text style={[styles.spotlightTitle, { color: theme.text, flex: 1 }]} numberOfLines={2}>
+              {name}
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={24}
+              color={neonUi ? NEON_CYAN : theme.accent}
+              style={styles.spotlightChevron}
+            />
+          </View>
           <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
             {formatDistance(Math.round(place.distanceMeters ?? 0))}
             {` \u00b7 ${formatWalkingTime(Math.round(place.distanceMeters ?? 0))}`}
@@ -670,99 +645,40 @@ function SpotlightCard({
     </>
   );
 
-  const cardActions = (
-    <View style={styles.spotlightActionsCol}>
-      <View style={styles.spotlightActions}>
-        {neonUi ? (
-          <>
-            <TouchableOpacity style={{ flex: 1 }} onPress={onPress} activeOpacity={0.88}>
-              <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
-                <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
-                  <Ionicons name="information-circle-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>Details</Text>
-                </View>
-              </NeonOutlinePad>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[!mapsReady && styles.spotlightActionDisabled, { flex: 1 }]}
-              onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
-              disabled={!mapsReady}
-              activeOpacity={0.88}
-            >
-              <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
-                <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
-                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
-                  <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
-                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                  </Text>
-                </View>
-              </NeonOutlinePad>
-            </TouchableOpacity>
-          </>
-        ) : btnVariant === 'outline-outline' ? (
-          <>
-            <TouchableOpacity
-              style={[styles.spotlightAction, styles.spotlightActionGhostBase, { backgroundColor: 'transparent', borderColor: theme.cardBorderColor }]}
-              onPress={onPress}
-            >
-              <Ionicons name="information-circle-outline" size={16} color={theme.text} />
-              <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>Details</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.spotlightAction, styles.spotlightActionGhostBase, { backgroundColor: 'transparent', borderColor: theme.cardBorderColor }, !mapsReady && styles.spotlightActionDisabled]}
-              onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
-            >
-              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
-              <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
-                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={[styles.spotlightAction, styles.spotlightActionPrimaryBase, { backgroundColor: theme.accent }]}
-              onPress={onPress}
-            >
-              <Ionicons name="information-circle-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.spotlightActionText} numberOfLines={1}>Details</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.spotlightAction, styles.spotlightActionGhostBase, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }, !mapsReady && styles.spotlightActionDisabled]}
-              onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
-            >
-              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.accent} />
-              <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
-                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-      <TouchableOpacity
-        style={[styles.spotlightFindMapBtn, !mapsReady && styles.spotlightActionDisabled]}
-        onPress={() => { if (!mapsReady) return; router.push('/(tabs)/map'); }}
-        disabled={!mapsReady}
-        activeOpacity={0.75}
-      >
-        <Ionicons name="map-outline" size={12} color={neonUi ? 'rgba(0,255,255,0.7)' : theme.subtext} />
-        <Text style={[styles.spotlightFindMapText, { color: neonUi ? 'rgba(0,255,255,0.7)' : theme.subtext }]}>
-          Find on local map
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-
   const cardInner = (
     <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
       <NeonBorderCard borderRadius={26}>
         <View style={styles.spotlightPressLayer}>
-          <GestureDetector
-            gesture={Gesture.Exclusive(panGesture, tapGesture)}
-          >
+          <GestureDetector gesture={Gesture.Exclusive(panGesture, tapGesture)}>
             <View>{cardBody}</View>
           </GestureDetector>
-          {cardActions}
+          <TouchableOpacity
+            style={[
+              styles.spotlightMapsBtn,
+              neonUi
+                ? { backgroundColor: 'rgba(0,255,255,0.14)', borderColor: NEON_CYAN }
+                : { backgroundColor: theme.accent, borderColor: theme.accent },
+              !mapsReady && styles.spotlightMapsBtnDisabled,
+            ]}
+            onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
+            disabled={!mapsReady}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
+              size={22}
+              color={neonUi ? NEON_CYAN : '#FFFFFF'}
+            />
+            <Text
+              style={[
+                styles.spotlightMapsBtnText,
+                { color: neonUi ? NEON_CYAN : '#FFFFFF' },
+              ]}
+              numberOfLines={1}
+            >
+              {Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </NeonBorderCard>
     </Animated.View>
@@ -1210,6 +1126,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 6,
   },
+  spotlightTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  spotlightChevron: {
+    flexShrink: 0,
+    marginTop: 2,
+  },
   spotlightTitle: {
     fontSize: 23,
     lineHeight: 28,
@@ -1224,16 +1149,26 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   radarBlock: { width: '100%', marginTop: 0, overflow: 'visible' },
-  spotlightActionsCol: { gap: 8, marginTop: 4 },
-  spotlightActions: { flexDirection: 'row', gap: 10 },
-  spotlightFindMapBtn: {
+  spotlightMapsBtn: {
+    alignSelf: 'center',
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 5,
+    gap: 10,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
   },
-  spotlightFindMapText: { fontSize: 11, fontWeight: '600' },
+  spotlightMapsBtnDisabled: { opacity: 0.45 },
+  spotlightMapsBtnText: { fontSize: 17, fontWeight: '800' },
   dotsBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1243,33 +1178,4 @@ const styles = StyleSheet.create({
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
   dotActive: { width: 9, height: 9, borderRadius: 4.5 },
-  spotlightActionInnerNeon: {
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  spotlightActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  spotlightActionTextNeon: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  spotlightAction: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  spotlightActionPrimaryBase: {},
-  spotlightActionGhostBase: { borderWidth: 1 },
-  spotlightActionDisabled: { opacity: 0.45 },
-  spotlightActionText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
 });

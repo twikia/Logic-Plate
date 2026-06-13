@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
 import { isOpenNow } from '@/core/isOpenNow';
+import { getLocation } from '@/core/locationCache';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -54,6 +55,34 @@ function isProbablyOpen(r: QuickVoteRestaurant): boolean {
   return isOpenNow(r);
 }
 
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const R = 6371e3;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function enrichWithDistance(
+  restaurants: QuickVoteRestaurant[],
+  userLat: number,
+  userLng: number
+): QuickVoteRestaurant[] {
+  return restaurants.map((r) => {
+    const lat = r.location?.latitude;
+    const lng = r.location?.longitude;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return r;
+    return {
+      ...r,
+      distanceMeters: haversineDistance(userLat, userLng, lat, lng),
+    };
+  });
+}
+
 export async function loadCachedRestaurants(): Promise<QuickVoteRestaurant[]> {
   const keys = await AsyncStorage.getAllKeys();
   const cellKeys = keys.filter((k) => k.startsWith('cell_'));
@@ -81,7 +110,10 @@ export async function loadCachedRestaurants(): Promise<QuickVoteRestaurant[]> {
   }
 
   const ai = await getCachedAiOverviewsForPlaces(all);
-  return mergeAiOverviewsOntoPlaces(all, ai);
+  const merged = mergeAiOverviewsOntoPlaces(all, ai);
+  const loc = await getLocation();
+  if (loc) return enrichWithDistance(merged, loc.latitude, loc.longitude);
+  return merged;
 }
 
 export function pickQuickVoteRestaurants(all: QuickVoteRestaurant[]): QuickVoteRestaurant[] {

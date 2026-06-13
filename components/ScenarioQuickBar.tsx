@@ -160,20 +160,15 @@ export function ScenarioQuickBar() {
     const neon = Boolean(theme.neonColors);
     const neonColors = theme.neonColors;
     return SCENARIO_TRIPLE.map((scenario, i) => {
-      const inner = (
-        <>
-          <Text style={styles.emoji}>{SCENARIO_EMOJIS[scenario]}</Text>
-          <Text style={[styles.label, { color: theme.text }]} numberOfLines={1}>
-            {SCENARIO_LABELS[scenario]}
-          </Text>
-        </>
+      const circleInner = (
+        <Text style={styles.emoji}>{SCENARIO_EMOJIS[scenario]}</Text>
       );
       return (
         <TouchableOpacity
           key={`${i}-${scenario}`}
           activeOpacity={0.82}
           delayPressIn={PRESS_IN_DELAY_MS}
-          style={neon ? styles.chipNeonOuter : undefined}
+          style={styles.chipWrap}
           onPress={() => {
             router.push({ pathname: '/random', params: { scenario } });
           }}
@@ -183,30 +178,33 @@ export function ScenarioQuickBar() {
               colors={neonColors}
               start={{ x: 0, y: 1 }}
               end={{ x: 1, y: 0 }}
-              style={styles.chipNeonGrad}
+              style={styles.circleNeonGrad}
             >
               <View
                 style={[
-                  styles.chipNeonInner,
+                  styles.circleNeonInner,
                   { backgroundColor: theme.cardBackground },
                 ]}
               >
-                {inner}
+                {circleInner}
               </View>
             </LinearGradient>
           ) : (
             <View
               style={[
-                styles.chip,
+                styles.circle,
                 {
                   backgroundColor: theme.glassBackground,
                   borderColor: theme.cardBorderColor,
                 },
               ]}
             >
-              {inner}
+              {circleInner}
             </View>
           )}
+          <Text style={[styles.label, { color: theme.text }]} numberOfLines={2}>
+            {SCENARIO_LABELS[scenario]}
+          </Text>
         </TouchableOpacity>
       );
     });
@@ -255,41 +253,49 @@ export function ScenarioQuickBar() {
   );
 }
 
+const CIRCLE_SIZE = 52;
+
 const styles = StyleSheet.create({
   wrap: { marginHorizontal: -4 },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    alignItems: 'flex-start',
+    gap: 12,
     paddingVertical: 4,
     paddingHorizontal: 4,
     paddingRight: 56,
   },
-  chip: {
-    flexDirection: 'row',
+  chipWrap: {
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 20,
+    width: 72,
+    gap: 6,
+  },
+  circle: {
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
+    borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipNeonOuter: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  chipNeonGrad: {
-    borderRadius: 20,
+  circleNeonGrad: {
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
+    borderRadius: CIRCLE_SIZE / 2,
     padding: 1,
   },
-  chipNeonInner: {
-    borderRadius: 19,
-    flexDirection: 'row',
+  circleNeonInner: {
+    flex: 1,
+    borderRadius: CIRCLE_SIZE / 2 - 1,
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    justifyContent: 'center',
   },
-  emoji: { fontSize: 18 },
-  label: { fontSize: 14, fontWeight: '700', maxWidth: 140 },
+  emoji: { fontSize: 22 },
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 14,
+    width: '100%',
+  },
 });

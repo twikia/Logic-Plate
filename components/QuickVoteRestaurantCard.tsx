@@ -60,8 +60,8 @@ export function QuickVoteRestaurantCard({
   const lng = r.location?.longitude;
   const metaParts: string[] = [];
   if (typeof r.rating === 'number') metaParts.push(`${r.rating.toFixed(1)} ★`);
-  if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
   if (cost) metaParts.push(cost);
+  if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
 
   return (
     <TouchableOpacity

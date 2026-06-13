@@ -1,6 +1,8 @@
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { Redirect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
+  BackHandler,
   Linking,
   ScrollView,
   StyleSheet,
@@ -22,6 +24,7 @@ import {
 export default function QuickVoteWinnerScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const navigation = useNavigation();
   const raw = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const imgW = Math.min(width - 40, 400);
@@ -47,6 +50,31 @@ export default function QuickVoteWinnerScreen() {
     return { winner: w, restaurants: restaurantsList, votes: votesObj };
   }, [restaurantsJson, votesJson, winnerJson]);
 
+  const exitToGroups = useCallback(() => {
+    router.replace('/groups');
+  }, [router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        exitToGroups();
+        return true;
+      });
+      return () => sub.remove();
+    }, [exitToGroups])
+  );
+
+  useEffect(() => {
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      const type = e.data.action.type;
+      if (type === 'GO_BACK' || type === 'POP') {
+        e.preventDefault();
+        exitToGroups();
+      }
+    });
+    return unsub;
+  }, [exitToGroups, navigation]);
+
   if (!restaurants.length) {
     return <Redirect href="/groups/quick" />;
   }
@@ -69,7 +97,7 @@ export default function QuickVoteWinnerScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
+        <TouchableOpacity onPress={exitToGroups} hitSlop={12}>
           <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
       </View>

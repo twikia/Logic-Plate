@@ -109,7 +109,7 @@ export default function QuickVoteSetupScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={[styles.pickerHint, { color: theme.subtext }]}>
-                {MIN_VOTERS}–{MAX_VOTERS} people pass the phone in order.
+                Pass the phone and vote.
               </Text>
               <TouchableOpacity
                 style={[styles.startBtn, { backgroundColor: theme.accent }]}
