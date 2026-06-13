@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,7 @@ type PickRow = QuickVoteRestaurant & { groupScore?: number };
 export default function GroupVoteScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const navigation = useNavigation();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string; responseId?: string }>();
   const sessionId = typeof params.sessionId === 'string' ? params.sessionId : '';
@@ -34,8 +35,13 @@ export default function GroupVoteScreen() {
   const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [tallies, setTallies] = useState<Record<string, number>>({});
   const [hasVoted, setHasVoted] = useState(false);
+  const [votedForId, setVotedForId] = useState<string | null>(null);
+  const [responseCount, setResponseCount] = useState(0);
+  const hasAutoEnded = useRef(false);
+  const normalExit = useRef(false);
 
   const goWinner = useCallback(() => {
+    normalExit.current = true;
     router.replace({ pathname: '/groups/winner', params: { sessionId } });
   }, [router, sessionId]);
 
@@ -43,6 +49,22 @@ export default function GroupVoteScreen() {
     () => Boolean(user?.id && hostUserId && user.id === hostUserId),
     [hostUserId, user?.id]
   );
+
+  const endVoting = useCallback(async () => {
+    if (!sessionId) return;
+    const { error } = await supabase
+      .from('group_sessions')
+      .update({ status: 'complete' })
+      .eq('id', sessionId);
+    if (error) {
+      Alert.alert(
+        'Could not end voting',
+        `${error.message}${error.code ? ` (${error.code})` : ''}`
+      );
+      return;
+    }
+    goWinner();
+  }, [goWinner, sessionId]);
 
   const loadSessionAndVotes = useCallback(async () => {
     if (!sessionId) return;
@@ -70,6 +92,13 @@ export default function GroupVoteScreen() {
       next[v.place_id] = (next[v.place_id] ?? 0) + 1;
     });
     setTallies(next);
+
+    const { count } = await supabase
+      .from('group_responses')
+      .select('*', { count: 'exact', head: true })
+      .eq('session_id', sessionId);
+    setResponseCount(count ?? 0);
+
     setLoading(false);
   }, [goWinner, sessionId]);
 
@@ -83,12 +112,39 @@ export default function GroupVoteScreen() {
     });
     const chS = subscribeToSessionStatus(sessionId, (status) => {
       if (status === 'complete') goWinner();
+      if (status === 'expired') router.replace('/groups');
     });
     return () => {
       supabase.removeChannel(chV);
       supabase.removeChannel(chS);
     };
-  }, [goWinner, loadSessionAndVotes, sessionId]);
+  }, [goWinner, loadSessionAndVotes, router, sessionId]);
+
+  const totalVotesCast = useMemo(
+    () => Object.values(tallies).reduce((a, b) => a + b, 0),
+    [tallies]
+  );
+
+  useEffect(() => {
+    if (
+      !hasAutoEnded.current &&
+      responseCount > 0 &&
+      totalVotesCast >= responseCount
+    ) {
+      hasAutoEnded.current = true;
+      void endVoting();
+    }
+  }, [endVoting, responseCount, totalVotesCast]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    const unsub = navigation.addListener('beforeRemove', () => {
+      if (!normalExit.current && sessionId) {
+        void supabase.from('group_sessions').update({ status: 'expired' }).eq('id', sessionId);
+      }
+    });
+    return unsub;
+  }, [isHost, navigation, sessionId]);
 
   const castVote = async (placeId: string) => {
     if (!sessionId || hasVoted) return;
@@ -105,19 +161,7 @@ export default function GroupVoteScreen() {
       return;
     }
     setHasVoted(true);
-  };
-
-  const endVoting = async () => {
-    if (!sessionId) return;
-    const { error } = await supabase.from('group_sessions').update({ status: 'complete' }).eq('id', sessionId);
-    if (error) {
-      Alert.alert(
-        'Could not end voting',
-        `${error.message}${error.code ? ` (${error.code})` : ''}`
-      );
-      return;
-    }
-    goWinner();
+    setVotedForId(placeId);
   };
 
   if (!sessionId) return null;
@@ -125,15 +169,33 @@ export default function GroupVoteScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <ActivityIndicator color={theme.accent} style={{ marginTop: 48 }} />
+        <View style={styles.center}>
+          <ActivityIndicator color={theme.accent} size="large" />
+          <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading restaurants…</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-      <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
-      <ScrollView contentContainerStyle={styles.list}>
+      <View style={styles.topRow}>
+        <View>
+          <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
+          <Text style={[styles.subHeader, { color: theme.subtext }]}>
+            {hasVoted ? 'Your vote is in ✓' : 'Tap a card to expand, then vote →'}
+          </Text>
+        </View>
+        {isHost ? (
+          <TouchableOpacity
+            style={[styles.endBtn, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '44' }]}
+            onPress={() => void endVoting()}>
+            <Text style={[styles.endBtnText, { color: theme.subtext }]}>End</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {picks.map((r) => {
           const votes = tallies[r.id] ?? 0;
           const maxT = Math.max(...Object.values(tallies), 1);
@@ -143,51 +205,60 @@ export default function GroupVoteScreen() {
               key={r.id}
               restaurant={r}
               theme={theme}
-              onVote={() => void castVote(r.id)}
+              onVote={hasVoted ? undefined : () => void castVote(r.id)}
+              voted={votedForId === r.id}
               belowOverview={
-                <View>
+                <View style={styles.voteMeta}>
                   {typeof r.groupScore === 'number' ? (
                     <Text style={[styles.match, { color: theme.accent }]}>
                       Group match {r.groupScore}
                     </Text>
                   ) : null}
-                  <View style={[styles.barOuter, { backgroundColor: theme.buttonBackground }]}>
-                    <View style={[styles.barInner, { width: `${barW}%`, backgroundColor: theme.accent }]} />
+                  <View style={[styles.barOuter, { backgroundColor: theme.gradient[0] }]}>
+                    <View
+                      style={[styles.barInner, { width: `${barW}%`, backgroundColor: theme.accent }]}
+                    />
                   </View>
-                  <Text style={[styles.votesMeta, { color: theme.subtext }]}>{votes} votes</Text>
+                  <Text style={[styles.votesMeta, { color: theme.subtext }]}>
+                    {votes} {votes === 1 ? 'vote' : 'votes'}
+                  </Text>
                 </View>
               }
             />
           );
         })}
+        <View style={{ height: 20 }} />
       </ScrollView>
-      {isHost ? (
-        <TouchableOpacity
-          style={[styles.hostBtn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => void endVoting()}>
-          <Text style={[styles.hostBtnText, { color: theme.text }]}>End voting</Text>
-        </TouchableOpacity>
-      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: { fontSize: 20, fontWeight: '800', paddingHorizontal: 16, marginTop: 12 },
-  list: { padding: 16, gap: 14, paddingBottom: 100 },
-  match: { fontSize: 14, fontWeight: '700', marginTop: 6 },
-  barOuter: { height: 8, borderRadius: 4, marginTop: 8, overflow: 'hidden' },
-  barInner: { height: '100%', borderRadius: 4 },
-  votesMeta: { fontSize: 12, marginTop: 4 },
-  hostBtn: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 15 },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  hostBtnText: { fontWeight: '800', fontSize: 16 },
+  header: { fontSize: 22, fontWeight: '800' },
+  subHeader: { fontSize: 13, marginTop: 3 },
+  endBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  endBtnText: { fontSize: 13, fontWeight: '700' },
+  list: { paddingHorizontal: 16, paddingTop: 4, gap: 12, paddingBottom: 40 },
+  voteMeta: { marginTop: 10 },
+  match: { fontSize: 13, fontWeight: '700', marginBottom: 6 },
+  barOuter: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  barInner: { height: '100%', borderRadius: 3 },
+  votesMeta: { fontSize: 12, marginTop: 5 },
 });

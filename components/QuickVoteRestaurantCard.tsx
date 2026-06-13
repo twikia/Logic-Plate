@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { RestaurantImage } from '@/core/images';
@@ -33,6 +33,7 @@ type Props = {
   restaurant: QuickVoteRestaurant;
   theme: ThemeColors;
   onVote?: () => void;
+  voted?: boolean;
   showThumbnail?: boolean;
   hideTitle?: boolean;
   belowOverview?: React.ReactNode;
@@ -42,31 +43,38 @@ export function QuickVoteRestaurantCard({
   restaurant: r,
   theme,
   onVote,
+  voted = false,
   showThumbnail = true,
   hideTitle = false,
   belowOverview,
 }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const { formatDistance } = useDistanceFormatter();
   const health = healthScoreOf(r);
   const healthPct = health != null ? Math.max(0, Math.min(100, (health / 10) * 100)) : 0;
   const overview = aiOverviewBody(r);
   const vibeLine = oneLineVibe(r);
-  const cost = formatRestaurantCostLabel(r);
+  const cost = formatRestaurantCostLabel(r as never);
   const name = r.displayName?.text ?? 'Restaurant';
   const lat = r.location?.latitude;
   const lng = r.location?.longitude;
   const metaParts: string[] = [];
-  if (typeof r.rating === 'number') metaParts.push(`Rating ${r.rating.toFixed(1)} ★`);
+  if (typeof r.rating === 'number') metaParts.push(`${r.rating.toFixed(1)} ★`);
   if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
   if (cost) metaParts.push(cost);
 
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={() => setExpanded((prev) => !prev)}
       style={[
         styles.card,
-        { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '22' },
+        {
+          backgroundColor: theme.cardBackground,
+          borderColor: expanded ? theme.accent + '55' : theme.subtext + '22',
+        },
       ]}>
-      <View style={[styles.cardRow, !showThumbnail && styles.cardRowStack]}>
+      <View style={styles.headerRow}>
         {showThumbnail ? (
           <RestaurantImage
             restaurantId={r.id}
@@ -78,90 +86,121 @@ export function QuickVoteRestaurantCard({
             websiteUrl={(r as { websiteUri?: string }).websiteUri}
             formattedAddress={r.formattedAddress}
             cuisineKey={r.primaryType?.replace(/_restaurant$/, '')}
-            width={72}
-            height={72}
+            width={68}
+            height={68}
             borderRadius={12}
           />
         ) : null}
-        <View style={[styles.cardBody, !showThumbnail && styles.cardBodyFull]}>
+        <View style={styles.infoCol}>
           {!hideTitle ? (
             <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>
-              {r.displayName?.text ?? 'Restaurant'}
+              {name}
             </Text>
           ) : null}
-          <View style={styles.healthRow}>
-            <Text style={[styles.healthLabel, { color: theme.subtext }]}>Health</Text>
-            <View style={[styles.healthBar, { backgroundColor: theme.subtext + '18' }]}>
-              {health != null ? (
+          {metaParts.length > 0 ? (
+            <Text style={[styles.meta, { color: theme.subtext }]}>
+              {metaParts.join('  ·  ')}
+            </Text>
+          ) : null}
+          <Text style={[styles.expandHint, { color: theme.accent }]}>
+            {expanded ? 'Less ▲' : 'Details ▾'}
+          </Text>
+        </View>
+        {onVote ? (
+          <TouchableOpacity
+            onPress={onVote}
+            hitSlop={8}
+            style={[
+              styles.voteBox,
+              {
+                borderColor: voted ? theme.accent : theme.subtext + '55',
+                backgroundColor: voted ? theme.accent + '33' : 'transparent',
+              },
+            ]}>
+            {voted ? (
+              <Text style={[styles.voteCheck, { color: theme.accent }]}>✓</Text>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {expanded ? (
+        <View style={styles.expandedContent}>
+          <View style={[styles.divider, { backgroundColor: theme.subtext + '22' }]} />
+          {health != null ? (
+            <View style={styles.healthRow}>
+              <Text style={[styles.healthLabel, { color: theme.subtext }]}>Health</Text>
+              <View style={[styles.healthBar, { backgroundColor: theme.subtext + '18' }]}>
                 <View
                   style={[styles.healthFill, { width: `${healthPct}%`, backgroundColor: '#4CD964' }]}
                 />
-              ) : null}
+              </View>
+              <Text style={[styles.healthValue, { color: theme.tint }]}>
+                {health.toFixed(1)}/10
+              </Text>
             </View>
-            <Text
-              style={[
-                styles.healthValue,
-                { color: health != null ? theme.tint : theme.subtext },
-              ]}>
-              {health != null ? `${health.toFixed(1)}/10` : '—'}
-            </Text>
-          </View>
-          <Text style={[styles.meta, { color: theme.subtext }]}>
-            {metaParts.length > 0 ? metaParts.join('  ·  ') : 'Rating —'}
-          </Text>
-          <Text style={[styles.sectionLabel, { color: theme.text }]}>AI overview</Text>
-          <Text style={[styles.overview, { color: theme.subtext }]}>
-            {overview || 'No overview yet for this place.'}
-          </Text>
-          {belowOverview}
-          {!overview && vibeLine ? (
-            <Text style={[styles.vibe, { color: theme.subtext }]} numberOfLines={3}>
+          ) : null}
+          {overview ? (
+            <>
+              <Text style={[styles.sectionLabel, { color: theme.subtext }]}>AI overview</Text>
+              <Text style={[styles.overview, { color: theme.text }]}>{overview}</Text>
+            </>
+          ) : vibeLine ? (
+            <Text style={[styles.vibe, { color: theme.subtext }]} numberOfLines={4}>
               {vibeLine}
             </Text>
           ) : null}
-          {onVote ? (
-            <TouchableOpacity
-              style={[styles.voteBtn, { backgroundColor: theme.accent }]}
-              onPress={onVote}>
-              <Text style={[styles.voteBtnText, { color: theme.text }]}>Vote for this</Text>
-            </TouchableOpacity>
-          ) : null}
+          {belowOverview}
         </View>
-      </View>
-    </View>
+      ) : null}
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
     borderWidth: 1,
   },
-  cardRow: { flexDirection: 'row', gap: 12 },
-  cardRowStack: { flexDirection: 'column' },
-  cardBody: { flex: 1, minWidth: 0 },
-  cardBodyFull: { width: '100%' },
-  name: { fontSize: 17, fontWeight: '700' },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  name: { fontSize: 16, fontWeight: '700', lineHeight: 21 },
+  meta: { fontSize: 13, marginTop: 2 },
+  expandHint: { fontSize: 12, fontWeight: '600', marginTop: 4 },
+  voteBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  voteCheck: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
+  expandedContent: {
+    marginTop: 12,
+  },
+  divider: { height: 1, marginBottom: 12 },
   healthRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 10,
+    marginBottom: 10,
   },
   healthLabel: { fontSize: 12, fontWeight: '600', width: 48 },
   healthBar: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
   healthFill: { height: '100%', borderRadius: 2 },
   healthValue: { fontSize: 11, fontWeight: '700', minWidth: 36, textAlign: 'right' },
-  meta: { fontSize: 13, marginTop: 8 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', marginTop: 12 },
-  overview: { fontSize: 14, marginTop: 4, lineHeight: 20 },
-  vibe: { fontSize: 14, marginTop: 4, lineHeight: 20 },
-  voteBtn: {
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  voteBtnText: { fontWeight: '700', fontSize: 16 },
+  sectionLabel: { fontSize: 12, fontWeight: '700', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  overview: { fontSize: 14, lineHeight: 21 },
+  vibe: { fontSize: 14, lineHeight: 21 },
 });

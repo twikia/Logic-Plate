@@ -1,9 +1,10 @@
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   LayoutAnimation,
   Platform,
   ScrollView,
@@ -37,11 +38,13 @@ type SessionRow = {
   code: string;
   status: string;
   host_user_id: string | null;
+  expires_at?: string;
 };
 
 export default function GroupLobbyScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const navigation = useNavigation();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode = (params.mode ?? 'code') as GroupMode;
@@ -52,7 +55,18 @@ export default function GroupLobbyScreen() {
   const [responses, setResponses] = useState<{ id: string; voter_name: string }[]>([]);
   const [reconciling, setReconciling] = useState(false);
 
+  const normalExit = useRef(false);
+  const sessionRef = useRef<SessionRow | null>(null);
+
   const appSecret = process.env.EXPO_PUBLIC_APP_SECRET ?? '';
+
+  const endSession = useCallback(async (id: string) => {
+    await supabase.from('group_sessions').update({ status: 'expired' }).eq('id', id);
+  }, []);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +113,39 @@ export default function GroupLobbyScreen() {
       cancelled = true;
     };
   }, [appSecret, mode, user?.id]);
+
+  useEffect(() => {
+    if (!session?.expires_at) return;
+    const ms = new Date(session.expires_at).getTime() - Date.now();
+    if (ms <= 0) return;
+    const t = setTimeout(() => {
+      if (!normalExit.current && sessionRef.current?.id) {
+        void endSession(sessionRef.current.id);
+        setError('Session timed out.');
+      }
+    }, ms);
+    return () => clearTimeout(t);
+  }, [endSession, session?.expires_at]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if ((next === 'background' || next === 'inactive') && !normalExit.current) {
+        const id = sessionRef.current?.id;
+        if (id) void endSession(id);
+      }
+    });
+    return () => sub.remove();
+  }, [endSession]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('beforeRemove', () => {
+      if (!normalExit.current) {
+        const id = sessionRef.current?.id;
+        if (id) void endSession(id);
+      }
+    });
+    return unsub;
+  }, [endSession, navigation]);
 
   const sessionId = session?.id;
 
@@ -177,6 +224,7 @@ export default function GroupLobbyScreen() {
     }
     const hostResponseId =
       (await AsyncStorage.getItem(`host_response_${sessionId}`)) ?? '';
+    normalExit.current = true;
     router.replace({
       pathname: '/groups/vote',
       params: { sessionId, responseId: hostResponseId },
@@ -189,85 +237,113 @@ export default function GroupLobbyScreen() {
   );
   const qrValue = session?.code ? `${voteBaseUrl}/vote/${session.code}` : '';
 
-  const progress = Math.min(1, responses.length / Math.max(2, responses.length || 1));
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>← Back</Text>
         </TouchableOpacity>
+        <Text style={[styles.topTitle, { color: theme.text }]}>New Session</Text>
+        <View style={{ width: 60 }} />
       </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={[styles.loadingText, { color: theme.subtext }]}>Creating session…</Text>
         </View>
       ) : error ? (
         <ScrollView contentContainerStyle={styles.center}>
           <Text style={[styles.err, { color: theme.text }]}>{error}</Text>
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={[styles.title, { color: theme.text }]}>Share with your group</Text>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.title, { color: theme.text }]}>Invite your group</Text>
+          <Text style={[styles.subtitle, { color: theme.subtext }]}>
+            Share the code or QR so everyone can join
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.codeBlock, { backgroundColor: theme.cardBackground, borderColor: theme.accent + '44' }]}
+            onPress={copyCode}
+            activeOpacity={0.8}>
+            <Text style={[styles.codeSmall, { color: theme.subtext }]}>SESSION CODE</Text>
+            <Text style={[styles.codeBig, { color: theme.accent }]}>{codeDisplay}</Text>
+            <Text style={[styles.tapCopy, { color: theme.subtext }]}>Tap to copy</Text>
+          </TouchableOpacity>
 
           {mode === 'qr' && qrValue ? (
             <View style={[styles.qrBox, { backgroundColor: '#fff' }]}>
-              <QRCode value={qrValue} size={220} />
+              <QRCode value={qrValue} size={200} />
             </View>
           ) : null}
 
-          {mode === 'passphone' ? (
+          <View style={styles.actionRow}>
+            {mode === 'passphone' ? (
+              <TouchableOpacity
+                style={[styles.halfBtn, { backgroundColor: theme.accent }]}
+                onPress={addGuestHere}>
+                <Text style={[styles.halfBtnText, { color: theme.gradient[0] }]}>Pass phone</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
-              style={[styles.addGuest, { backgroundColor: theme.accent }]}
-              onPress={addGuestHere}>
-              <Text style={[styles.addGuestText, { color: theme.text }]}>Add someone here</Text>
+              style={[
+                styles.halfBtn,
+                { backgroundColor: theme.cardBackground, borderColor: theme.accent + '55', borderWidth: 1.5 },
+                mode !== 'passphone' && { flex: 1 },
+              ]}
+              onPress={answerForMyself}>
+              <Text style={[styles.halfBtnText, { color: theme.accent }]}>Answer for myself</Text>
             </TouchableOpacity>
-          ) : null}
+            <TouchableOpacity
+              style={[styles.halfBtn, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '33', borderWidth: 1.5 }]}
+              onPress={shareCode}>
+              <Text style={[styles.halfBtnText, { color: theme.text }]}>Share link</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={[styles.addGuest, { backgroundColor: theme.cardBackground }]}
-            onPress={answerForMyself}>
-            <Text style={[styles.addGuestText, { color: theme.text }]}>Answer for myself</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={copyCode} activeOpacity={0.8}>
-            <Text style={[styles.codeLabel, { color: theme.subtext }]}>Code</Text>
-            <Text style={[styles.codeBig, { color: theme.text }]}>{codeDisplay}</Text>
-            <Text style={[styles.tapCopy, { color: theme.accent }]}>Tap to copy</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.shareBtn, { backgroundColor: theme.cardBackground }]}
-            onPress={shareCode}>
-            <Text style={[styles.shareBtnText, { color: theme.text }]}>Share Code</Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.waitingTitle, { color: theme.text }]}>Waiting for responses</Text>
-          {responses.map((r) => (
-            <View key={r.id} style={styles.voterRow}>
-              <Text style={{ color: theme.accent }}>●</Text>
-              <Text style={[styles.voterName, { color: theme.text }]}>{r.voter_name}</Text>
-              <Text style={{ color: theme.accent }}>✓</Text>
+          <View style={[styles.responsesBox, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.waitingTitle, { color: theme.text }]}>
+              Responses
+              <Text style={[styles.responseCount, { color: theme.accent }]}>
+                {' '}{responses.length}
+              </Text>
+            </Text>
+            {responses.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.subtext }]}>
+                Waiting for the first response…
+              </Text>
+            ) : null}
+            {responses.map((r) => (
+              <View key={r.id} style={styles.voterRow}>
+                <View style={[styles.voterDot, { backgroundColor: theme.accent }]} />
+                <Text style={[styles.voterName, { color: theme.text }]}>{r.voter_name}</Text>
+                <Text style={{ color: theme.accent, fontSize: 14 }}>✓</Text>
+              </View>
+            ))}
+            <View style={[styles.progTrack, { backgroundColor: theme.gradient[0] }]}>
+              <View
+                style={[
+                  styles.progFill,
+                  {
+                    width: responses.length >= 2 ? '100%' : `${(responses.length / 2) * 100}%`,
+                    backgroundColor: theme.accent,
+                  },
+                ]}
+              />
             </View>
-          ))}
-          {responses.length === 0 ? (
-            <Text style={{ color: theme.subtext }}>No responses yet.</Text>
-          ) : null}
-
-          <Text style={[styles.countLine, { color: theme.subtext }]}>
-            {responses.length} response{responses.length === 1 ? '' : 's'}
-          </Text>
-          <View style={[styles.progTrack, { backgroundColor: theme.cardBackground }]}>
-            <View
-              style={[styles.progFill, { width: `${progress * 100}%`, backgroundColor: theme.accent }]}
-            />
+            <Text style={[styles.minNote, { color: theme.subtext }]}>
+              {responses.length < 2
+                ? `Need ${2 - responses.length} more to start`
+                : 'Ready to go!'}
+            </Text>
           </View>
 
           <TouchableOpacity
             style={[
               styles.everyone,
               {
-                backgroundColor: responses.length >= 2 ? theme.accent : theme.cardBackground,
+                backgroundColor: responses.length >= 2 ? theme.accent : theme.subtext + '22',
                 opacity: responses.length >= 2 ? 1 : 0.5,
               },
             ]}
@@ -276,7 +352,9 @@ export default function GroupLobbyScreen() {
             {reconciling ? (
               <ActivityIndicator color={theme.text} />
             ) : (
-              <Text style={[styles.everyoneText, { color: theme.text }]}>{"Everyone's in →"}</Text>
+              <Text style={[styles.everyoneText, { color: responses.length >= 2 ? theme.gradient[0] : theme.subtext }]}>
+                {"Everyone's in — Start voting →"}
+              </Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -287,25 +365,56 @@ export default function GroupLobbyScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  topRow: { paddingHorizontal: 16, paddingTop: 4 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  topTitle: { fontSize: 17, fontWeight: '700' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
+  loadingText: { fontSize: 15 },
   err: { textAlign: 'center', fontSize: 16 },
   scroll: { padding: 20, paddingBottom: 48 },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: 16 },
-  qrBox: { alignSelf: 'center', padding: 12, borderRadius: 12, marginBottom: 16 },
-  addGuest: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginBottom: 16 },
-  addGuestText: { fontSize: 17, fontWeight: '700' },
-  codeLabel: { fontSize: 13, marginTop: 8 },
-  codeBig: { fontSize: 36, fontWeight: '800', letterSpacing: 2, marginTop: 4 },
-  tapCopy: { marginTop: 6, fontSize: 14 },
-  shareBtn: { marginTop: 16, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
-  shareBtnText: { fontSize: 16, fontWeight: '700' },
-  waitingTitle: { marginTop: 28, fontSize: 18, fontWeight: '700', marginBottom: 10 },
-  voterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  voterName: { fontSize: 16, fontWeight: '600', flex: 1 },
-  countLine: { marginTop: 12, fontSize: 15 },
-  progTrack: { height: 10, borderRadius: 5, marginTop: 8, overflow: 'hidden' },
-  progFill: { height: '100%', borderRadius: 5 },
-  everyone: { marginTop: 24, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  title: { fontSize: 26, fontWeight: '800', marginBottom: 4 },
+  subtitle: { fontSize: 15, marginBottom: 24 },
+  codeBlock: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    marginBottom: 20,
+  },
+  codeSmall: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
+  codeBig: { fontSize: 44, fontWeight: '800', letterSpacing: 6, marginVertical: 8 },
+  tapCopy: { fontSize: 13 },
+  qrBox: { alignSelf: 'center', padding: 16, borderRadius: 16, marginBottom: 20 },
+  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  halfBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  halfBtnText: { fontSize: 14, fontWeight: '700' },
+  responsesBox: {
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+  },
+  waitingTitle: { fontSize: 17, fontWeight: '800', marginBottom: 12 },
+  responseCount: { fontSize: 17, fontWeight: '800' },
+  emptyText: { fontSize: 14, marginBottom: 12 },
+  voterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 0 },
+  voterDot: { width: 8, height: 8, borderRadius: 4 },
+  voterName: { fontSize: 15, fontWeight: '600', flex: 1 },
+  progTrack: { height: 6, borderRadius: 3, marginTop: 16, overflow: 'hidden' },
+  progFill: { height: '100%', borderRadius: 3 },
+  minNote: { marginTop: 8, fontSize: 13 },
+  everyone: { paddingVertical: 18, borderRadius: 18, alignItems: 'center' },
   everyoneText: { fontSize: 17, fontWeight: '800' },
 });
