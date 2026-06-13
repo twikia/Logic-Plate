@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { supabase } from '@/core/supabaseClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppTheme } from '@/context/ThemeContext';
 
 const DIETARY_OPTIONS: { id: string; label: string }[] = [
@@ -79,7 +80,10 @@ export default function VibeQuestionsScreen() {
         return;
       }
       const responseId = data?.id as string | undefined;
-      if (flow === 'passphone') {
+      if (flow === 'passphone' || flow === 'host') {
+        if (flow === 'host' && responseId) {
+          await AsyncStorage.setItem(`host_response_${sessionId}`, responseId);
+        }
         router.back();
       } else {
         router.replace({

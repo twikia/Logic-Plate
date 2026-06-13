@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -146,6 +147,14 @@ export default function GroupLobbyScreen() {
     });
   };
 
+  const answerForMyself = () => {
+    if (!sessionId) return;
+    router.push({
+      pathname: '/groups/vibe',
+      params: { sessionId, flow: 'host' },
+    });
+  };
+
   const everyoneIn = async () => {
     if (!sessionId || responses.length < 2) return;
     if (!appSecret) {
@@ -166,7 +175,12 @@ export default function GroupLobbyScreen() {
       setError(msg);
       return;
     }
-    router.replace({ pathname: '/groups/vote', params: { sessionId } });
+    const hostResponseId =
+      (await AsyncStorage.getItem(`host_response_${sessionId}`)) ?? '';
+    router.replace({
+      pathname: '/groups/vote',
+      params: { sessionId, responseId: hostResponseId },
+    });
   };
 
   const qrValue = session?.code
@@ -207,6 +221,12 @@ export default function GroupLobbyScreen() {
               <Text style={[styles.addGuestText, { color: theme.text }]}>Add someone here</Text>
             </TouchableOpacity>
           ) : null}
+
+          <TouchableOpacity
+            style={[styles.addGuest, { backgroundColor: theme.cardBackground }]}
+            onPress={answerForMyself}>
+            <Text style={[styles.addGuestText, { color: theme.text }]}>Answer for myself</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity onPress={copyCode} activeOpacity={0.8}>
             <Text style={[styles.codeLabel, { color: theme.subtext }]}>Code</Text>

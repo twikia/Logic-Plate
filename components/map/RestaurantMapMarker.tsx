@@ -4,7 +4,7 @@ import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 
-const PAD = 12;
+const PAD = 18;
 
 const PILL_H = 28;
 const SEL_PILL_H = 34;
@@ -65,13 +65,14 @@ export function RestaurantMapMarker({
   const iconSize = isSelected ? 15 : 12;
   const fontSize = isSelected ? 13 : 11;
   const pillRadius = pillH / 2;
+  const markerOpacity = isOpen ? 1 : 0.62;
 
   useEffect(() => {
     setTracksViewChanges(true);
   }, [scoreText, iconName, isOpen, isSelected, markerColor]);
 
-  const accent = isOpen ? markerColor : '#8B8F98';
-  const pillBg = isOpen ? '#120A1F' : '#1B1B22';
+  const accent = markerColor;
+  const pillBg = '#120A1F';
 
   return (
     <Marker
@@ -88,10 +89,11 @@ export function RestaurantMapMarker({
           paddingHorizontal: PAD,
           alignItems: 'center',
           justifyContent: 'flex-start',
+          overflow: 'visible',
         }}
         collapsable={false}
       >
-        <View style={{ alignItems: 'center' }} collapsable={false}>
+        <View style={{ alignItems: 'center', opacity: markerOpacity, overflow: 'visible' }} collapsable={false}>
           <View
             style={{
               height: pillH,
@@ -103,7 +105,7 @@ export function RestaurantMapMarker({
               alignItems: 'center',
               justifyContent: 'center',
               paddingHorizontal: 9,
-              opacity: isOpen ? 1 : 0.95,
+              overflow: 'visible',
             }}
             collapsable={false}
           >

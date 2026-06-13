@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { RestaurantImage } from '@/core/images';
+import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import type { ThemeColors } from '@/constants/Themes';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import {
@@ -50,6 +51,14 @@ export function QuickVoteRestaurantCard({
   const healthPct = health != null ? Math.max(0, Math.min(100, (health / 10) * 100)) : 0;
   const overview = aiOverviewBody(r);
   const vibeLine = oneLineVibe(r);
+  const cost = formatRestaurantCostLabel(r);
+  const name = r.displayName?.text ?? 'Restaurant';
+  const lat = r.location?.latitude;
+  const lng = r.location?.longitude;
+  const metaParts: string[] = [];
+  if (typeof r.rating === 'number') metaParts.push(`Rating ${r.rating.toFixed(1)} ★`);
+  if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
+  if (cost) metaParts.push(cost);
 
   return (
     <View
@@ -62,6 +71,13 @@ export function QuickVoteRestaurantCard({
           <RestaurantImage
             restaurantId={r.id}
             photos={(r as { photos?: unknown[] }).photos ?? []}
+            photoUrl={r.photo_url}
+            name={name}
+            latitude={lat}
+            longitude={lng}
+            websiteUrl={(r as { websiteUri?: string }).websiteUri}
+            formattedAddress={r.formattedAddress}
+            cuisineKey={r.primaryType?.replace(/_restaurant$/, '')}
             width={72}
             height={72}
             borderRadius={12}
@@ -91,8 +107,7 @@ export function QuickVoteRestaurantCard({
             </Text>
           </View>
           <Text style={[styles.meta, { color: theme.subtext }]}>
-            {typeof r.rating === 'number' ? `Rating ${r.rating.toFixed(1)} ★` : 'Rating —'}
-            {typeof r.distanceMeters === 'number' ? `  ·  ${formatDistance(r.distanceMeters)}` : ''}
+            {metaParts.length > 0 ? metaParts.join('  ·  ') : 'Rating —'}
           </Text>
           <Text style={[styles.sectionLabel, { color: theme.text }]}>AI overview</Text>
           <Text style={[styles.overview, { color: theme.subtext }]}>

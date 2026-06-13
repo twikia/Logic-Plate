@@ -10,6 +10,7 @@ import {
   adjustQuality,
   buildCandidateUrls,
   cacheImageUrl,
+  fetchRestaurantPhotoUrls,
   getCachedImageUrl,
   invalidateCachedImageUrl,
 } from './imageCache';
@@ -44,6 +45,14 @@ interface Props {
   loadDelay?: number;
   /** Border radius */
   borderRadius?: number;
+  /** When photos are empty, fetch from the photo pipeline using place metadata */
+  name?: string;
+  latitude?: number;
+  longitude?: number;
+  websiteUrl?: string;
+  formattedAddress?: string;
+  cuisineKey?: string;
+  photoUrl?: string;
 }
 
 type LoadState = 'waiting' | 'loading' | 'loaded' | 'failed';
@@ -58,25 +67,86 @@ function RestaurantImageInner({
   quality,
   loadDelay = 150,
   borderRadius = 0,
+  name,
+  latitude,
+  longitude,
+  websiteUrl,
+  formattedAddress,
+  cuisineKey,
+  photoUrl,
 }: Props) {
   const [state, setState] = useState<LoadState>('waiting');
   const [activeUri, setActiveUri] = useState<string | null>(null);
+  const [resolvedPhotos, setResolvedPhotos] = useState<any[]>(photos);
   const candidatesRef = useRef<string[]>([]);
   const indexRef = useRef(0);
   const mountedRef = useRef(true);
 
-  // Cleanup on unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Build candidate list + check cache
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPhotos = async () => {
+      const direct = buildCandidateUrls(photos);
+      if (direct.length > 0) {
+        if (!cancelled) setResolvedPhotos(photos);
+        return;
+      }
+      if (photoUrl) {
+        if (!cancelled) setResolvedPhotos([photoUrl]);
+        return;
+      }
+      if (
+        !restaurantId ||
+        !name ||
+        typeof latitude !== 'number' ||
+        typeof longitude !== 'number'
+      ) {
+        if (!cancelled) setResolvedPhotos(photos);
+        return;
+      }
+
+      const urls = await fetchRestaurantPhotoUrls({
+        placeId: restaurantId,
+        name,
+        latitude,
+        longitude,
+        websiteUrl,
+        formattedAddress,
+        cuisineKey,
+      });
+      if (cancelled) return;
+      setResolvedPhotos(urls.length > 0 ? urls : photos);
+    };
+
+    void loadPhotos();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cuisineKey,
+    formattedAddress,
+    latitude,
+    longitude,
+    name,
+    photoUrl,
+    photos,
+    restaurantId,
+    websiteUrl,
+  ]);
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
     const init = async () => {
-      const urls = buildCandidateUrls(photos);
+      const seedPhotos = photoUrl && buildCandidateUrls(resolvedPhotos).length === 0
+        ? [photoUrl, ...resolvedPhotos]
+        : resolvedPhotos;
+      const urls = buildCandidateUrls(seedPhotos);
       const cached = await getCachedImageUrl(restaurantId);
 
       if (urls.length === 0 && !cached) {
@@ -103,7 +173,7 @@ function RestaurantImageInner({
 
     init();
     return () => clearTimeout(timer);
-  }, [restaurantId, photos, width, quality, loadDelay]);
+  }, [loadDelay, photoUrl, quality, resolvedPhotos, restaurantId, width]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 

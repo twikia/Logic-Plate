@@ -9,6 +9,29 @@ function moneyToNumber(m?: Money): number | null {
   return u + nanos;
 }
 
+export function formatPriceLevelLabel(priceLevel?: string | null): string {
+  switch (priceLevel) {
+    case 'PRICE_LEVEL_FREE':
+    case 'PRICE_LEVEL_INEXPENSIVE':
+      return '$';
+    case 'PRICE_LEVEL_MODERATE':
+      return '$$';
+    case 'PRICE_LEVEL_EXPENSIVE':
+      return '$$$';
+    case 'PRICE_LEVEL_VERY_EXPENSIVE':
+      return '$$$$';
+    default:
+      return '';
+  }
+}
+
+export function formatRestaurantCostLabel(place: {
+  priceRange?: { startPrice?: Money; endPrice?: Money };
+  priceLevel?: string | null;
+}): string {
+  return formatPlacePriceLabel(place) || formatPriceLevelLabel(place.priceLevel);
+}
+
 export function formatPlacePriceLabel(place: {
   priceRange?: { startPrice?: Money; endPrice?: Money };
 }): string {

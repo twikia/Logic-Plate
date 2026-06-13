@@ -1,6 +1,14 @@
 'use client';
 
-import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { fetchPhotoUrlsForPlaces } from '@/lib/restaurantPhotos';
+import {
+  formatDistance,
+  formatRestaurantCostLabel,
+  oneLineSummary,
+  pickPhotoUrl,
+  type RestaurantPick,
+} from '@/lib/restaurantDisplay';
+import { getSupabaseBrowserClient, getSupabaseConfigError } from '@/lib/supabase';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -10,17 +18,6 @@ type SessionRow = {
   status: string;
   expires_at: string;
   picks: unknown;
-};
-
-type RestaurantPick = {
-  id: string;
-  displayName?: { text?: string };
-  formattedAddress?: string;
-  location?: { latitude?: number; longitude?: number };
-  rating?: number;
-  gemini_summary?: string;
-  aiOverview?: { summaryGoodBad?: string };
-  groupScore?: number;
 };
 
 const DIETARY: { id: string; label: string }[] = [
@@ -37,18 +34,17 @@ function normCode(raw: string) {
   return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
-function oneLine(r: RestaurantPick) {
-  const raw = r.gemini_summary ?? r.aiOverview?.summaryGoodBad ?? '';
-  const line = raw.split('\n')[0]?.trim() ?? '';
-  return line.length > 120 ? `${line.slice(0, 117)}…` : line;
+function responseStorageKey(sessionId: string) {
+  return `pb_vote_response_${sessionId}`;
 }
 
 export default function VoteByCodePage() {
   const params = useParams();
   const codeParam = typeof params.code === 'string' ? params.code : '';
   const code = normCode(codeParam);
+  const configError = getSupabaseConfigError();
 
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const supabase = useMemo(() => (configError ? null : getSupabaseBrowserClient()), [configError]);
 
   const [err, setErr] = useState<string | null>(null);
   const [session, setSession] = useState<SessionRow | null>(null);
@@ -65,8 +61,10 @@ export default function VoteByCodePage() {
   const [voteErr, setVoteErr] = useState<string | null>(null);
   const [responseErr, setResponseErr] = useState<string | null>(null);
   const [winnerPlace, setWinnerPlace] = useState<RestaurantPick | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
 
   const loadSession = useCallback(async () => {
+    if (!supabase) return;
     if (!code || code.length !== 6) {
       setErr('Invalid voting link.');
       return;
@@ -86,6 +84,11 @@ export default function VoteByCodePage() {
       return;
     }
     setSession(data as SessionRow);
+    const storedResponseId =
+      typeof window !== 'undefined'
+        ? window.sessionStorage.getItem(responseStorageKey(data.id))
+        : null;
+    if (storedResponseId) setResponseId(storedResponseId);
     if (data.status === 'voting') {
       const list = Array.isArray(data.picks) ? (data.picks as RestaurantPick[]) : [];
       setPicks(list);
@@ -99,11 +102,27 @@ export default function VoteByCodePage() {
   }, [code, supabase]);
 
   useEffect(() => {
-    void loadSession();
-  }, [loadSession]);
+    if (!supabase || picks.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const cached = await fetchPhotoUrlsForPlaces(
+        supabase,
+        picks.map((p) => p.id)
+      );
+      if (!cancelled) setPhotoUrls(cached);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [picks, supabase]);
 
   useEffect(() => {
-    if (!session?.id) return;
+    if (!supabase) return;
+    void loadSession();
+  }, [loadSession, supabase]);
+
+  useEffect(() => {
+    if (!supabase || !session?.id) return;
     const ch = supabase
       .channel(`sess:${session.id}`)
       .on(
@@ -127,7 +146,7 @@ export default function VoteByCodePage() {
   }, [session?.id, supabase]);
 
   useEffect(() => {
-    if (!session?.id || step < 4) return;
+    if (!supabase || !session?.id || step < 4) return;
     const refreshVotes = async () => {
       const { data } = await supabase
         .from('group_votes')
@@ -163,7 +182,7 @@ export default function VoteByCodePage() {
   }, [session?.id, session, step, supabase]);
 
   useEffect(() => {
-    if (!session?.id || step !== 4) return;
+    if (!supabase || !session?.id || step !== 4) return;
     const refreshCount = async () => {
       const { count } = await supabase
         .from('group_responses')
@@ -198,7 +217,7 @@ export default function VoteByCodePage() {
   };
 
   const submitResponse = async (priority: string) => {
-    if (!session || !energy || !mood) return;
+    if (!supabase || !session || !energy || !mood) return;
     const { data, error } = await supabase
       .from('group_responses')
       .insert({
@@ -212,18 +231,32 @@ export default function VoteByCodePage() {
       .select('id')
       .single();
     if (error) {
+      const { data: latest } = await supabase
+        .from('group_sessions')
+        .select('status')
+        .eq('id', session.id)
+        .maybeSingle();
+      if (latest?.status === 'voting') {
+        setResponseErr(null);
+        setStep(4);
+        return;
+      }
       setResponseErr(
         `${error.message}${error.code ? ` (${error.code})` : ''}. Answers can only be submitted while the host is still collecting responses.`
       );
       return;
     }
+    const nextResponseId = (data?.id as string) ?? null;
     setResponseErr(null);
-    setResponseId((data?.id as string) ?? null);
+    setResponseId(nextResponseId);
+    if (nextResponseId && typeof window !== 'undefined') {
+      window.sessionStorage.setItem(responseStorageKey(session.id), nextResponseId);
+    }
     setStep(4);
   };
 
   const castVote = async (placeId: string) => {
-    if (!session || hasVoted) return;
+    if (!supabase || !session || hasVoted) return;
     const { error } = await supabase.from('group_votes').insert({
       session_id: session.id,
       place_id: placeId,
@@ -240,7 +273,7 @@ export default function VoteByCodePage() {
   };
 
   useEffect(() => {
-    if (step !== 5 || !session?.id) return;
+    if (!supabase || step !== 5 || !session?.id) return;
     (async () => {
       const { data: sess } = await supabase
         .from('group_sessions')
@@ -258,9 +291,23 @@ export default function VoteByCodePage() {
       });
       setTallies(next);
       const topId = Object.entries(next).sort((a, b) => b[1] - a[1])[0]?.[0];
-      setWinnerPlace(topId ? list.find((p) => p.id === topId) ?? null : list[0] ?? null);
+      const winner = topId ? list.find((p) => p.id === topId) ?? null : list[0] ?? null;
+      setWinnerPlace(winner);
+      const urls = await fetchPhotoUrlsForPlaces(
+        supabase,
+        list.map((p) => p.id)
+      );
+      setPhotoUrls(urls);
     })();
   }, [session?.id, step, supabase]);
+
+  if (configError) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+        <p className="text-center text-lg max-w-md">{configError}</p>
+      </div>
+    );
+  }
 
   if (err) {
     return (
@@ -437,10 +484,35 @@ export default function VoteByCodePage() {
             const v = tallies[r.id] ?? 0;
             const maxT = Math.max(...Object.values(tallies), 1);
             const w = Math.round((v / maxT) * 100);
+            const photo = pickPhotoUrl(r, photoUrls[r.id] ?? null);
+            const cost = formatRestaurantCostLabel(r);
+            const dist =
+              typeof r.distanceMeters === 'number' ? formatDistance(r.distanceMeters) : '';
+            const metaParts = [
+              typeof r.rating === 'number' ? `Rating ${r.rating.toFixed(1)} ★` : '',
+              dist,
+              cost,
+            ].filter(Boolean);
             return (
               <div key={r.id} className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-2">
-                <div className="font-bold text-lg">{r.displayName?.text ?? 'Restaurant'}</div>
-                <p className="text-zinc-400 text-sm">{oneLine(r) || ' '}</p>
+                <div className="flex gap-3">
+                  {photo ? (
+                    <img
+                      src={photo}
+                      alt=""
+                      className="w-[72px] h-[72px] rounded-xl object-cover shrink-0 bg-zinc-800"
+                    />
+                  ) : (
+                    <div className="w-[72px] h-[72px] rounded-xl bg-zinc-800 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-bold text-lg">{r.displayName?.text ?? 'Restaurant'}</div>
+                    {metaParts.length > 0 ? (
+                      <p className="text-zinc-400 text-sm mt-1">{metaParts.join('  ·  ')}</p>
+                    ) : null}
+                  </div>
+                </div>
+                <p className="text-zinc-400 text-sm">{oneLineSummary(r) || ' '}</p>
                 {typeof r.groupScore === 'number' ? (
                   <p className="text-sky-400 font-semibold">Group match {r.groupScore}</p>
                 ) : null}
@@ -466,8 +538,23 @@ export default function VoteByCodePage() {
       {step === 5 && winnerPlace ? (
         <div className="space-y-4 text-center py-6">
           <h1 className="text-2xl font-bold">{"You're going here 🎉"}</h1>
+          {pickPhotoUrl(winnerPlace, photoUrls[winnerPlace.id] ?? null) ? (
+            <img
+              src={pickPhotoUrl(winnerPlace, photoUrls[winnerPlace.id] ?? null) ?? ''}
+              alt=""
+              className="mx-auto w-full max-w-sm rounded-2xl object-cover aspect-[16/10] bg-zinc-800"
+            />
+          ) : null}
           <h2 className="text-xl font-semibold">{winnerPlace.displayName?.text}</h2>
-          <p className="text-zinc-400">{oneLine(winnerPlace)}</p>
+          <p className="text-zinc-400">{oneLineSummary(winnerPlace)}</p>
+          {typeof winnerPlace.distanceMeters === 'number' ? (
+            <p className="text-zinc-500 text-sm">
+              📍 {formatDistance(winnerPlace.distanceMeters)}
+            </p>
+          ) : null}
+          {formatRestaurantCostLabel(winnerPlace) ? (
+            <p className="text-zinc-500 text-sm">💸 {formatRestaurantCostLabel(winnerPlace)}</p>
+          ) : null}
           {winnerPlace.formattedAddress ? (
             <p className="text-zinc-500 text-sm">{winnerPlace.formattedAddress}</p>
           ) : null}
