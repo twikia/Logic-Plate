@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useRouter, useRootNavigationState, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -38,14 +38,35 @@ function resolveAuthRoute(
   return null;
 }
 
+function routeMatchesTarget(segments: string[], target: string): boolean {
+  const normalized = target.replace(/^\//, '');
+  if (normalized === 'welcome-onboarding') return segments[0] === 'welcome-onboarding';
+  if (normalized.startsWith('(tabs)')) return segments[0] === '(tabs)';
+  if (normalized.startsWith('(auth)/pick-username')) {
+    return segments[0] === '(auth)' && segments[1] === 'pick-username';
+  }
+  return false;
+}
+
 export function AuthGate() {
   const { loading, needsUsername, isGuest } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const navState = useRootNavigationState();
+  const pendingTarget = useRef<string | null>(null);
+  const splashHidden = useRef(false);
+
+  const hideSplash = useCallback(() => {
+    if (splashHidden.current) return;
+    splashHidden.current = true;
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!navState?.key || loading) return;
+
+    const segs = segments as string[];
+    if (!segs[0]) return;
 
     let cancelled = false;
 
@@ -53,27 +74,45 @@ export function AuthGate() {
       const prefs = await getRecommendationPrefs();
       if (cancelled) return;
 
-      const target = resolveAuthRoute(
-        segments as string[],
-        needsUsername,
-        !!prefs.onboardingComplete,
-        isGuest
-      );
+      const target = resolveAuthRoute(segs, needsUsername, !!prefs.onboardingComplete, isGuest);
       if (target) {
+        if (routeMatchesTarget(segs, target)) {
+          pendingTarget.current = null;
+          hideSplash();
+          return;
+        }
+        pendingTarget.current = target;
         router.replace(target as any);
+        return;
       }
+
+      pendingTarget.current = null;
+      hideSplash();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [loading, needsUsername, isGuest, segments, router, navState?.key]);
+  }, [loading, needsUsername, isGuest, segments, router, navState?.key, hideSplash]);
 
   useEffect(() => {
-    if (!loading) {
-      SplashScreen.hideAsync().catch(() => {});
+    if (!navState?.key || loading || splashHidden.current) return;
+
+    const segs = segments as string[];
+    if (!segs[0]) return;
+
+    const pending = pendingTarget.current;
+    if (pending && routeMatchesTarget(segs, pending)) {
+      pendingTarget.current = null;
+      hideSplash();
     }
-  }, [loading]);
+  }, [segments, loading, navState?.key, hideSplash]);
+
+  useEffect(() => {
+    if (loading) return;
+    const timeout = setTimeout(() => hideSplash(), 3000);
+    return () => clearTimeout(timeout);
+  }, [loading, hideSplash]);
 
   return null;
 }

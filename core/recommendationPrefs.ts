@@ -91,7 +91,7 @@ function sanitizeRadius(x: unknown): DefaultRadiusId {
 }
 
 function sanitizeFavoriteCuisines(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [...DEFAULT_PREFS_V1.favoriteCuisines];
+  if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
   const out: string[] = [];
   for (const x of raw) {
@@ -100,7 +100,7 @@ function sanitizeFavoriteCuisines(raw: unknown): string[] {
     out.push(x);
     if (out.length >= MAX_CUISINE_RANKS) break;
   }
-  return out.length > 0 ? out : [...DEFAULT_PREFS_V1.favoriteCuisines];
+  return out;
 }
 
 export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | null): RecommendationPrefsV1 {
@@ -108,7 +108,10 @@ export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | n
   const weights = sanitizeWeights(raw.weights);
   return {
     v: 1,
-    onboardingComplete: !!raw.onboardingComplete,
+    onboardingComplete:
+      typeof raw.onboardingComplete === 'boolean'
+        ? raw.onboardingComplete
+        : true,
     weights,
     favoriteCuisines: sanitizeFavoriteCuisines(raw.favoriteCuisines),
     defaultRadius: sanitizeRadius(raw.defaultRadius),

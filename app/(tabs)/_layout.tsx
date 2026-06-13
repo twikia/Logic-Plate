@@ -148,7 +148,7 @@ export default function TabLayout() {
                   const now = Date.now();
                   if (now - lastPress < 300) {
                     requestHomeTitleReroll();
-                    router.navigate('/(tabs)/(home)/');
+                    router.navigate('/(tabs)/(home)');
                   } else {
                     (props.onPress as (() => void) | undefined)?.();
                   }

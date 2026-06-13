@@ -4,7 +4,6 @@ import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { CuisineRankGrid } from '@/components/CuisineRankGrid';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
-  DEFAULT_PREFS_V1,
   DEFAULT_WEIGHTS,
   type ImportanceLevel,
   type RecommendationPrefsV1,
@@ -89,12 +88,7 @@ export default function RecommendationSettingsScreen() {
           </Text>
           <CuisineRankGrid
             ranked={prefs.favoriteCuisines}
-            onChange={next =>
-              void persist({
-                ...prefs,
-                favoriteCuisines: next.length ? next : [...DEFAULT_PREFS_V1.favoriteCuisines],
-              })
-            }
+            onChange={next => void persist({ ...prefs, favoriteCuisines: next })}
             accent={theme.accent}
             textColor={theme.text}
             tileWidth="31%"

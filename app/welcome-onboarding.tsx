@@ -1,6 +1,5 @@
 import { useAppTheme } from '@/context/ThemeContext';
 import {
-  DEFAULT_PREFS_V1,
   DEFAULT_WEIGHTS,
   type ImportanceLevel,
   type RecommendationPrefsV1,
@@ -40,7 +39,7 @@ export default function WelcomeOnboardingScreen() {
   const [page, setPage] = useState(0);
 
   const [weights, setWeights] = useState<RecommendationWeights>({ ...DEFAULT_WEIGHTS });
-  const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>(['italian']);
+  const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>([]);
 
   useEffect(() => {
     void getRecommendationPrefs().then(p => {
@@ -56,7 +55,7 @@ export default function WelcomeOnboardingScreen() {
       v: 1,
       onboardingComplete: true,
       weights,
-      favoriteCuisines: favoriteCuisines.length ? favoriteCuisines : [...DEFAULT_PREFS_V1.favoriteCuisines],
+      favoriteCuisines,
       openNowOnly: true,
     };
     await saveRecommendationPrefs(prefs);
@@ -69,7 +68,6 @@ export default function WelcomeOnboardingScreen() {
 
   const goNext = () => {
     if (page < STEPS - 1) {
-      if (page === CUISINE_PAGE && favoriteCuisines.length === 0) return;
       listRef.current?.scrollToIndex({ index: page + 1, animated: true });
     } else {
       void finish();
@@ -114,7 +112,8 @@ export default function WelcomeOnboardingScreen() {
       >
         <Text style={[styles.title, { color: theme.text }]}>Rank your top cuisines</Text>
         <Text style={[styles.sub, { color: theme.subtext }]}>
-          Tap up to 5 favorites in order — #1 is your top pick. We still surface other cuisines when they score well.
+          Optional: tap up to 5 favorites in order — #1 is your top pick. Skip any you are not sure about; we still
+          surface great matches either way.
         </Text>
         <CuisineRankGrid
           ranked={favoriteCuisines}
@@ -157,15 +156,7 @@ export default function WelcomeOnboardingScreen() {
         />
 
         <View style={styles.footer}>
-          <Pressable
-            onPress={goNext}
-            style={[
-              styles.primaryBtn,
-              { backgroundColor: theme.accent },
-              page === CUISINE_PAGE && favoriteCuisines.length === 0 && { opacity: 0.45 },
-            ]}
-            disabled={page === CUISINE_PAGE && favoriteCuisines.length === 0}
-          >
+          <Pressable onPress={goNext} style={[styles.primaryBtn, { backgroundColor: theme.accent }]}>
             <Text style={styles.primaryBtnText}>{page === STEPS - 1 ? 'Start exploring' : 'Continue'}</Text>
             <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
           </Pressable>

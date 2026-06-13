@@ -4,29 +4,28 @@ import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 
-const SP = 10;
-const CANVAS_PAD = 8;
+const PAD = 12;
 
-const PILL_W = 70;
 const PILL_H = 28;
-const PILL_CORNER = 14;
-const TIP_H = 8;
-const TIP_SIDE = 6;
-
-const SEL_PILL_W = 78;
 const SEL_PILL_H = 34;
-const SEL_PILL_CORNER = 17;
-const SEL_TIP_H = 9;
+const TIP_H = 7;
+const SEL_TIP_H = 8;
+const TIP_SIDE = 6;
 const SEL_TIP_SIDE = 7;
-
-const TOTAL_W = CANVAS_PAD * 2 + SP * 2 + PILL_W;
-const TOTAL_H = CANVAS_PAD * 2 + SP + PILL_H + TIP_H + SP;
-const SEL_TOTAL_W = CANVAS_PAD * 2 + SP * 2 + SEL_PILL_W;
-const SEL_TOTAL_H = CANVAS_PAD * 2 + SP + SEL_PILL_H + SEL_TIP_H + SP;
+const GLOW = 4;
+const SEL_GLOW = 6;
 
 const ANCHOR_X = 0.5;
-const ANCHOR_Y = (CANVAS_PAD + SP + PILL_H + TIP_H) / TOTAL_H;
-const SEL_ANCHOR_Y = (CANVAS_PAD + SP + SEL_PILL_H + SEL_TIP_H) / SEL_TOTAL_H;
+const TOTAL_H = PAD + PILL_H + TIP_H + PAD;
+const SEL_TOTAL_H = PAD + SEL_PILL_H + SEL_TIP_H + PAD;
+const ANCHOR_Y = (PAD + PILL_H + TIP_H) / TOTAL_H;
+const SEL_ANCHOR_Y = (PAD + SEL_PILL_H + SEL_TIP_H) / SEL_TOTAL_H;
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.max(0, Math.min(255, Math.round(alpha * 255)));
+  const h = a.toString(16).padStart(2, '0');
+  return `${hex}${h}`;
+}
 
 type RestaurantMapMarkerProps = {
   item: any;
@@ -49,7 +48,7 @@ export function RestaurantMapMarker({
 
   useEffect(() => {
     if (tracksViewChanges) {
-      const t = setTimeout(() => setTracksViewChanges(false), 1000);
+      const t = setTimeout(() => setTracksViewChanges(false), 800);
       return () => clearTimeout(t);
     }
   }, [tracksViewChanges]);
@@ -57,24 +56,22 @@ export function RestaurantMapMarker({
   const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
   const iconName = markerIconForPlace(item);
 
-  const pillW = isSelected ? SEL_PILL_W : PILL_W;
   const pillH = isSelected ? SEL_PILL_H : PILL_H;
-  const pillCorner = isSelected ? SEL_PILL_CORNER : PILL_CORNER;
   const tipH = isSelected ? SEL_TIP_H : TIP_H;
   const tipSide = isSelected ? SEL_TIP_SIDE : TIP_SIDE;
-  const totalW = isSelected ? SEL_TOTAL_W : TOTAL_W;
+  const glow = isSelected ? SEL_GLOW : GLOW;
   const totalH = isSelected ? SEL_TOTAL_H : TOTAL_H;
   const anchorY = isSelected ? SEL_ANCHOR_Y : ANCHOR_Y;
-  const iconSize = isSelected ? 14 : 11;
-  const fontSize = isSelected ? 12 : 10;
+  const iconSize = isSelected ? 15 : 12;
+  const fontSize = isSelected ? 13 : 11;
+  const pillRadius = pillH / 2;
 
   useEffect(() => {
     setTracksViewChanges(true);
-  }, [displayScore, iconName, isOpen, isSelected, markerColor]);
+  }, [scoreText, iconName, isOpen, isSelected, markerColor]);
 
-  const markerVisualColor = isOpen ? markerColor : '#8B8F98';
-  const iconColor = '#FFFFFF';
-  const scoreColor = isSelected ? '#FFFFFF' : '#F8FAFC';
+  const accent = isOpen ? markerColor : '#8B8F98';
+  const pillBg = isOpen ? '#120A1F' : '#1B1B22';
 
   return (
     <Marker
@@ -86,66 +83,72 @@ export function RestaurantMapMarker({
     >
       <View
         style={{
-          width: totalW,
           height: totalH,
+          paddingVertical: PAD,
+          paddingHorizontal: PAD,
           alignItems: 'center',
-          paddingTop: CANVAS_PAD + SP,
-          opacity: isOpen ? 1 : 0.92,
+          justifyContent: 'flex-start',
         }}
         collapsable={false}
       >
-        <View
-          style={{
-            width: pillW,
-            height: pillH,
-            borderRadius: pillCorner,
-            backgroundColor: isSelected ? '#13071F' : '#0B0614',
-            borderWidth: isSelected ? 2 : 1.5,
-            borderColor: markerVisualColor,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 8,
-            shadowColor: markerVisualColor,
-            shadowOpacity: isSelected ? 0.95 : 0.5,
-            shadowRadius: isSelected ? 8 : 5,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: isSelected ? 9 : 5,
-          }}
-          collapsable={false}
-        >
-          <Ionicons
-            name={iconName}
-            size={iconSize}
-            color={iconColor}
-          />
-          <Text
+        <View style={{ alignItems: 'center' }} collapsable={false}>
+          <View
             style={{
-              fontSize,
-              fontWeight: '800',
-              color: scoreColor,
-              letterSpacing: -0.3,
-              marginLeft: 4,
+              height: pillH,
+              borderRadius: pillRadius,
+              backgroundColor: pillBg,
+              borderWidth: isSelected ? 2.5 : 2,
+              borderColor: accent,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 9,
+              opacity: isOpen ? 1 : 0.95,
             }}
-            numberOfLines={1}
+            collapsable={false}
           >
-            {scoreText}
-          </Text>
-        </View>
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: -glow,
+                left: -glow,
+                right: -glow,
+                bottom: -glow,
+                borderRadius: pillRadius + glow,
+                borderWidth: glow,
+                borderColor: withAlpha(accent, isSelected ? 0.32 : 0.22),
+              }}
+            />
+            <Ionicons name={iconName} size={iconSize} color="#FFFFFF" />
+            <Text
+              style={{
+                fontSize,
+                fontWeight: '800',
+                color: '#FFFFFF',
+                letterSpacing: -0.2,
+                marginLeft: 4,
+              }}
+              numberOfLines={1}
+            >
+              {scoreText}
+            </Text>
+          </View>
 
-        <View
-          style={{
-            width: 0,
-            height: 0,
-            borderLeftWidth: tipSide,
-            borderRightWidth: tipSide,
-            borderTopWidth: tipH,
-            borderLeftColor: 'transparent',
-            borderRightColor: 'transparent',
-            borderTopColor: markerVisualColor,
-            marginTop: -1,
-          }}
-        />
+          <View
+            style={{
+              width: 0,
+              height: 0,
+              borderLeftWidth: tipSide,
+              borderRightWidth: tipSide,
+              borderTopWidth: tipH,
+              borderLeftColor: 'transparent',
+              borderRightColor: 'transparent',
+              borderTopColor: accent,
+              marginTop: -1,
+            }}
+          />
+        </View>
       </View>
     </Marker>
   );

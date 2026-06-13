@@ -77,22 +77,20 @@ function RestaurantImageInner({
 
     const init = async () => {
       const urls = buildCandidateUrls(photos);
-      candidatesRef.current = urls;
-      indexRef.current = 0;
+      const cached = await getCachedImageUrl(restaurantId);
 
-      if (urls.length === 0) {
-        console.warn(`[RestaurantImage] No photo URLs for restaurant ${restaurantId}`);
-        if (mountedRef.current) setState('failed');
+      if (urls.length === 0 && !cached) {
+        if (mountedRef.current) {
+          setActiveUri(null);
+          setState('waiting');
+        }
         return;
       }
 
-      const cached = await getCachedImageUrl(restaurantId);
-      if (cached && mountedRef.current) {
-        candidatesRef.current = cached && !urls.includes(cached)
-          ? [cached, ...urls]
-          : [cached, ...urls.filter((url) => url !== cached)];
-        indexRef.current = 0;
-      }
+      candidatesRef.current = cached
+        ? [cached, ...urls.filter((url) => url !== cached)]
+        : urls;
+      indexRef.current = 0;
 
       timer = setTimeout(() => {
         if (!mountedRef.current) return;

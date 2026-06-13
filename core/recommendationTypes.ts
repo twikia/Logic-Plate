@@ -111,7 +111,7 @@ export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {
   v: 1,
   onboardingComplete: false,
   weights: { ...DEFAULT_WEIGHTS },
-  favoriteCuisines: ['italian'],
+  favoriteCuisines: [],
   defaultRadius: 'short_drive',
   openNowOnly: true,
 };
