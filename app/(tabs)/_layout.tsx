@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { requestHomeTitleReroll } from '@/core/homeTitle';
+import { requestRandomPickerReset } from '@/core/randomPickerState';
 import { useAppTheme } from '@/context/ThemeContext';
 
 
@@ -148,6 +149,7 @@ export default function TabLayout() {
                   const now = Date.now();
                   if (now - lastPress < 300) {
                     requestHomeTitleReroll();
+                    requestRandomPickerReset();
                     router.navigate('/(tabs)/(home)');
                   } else {
                     (props.onPress as (() => void) | undefined)?.();

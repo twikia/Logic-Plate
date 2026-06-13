@@ -98,3 +98,17 @@ export async function clearRandomPickerState(): Promise<void> {
     /* ignore */
   }
 }
+
+type ResetListener = () => void;
+const resetListeners = new Set<ResetListener>();
+
+export function onRandomPickerReset(listener: ResetListener): () => void {
+  resetListeners.add(listener);
+  return () => {
+    resetListeners.delete(listener);
+  };
+}
+
+export function requestRandomPickerReset(): void {
+  resetListeners.forEach((fn) => fn());
+}
