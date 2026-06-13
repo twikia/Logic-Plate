@@ -35,6 +35,9 @@ export default function WaitingScreen() {
       if (status === 'voting') {
         router.replace({ pathname: '/groups/vote', params: { sessionId, responseId } });
       }
+      if (status === 'expired') {
+        router.replace('/groups');
+      }
     });
     return () => {
       supabase.removeChannel(ch1);
@@ -46,25 +49,42 @@ export default function WaitingScreen() {
     return null;
   }
 
-  const progress = Math.min(1, totalResponses / Math.max(2, totalResponses || 1));
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.inner}>
-        <Text style={[styles.check, { color: theme.accent }]}>✓ Vote in!</Text>
-        <Text style={[styles.title, { color: theme.text }]}>Waiting for everyone…</Text>
-        <Text style={[styles.count, { color: theme.subtext }]}>
-          {totalResponses} responded
+        <View style={[styles.checkCircle, { backgroundColor: theme.accent + '22', borderColor: theme.accent + '44' }]}>
+          <Text style={[styles.checkIcon, { color: theme.accent }]}>✓</Text>
+        </View>
+
+        <Text style={[styles.title, { color: theme.text }]}>You're in!</Text>
+        <Text style={[styles.subtitle, { color: theme.subtext }]}>
+          Your preferences have been saved
         </Text>
+
+        <View style={[styles.countBox, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.countNum, { color: theme.accent }]}>{totalResponses}</Text>
+          <Text style={[styles.countLabel, { color: theme.subtext }]}>
+            {totalResponses === 1 ? 'person ready' : 'people ready'}
+          </Text>
+        </View>
+
         <View style={[styles.progTrack, { backgroundColor: theme.cardBackground }]}>
           <View
-            style={[styles.progFill, { width: `${progress * 100}%`, backgroundColor: theme.accent }]}
+            style={[
+              styles.progFill,
+              {
+                width: totalResponses >= 2 ? '100%' : `${(totalResponses / 2) * 100}%`,
+                backgroundColor: theme.accent,
+              },
+            ]}
           />
         </View>
+
         <Text style={[styles.note, { color: theme.subtext }]}>
-          {"The host will start the vote when everyone's ready"}
+          {"Waiting for the host to start the vote…"}
         </Text>
-        <ActivityIndicator color={theme.accent} style={{ marginTop: 24 }} />
+
+        <ActivityIndicator color={theme.accent} style={{ marginTop: 32 }} size="large" />
       </View>
     </SafeAreaView>
   );
@@ -72,11 +92,29 @@ export default function WaitingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  inner: { flex: 1, padding: 24, justifyContent: 'center' },
-  check: { fontSize: 22, fontWeight: '800', marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
-  count: { fontSize: 16, marginBottom: 12 },
-  progTrack: { height: 10, borderRadius: 5, overflow: 'hidden' },
-  progFill: { height: '100%', borderRadius: 5 },
-  note: { marginTop: 20, fontSize: 15, lineHeight: 21 },
+  inner: { flex: 1, padding: 32, justifyContent: 'center', alignItems: 'center' },
+  checkCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  checkIcon: { fontSize: 36, fontWeight: '700' },
+  title: { fontSize: 28, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
+  subtitle: { fontSize: 16, textAlign: 'center', marginBottom: 28 },
+  countBox: {
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    borderRadius: 18,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  countNum: { fontSize: 40, fontWeight: '800' },
+  countLabel: { fontSize: 14, marginTop: 4 },
+  progTrack: { height: 6, borderRadius: 3, overflow: 'hidden', width: '100%', marginBottom: 16 },
+  progFill: { height: '100%', borderRadius: 3 },
+  note: { fontSize: 15, textAlign: 'center', lineHeight: 22, maxWidth: 260 },
 });

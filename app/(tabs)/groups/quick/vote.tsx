@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,29 +32,33 @@ export default function QuickVoteVoteScreen() {
   const router = useRouter();
   const raw = useLocalSearchParams();
   const parsed = parseVoteParams(raw as Record<string, string | string[] | undefined>);
+  const [votedForId, setVotedForId] = useState<string | null>(null);
 
   const voteFor = useCallback(
     (restaurant: QuickVoteRestaurant) => {
-      if (!parsed) return;
+      if (!parsed || votedForId) return;
+      setVotedForId(restaurant.id);
       const name = restaurant.displayName?.text ?? 'Restaurant';
       const newVotes = {
         ...parsed.votes,
         [restaurant.id]: (parsed.votes[restaurant.id] ?? 0) + 1,
       };
-      router.push({
-        pathname: '/groups/quick/handoff',
-        params: {
-          voterName: `Voter ${parsed.currentVoter}`,
-          votedRestaurantName: name,
-          votedPlaceId: restaurant.id,
-          restaurantsJson: parsed.restaurantsJson,
-          voterCount: String(parsed.voterCount),
-          nextVoter: String(parsed.currentVoter + 1),
-          votesJson: JSON.stringify(newVotes),
-        },
-      });
+      setTimeout(() => {
+        router.push({
+          pathname: '/groups/quick/handoff',
+          params: {
+            voterName: `Voter ${parsed.currentVoter}`,
+            votedRestaurantName: name,
+            votedPlaceId: restaurant.id,
+            restaurantsJson: parsed.restaurantsJson,
+            voterCount: String(parsed.voterCount),
+            nextVoter: String(parsed.currentVoter + 1),
+            votesJson: JSON.stringify(newVotes),
+          },
+        });
+      }, 400);
     },
-    [parsed, router]
+    [parsed, router, votedForId]
   );
 
   const endVoting = useCallback(() => {
@@ -77,24 +81,34 @@ export default function QuickVoteVoteScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
         <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
+          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>← Back</Text>
         </TouchableOpacity>
+        <View style={styles.voterBadge}>
+          <Text style={[styles.voterText, { color: theme.accent }]}>
+            Voter {currentVoter} / {voterCount}
+          </Text>
+        </View>
         <TouchableOpacity onPress={endVoting} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>End</Text>
+          <Text style={{ color: theme.subtext, fontSize: 15, fontWeight: '600' }}>End</Text>
         </TouchableOpacity>
       </View>
-      <Text style={[styles.header, { color: theme.text }]}>
-        Voter {currentVoter} of {voterCount}
+
+      <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
+      <Text style={[styles.hint, { color: theme.subtext }]}>
+        Tap a card to expand, tap the box to vote
       </Text>
-      <ScrollView contentContainerStyle={styles.list}>
+
+      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {restaurants.map((r) => (
           <QuickVoteRestaurantCard
             key={r.id}
             restaurant={r}
             theme={theme}
             onVote={() => voteFor(r)}
+            voted={votedForId === r.id}
           />
         ))}
+        <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -105,9 +119,18 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingTop: 4,
+    paddingBottom: 8,
   },
-  header: { fontSize: 20, fontWeight: '800', paddingHorizontal: 16, marginTop: 12 },
-  list: { padding: 16, paddingBottom: 40, gap: 14 },
+  voterBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  voterText: { fontSize: 14, fontWeight: '700' },
+  header: { fontSize: 22, fontWeight: '800', paddingHorizontal: 20, marginTop: 4 },
+  hint: { fontSize: 13, paddingHorizontal: 20, marginTop: 3, marginBottom: 12 },
+  list: { paddingHorizontal: 16, gap: 12, paddingBottom: 40 },
 });

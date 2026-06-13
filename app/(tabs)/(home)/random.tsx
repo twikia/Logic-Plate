@@ -4,12 +4,13 @@ import {
 } from '@/components/RestaurantLoadingProgress';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
+import Slider from '@react-native-community/slider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Slider from '@react-native-community/slider';
 import {
   Animated,
+  BackHandler,
   FlatList,
   Modal,
   Pressable,
@@ -22,7 +23,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { AiOverview } from '../../../core/aiOverviewCache';
 import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
@@ -41,6 +42,7 @@ import {
   getScenarioPreferredSort,
   normalizeScenarioKey,
   restaurantMatchesScenario,
+  SCENARIO_LABELS,
   type ScenarioKey,
 } from '../../../core/scenarioFilters';
 import {
@@ -301,6 +303,7 @@ function RestaurantRow({
 
 export default function RandomScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{ scenario?: string | string[] }>();
   const paramScenario = useMemo((): ScenarioKey | null => {
     const raw = params.scenario;
@@ -337,6 +340,7 @@ export default function RandomScreen() {
 
   const minAiCutoffs = useMemo(() => slotsToCutoffs(aiSlot1, aiSlot2), [aiSlot1, aiSlot2]);
   const hydratedRef = useRef(false);
+  const isResettingRef = useRef(false);
   const {
     loadingStage,
     loadingProgress,
@@ -388,13 +392,42 @@ export default function RandomScreen() {
   }, [paramScenario]);
 
   const resetFilters = useCallback(async () => {
-    await clearRandomPickerState();
-    applyDefaultFilters(allResults);
+    if (isResettingRef.current) return;
+    isResettingRef.current = true;
+    try {
+      await clearRandomPickerState();
+      applyDefaultFilters(allResults);
+    } finally {
+      isResettingRef.current = false;
+    }
   }, [allResults, applyDefaultFilters]);
 
   const handleBack = useCallback(() => {
-    void resetFilters().finally(() => router.back());
+    void resetFilters().finally(() => {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/(home)');
+    });
   }, [resetFilters, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true;
+      });
+      return () => sub.remove();
+    }, [handleBack])
+  );
+
+  useEffect(() => {
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      const type = e.data.action.type;
+      if (type === 'GO_BACK' || type === 'POP') {
+        void clearRandomPickerState();
+      }
+    });
+    return unsub;
+  }, [navigation]);
 
   const activeFilterCount =
     (openOnly ? 1 : 0) +
@@ -692,58 +725,91 @@ export default function RandomScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.filterColumnsRow}>
-              <View style={styles.filterColumn}>
+            <View style={styles.quickFiltersBlock}>
+              <View style={styles.quickFilterTogglesRow}>
                 <TouchableOpacity
-                  style={[styles.filterCheckBox, openOnly && styles.filterCheckBoxOn]}
+                  style={[styles.quickFilterToggle, openOnly && styles.quickFilterToggleOn]}
                   onPress={() => setOpenOnly((v) => !v)}
                   accessibilityLabel="Open now filter"
                 >
-                  {openOnly && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                  <Ionicons
+                    name={openOnly ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={15}
+                    color={openOnly ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+                  />
+                  <Text style={[styles.quickFilterToggleText, openOnly && styles.quickFilterToggleTextOn]}>
+                    Open now
+                  </Text>
                 </TouchableOpacity>
                 {scenarioKey ? (
                   <TouchableOpacity
-                    style={[styles.filterCheckBox, scenarioFilterEnabled && styles.filterCheckBoxOn]}
+                    style={[styles.quickFilterToggle, scenarioFilterEnabled && styles.quickFilterToggleOn]}
                     onPress={() => setScenarioFilterEnabled((v) => !v)}
                     accessibilityLabel="Scenario vibe filter"
                   >
-                    {scenarioFilterEnabled && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                    <Ionicons
+                      name={scenarioFilterEnabled ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={15}
+                      color={scenarioFilterEnabled ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+                    />
+                    <Text
+                      style={[styles.quickFilterToggleText, scenarioFilterEnabled && styles.quickFilterToggleTextOn]}
+                      numberOfLines={1}
+                    >
+                      Vibe · {SCENARIO_LABELS[scenarioKey]}
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
 
-              <View style={styles.filterColumn}>
-                <TouchableOpacity
-                  style={[styles.filterColumnPill, selectedPrices.size === 0 && styles.filterColumnPillActive]}
-                  onPress={() => setSelectedPrices(new Set())}
+              <View style={styles.quickFilterRow}>
+                <Text style={styles.quickFilterRowLabel}>Price</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickFilterPillsRow}
                 >
-                  <Text style={[styles.filterColumnPillText, selectedPrices.size === 0 && styles.filterColumnPillTextActive]}>Any</Text>
-                </TouchableOpacity>
-                {PRICE_LEVELS.map(p => (
                   <TouchableOpacity
-                    key={p.key}
-                    style={[styles.filterColumnPill, selectedPrices.has(p.key) && styles.filterColumnPillActive]}
-                    onPress={() => togglePrice(p.key)}
+                    style={[styles.quickFilterPill, selectedPrices.size === 0 && styles.quickFilterPillActive]}
+                    onPress={() => setSelectedPrices(new Set())}
                   >
-                    <Text style={[styles.filterColumnPillText, selectedPrices.has(p.key) && styles.filterColumnPillTextActive]}>
-                      {p.label}
+                    <Text style={[styles.quickFilterPillText, selectedPrices.size === 0 && styles.quickFilterPillTextActive]}>
+                      Any
                     </Text>
                   </TouchableOpacity>
-                ))}
+                  {PRICE_LEVELS.map(p => (
+                    <TouchableOpacity
+                      key={p.key}
+                      style={[styles.quickFilterPill, selectedPrices.has(p.key) && styles.quickFilterPillActive]}
+                      onPress={() => togglePrice(p.key)}
+                    >
+                      <Text style={[styles.quickFilterPillText, selectedPrices.has(p.key) && styles.quickFilterPillTextActive]}>
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
 
-              <View style={styles.filterColumn}>
-                {RATING_OPTS.map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[styles.filterColumnPill, minRating === r && styles.filterColumnPillActive]}
-                    onPress={() => setMinRating(r)}
-                  >
-                    <Text style={[styles.filterColumnPillText, minRating === r && styles.filterColumnPillTextActive]}>
-                      {r === 0 ? 'Any' : `${r}+`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.quickFilterRow}>
+                <Text style={styles.quickFilterRowLabel}>Rating</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickFilterPillsRow}
+                >
+                  {RATING_OPTS.map(r => (
+                    <TouchableOpacity
+                      key={r}
+                      style={[styles.quickFilterPill, minRating === r && styles.quickFilterPillActive]}
+                      onPress={() => setMinRating(r)}
+                    >
+                      <Text style={[styles.quickFilterPillText, minRating === r && styles.quickFilterPillTextActive]}>
+                        {r === 0 ? 'Any' : `${r}+`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             </View>
 
@@ -802,12 +868,14 @@ export default function RandomScreen() {
                         maximumValue={maxScore}
                         step={1}
                         value={slot.min}
-                        onValueChange={(v) => setSlot((prev) => ({ ...prev, min: Math.round(v) }))}
+                        onValueChange={(v) =>
+                          setSlot((prev) => ({ ...prev, min: Math.round(v) }))
+                        }
                         minimumTrackTintColor="#F97352"
                         maximumTrackTintColor="rgba(255,255,255,0.15)"
-                        thumbTintColor="#F97352"
+                        thumbTintColor="#FFFFFF"
                       />
-                      <Text style={styles.aiScoreValue}>
+                      <Text style={styles.aiScoreSliderValue}>
                         {slot.min === 0 ? 'Any' : `${slot.min}+`}
                       </Text>
                     </View>
@@ -1100,34 +1168,45 @@ const styles = StyleSheet.create({
   },
   filterPanelTitle: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
   filterCloseBtn: { padding: 2 },
-  filterColumnsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  filterColumn: { flex: 1, gap: 6 },
-  filterCheckBox: {
-    width: '100%',
-    minHeight: 34,
+  quickFiltersBlock: { gap: 8 },
+  quickFilterTogglesRow: { flexDirection: 'row', gap: 8 },
+  quickFilterToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 32,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
     backgroundColor: 'rgba(255,255,255,0.06)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  filterCheckBoxOn: { backgroundColor: '#4CD964', borderColor: '#4CD964' },
-  filterColumnPill: {
-    width: '100%',
-    minHeight: 34,
+  quickFilterToggleOn: { backgroundColor: '#4CD964', borderColor: '#4CD964' },
+  quickFilterToggleText: { flex: 1, fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
+  quickFilterToggleTextOn: { color: '#FFFFFF' },
+  quickFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quickFilterRowLabel: {
+    width: 44,
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  quickFilterPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 4 },
+  quickFilterPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
   },
-  filterColumnPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
-  filterColumnPillText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
-  filterColumnPillTextActive: { color: '#FFFFFF' },
+  quickFilterPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
+  quickFilterPillText: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
+  quickFilterPillTextActive: { color: '#FFFFFF' },
   aiFilterBlock: { marginBottom: 4, gap: 8 },
   aiCategoryField: {
     flexDirection: 'row',
@@ -1142,10 +1221,14 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   aiCategoryFieldText: { flex: 1, fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
-  aiScoreSliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  aiScoreSliderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   aiScoreSlider: { flex: 1, height: 32 },
-  aiScoreValue: {
-    minWidth: 36,
+  aiScoreSliderValue: {
+    minWidth: 40,
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',

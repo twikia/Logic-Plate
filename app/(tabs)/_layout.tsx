@@ -108,6 +108,7 @@ export default function TabLayout() {
 
   const isMap = pathname.startsWith('/map');
   const isGroups = pathname.startsWith('/groups');
+  const isOnRandomPicker = /\/random$/.test(pathname);
   const neon = Boolean(theme.neonColors);
   const neonColors = theme.neonColors;
 
@@ -147,8 +148,12 @@ export default function TabLayout() {
               <AnimatedPressable
                 onPress={() => {
                   const now = Date.now();
-                  if (now - lastPress < 300) {
+                  const isDoubleTap = now - lastPress < 300;
+                  if (isDoubleTap) {
                     requestHomeTitleReroll();
+                    requestRandomPickerReset();
+                    router.navigate('/(tabs)/(home)');
+                  } else if (isOnRandomPicker && !isMap && !isGroups) {
                     requestRandomPickerReset();
                     router.navigate('/(tabs)/(home)');
                   } else {
