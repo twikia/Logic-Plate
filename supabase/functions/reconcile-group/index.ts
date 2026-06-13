@@ -97,7 +97,7 @@ serve(async (req) => {
     );
   }
 
-  let body: { sessionId?: string };
+  let body: { sessionId?: string; localRestaurantCache?: unknown[] };
   try {
     body = await req.json();
   } catch {
@@ -108,6 +108,9 @@ serve(async (req) => {
   }
 
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+  const localRestaurantCache = Array.isArray(body.localRestaurantCache)
+    ? body.localRestaurantCache
+    : [];
   if (!sessionId) {
     return new Response(JSON.stringify({ error: "sessionId required" }), {
       status: 400,
@@ -169,12 +172,32 @@ serve(async (req) => {
 
   const { data: cacheRows } = await supabase
     .from("restaurant_cache")
-    .select("restaurants")
+    .select("id, restaurants")
     .in("id", cellIds);
 
-  const allRestaurants = (cacheRows ?? []).flatMap((row: { restaurants?: unknown }) =>
-    Array.isArray(row.restaurants) ? row.restaurants : []
-  );
+  const supabaseMap = new Map<string, unknown[]>();
+  for (const row of (cacheRows ?? []) as { id: string; restaurants?: unknown }[]) {
+    if (Array.isArray(row.restaurants) && row.restaurants.length > 0) {
+      supabaseMap.set(row.id, row.restaurants);
+    }
+  }
+
+  const localMap = new Map<string, unknown[]>();
+  for (const item of localRestaurantCache as { cellId?: unknown; restaurants?: unknown }[]) {
+    if (
+      typeof item.cellId === "string" &&
+      Array.isArray(item.restaurants) &&
+      item.restaurants.length > 0
+    ) {
+      localMap.set(item.cellId, item.restaurants);
+    }
+  }
+
+  const allRestaurants = cellIds.flatMap((cellId: string) => {
+    const fromSupabase = supabaseMap.get(cellId);
+    if (fromSupabase && fromSupabase.length > 0) return fromSupabase;
+    return localMap.get(cellId) ?? [];
+  });
 
   const seen = new Set<string>();
   const restaurants = allRestaurants.filter((r: { id?: string }) => {

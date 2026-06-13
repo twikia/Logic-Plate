@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
+import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
   loadCachedRestaurants,
@@ -96,9 +97,7 @@ export default function QuickVotePreviewScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => router.replace('/groups')} />
       </View>
       <Text style={[styles.header, { color: theme.text }]}>{"Tonight's picks"}</Text>
       <Text style={[styles.sub, { color: theme.subtext }]}>

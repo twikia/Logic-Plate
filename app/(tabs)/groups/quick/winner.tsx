@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
+import { BackButton } from '@/components/ui/BackButton';
 import { RestaurantImage } from '@/core/images';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
@@ -97,9 +98,7 @@ export default function QuickVoteWinnerScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={exitToGroups} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={exitToGroups} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         {winner ? (

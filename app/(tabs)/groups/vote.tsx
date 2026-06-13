@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   ScrollView,
   StyleSheet,
   Text,
@@ -37,6 +38,7 @@ export default function GroupVoteScreen() {
   const [hasVoted, setHasVoted] = useState(false);
   const [votedForId, setVotedForId] = useState<string | null>(null);
   const [responseCount, setResponseCount] = useState(0);
+  const [sessionEnded, setSessionEnded] = useState(false);
   const hasAutoEnded = useRef(false);
   const normalExit = useRef(false);
 
@@ -112,7 +114,7 @@ export default function GroupVoteScreen() {
     });
     const chS = subscribeToSessionStatus(sessionId, (status) => {
       if (status === 'complete') goWinner();
-      if (status === 'expired') router.replace('/groups');
+      if (status === 'expired') setSessionEnded(true);
     });
     return () => {
       supabase.removeChannel(chV);
@@ -146,6 +148,16 @@ export default function GroupVoteScreen() {
     return unsub;
   }, [isHost, navigation, sessionId]);
 
+  useEffect(() => {
+    if (!isHost) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if ((next === 'background' || next === 'inactive') && !normalExit.current && sessionId) {
+        void supabase.from('group_sessions').update({ status: 'expired' }).eq('id', sessionId);
+      }
+    });
+    return () => sub.remove();
+  }, [isHost, sessionId]);
+
   const castVote = async (placeId: string) => {
     if (!sessionId || hasVoted) return;
     const { error } = await supabase.from('group_votes').insert({
@@ -165,6 +177,23 @@ export default function GroupVoteScreen() {
   };
 
   if (!sessionId) return null;
+
+  if (sessionEnded) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+        <View style={styles.center}>
+          <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
+          <Text style={[styles.endedTitle, { color: theme.text }]}>Session Ended</Text>
+          <Text style={[styles.endedSub, { color: theme.subtext }]}>The host ended this session.</Text>
+          <TouchableOpacity
+            style={[styles.endedBtn, { backgroundColor: theme.accent }]}
+            onPress={() => router.replace('/groups')}>
+            <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>Back to Groups</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (
@@ -261,4 +290,9 @@ const styles = StyleSheet.create({
   barOuter: { height: 6, borderRadius: 3, overflow: 'hidden' },
   barInner: { height: '100%', borderRadius: 3 },
   votesMeta: { fontSize: 12, marginTop: 5 },
+  endedIcon: { fontSize: 48, marginBottom: 16 },
+  endedTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
+  endedSub: { fontSize: 15, textAlign: 'center', marginTop: 8, marginBottom: 32 },
+  endedBtn: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 16 },
+  endedBtnText: { fontSize: 16, fontWeight: '800' },
 });

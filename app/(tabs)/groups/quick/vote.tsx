@@ -1,9 +1,10 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
+import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { type QuickVoteRestaurant } from '@/utils/quickVote';
 
@@ -63,15 +64,37 @@ export default function QuickVoteVoteScreen() {
 
   const endVoting = useCallback(() => {
     if (!parsed) return;
+    let votesJson = parsed.votesJson;
+    if (votedForId) {
+      const newVotes = {
+        ...parsed.votes,
+        [votedForId]: (parsed.votes[votedForId] ?? 0) + 1,
+      };
+      votesJson = JSON.stringify(newVotes);
+    }
     router.replace({
       pathname: '/groups/quick/winner',
       params: {
         winnerJson: '',
-        votesJson: parsed.votesJson,
+        votesJson,
         restaurantsJson: parsed.restaurantsJson,
       },
     });
-  }, [parsed, router]);
+  }, [parsed, router, votedForId]);
+
+  const hasAnyVote = useMemo(() => {
+    if (!parsed) return false;
+    if (votedForId) return true;
+    return Object.values(parsed.votes).some((count) => count > 0);
+  }, [parsed, votedForId]);
+
+  const handleBack = useCallback(() => {
+    if (hasAnyVote) {
+      endVoting();
+    } else {
+      router.replace('/groups');
+    }
+  }, [endVoting, hasAnyVote, router]);
 
   if (!parsed) return <Redirect href="/groups/quick" />;
 
@@ -80,17 +103,13 @@ export default function QuickVoteVoteScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>← Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={handleBack} />
         <View style={styles.voterBadge}>
           <Text style={[styles.voterText, { color: theme.accent }]}>
             Voter {currentVoter} / {voterCount}
           </Text>
         </View>
-        <TouchableOpacity onPress={endVoting} hitSlop={12}>
-          <Text style={{ color: theme.subtext, fontSize: 15, fontWeight: '600' }}>End</Text>
-        </TouchableOpacity>
+        <View style={styles.topSpacer} />
       </View>
 
       <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
@@ -124,6 +143,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 8,
   },
+  topSpacer: { width: 40 },
   voterBadge: {
     paddingVertical: 4,
     paddingHorizontal: 12,
