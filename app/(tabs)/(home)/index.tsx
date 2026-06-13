@@ -547,7 +547,7 @@ function SpotlightCard({
         cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
       });
       if (cancelled) return;
-      setPhotos(urls.length > 0 ? urls.slice(0, 1) : (place.photos || []).slice(0, 1));
+      setPhotos(urls.length > 0 ? urls : (place.photos || []));
     };
     loadPhotos();
     return () => { cancelled = true; };

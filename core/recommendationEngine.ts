@@ -127,6 +127,7 @@ function normWeights(w: RecommendationWeights) {
     'cuisineVariety',
     'cuisineAdherence',
     'taste',
+    'ratingAdherence',
   ] as const;
   const vals = keys.map(k => Math.max(0, w[k]));
   const sum = vals.reduce((a, b) => a + b, 0);
@@ -228,7 +229,7 @@ function rawTasteScore(place: any): number {
   const ai = aiOf(place);
   const fromAi = aiScore0to5(ai, 'tasteScore', NaN);
   if (Number.isFinite(fromAi)) return fromAi;
-  return rawRatingScore(place);
+  return 50;
 }
 
 function rawCuisineFitScore(place: any, favoriteCuisines: string[]): number {
@@ -423,6 +424,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     const proteinRaw = rawProteinScore(place);
     const calorieRaw = rawCalorieScore(place);
     const tasteRaw = rawTasteScore(place);
+    const ratingRaw = rawRatingScore(place);
     const cuisineRaw = rawCuisineCompositeScore(place, prefs.favoriteCuisines, prefs.weights);
 
     const healthBlend =
@@ -450,7 +452,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       distance: dRaw * nw.distance + speedRaw * nw.speed,
       health: hRaw * nw.health + workoutRaw * nw.workoutRecovery + proteinRaw * nw.protein + calorieRaw * nw.calories,
       price: pRaw * nw.cost,
-      rating: tasteRaw * nw.taste,
+      rating: tasteRaw * nw.taste + ratingRaw * nw.ratingAdherence,
       novelty:
         cuisineRaw * nw.cuisine +
         rawCuisineVarietyScore(place, prefs.favoriteCuisines) * nw.cuisineVariety * 0.5 +
@@ -470,7 +472,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       distance: dRaw,
       health: healthBlend,
       price: pRaw,
-      rating: tasteRaw,
+      rating: ratingRaw,
       novelty: cuisineRaw,
     };
     const baseSr: Omit<ScoredRestaurant, 'matchPills'> = {

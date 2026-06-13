@@ -70,6 +70,9 @@ function sanitizeWeights(w: Partial<RecommendationWeights> | Record<string, unkn
     if (out.taste === DEFAULT_WEIGHTS.taste && legacy.rating != null) {
       out.taste = legacyLevelFromHundred(legacy.rating, 3);
     }
+    if (out.ratingAdherence === DEFAULT_WEIGHTS.ratingAdherence && legacy.rating != null) {
+      out.ratingAdherence = legacyLevelFromHundred(legacy.rating, 3);
+    }
     if (legacy.novelty != null) {
       const n = legacyLevelFromHundred(legacy.novelty, 3);
       if (out.cuisineVariety === DEFAULT_WEIGHTS.cuisineVariety) out.cuisineVariety = n;

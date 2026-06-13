@@ -11,6 +11,7 @@ import {
   buildCandidateUrls,
   cacheImageUrl,
   getCachedImageUrl,
+  invalidateCachedImageUrl,
 } from './imageCache';
 
 /**
@@ -75,30 +76,28 @@ function RestaurantImageInner({
     let timer: ReturnType<typeof setTimeout>;
 
     const init = async () => {
-      // 1. Check cache first — instant render if hit
-      const cached = await getCachedImageUrl(restaurantId);
-      if (cached && mountedRef.current) {
-        setActiveUri(cached);
-        setState('loading');
-        return;
-      }
-
-      // 2. Build candidate list from photos
       const urls = buildCandidateUrls(photos);
+      candidatesRef.current = urls;
+      indexRef.current = 0;
+
       if (urls.length === 0) {
         console.warn(`[RestaurantImage] No photo URLs for restaurant ${restaurantId}`);
         if (mountedRef.current) setState('failed');
         return;
       }
 
-      candidatesRef.current = urls;
-      indexRef.current = 0;
+      const cached = await getCachedImageUrl(restaurantId);
+      if (cached && mountedRef.current) {
+        candidatesRef.current = cached && !urls.includes(cached)
+          ? [cached, ...urls]
+          : [cached, ...urls.filter((url) => url !== cached)];
+        indexRef.current = 0;
+      }
 
-      // 3. Apply load delay so card text renders first
       timer = setTimeout(() => {
         if (!mountedRef.current) return;
         const maxPx = quality ?? width;
-        const uri = adjustQuality(urls[0], maxPx);
+        const uri = adjustQuality(candidatesRef.current[0], maxPx);
         setActiveUri(uri);
         setState('loading');
       }, loadDelay);
@@ -122,28 +121,23 @@ function RestaurantImageInner({
   const onError = useCallback(() => {
     if (!mountedRef.current) return;
 
-    console.error(
-      `[RestaurantImage] Failed to load image for "${restaurantId}" — URL: ${activeUri}`
-    );
+    if (indexRef.current === 0) {
+      invalidateCachedImageUrl(restaurantId).catch(() => {});
+    }
 
-    // Try next candidate
     const nextIdx = indexRef.current + 1;
     if (nextIdx < candidatesRef.current.length) {
       indexRef.current = nextIdx;
       const maxPx = quality ?? width;
       const nextUri = adjustQuality(candidatesRef.current[nextIdx], maxPx);
-      console.log(
-        `[RestaurantImage] Trying fallback ${nextIdx + 1}/${candidatesRef.current.length} for "${restaurantId}"`
-      );
       setActiveUri(nextUri);
-      // State stays 'loading'
     } else {
-      console.error(
+      console.warn(
         `[RestaurantImage] All ${candidatesRef.current.length} URLs exhausted for "${restaurantId}" — showing default`
       );
       setState('failed');
     }
-  }, [activeUri, restaurantId, quality, width]);
+  }, [restaurantId, quality, width]);
 
   // ── Render ──────────────────────────────────────────────────────────────
 

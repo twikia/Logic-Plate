@@ -16,6 +16,7 @@ export type RecommendationWeights = {
   cuisineVariety: ImportanceLevel;
   cuisineAdherence: ImportanceLevel;
   taste: ImportanceLevel;
+  ratingAdherence: ImportanceLevel;
 };
 
 export type DietaryFilterId =
@@ -103,6 +104,7 @@ export const DEFAULT_WEIGHTS: RecommendationWeights = {
   cuisineVariety: 3,
   cuisineAdherence: 3,
   taste: 3,
+  ratingAdherence: 3,
 };
 
 export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {

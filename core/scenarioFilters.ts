@@ -2,6 +2,7 @@ import { placeOffersSweets } from './placeSweets';
 import type { RandomSortBy } from './randomPickerState';
 
 export type ScenarioKey =
+  | 'top_rated'
   | 'close_fast'
   | 'wallet_friendly'
   | 'health'
@@ -19,6 +20,7 @@ const LEGACY_SCENARIO_ALIASES: Record<string, ScenarioKey> = {
 
 /** Most-used scenarios first (home quick-bar scroll order). */
 export const SCENARIO_ORDER: ScenarioKey[] = [
+  'top_rated',
   'close_fast',
   'wallet_friendly',
   'health',
@@ -32,6 +34,7 @@ export const SCENARIO_ORDER: ScenarioKey[] = [
 ];
 
 export const SCENARIO_LABELS: Record<ScenarioKey, string> = {
+  top_rated: 'Top Rated',
   close_fast: 'Quick & Close',
   wallet_friendly: 'Wallet Wins',
   health: 'Eat Clean',
@@ -45,6 +48,7 @@ export const SCENARIO_LABELS: Record<ScenarioKey, string> = {
 };
 
 export const SCENARIO_EMOJIS: Record<ScenarioKey, string> = {
+  top_rated: '⭐',
   close_fast: '⚡',
   wallet_friendly: '💰',
   health: '🥗',
@@ -58,6 +62,7 @@ export const SCENARIO_EMOJIS: Record<ScenarioKey, string> = {
 };
 
 export const SCENARIO_PREFERRED_SORT: Record<ScenarioKey, RandomSortBy> = {
+  top_rated: 'rating',
   close_fast: 'speed',
   wallet_friendly: 'valueForMoney',
   health: 'health',
@@ -97,6 +102,10 @@ function aiNumAtLeast(ai: any, field: string, min: number): boolean {
 export function restaurantMatchesScenario(place: any, key: ScenarioKey): boolean {
   const ai = place?.aiOverview;
   switch (key) {
+    case 'top_rated': {
+      const r = place?.rating;
+      return typeof r === 'number' && Number.isFinite(r) && r >= 4.0;
+    }
     case 'health': {
       if (aiNumAtLeast(ai, 'healthScore', 5.5)) return true;
       return hasAnyType(place, [

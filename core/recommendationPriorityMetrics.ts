@@ -41,6 +41,12 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
       { key: 'speed', label: 'Speed', hint: 'Quick service and short waits', icon: '⚡' },
       { key: 'cost', label: 'Cost', hint: 'Staying within your budget', icon: '💰' },
       { key: 'distance', label: 'Distance', hint: 'How close the spot is', icon: '📍' },
+      {
+        key: 'ratingAdherence',
+        label: 'Top rating importance',
+        hint: 'How much star ratings matter when we pick',
+        icon: '⭐',
+      },
     ],
   },
   {
@@ -67,7 +73,7 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
         hint: 'How strongly we favor your picked cuisines',
         icon: '❤️',
       },
-      { key: 'taste', label: 'Taste', hint: 'Flavor and review quality', icon: '👅' },
+      { key: 'taste', label: 'Taste', hint: 'AI flavor and menu quality', icon: '👅' },
     ],
   },
 ];

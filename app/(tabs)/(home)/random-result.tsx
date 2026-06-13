@@ -1,7 +1,7 @@
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { AiOverviewRadar } from '@/components/AiOverviewRadar';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
-import { NUTRITION_METRICS, PERFORMANCE_METRICS, VibeStatsPodium } from '@/components/VibeStatsPodium';
+import { NUTRITION_METRICS, PERFORMANCE_METRICS } from '@/components/VibeStatsPodium';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -350,7 +350,7 @@ export default function RandomResultScreen() {
         cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
       });
       if (cancelled) return;
-      setHeroPhotos(urls.length > 0 ? urls.slice(0, 1) : (place.photos || []).slice(0, 1));
+      setHeroPhotos(urls.length > 0 ? urls : (place.photos || []));
     };
     loadPhotos();
     return () => { cancelled = true; };
@@ -555,8 +555,6 @@ export default function RandomResultScreen() {
                 ) : null}
               </View>
             ) : null}
-
-            {!ph ? <VibeStatsPodium ai={aiOverview} theme={theme} /> : null}
 
             {!ph ? (
               <SectionCard title="Performance" icon="analytics-outline" theme={theme}>

@@ -228,7 +228,7 @@ function RestaurantRow({
       });
 
       if (cancelled) return;
-      setPhotos(urls.length > 0 ? urls.slice(0, 1) : (item.photos || []).slice(0, 1));
+      setPhotos(urls.length > 0 ? urls : (item.photos || []));
     };
 
     loadPhotos();

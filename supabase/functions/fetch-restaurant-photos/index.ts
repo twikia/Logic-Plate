@@ -8,9 +8,13 @@ const corsHeaders = {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const TARGET_PHOTOS = 1;
+const MAX_OG_PHOTOS = 2;
+const MAX_WIKIMEDIA_PHOTOS = 3;
+const MAX_UNSPLASH_PHOTOS = 2;
+const MAX_TOTAL_PHOTOS = 6;
 const WIKIMEDIA_MIN_WIDTH = 400;
-const WIKIMEDIA_IMAGE_FILTER = 'filetype:bitmap filemime:image/jpeg|image/png|image/webp';
+const WIKIMEDIA_THUMB_WIDTH = 1200;
+const FETCH_USER_AGENT = 'Platebound/1.0 (restaurant-photo-fetcher; contact: support@platebound.app)';
 
 // Unsplash cuisine → curated search terms for high-quality food photography
 const CUISINE_UNSPLASH_MAP: Record<string, string> = {
@@ -71,6 +75,63 @@ async function upsertPhotoCache(
   return legacyError;
 }
 
+function dedupeUrls(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    const trimmed = url?.trim();
+    if (!trimmed || !trimmed.startsWith('http') || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function resolveAbsoluteUrl(baseUrl: string, maybeRelative: string): string {
+  try {
+    return new URL(maybeRelative, baseUrl).href;
+  } catch {
+    return maybeRelative;
+  }
+}
+
+async function validateImageUrl(url: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent': FETCH_USER_AGENT,
+        'Range': 'bytes=0-1023',
+        'Accept': 'image/*,*/*',
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok && res.status !== 206) return false;
+    const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+    return contentType.startsWith('image/');
+  } catch {
+    return false;
+  }
+}
+
+async function filterValidImageUrls(urls: string[]): Promise<string[]> {
+  const results = await Promise.all(
+    urls.map(async (url) => ((await validateImageUrl(url)) ? url : null)),
+  );
+  const valid = results.filter((url): url is string => url !== null);
+  for (const url of urls) {
+    if (!valid.includes(url)) {
+      console.log(`[Validate] Rejected non-image or unreachable URL: ${url.slice(0, 120)}`);
+    }
+  }
+  return valid;
+}
+
 /**
  * Extracts the OG image from a restaurant's website by fetching its HTML.
  * Returns up to `limit` OG/twitter image URLs.
@@ -83,8 +144,8 @@ async function fetchOgImages(websiteUrl: string, limit = 1): Promise<string[]> {
     const res = await fetch(websiteUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html',
+        'User-Agent': FETCH_USER_AGENT,
+        'Accept': 'text/html,application/xhtml+xml',
       },
     });
     clearTimeout(timeout);
@@ -99,7 +160,10 @@ async function fetchOgImages(websiteUrl: string, limit = 1): Promise<string[]> {
     for (const regex of [metaRegex, metaRegex2]) {
       let match: RegExpExecArray | null;
       while ((match = regex.exec(html)) !== null && urls.length < limit) {
-        const url = match[1].trim();
+        const raw = match[1].trim();
+        const url = raw.startsWith('http')
+          ? raw
+          : resolveAbsoluteUrl(websiteUrl, raw);
         if (url.startsWith('http') && !urls.includes(url)) {
           urls.push(url);
         }
@@ -124,6 +188,9 @@ function buildWikimediaSearchQueries(
   const trimmedName = name.trim();
   if (!trimmedName) return queries;
 
+  const normalizedName = trimmedName.replace(/[''`]/g, '');
+  const brandName = trimmedName.split(/\s[-–—|@]\s/)[0]?.trim() || trimmedName;
+
   let cityHint = '';
   if (formattedAddress) {
     const parts = formattedAddress.split(',').map((part) => part.trim()).filter(Boolean);
@@ -135,15 +202,17 @@ function buildWikimediaSearchQueries(
   }
 
   if (cityHint) {
-    queries.push(`"${trimmedName}" ${cityHint} restaurant ${WIKIMEDIA_IMAGE_FILTER}`);
-    queries.push(`${trimmedName} ${cityHint} restaurant ${WIKIMEDIA_IMAGE_FILTER}`);
+    queries.push(`${trimmedName} ${cityHint}`);
+    queries.push(`${brandName} ${cityHint}`);
   }
 
-  queries.push(`"${trimmedName}" restaurant ${WIKIMEDIA_IMAGE_FILTER}`);
-  queries.push(`${trimmedName} restaurant ${WIKIMEDIA_IMAGE_FILTER}`);
+  queries.push(trimmedName);
+  if (normalizedName !== trimmedName) queries.push(normalizedName);
+  queries.push(`${trimmedName} restaurant`);
+  queries.push(`${brandName} restaurant`);
 
   if (cuisineKey && cuisineKey !== 'default') {
-    queries.push(`${trimmedName} ${cuisineKey} restaurant ${WIKIMEDIA_IMAGE_FILTER}`);
+    queries.push(`${trimmedName} ${cuisineKey}`);
   }
 
   return [...new Set(queries)];
@@ -160,10 +229,12 @@ function pickWikimediaImageUrl(imageInfo: WikimediaImageInfo | undefined): strin
   if (!imageInfo) return null;
 
   const mime = imageInfo.mime ?? '';
-  if (!mime.startsWith('image/')) return null;
+  if (mime && !mime.startsWith('image/')) return null;
   if ((imageInfo.width ?? 0) < WIKIMEDIA_MIN_WIDTH) return null;
 
-  const url = imageInfo.url || imageInfo.thumburl;
+  const thumb = imageInfo.thumburl;
+  const full = imageInfo.url;
+  const url = (thumb && thumb.startsWith('http')) ? thumb : full;
   return url && url.startsWith('http') ? url : null;
 }
 
@@ -195,11 +266,14 @@ async function fetchWikimediaImages(
       url.searchParams.set('gsrlimit', '8');
       url.searchParams.set('prop', 'imageinfo');
       url.searchParams.set('iiprop', 'url|mime|size');
-      url.searchParams.set('iiurlwidth', '1200');
+      url.searchParams.set('iiurlwidth', String(WIKIMEDIA_THUMB_WIDTH));
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(url.toString(), { signal: controller.signal });
+      const res = await fetch(url.toString(), {
+        signal: controller.signal,
+        headers: { 'User-Agent': FETCH_USER_AGENT },
+      });
       clearTimeout(timeout);
 
       if (!res.ok) {
@@ -216,11 +290,6 @@ async function fetchWikimediaImages(
           found.push(imageUrl);
           if (found.length >= limit) break;
         }
-      }
-
-      if (found.length > 0) {
-        console.log(`[Wikimedia] Found ${found.length} image(s) for query "${searchTerm}"`);
-        break;
       }
     } catch (err) {
       console.log(`[Wikimedia] Fetch failed for query "${searchTerm}":`, (err as Error).message);
@@ -327,39 +396,33 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase           = createClient(supabaseUrl, supabaseServiceKey);
 
-    let ogUrls:        string[] = [];
-    let wikimediaUrls: string[] = [];
-    let unsplashUrls:  string[] = [];
-
-    console.log('[Tier 1] Fetching OG image...');
-    if (website_url) {
-      ogUrls = await fetchOgImages(website_url, TARGET_PHOTOS);
-    } else {
-      console.log('[Tier 1] No website URL provided, skipping.');
-    }
-    console.log(`[Tier 1] Got ${ogUrls.length} OG URL(s).`);
-
-    if (ogUrls.length === 0) {
-      console.log('[Tier 2] Fetching Wikimedia Commons image...');
-      wikimediaUrls = await fetchWikimediaImages(name, {
+    console.log('[Fetch] Running all photo tiers in parallel...');
+    const [rawOgUrls, rawWikimediaUrls, rawUnsplashUrls] = await Promise.all([
+      website_url
+        ? fetchOgImages(website_url, MAX_OG_PHOTOS)
+        : Promise.resolve([] as string[]),
+      fetchWikimediaImages(name, {
         formattedAddress: formatted_address || undefined,
         cuisineKey: cuisine_key || undefined,
-      }, TARGET_PHOTOS);
-      console.log(`[Tier 2] Got ${wikimediaUrls.length} Wikimedia URL(s).`);
-    } else {
-      console.log('[Tier 2] Already have an OG image, skipping Wikimedia.');
-    }
+      }, MAX_WIKIMEDIA_PHOTOS),
+      fetchUnsplashImages(cuisine_key || 'default', unsplashKey, MAX_UNSPLASH_PHOTOS),
+    ]);
 
-    if (ogUrls.length === 0 && wikimediaUrls.length === 0) {
-      console.log('[Tier 3] No website or Wikimedia image → fetching Unsplash fallback.');
-      unsplashUrls = await fetchUnsplashImages(cuisine_key || 'default', unsplashKey, TARGET_PHOTOS);
-      console.log(`[Tier 3] Got ${unsplashUrls.length} Unsplash URL(s).`);
-    } else {
-      console.log('[Tier 3] Already have a photo, skipping Unsplash.');
-    }
+    console.log(`[Fetch] Raw counts — OG: ${rawOgUrls.length}, Wikimedia: ${rawWikimediaUrls.length}, Unsplash: ${rawUnsplashUrls.length}`);
 
-    const photoUrls = [...ogUrls, ...wikimediaUrls, ...unsplashUrls].slice(0, TARGET_PHOTOS);
-    console.log(`[Done] Total photos collected: ${photoUrls.length} (OG: ${ogUrls.length}, Wikimedia: ${wikimediaUrls.length}, Unsplash: ${unsplashUrls.length})`);
+    const [ogUrls, wikimediaUrls, unsplashUrls] = await Promise.all([
+      filterValidImageUrls(rawOgUrls),
+      filterValidImageUrls(rawWikimediaUrls),
+      filterValidImageUrls(rawUnsplashUrls),
+    ]);
+
+    const photoUrls = dedupeUrls([
+      ...ogUrls,
+      ...wikimediaUrls,
+      ...unsplashUrls,
+    ]).slice(0, MAX_TOTAL_PHOTOS);
+
+    console.log(`[Done] Validated photos: ${photoUrls.length} (OG: ${ogUrls.length}, Wikimedia: ${wikimediaUrls.length}, Unsplash: ${unsplashUrls.length})`);
 
     const upsertError = await upsertPhotoCache(supabase, {
       google_place_id: place_id,
