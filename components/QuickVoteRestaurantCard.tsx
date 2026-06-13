@@ -60,8 +60,8 @@ export function QuickVoteRestaurantCard({
   const lng = r.location?.longitude;
   const metaParts: string[] = [];
   if (typeof r.rating === 'number') metaParts.push(`${r.rating.toFixed(1)} ★`);
-  if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
   if (cost) metaParts.push(cost);
+  if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
 
   return (
     <TouchableOpacity
@@ -119,7 +119,9 @@ export function QuickVoteRestaurantCard({
             ]}>
             {voted ? (
               <Text style={[styles.voteCheck, { color: theme.accent }]}>✓</Text>
-            ) : null}
+            ) : (
+              <Text style={[styles.voteLabel, { color: theme.subtext }]}>Vote</Text>
+            )}
           </TouchableOpacity>
         ) : null}
       </View>
@@ -177,14 +179,15 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, marginTop: 2 },
   expandHint: { fontSize: 12, fontWeight: '600', marginTop: 4 },
   voteBox: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 8,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
+  voteLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
   voteCheck: { fontSize: 18, fontWeight: '800', lineHeight: 22 },
   expandedContent: {
     marginTop: 12,

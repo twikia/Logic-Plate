@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { supabase } from '@/core/supabaseClient';
@@ -15,6 +15,7 @@ export default function WaitingScreen() {
   const responseId = typeof params.responseId === 'string' ? params.responseId : '';
 
   const [totalResponses, setTotalResponses] = useState(0);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   const refreshCount = useCallback(async () => {
     if (!sessionId) return;
@@ -36,7 +37,7 @@ export default function WaitingScreen() {
         router.replace({ pathname: '/groups/vote', params: { sessionId, responseId } });
       }
       if (status === 'expired') {
-        router.replace('/groups');
+        setSessionEnded(true);
       }
     });
     return () => {
@@ -47,6 +48,25 @@ export default function WaitingScreen() {
 
   if (!sessionId) {
     return null;
+  }
+
+  if (sessionEnded) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+        <View style={styles.inner}>
+          <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Session Ended</Text>
+          <Text style={[styles.subtitle, { color: theme.subtext }]}>
+            The host ended this session.
+          </Text>
+          <TouchableOpacity
+            style={[styles.backBtn, { backgroundColor: theme.accent }]}
+            onPress={() => router.replace('/groups')}>
+            <Text style={[styles.backBtnText, { color: theme.gradient[0] }]}>Back to Groups</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -117,4 +137,7 @@ const styles = StyleSheet.create({
   progTrack: { height: 6, borderRadius: 3, overflow: 'hidden', width: '100%', marginBottom: 16 },
   progFill: { height: '100%', borderRadius: 3 },
   note: { fontSize: 15, textAlign: 'center', lineHeight: 22, maxWidth: 260 },
+  endedIcon: { fontSize: 48, marginBottom: 16 },
+  backBtn: { marginTop: 32, paddingVertical: 14, paddingHorizontal: 36, borderRadius: 16 },
+  backBtnText: { fontSize: 16, fontWeight: '800' },
 });

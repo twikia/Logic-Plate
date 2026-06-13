@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { supabase } from '@/core/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
 
 const DIETARY_OPTIONS: { id: string; label: string }[] = [
@@ -100,11 +101,7 @@ export default function VibeQuestionsScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => (step > 0 ? setStep(step - 1) : router.back())} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>
-            {step > 0 ? '← Back' : 'Cancel'}
-          </Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => (step > 0 ? setStep(step - 1) : router.back())} />
         <View style={styles.stepDots}>
           {STEPS.map((_, i) => (
             <View

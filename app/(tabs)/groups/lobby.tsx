@@ -23,8 +23,10 @@ import { supabase } from '@/core/supabaseClient';
 import { getLocation } from '@/core/locationCache';
 import { getCellsInRadius } from '@/core/h3Utils';
 import { getSearchRadius } from '@/core/userSettings';
+import { readCacheBulk } from '@/core/cacheManager';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { BackButton } from '@/components/ui/BackButton';
 import { subscribeToSessionResponses } from '@/utils/groupRealtime';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -57,6 +59,7 @@ export default function GroupLobbyScreen() {
 
   const normalExit = useRef(false);
   const sessionRef = useRef<SessionRow | null>(null);
+  const cellIdsRef = useRef<string[]>([]);
 
   const appSecret = process.env.EXPO_PUBLIC_APP_SECRET ?? '';
 
@@ -77,6 +80,7 @@ export default function GroupLobbyScreen() {
       const radius = await getSearchRadius();
       const cellIds =
         loc != null ? getCellsInRadius(loc.latitude, loc.longitude, radius) : [];
+      cellIdsRef.current = cellIds;
       if (cellIds.length === 0) {
         setError('Location is required to start a group session.');
         setLoading(false);
@@ -210,9 +214,22 @@ export default function GroupLobbyScreen() {
       );
       return;
     }
+    let localRestaurantCache: { cellId: string; restaurants: unknown[] }[] = [];
+    const storedCellIds = cellIdsRef.current;
+    if (storedCellIds.length > 0) {
+      try {
+        const { hits } = await readCacheBulk(storedCellIds);
+        localRestaurantCache = Array.from(hits.entries()).map(([cellId, restaurants]) => ({
+          cellId,
+          restaurants,
+        }));
+      } catch {
+        // Non-fatal: reconcile-group will fall back to Supabase restaurant_cache
+      }
+    }
     setReconciling(true);
     const invokeResult = await supabase.functions.invoke('reconcile-group', {
-      body: { sessionId },
+      body: { sessionId, localRestaurantCache },
       headers: { 'x-app-secret': appSecret },
     });
     setReconciling(false);
@@ -240,11 +257,34 @@ export default function GroupLobbyScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>← Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => router.back()} />
         <Text style={[styles.topTitle, { color: theme.text }]}>New Session</Text>
-        <View style={{ width: 60 }} />
+        {!loading && !error ? (
+          <TouchableOpacity
+            onPress={everyoneIn}
+            disabled={responses.length < 2 || reconciling}
+            hitSlop={8}
+            style={[
+              styles.startHeaderBtn,
+              {
+                opacity: responses.length >= 2 && !reconciling ? 1 : 0.45,
+              },
+            ]}>
+            {reconciling ? (
+              <ActivityIndicator size="small" color={theme.accent} />
+            ) : (
+              <Text
+                style={[
+                  styles.startHeaderText,
+                  { color: responses.length >= 2 ? theme.accent : theme.subtext },
+                ]}>
+                Start
+              </Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.startHeaderSpacer} />
+        )}
       </View>
 
       {loading ? (
@@ -308,6 +348,12 @@ export default function GroupLobbyScreen() {
               <Text style={[styles.responseCount, { color: theme.accent }]}>
                 {' '}{responses.length}
               </Text>
+              <Text style={[styles.minNoteInline, { color: theme.subtext }]}>
+                {' · '}
+                {responses.length < 2
+                  ? `Need ${2 - responses.length} more to start`
+                  : 'Ready to go!'}
+              </Text>
             </Text>
             {responses.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.subtext }]}>
@@ -332,31 +378,7 @@ export default function GroupLobbyScreen() {
                 ]}
               />
             </View>
-            <Text style={[styles.minNote, { color: theme.subtext }]}>
-              {responses.length < 2
-                ? `Need ${2 - responses.length} more to start`
-                : 'Ready to go!'}
-            </Text>
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.everyone,
-              {
-                backgroundColor: responses.length >= 2 ? theme.accent : theme.subtext + '22',
-                opacity: responses.length >= 2 ? 1 : 0.5,
-              },
-            ]}
-            disabled={responses.length < 2 || reconciling}
-            onPress={everyoneIn}>
-            {reconciling ? (
-              <ActivityIndicator color={theme.text} />
-            ) : (
-              <Text style={[styles.everyoneText, { color: responses.length >= 2 ? theme.gradient[0] : theme.subtext }]}>
-                {"Everyone's in — Start voting →"}
-              </Text>
-            )}
-          </TouchableOpacity>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -373,7 +395,16 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 8,
   },
-  topTitle: { fontSize: 17, fontWeight: '700' },
+  topTitle: { fontSize: 17, fontWeight: '700', flex: 1, textAlign: 'center' },
+  startHeaderBtn: {
+    minWidth: 56,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -4,
+  },
+  startHeaderSpacer: { width: 56 },
+  startHeaderText: { fontSize: 16, fontWeight: '700' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
   loadingText: { fontSize: 15 },
   err: { textAlign: 'center', fontSize: 16 },
@@ -414,7 +445,5 @@ const styles = StyleSheet.create({
   voterName: { fontSize: 15, fontWeight: '600', flex: 1 },
   progTrack: { height: 6, borderRadius: 3, marginTop: 16, overflow: 'hidden' },
   progFill: { height: '100%', borderRadius: 3 },
-  minNote: { marginTop: 8, fontSize: 13 },
-  everyone: { paddingVertical: 18, borderRadius: 18, alignItems: 'center' },
-  everyoneText: { fontSize: 17, fontWeight: '800' },
+  minNoteInline: { fontSize: 13, fontWeight: '500' },
 });

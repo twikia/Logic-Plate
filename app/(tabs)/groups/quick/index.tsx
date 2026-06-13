@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackButton } from '@/components/ui/BackButton';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
@@ -72,15 +73,13 @@ export default function QuickVoteSetupScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.replace('/groups')} hitSlop={12}>
-          <Text style={[styles.back, { color: theme.accent }]}>Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => router.replace('/groups')} />
         <TopProfileButton />
       </View>
       <View style={styles.centerWrap}>
         <View style={styles.body}>
           <Text style={[styles.title, { color: theme.text }]}>Quick Vote</Text>
-          <Text style={[styles.sub, { color: theme.subtext }]}>Everyone votes together</Text>
+          <Text style={[styles.sub, { color: theme.subtext }]}>Vote and pass the phone!</Text>
 
           {loading ? (
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 32 }} />
@@ -108,9 +107,6 @@ export default function QuickVoteSetupScreen() {
                   <Text style={[styles.pickerBtnText, { color: theme.text }]}>+</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.pickerHint, { color: theme.subtext }]}>
-                {MIN_VOTERS}–{MAX_VOTERS} people pass the phone in order.
-              </Text>
               <TouchableOpacity
                 style={[styles.startBtn, { backgroundColor: theme.accent }]}
                 onPress={start}>
@@ -133,7 +129,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 4,
   },
-  back: { fontSize: 17, fontWeight: '600' },
   centerWrap: {
     flex: 1,
     width: '100%',
@@ -165,7 +160,6 @@ const styles = StyleSheet.create({
   },
   pickerBtnText: { fontSize: 28, fontWeight: '700', lineHeight: 32 },
   pickerValue: { fontSize: 32, fontWeight: '800', minWidth: 48, textAlign: 'center' },
-  pickerHint: { marginTop: 10, fontSize: 14, textAlign: 'center' },
   startBtn: {
     marginTop: 28,
     paddingVertical: 16,
