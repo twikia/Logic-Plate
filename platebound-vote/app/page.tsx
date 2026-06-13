@@ -9,7 +9,7 @@ export default function Home() {
         </p>
         <p className="text-zinc-500 text-sm">
           Links look like{' '}
-          <span className="text-zinc-300 font-mono">vote.platebound.app/vote/ABC123</span>
+          <span className="text-zinc-300 font-mono">platebound.vercel.app/vote/ABC123</span>
         </p>
       </div>
     </div>

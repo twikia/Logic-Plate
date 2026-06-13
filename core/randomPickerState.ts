@@ -110,5 +110,7 @@ export function onRandomPickerReset(listener: ResetListener): () => void {
 }
 
 export function requestRandomPickerReset(): void {
-  resetListeners.forEach((fn) => fn());
+  void clearRandomPickerState().then(() => {
+    resetListeners.forEach((fn) => fn());
+  });
 }

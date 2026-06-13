@@ -42,3 +42,7 @@ app-example
 # logs
 logs/
 .expo-tmp-export
+
+# local env files
+.env.local
+.env*.local

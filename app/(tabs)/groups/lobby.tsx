@@ -183,9 +183,11 @@ export default function GroupLobbyScreen() {
     });
   };
 
-  const qrValue = session?.code
-    ? `https://vote.platebound.app/vote/${session.code}`
-    : '';
+  const voteBaseUrl = (process.env.EXPO_PUBLIC_VOTE_BASE_URL ?? 'https://platebound.vercel.app').replace(
+    /\/$/,
+    ''
+  );
+  const qrValue = session?.code ? `${voteBaseUrl}/vote/${session.code}` : '';
 
   const progress = Math.min(1, responses.length / Math.max(2, responses.length || 1));
 
