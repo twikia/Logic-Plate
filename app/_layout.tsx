@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthGate } from '@/components/auth/AuthGate';
+import { initDistanceUnit } from '@/core/userSettings';
 import { initLocationCache } from '@/core/locationCache';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppThemeProvider } from '@/context/ThemeContext';
@@ -22,6 +23,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initLocationCache();
+    void initDistanceUnit();
   }, []);
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export default function RootLayout() {
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AuthGate />
             <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="welcome-onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="profile" options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }} />

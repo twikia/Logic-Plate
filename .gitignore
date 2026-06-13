@@ -38,3 +38,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# logs
+logs/
+.expo-tmp-export

@@ -1,18 +1,14 @@
-import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SetUsernameForm } from '@/components/auth/SetUsernameForm';
 
 export default function PickUsernameScreen() {
-  const router = useRouter();
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.pad}>
         <SetUsernameForm
           title="Choose a username"
           subtitle="This appears below your profile picture. You can change it later in settings."
-          onSuccess={() => router.replace('/(tabs)' as any)}
         />
       </View>
     </SafeAreaView>

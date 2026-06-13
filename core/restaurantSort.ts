@@ -179,3 +179,24 @@ export function lerpRedGreen(t: number): string {
   const h = (n: number) => n.toString(16).padStart(2, '0');
   return `#${h(r)}${h(g)}${h(b)}`;
 }
+
+const MAP_MARKER_COLOR_STOPS = [
+  { t: 0, r: 0xdc, g: 0x26, b: 0x26 },
+  { t: 0.5, r: 0xd9, g: 0x77, b: 0x06 },
+  { t: 1, r: 0x16, g: 0xa3, b: 0x4a },
+] as const;
+
+export function mapMarkerScoreColor(t: number): string {
+  const u = Math.max(0, Math.min(1, t));
+  let i = 0;
+  while (i < MAP_MARKER_COLOR_STOPS.length - 1 && u > MAP_MARKER_COLOR_STOPS[i + 1]!.t) i++;
+  const a = MAP_MARKER_COLOR_STOPS[i]!;
+  const b = MAP_MARKER_COLOR_STOPS[Math.min(i + 1, MAP_MARKER_COLOR_STOPS.length - 1)]!;
+  const span = b.t - a.t || 1;
+  const f = (b.t === a.t) ? 0 : (u - a.t) / span;
+  const r = Math.round(a.r + (b.r - a.r) * f);
+  const g = Math.round(a.g + (b.g - a.g) * f);
+  const bl = Math.round(a.b + (b.b - a.b) * f);
+  const h = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(bl)}`;
+}

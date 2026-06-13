@@ -1,61 +1,76 @@
+import { placeOffersSweets } from './placeSweets';
 import type { RandomSortBy } from './randomPickerState';
 
 export type ScenarioKey =
+  | 'top_rated'
   | 'close_fast'
   | 'wallet_friendly'
   | 'health'
   | 'light_coffee'
-  | 'work'
+  | 'solo'
+  | 'something_sweet'
+  | 'drinks_out'
   | 'date'
-  | 'group_close'
   | 'munchies'
   | 'recovery_protein';
 
+const LEGACY_SCENARIO_ALIASES: Record<string, ScenarioKey> = {
+  work: 'solo',
+};
+
 /** Most-used scenarios first (home quick-bar scroll order). */
 export const SCENARIO_ORDER: ScenarioKey[] = [
+  'top_rated',
   'close_fast',
   'wallet_friendly',
   'health',
   'light_coffee',
-  'work',
+  'solo',
+  'something_sweet',
+  'drinks_out',
   'date',
-  'group_close',
   'munchies',
   'recovery_protein',
 ];
 
 export const SCENARIO_LABELS: Record<ScenarioKey, string> = {
+  top_rated: 'Top Rated',
   close_fast: 'Quick & Close',
   wallet_friendly: 'Wallet Wins',
   health: 'Eat Clean',
   light_coffee: 'Light & Coffee',
-  work: 'Work Mode',
+  solo: 'Solo/Work',
+  something_sweet: 'Something Sweet',
+  drinks_out: 'Drinks Out',
   date: 'Date Night',
-  group_close: 'Squad Nearby',
   munchies: 'Munchie Mode',
   recovery_protein: 'Recover & Fuel',
 };
 
 export const SCENARIO_EMOJIS: Record<ScenarioKey, string> = {
+  top_rated: '⭐',
   close_fast: '⚡',
   wallet_friendly: '💰',
   health: '🥗',
   light_coffee: '☕',
-  work: '💻',
+  solo: '🍽️',
+  something_sweet: '🍰',
+  drinks_out: '🍸',
   date: '🍷',
-  group_close: '👥',
   munchies: '🌙',
   recovery_protein: '💪',
 };
 
 export const SCENARIO_PREFERRED_SORT: Record<ScenarioKey, RandomSortBy> = {
+  top_rated: 'rating',
   close_fast: 'speed',
   wallet_friendly: 'valueForMoney',
   health: 'health',
   light_coffee: 'energySustain',
-  work: 'soloDiner',
+  solo: 'soloDiner',
+  something_sweet: 'rating',
+  drinks_out: 'distance',
   date: 'dateWorthiness',
-  group_close: 'distance',
   munchies: 'munchy',
   recovery_protein: 'protein',
 };
@@ -87,6 +102,10 @@ function aiNumAtLeast(ai: any, field: string, min: number): boolean {
 export function restaurantMatchesScenario(place: any, key: ScenarioKey): boolean {
   const ai = place?.aiOverview;
   switch (key) {
+    case 'top_rated': {
+      const r = place?.rating;
+      return typeof r === 'number' && Number.isFinite(r) && r >= 4.0;
+    }
     case 'health': {
       if (aiNumAtLeast(ai, 'healthScore', 5.5)) return true;
       return hasAnyType(place, [
@@ -151,25 +170,58 @@ export function restaurantMatchesScenario(place: any, key: ScenarioKey): boolean
         'wine_bar',
       ]);
     }
-    case 'work': {
-      if (aiIntAtLeast(ai, 'workFriendlyScore', 3.5)) return true;
+    case 'solo': {
       if (aiIntAtLeast(ai, 'soloDinerScore', 3.5)) return true;
+      if (aiIntAtLeast(ai, 'workFriendlyScore', 3.5)) return true;
       const ok = hasAnyType(place, [
         'cafe',
         'coffee_shop',
+        'tea_house',
+        'ramen_restaurant',
+        'sushi_restaurant',
+        'japanese_restaurant',
         'mediterranean_restaurant',
         'american_restaurant',
         'italian_restaurant',
-        'japanese_restaurant',
         'salad_shop',
         'sandwich_shop',
+        'diner',
+        'deli',
+        'fast_food_restaurant',
       ]);
       const bad =
         hasType(place, 'bar') ||
         hasType(place, 'night_club') ||
         hasType(place, 'liquor_store') ||
-        hasType(place, 'sports_bar');
+        hasType(place, 'sports_bar') ||
+        hasType(place, 'fine_dining_restaurant');
       return ok && !bad;
+    }
+    case 'something_sweet': {
+      if (placeOffersSweets(place)) return true;
+      return hasAnyType(place, [
+        'bakery',
+        'pastry_shop',
+        'donut_shop',
+        'cake_shop',
+        'dessert_shop',
+        'dessert_restaurant',
+        'ice_cream_shop',
+        'candy_store',
+        'chocolate_shop',
+        'confectionery',
+        'acai_shop',
+      ]);
+    }
+    case 'drinks_out': {
+      return hasAnyType(place, [
+        'bar',
+        'wine_bar',
+        'sports_bar',
+        'pub',
+        'brewery',
+        'night_club',
+      ]);
     }
     case 'light_coffee': {
       if (aiIntAtLeast(ai, 'energySustainScore', 3.5)) return true;
@@ -204,21 +256,6 @@ export function restaurantMatchesScenario(place: any, key: ScenarioKey): boolean
         'diner',
       ]);
     }
-    case 'group_close': {
-      if (aiIntAtLeast(ai, 'groupSizeSweetSpot', 4)) return true;
-      if (aiIntAtLeast(ai, 'varietyScore', 3.5)) return true;
-      return hasAnyType(place, [
-        'american_restaurant',
-        'mexican_restaurant',
-        'pizza_restaurant',
-        'chinese_restaurant',
-        'indian_restaurant',
-        'thai_restaurant',
-        'barbecue_restaurant',
-        'bar_and_grill',
-        'mediterranean_restaurant',
-      ]);
-    }
     default:
       return true;
   }
@@ -226,4 +263,10 @@ export function restaurantMatchesScenario(place: any, key: ScenarioKey): boolean
 
 export function isScenarioKey(value: string | null | undefined): value is ScenarioKey {
   return !!value && (SCENARIO_ORDER as string[]).includes(value);
+}
+
+export function normalizeScenarioKey(value: string | null | undefined): ScenarioKey | null {
+  if (!value) return null;
+  if (isScenarioKey(value)) return value;
+  return LEGACY_SCENARIO_ALIASES[value] ?? null;
 }

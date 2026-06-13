@@ -99,6 +99,13 @@ export default function GroupWinnerScreen() {
         <RestaurantImage
           restaurantId={winner.id}
           photos={(winner as { photos?: unknown[] }).photos ?? []}
+          photoUrl={winner.photo_url}
+          name={winner.displayName?.text ?? 'Restaurant'}
+          latitude={winner.location?.latitude}
+          longitude={winner.location?.longitude}
+          websiteUrl={(winner as { websiteUri?: string }).websiteUri}
+          formattedAddress={winner.formattedAddress}
+          cuisineKey={winner.primaryType?.replace(/_restaurant$/, '')}
           width={imgW}
           height={Math.round(imgW * 0.55)}
           borderRadius={16}

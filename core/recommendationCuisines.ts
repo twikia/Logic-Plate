@@ -17,6 +17,8 @@ const PT_MATCHERS: Record<string, string[]> = {
   bbq: ['barbecue_restaurant'],
   breakfast: ['breakfast_restaurant', 'brunch_restaurant'],
   cafe: ['cafe', 'coffee_shop', 'tea_house'],
+  bar: ['bar', 'wine_bar', 'sports_bar', 'pub', 'brewery', 'night_club'],
+  bakery: ['bakery', 'pastry_shop', 'donut_shop'],
   healthy: [
     'health_food_restaurant',
     'vegetarian_restaurant',
@@ -55,17 +57,27 @@ export const TOP_CUISINE_TILES: CuisineTile[] = [
   { id: 'bbq', label: 'BBQ', emoji: '🍖', match: matcherFor(PT_MATCHERS.bbq!) },
   { id: 'breakfast', label: 'Breakfast', emoji: '🥞', match: matcherFor(PT_MATCHERS.breakfast!) },
   { id: 'cafe', label: 'Café', emoji: '☕', match: matcherFor(PT_MATCHERS.cafe!) },
+  { id: 'bar', label: 'Bars', emoji: '🍸', match: matcherFor(PT_MATCHERS.bar!) },
+  { id: 'bakery', label: 'Bakery', emoji: '🥐', match: matcherFor(PT_MATCHERS.bakery!) },
   { id: 'healthy', label: 'Healthy', emoji: '🥗', match: matcherFor(PT_MATCHERS.healthy!) },
   { id: 'fast_casual', label: 'Fast casual', emoji: '🥙', match: matcherFor(PT_MATCHERS.fast_casual!) },
   { id: 'spanish', label: 'Spanish / tapas', emoji: '🫑', match: matcherFor(PT_MATCHERS.spanish!) },
   { id: 'middle_eastern', label: 'Middle Eastern', emoji: '🧆', match: matcherFor(PT_MATCHERS.middle_eastern!) },
 ];
 
-export function placeMatchesFavoriteCuisine(place: any, favoriteIds: string[]): boolean {
-  if (!favoriteIds.length) return false;
-  for (const id of favoriteIds) {
-    const tile = TOP_CUISINE_TILES.find(t => t.id === id);
-    if (tile?.match(place)) return true;
+export function bestFavoriteCuisineRankIndex(place: any, favoriteIds: string[]): number | null {
+  let best: number | null = null;
+  for (let i = 0; i < favoriteIds.length; i++) {
+    const tile = TOP_CUISINE_TILES.find(t => t.id === favoriteIds[i]);
+    if (tile?.match(place) && (best === null || i < best)) best = i;
   }
-  return false;
+  return best;
+}
+
+export function placeMatchesFavoriteCuisine(place: any, favoriteIds: string[]): boolean {
+  return bestFavoriteCuisineRankIndex(place, favoriteIds) != null;
+}
+
+export function cuisineFitScoreForRank(rankIndex: number): number {
+  return 95 - rankIndex * 6;
 }

@@ -1,30 +1,35 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { consumeMapFocusRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
 import { getNearbyRestaurants, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
-import { getCachedResults, setCachedResults } from '@/core/resultCache';
-import { getSearchRadius, setSearchRadius } from '@/core/userSettings';
+import {
+  DEFAULT_SEARCH_RADIUS_METERS,
+  MAX_SEARCH_RADIUS_METERS,
+  SEARCH_RADIUS_OPTIONS_METERS,
+} from '@/core/searchRadiusOptions';
 import { RestaurantImage } from '@/core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
 import { isOpenNow } from '@/core/isOpenNow';
-import { markerIconForPlace } from '@/core/markerIcons';
+import { RestaurantMapMarker } from '@/components/map/RestaurantMapMarker';
 import type { RandomSortBy } from '@/core/randomPickerState';
 import {
   SORT_OPTIONS,
   compareRestaurantsBySort,
   getSortValue,
-  lerpRedGreen,
+  mapMarkerScoreColor,
   mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
 
@@ -157,38 +162,13 @@ function MapSheetAiScores({
   );
 }
 
-function RestaurantMarker({ item, markerColor, displayScore, isOpen, onPress }: {
-  item: any;
-  markerColor: string;
-  displayScore: string | number;
-  isOpen: boolean;
-  onPress: () => void;
-}) {
-  const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
-  const iconName = markerIconForPlace(item);
-
-  return (
-    <Marker
-      coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
-      onPress={onPress}
-      zIndex={10}
-      anchor={{ x: 0.5, y: 1 }}
-    >
-      <View style={styles.markerOuter}>
-        <Text style={[styles.markerScoreTag, { opacity: isOpen ? 1 : 0.55 }]}>{scoreText}</Text>
-        <View style={[styles.markerPin, { backgroundColor: markerColor, opacity: isOpen ? 1 : 0.4 }]}>
-          <Ionicons name={iconName} size={13} color="#FFFFFF" />
-        </View>
-      </View>
-    </Marker>
-  );
-}
-
 const { width, height } = Dimensions.get('window');
-const MAP_RESULTS_KEY = 'map_results';
-const MAP_RADIUS_OPTIONS = [1000, 2000, 3000, 4000, 8000];
-const MAX_RADIUS_METERS = 8000;
-const DEFAULT_RADIUS_METERS = 3000;
+let mapSessionInitialized = false;
+let mapSessionAllRestaurants: any[] = [];
+let mapSessionRadius = DEFAULT_SEARCH_RADIUS_METERS;
+let mapSessionFetchedRadius = DEFAULT_SEARCH_RADIUS_METERS;
+let mapSessionUserCoords: { latitude: number; longitude: number } | null = null;
+let mapSessionRegion: Region | null = null;
 
 function markerInRegion(lat: number, lng: number, reg: Region): boolean {
   const halfLat = reg.latitudeDelta / 2;
@@ -243,15 +223,16 @@ export default function MapScreen() {
   const selectedRestaurantRef = useRef<any | null>(null);
   const sheetSnapRef = useRef<'peek' | 'full'>('peek');
 
-  const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [allRestaurants, setAllRestaurants] = useState<any[]>(mapSessionAllRestaurants);
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
-  const [region, setRegion] = useState<Region | null>(null);
-  const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [region, setRegion] = useState<Region | null>(mapSessionRegion);
+  const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(mapSessionUserCoords);
   const [, setIsLoading] = useState(false);
-  const [isLocating, setIsLocating] = useState(true);
-  const [locationProgress] = useState(new Animated.Value(0));
-  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [radius, setRadius] = useState(DEFAULT_RADIUS_METERS);
+  const [isLocating, setIsLocating] = useState(!mapSessionInitialized);
+  const [locationProgress] = useState(new Animated.Value(mapSessionInitialized ? 1 : 0));
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(mapSessionUserCoords);
+  const [radius, setRadius] = useState(mapSessionRadius);
+  const restaurantsRef = useRef<any[]>([]);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('overall');
   const [showSortPicker, setShowSortPicker] = useState(false);
@@ -267,6 +248,22 @@ export default function MapScreen() {
   // Determine map style - Force Dark as requested
   const currentMapStyle = darkMapStyle;
   const isDarkTheme = themeName !== 'melon_fresh'; // Still used for UI elements
+
+  const withSelectedRestaurant = useCallback((list: any[]) => {
+    const selected = selectedRestaurantRef.current;
+    if (selected?.id && !list.some((r) => r.id === selected.id)) {
+      return [...list, selected];
+    }
+    return list;
+  }, []);
+
+  const restaurants = useMemo(() => {
+    const source = allRestaurants ?? [];
+    const filtered = source.filter((r) => (r.distanceMeters ?? Infinity) <= radius);
+    return withSelectedRestaurant(filtered);
+  }, [allRestaurants, radius, withSelectedRestaurant]);
+
+  restaurantsRef.current = restaurants;
 
   const sortedMarkers = useMemo(
     () => [...restaurants].sort((a, b) => compareRestaurantsBySort(a, b, mapSortBy)),
@@ -284,23 +281,20 @@ export default function MapScreen() {
     return finiteMapColorBounds(markersInMapView, mapSortBy);
   }, [markersInMapView, mapSortBy]);
 
-  const loadRestaurants = useCallback(async (lat: number, lng: number, r: number) => {
+  const commitAllRestaurants = useCallback((next: any[]) => {
+    mapSessionAllRestaurants = next ?? [];
+    setAllRestaurants(next ?? []);
+  }, []);
+
+  const loadRestaurants = useCallback(async (lat: number, lng: number, fetchRadius: number) => {
     setIsLoading(true);
     setSearchCenter({ latitude: lat, longitude: lng });
-    const cacheKey = `${MAP_RESULTS_KEY}_${Math.round(r)}`;
     try {
-      const cached = await getCachedResults(cacheKey);
-      if (cached && cached.length > 0) {
-        setRestaurants(cached);
-        setIsLoading(false);
-        return;
-      }
-
-      setRestaurants([]);
-      const results = await getNearbyRestaurants(lat, lng, r, undefined, {
-        onAiReady: async (enriched) => {
-          await setCachedResults(cacheKey, enriched);
-          setRestaurants(enriched);
+      commitAllRestaurants([]);
+      const results = await getNearbyRestaurants(lat, lng, fetchRadius, undefined, {
+        onAiReady: (enriched) => {
+          mapSessionFetchedRadius = fetchRadius;
+          commitAllRestaurants(enriched);
           setSelectedRestaurant((prev: any) => {
             if (!prev) return null;
             const next = enriched.find((x: any) => x.id === prev.id);
@@ -308,8 +302,8 @@ export default function MapScreen() {
           });
         },
       });
-      await setCachedResults(cacheKey, results);
-      setRestaurants(results);
+      mapSessionFetchedRadius = fetchRadius;
+      commitAllRestaurants(results);
     } catch (error) {
       if (isRestaurantLoadSupersededError(error)) {
         return;
@@ -319,9 +313,21 @@ export default function MapScreen() {
       setIsLoading(false);
       setOpenStatusEpoch((e) => e + 1);
     }
-  }, []);
+  }, [commitAllRestaurants]);
 
   const initMap = useCallback(async () => {
+    if (mapSessionInitialized && mapSessionUserCoords) {
+      setUserCoords(mapSessionUserCoords);
+      setSearchCenter(mapSessionUserCoords);
+      setRadius(mapSessionRadius);
+      commitAllRestaurants(mapSessionAllRestaurants);
+      if (mapSessionRegion) {
+        setRegion(mapSessionRegion);
+      }
+      setIsLocating(false);
+      return;
+    }
+
     setIsLocating(true);
 
     Animated.timing(locationProgress, {
@@ -330,12 +336,11 @@ export default function MapScreen() {
       useNativeDriver: false,
     }).start();
 
-    const [coords, savedRadius] = await Promise.all([
-      getLocation(),
-      getSearchRadius()
-    ]);
+    const coords = await getLocation();
 
-    const initialRadius = Math.min(savedRadius, MAX_RADIUS_METERS);
+    const initialRadius = DEFAULT_SEARCH_RADIUS_METERS;
+    mapSessionRadius = initialRadius;
+    mapSessionFetchedRadius = initialRadius;
     setRadius(initialRadius);
 
     if (coords) {
@@ -347,6 +352,7 @@ export default function MapScreen() {
         setIsLocating(false);
       });
 
+      mapSessionUserCoords = coords;
       setUserCoords(coords);
       setSearchCenter(coords);
 
@@ -356,21 +362,24 @@ export default function MapScreen() {
         latitudeDelta: 0.02,
         longitudeDelta: 0.02 * (width / height),
       };
+      mapSessionRegion = initialRegion;
       setRegion(initialRegion);
 
       mapRef.current?.animateToRegion(initialRegion, 1000);
 
+      mapSessionInitialized = true;
       void loadRestaurants(coords.latitude, coords.longitude, initialRadius);
     } else {
       setIsLocating(false);
     }
-  }, [loadRestaurants, locationProgress]);
+  }, [commitAllRestaurants, loadRestaurants, locationProgress]);
 
   useEffect(() => {
     void initMap();
   }, [initMap]);
 
   const onRegionChangeComplete = (newRegion: Region) => {
+    mapSessionRegion = newRegion;
     setRegion(newRegion);
   };
 
@@ -424,15 +433,22 @@ export default function MapScreen() {
     })
   ).current;
 
-  const handleMarkerPress = (restaurant: any) => {
+  const openRestaurantSheet = useCallback((restaurant: any) => {
+    if (typeof restaurant?.location?.latitude !== 'number' || typeof restaurant?.location?.longitude !== 'number') {
+      return;
+    }
+
+    const latDelta = region?.latitudeDelta || 0.015;
+    const lngDelta = region?.longitudeDelta || 0.015 * (width / height);
+
     setSheetSnap('peek');
+    selectedRestaurantRef.current = restaurant;
     setSelectedRestaurant(restaurant);
-    // Move map to center on restaurant slightly offset
     mapRef.current?.animateToRegion({
-      latitude: restaurant.location.latitude - (region?.latitudeDelta || 0.015) * 0.25,
+      latitude: restaurant.location.latitude - latDelta * 0.25,
       longitude: restaurant.location.longitude,
-      latitudeDelta: region?.latitudeDelta || 0.015,
-      longitudeDelta: region?.longitudeDelta || 0.015 * (width / height),
+      latitudeDelta: latDelta,
+      longitudeDelta: lngDelta,
     }, 400);
 
     Animated.spring(sheetAnim, {
@@ -441,7 +457,36 @@ export default function MapScreen() {
       tension: 65,
       friction: 11,
     }).start();
+  }, [region, sheetAnim]);
+
+  const applyMapFocusRestaurant = useCallback((focus: any, list: any[]) => {
+    if (!focus?.id || typeof focus?.location?.latitude !== 'number' || typeof focus?.location?.longitude !== 'number') {
+      return;
+    }
+
+    const match = list.find((r) => r.id === focus.id);
+    const target = match ?? focus;
+
+    if (!mapSessionAllRestaurants.some((r) => r.id === target.id)) {
+      commitAllRestaurants([...mapSessionAllRestaurants, target]);
+    }
+
+    openRestaurantSheet(target);
+  }, [commitAllRestaurants, openRestaurantSheet]);
+
+  const handleMarkerPress = (restaurant: any) => {
+    openRestaurantSheet(restaurant);
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      setRadius(mapSessionRadius);
+      const mapFocus = consumeMapFocusRestaurant();
+      if (mapFocus) {
+        applyMapFocusRestaurant(mapFocus, restaurantsRef.current);
+      }
+    }, [applyMapFocusRestaurant])
+  );
 
   const closeSheet = () => {
     setSheetSnap('peek');
@@ -452,16 +497,17 @@ export default function MapScreen() {
     }).start(() => setSelectedRestaurant(null));
   };
 
-  const handleRadiusChange = async (newRadius: number) => {
-    const clamped = Math.min(newRadius, MAX_RADIUS_METERS);
+  const handleRadiusChange = (newRadius: number) => {
+    const clamped = Math.min(newRadius, MAX_SEARCH_RADIUS_METERS);
+    mapSessionRadius = clamped;
     setRadius(clamped);
-    await setSearchRadius(clamped);
     setShowRadiusPicker(false);
     setShowSortPicker(false);
-    if (userCoords) {
-      loadRestaurants(userCoords.latitude, userCoords.longitude, clamped);
-    } else if (region) {
-      loadRestaurants(region.latitude, region.longitude, clamped);
+    if (clamped > mapSessionFetchedRadius) {
+      const coords = mapSessionUserCoords ?? userCoords;
+      if (coords) {
+        void loadRestaurants(coords.latitude, coords.longitude, clamped);
+      }
     }
   };
 
@@ -510,15 +556,16 @@ export default function MapScreen() {
         {sortedMarkers.map((item) => {
           const raw = mapSortRawHigherIsGreener(item, mapSortBy);
           const t = mapColorT(raw, markerColorBounds);
-          const sortColor = Number.isFinite(raw) ? lerpRedGreen(t) : '#6B7280';
+          const sortColor = Number.isFinite(raw) ? mapMarkerScoreColor(t) : '#6B7280';
           const displayScore = formatMarkerSortLabel(item, mapSortBy, formatDistance);
           return (
-            <RestaurantMarker
+            <RestaurantMapMarker
               key={item.id}
               item={item}
               markerColor={sortColor}
               displayScore={displayScore}
               isOpen={isOpenNow(item)}
+              isSelected={selectedRestaurant?.id === item.id}
               onPress={() => handleMarkerPress(item)}
             />
           );
@@ -555,7 +602,7 @@ export default function MapScreen() {
 
           {showRadiusPicker && (
             <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              {MAP_RADIUS_OPTIONS.map((r) => (
+              {SEARCH_RADIUS_OPTIONS_METERS.map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[
@@ -881,35 +928,6 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 28, fontWeight: '900', letterSpacing: 0.5,
     textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4,
-  },
-  markerOuter: {
-    alignItems: 'center',
-    paddingTop: 2,
-    paddingHorizontal: 4,
-  },
-  markerScoreTag: {
-    color: '#FFFFFF',
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(0,0,0,0.95)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-    marginBottom: 1,
-  },
-  markerPin: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.7)',
-    shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 8,
   },
   radiusArea: { alignSelf: 'flex-start', marginTop: 4 },
   sortBtn: {

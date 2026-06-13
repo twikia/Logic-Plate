@@ -1,3 +1,5 @@
+import { DEFAULT_SEARCH_RADIUS_METERS } from './searchRadiusOptions';
+
 export type DefaultGroupSize = 'solo' | 'partner' | 'small_group' | 'big_group' | 'varies';
 
 export type ImportanceLevel = 1 | 2 | 3 | 4 | 5;
@@ -14,6 +16,7 @@ export type RecommendationWeights = {
   cuisineVariety: ImportanceLevel;
   cuisineAdherence: ImportanceLevel;
   taste: ImportanceLevel;
+  ratingAdherence: ImportanceLevel;
 };
 
 export type DietaryFilterId =
@@ -101,13 +104,14 @@ export const DEFAULT_WEIGHTS: RecommendationWeights = {
   cuisineVariety: 3,
   cuisineAdherence: 3,
   taste: 3,
+  ratingAdherence: 3,
 };
 
 export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {
   v: 1,
   onboardingComplete: false,
   weights: { ...DEFAULT_WEIGHTS },
-  favoriteCuisines: ['italian'],
+  favoriteCuisines: [],
   defaultRadius: 'short_drive',
   openNowOnly: true,
 };
@@ -115,13 +119,13 @@ export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {
 export function radiusIdToMeters(id: DefaultRadiusId): number {
   switch (id) {
     case 'walking':
-      return 800;
+      return 644;
     case 'short_drive':
-      return 3000;
+      return 1287;
     case 'worth_trip':
-      return 8000;
+      return 2414;
     default:
-      return 3000;
+      return DEFAULT_SEARCH_RADIUS_METERS;
   }
 }
 

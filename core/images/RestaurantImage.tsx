@@ -10,7 +10,9 @@ import {
   adjustQuality,
   buildCandidateUrls,
   cacheImageUrl,
+  fetchRestaurantPhotoUrls,
   getCachedImageUrl,
+  invalidateCachedImageUrl,
 } from './imageCache';
 
 /**
@@ -43,6 +45,14 @@ interface Props {
   loadDelay?: number;
   /** Border radius */
   borderRadius?: number;
+  /** When photos are empty, fetch from the photo pipeline using place metadata */
+  name?: string;
+  latitude?: number;
+  longitude?: number;
+  websiteUrl?: string;
+  formattedAddress?: string;
+  cuisineKey?: string;
+  photoUrl?: string;
 }
 
 type LoadState = 'waiting' | 'loading' | 'loaded' | 'failed';
@@ -57,48 +67,105 @@ function RestaurantImageInner({
   quality,
   loadDelay = 150,
   borderRadius = 0,
+  name,
+  latitude,
+  longitude,
+  websiteUrl,
+  formattedAddress,
+  cuisineKey,
+  photoUrl,
 }: Props) {
   const [state, setState] = useState<LoadState>('waiting');
   const [activeUri, setActiveUri] = useState<string | null>(null);
+  const [resolvedPhotos, setResolvedPhotos] = useState<any[]>(photos);
   const candidatesRef = useRef<string[]>([]);
   const indexRef = useRef(0);
   const mountedRef = useRef(true);
 
-  // Cleanup on unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Build candidate list + check cache
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPhotos = async () => {
+      const direct = buildCandidateUrls(photos);
+      if (direct.length > 0) {
+        if (!cancelled) setResolvedPhotos(photos);
+        return;
+      }
+      if (photoUrl) {
+        if (!cancelled) setResolvedPhotos([photoUrl]);
+        return;
+      }
+      if (
+        !restaurantId ||
+        !name ||
+        typeof latitude !== 'number' ||
+        typeof longitude !== 'number'
+      ) {
+        if (!cancelled) setResolvedPhotos(photos);
+        return;
+      }
+
+      const urls = await fetchRestaurantPhotoUrls({
+        placeId: restaurantId,
+        name,
+        latitude,
+        longitude,
+        websiteUrl,
+        formattedAddress,
+        cuisineKey,
+      });
+      if (cancelled) return;
+      setResolvedPhotos(urls.length > 0 ? urls : photos);
+    };
+
+    void loadPhotos();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cuisineKey,
+    formattedAddress,
+    latitude,
+    longitude,
+    name,
+    photoUrl,
+    photos,
+    restaurantId,
+    websiteUrl,
+  ]);
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
     const init = async () => {
-      // 1. Check cache first — instant render if hit
+      const seedPhotos = photoUrl && buildCandidateUrls(resolvedPhotos).length === 0
+        ? [photoUrl, ...resolvedPhotos]
+        : resolvedPhotos;
+      const urls = buildCandidateUrls(seedPhotos);
       const cached = await getCachedImageUrl(restaurantId);
-      if (cached && mountedRef.current) {
-        setActiveUri(cached);
-        setState('loading');
+
+      if (urls.length === 0 && !cached) {
+        if (mountedRef.current) {
+          setActiveUri(null);
+          setState('waiting');
+        }
         return;
       }
 
-      // 2. Build candidate list from photos
-      const urls = buildCandidateUrls(photos);
-      if (urls.length === 0) {
-        console.warn(`[RestaurantImage] No photo URLs for restaurant ${restaurantId}`);
-        if (mountedRef.current) setState('failed');
-        return;
-      }
-
-      candidatesRef.current = urls;
+      candidatesRef.current = cached
+        ? [cached, ...urls.filter((url) => url !== cached)]
+        : urls;
       indexRef.current = 0;
 
-      // 3. Apply load delay so card text renders first
       timer = setTimeout(() => {
         if (!mountedRef.current) return;
         const maxPx = quality ?? width;
-        const uri = adjustQuality(urls[0], maxPx);
+        const uri = adjustQuality(candidatesRef.current[0], maxPx);
         setActiveUri(uri);
         setState('loading');
       }, loadDelay);
@@ -106,7 +173,7 @@ function RestaurantImageInner({
 
     init();
     return () => clearTimeout(timer);
-  }, [restaurantId, photos, width, quality, loadDelay]);
+  }, [loadDelay, photoUrl, quality, resolvedPhotos, restaurantId, width]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -122,28 +189,23 @@ function RestaurantImageInner({
   const onError = useCallback(() => {
     if (!mountedRef.current) return;
 
-    console.error(
-      `[RestaurantImage] Failed to load image for "${restaurantId}" — URL: ${activeUri}`
-    );
+    if (indexRef.current === 0) {
+      invalidateCachedImageUrl(restaurantId).catch(() => {});
+    }
 
-    // Try next candidate
     const nextIdx = indexRef.current + 1;
     if (nextIdx < candidatesRef.current.length) {
       indexRef.current = nextIdx;
       const maxPx = quality ?? width;
       const nextUri = adjustQuality(candidatesRef.current[nextIdx], maxPx);
-      console.log(
-        `[RestaurantImage] Trying fallback ${nextIdx + 1}/${candidatesRef.current.length} for "${restaurantId}"`
-      );
       setActiveUri(nextUri);
-      // State stays 'loading'
     } else {
-      console.error(
+      console.warn(
         `[RestaurantImage] All ${candidatesRef.current.length} URLs exhausted for "${restaurantId}" — showing default`
       );
       setState('failed');
     }
-  }, [activeUri, restaurantId, quality, width]);
+  }, [restaurantId, quality, width]);
 
   // ── Render ──────────────────────────────────────────────────────────────
 

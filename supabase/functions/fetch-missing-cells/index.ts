@@ -52,7 +52,9 @@ serve(async (req) => {
     const newlyFetchedRestaurants: { cellId: string; places: any[] }[] = [];
     const failedCells: { cellId: string; reason: string }[] = [];
 
-    // Fetch Google Places concurrently (limit to 3 at a time to prevent rate limits)
+    // Fetch all cells in parallel. The orchestrator enforces the API call cap
+    // (7 cells for 0.8-mile search, 15 for 1.5-mile search) before invoking
+    // this function, so the incoming array is already within safe bounds.
     const fetchTasks = missingCells.map((cell: {cellId: string, lat: number, lng: number}) => async () => {
       try {
         const url = 'https://places.googleapis.com/v1/places:searchNearby';
@@ -67,6 +69,7 @@ serve(async (req) => {
             'mexican_restaurant', 'thai_restaurant', 'vegetarian_restaurant', 'vegan_restaurant',
             'meal_takeaway', 'meal_delivery',
           ],
+          // Mirrored from core/searchConfig.ts → PLACES_MAX_RESULTS_PER_CELL
           maxResultCount: 20,
           locationRestriction: {
             circle: {
@@ -74,7 +77,8 @@ serve(async (req) => {
                 latitude: cell.lat,
                 longitude: cell.lng,
               },
-              radius: 1200.0,
+              // Mirrored from core/searchConfig.ts → PLACES_PER_CELL_RADIUS_METERS
+              radius: 600.0,
             },
           },
         };
@@ -174,18 +178,7 @@ serve(async (req) => {
       }
     });
 
-    // Run tasks with concurrency limit of 3
-    const executing: Promise<void>[] = [];
-    for (const task of fetchTasks) {
-      const p = task().then(() => {
-        executing.splice(executing.indexOf(p), 1);
-      });
-      executing.push(p);
-      if (executing.length >= 3) {
-        await Promise.race(executing);
-      }
-    }
-    await Promise.all(executing);
+    await Promise.all(fetchTasks.map((task: () => Promise<void>) => task()));
 
     if (newlyFetchedRestaurants.length === 0 && failedCells.length > 0) {
       return new Response(JSON.stringify({

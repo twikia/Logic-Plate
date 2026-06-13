@@ -1,4 +1,4 @@
-import {
+﻿import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
@@ -14,19 +14,22 @@ import { scoreRestaurantPool } from '@/core/recommendationEngine';
 import { getRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
   inferMealTypeFromClock,
-  radiusIdToMeters,
   type RecommendationPrefsV1,
   type ScoredRestaurant,
   DEFAULT_SESSION_BUDGET,
   DEFAULT_SESSION_GROUP,
   type SessionOverrides,
 } from '@/core/recommendationTypes';
+import { useFocusEffect } from '@react-navigation/native';
+import { DEFAULT_SEARCH_RADIUS_METERS } from '@/core/searchRadiusOptions';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
   getNearbyRestaurants,
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
-import { appendVisit, loadVisits } from '@/core/recommendationVisitHistory';
+import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
+import { pickFunHomeTitle, onHomeTitleReroll } from '@/core/homeTitle';
+import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +37,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Dimensions,
   Linking,
   NativeScrollEvent,
@@ -44,7 +46,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  type DimensionValue,
 } from 'react-native';
 import { FlatList, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -55,7 +56,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
-  Circle,
   Defs,
   FeGaussianBlur,
   Filter,
@@ -74,9 +74,14 @@ const WINDOW_HEIGHT = Dimensions.get('window').height;
 const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
-const SPOTLIGHT_RADAR_INLINE_HEIGHT = Math.round(
-  Math.min(WINDOW_HEIGHT * 0.28, WINDOW_WIDTH * 0.5, 220)
+const SPOTLIGHT_RADAR_CARD_HEIGHT = Math.round(
+  Math.min(WINDOW_WIDTH * 0.52, WINDOW_HEIGHT * 0.28, 240)
 );
+
+function formatReviewCount(count: number): string {
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
+}
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
 const FILM_STRIP_FRAC = 0.66;
@@ -162,67 +167,6 @@ function HomeNeonTitle({ text, width }: { text: string; width: number }) {
           {text}
         </SvgText>
       </Svg>
-    </View>
-  );
-}
-
-function MatchGauge({
-  match,
-  arcColors,
-  textColor = '#FFFFFF',
-}: {
-  match: number;
-  arcColors: [string, string];
-  textColor?: string;
-}) {
-  const gid = useId().replace(/:/g, '');
-  const size = 78;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = 28;
-  const C = 2 * Math.PI * r;
-  const fillC = (Math.min(100, Math.max(0, match)) / 100) * C;
-  return (
-    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-      <Svg
-        width={size}
-        height={size}
-        style={{ position: 'absolute', left: 0, top: 0 }}
-        pointerEvents="none"
-      >
-        <Defs>
-          <SvgLinearGradient id={`mg-${gid}`} x1="0" y1="1" x2="1" y2="0">
-            <Stop offset="0" stopColor={arcColors[0]} />
-            <Stop offset="1" stopColor={arcColors[1]} />
-          </SvgLinearGradient>
-        </Defs>
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="rgba(128,128,128,0.18)"
-          strokeWidth={2.5}
-          strokeDasharray="5 4"
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cy})`}
-        />
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke={`url(#mg-${gid})`}
-          strokeWidth={3.5}
-          strokeDasharray={`${fillC} ${C}`}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cy})`}
-        />
-      </Svg>
-      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={[styles.matchOrbPct, { color: textColor }]}>{match}</Text>
-        <Text style={[styles.matchOrbLbl, { color: textColor }]}>match</Text>
-      </View>
     </View>
   );
 }
@@ -566,83 +510,52 @@ function RestaurantScorePentagon({
   );
 }
 
-function EngineStatBars({ raw, compact, neon }: { raw: ScoredRestaurant['raw']; compact?: boolean; neon?: boolean }) {
-  const { theme } = useAppTheme();
-  const rows: { label: string; value: number; colors: [string, string] }[] = [
-    { label: 'Distance', value: raw.distance, colors: ['#38BDF8', '#0EA5E9'] },
-    { label: 'Health', value: raw.health, colors: ['#4ADE80', '#22C55E'] },
-    { label: 'Price', value: raw.price, colors: ['#FACC15', '#EAB308'] },
-    { label: 'Rated', value: raw.rating, colors: ['#F472B6', '#EC4899'] },
-    { label: 'Novelty', value: raw.novelty, colors: ['#C084FC', '#A855F7'] },
-  ];
-  const labelCol = neon ? '#FFFFFF' : theme.subtext;
-  const trackBg = neon ? 'rgba(255,255,255,0.08)' : theme.glassBackground;
-  const useDots = !neon && theme.statBarVariant === 'dots';
-
-  return (
-    <View style={[styles.engineBars, compact && styles.engineBarsCompact]}>
-      {rows.map(row => {
-        if (useDots) {
-          const dotSize = Math.round(7 + (clampScore(row.value, 100) / 100) * 7);
-          return (
-            <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
-              <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
-              <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: row.colors[0] }} />
-            </View>
-          );
-        }
-        return (
-          <View key={row.label} style={[styles.engineBarRow, compact && styles.engineBarRowCompact]}>
-            <Text style={[styles.engineBarLabel, compact && styles.engineBarLabelCompact, { color: labelCol }]}>{row.label}</Text>
-            <View style={[styles.engineBarTrack, compact && styles.engineBarTrackCompact, { backgroundColor: trackBg }]}>
-              <View style={[styles.engineBarFillWrap, { width: `${clampScore(row.value, 100)}%` as DimensionValue }]}>
-                <LinearGradient
-                  colors={row.colors}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-              </View>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function SpotlightCard({
   scored,
   canReject,
   onReject,
   onPress,
-  onOpenMap,
 }: {
   scored: ScoredRestaurant;
   canReject: boolean;
   onReject: () => void;
   onPress: () => void;
-  onOpenMap: () => void;
 }) {
   const { theme } = useAppTheme();
+  const router = useRouter();
   const place = scored.place;
   const name = place.displayName?.text || 'Unknown';
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
-  const { formatDistance } = useDistanceFormatter();
+  const { formatDistance, formatWalkingTime } = useDistanceFormatter();
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
-  const match = Math.round(scored.plateboundScore);
-  const ai = place.aiOverview as AiOverview | null | undefined;
-  const reviewCount =
-    typeof place.userRatingCount === 'number' && place.userRatingCount > 0
-      ? `${place.userRatingCount.toLocaleString()} reviews`
-      : null;
+  const reviews = place.userRatingCount;
+  const [photos, setPhotos] = useState<any[]>(place.photos || []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadPhotos = async () => {
+      if (!place?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
+      const urls = await fetchRestaurantPhotoUrls({
+        placeId: place.id,
+        name,
+        latitude: lat,
+        longitude: lng,
+        websiteUrl: place.websiteUri || undefined,
+        formattedAddress: place.formattedAddress || undefined,
+        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+      });
+      if (cancelled) return;
+      setPhotos(urls.length > 0 ? urls : (place.photos || []));
+    };
+    loadPhotos();
+    return () => { cancelled = true; };
+  }, [place?.id, name, lat, lng]);
+
+  const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
   const ringColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
-  const orbVariant = theme.matchOrbVariant ?? 'segmented';
-  const orbTextColor = theme.matchOrbTextColor ?? '#FFFFFF';
   const radarVar = theme.radarVariant ?? 'solid';
   const btnVariant = theme.buttonVariant ?? 'primary-ghost';
 
@@ -671,7 +584,7 @@ function SpotlightCard({
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
-        .enabled(canReject)
+        .enabled(false)
         .activeOffsetY(10)
         .failOffsetX([-24, 24])
         .onStart(() => {
@@ -710,200 +623,152 @@ function SpotlightCard({
     [firePress]
   );
 
-  const cardGesture = useMemo(
-    () => (canReject ? Gesture.Exclusive(panGesture, tapGesture) : tapGesture),
-    [canReject, panGesture, tapGesture]
-  );
-
   const cardAnim = useAnimatedStyle(() => ({
     transform: [{ translateY: ty.value }],
     opacity: opacity.value,
   }));
 
+  const cardBody = (
+    <>
+      <View style={styles.spotlightHeroRow}>
+        <View style={styles.spotlightThumbWrap}>
+          <RestaurantImage
+            restaurantId={String(place?.id ?? '')}
+            photos={photos}
+            width={72}
+            height={72}
+            quality={200}
+            loadDelay={300}
+            borderRadius={14}
+          />
+        </View>
+        <View style={styles.spotlightTitleBlock}>
+          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
+            {name}
+          </Text>
+          <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
+            {formatDistance(Math.round(place.distanceMeters ?? 0))}
+            {` \u00b7 ${formatWalkingTime(Math.round(place.distanceMeters ?? 0))}`}
+            {rating
+              ? ` \u00b7 ${rating} \u2605${reviews ? ` (${formatReviewCount(reviews)})` : ''}`
+              : ''}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.scorePentagonCol}>
+        <RestaurantScorePentagon
+          ai={ai}
+          stroke={theme.accent}
+          gridColor={theme.radarGridColor}
+          labelColor={theme.subtext}
+          svgHeight={SPOTLIGHT_RADAR_CARD_HEIGHT}
+          neon={neonUi}
+          variant={radarVar}
+          gradientColors={neonUi ? undefined : theme.matchOrbColors}
+        />
+      </View>
+    </>
+  );
+
+  const cardActions = (
+    <View style={styles.spotlightActionsCol}>
+      <View style={styles.spotlightActions}>
+        {neonUi ? (
+          <>
+            <TouchableOpacity style={{ flex: 1 }} onPress={onPress} activeOpacity={0.88}>
+              <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
+                <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
+                  <Ionicons name="information-circle-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>Details</Text>
+                </View>
+              </NeonOutlinePad>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[!mapsReady && styles.spotlightActionDisabled, { flex: 1 }]}
+              onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
+              disabled={!mapsReady}
+              activeOpacity={0.88}
+            >
+              <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
+                <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
+                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
+                  <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
+                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+                  </Text>
+                </View>
+              </NeonOutlinePad>
+            </TouchableOpacity>
+          </>
+        ) : btnVariant === 'outline-outline' ? (
+          <>
+            <TouchableOpacity
+              style={[styles.spotlightAction, styles.spotlightActionGhostBase, { backgroundColor: 'transparent', borderColor: theme.cardBorderColor }]}
+              onPress={onPress}
+            >
+              <Ionicons name="information-circle-outline" size={16} color={theme.text} />
+              <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>Details</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.spotlightAction, styles.spotlightActionGhostBase, { backgroundColor: 'transparent', borderColor: theme.cardBorderColor }, !mapsReady && styles.spotlightActionDisabled]}
+              onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
+            >
+              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
+              <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
+                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.spotlightAction, styles.spotlightActionPrimaryBase, { backgroundColor: theme.accent }]}
+              onPress={onPress}
+            >
+              <Ionicons name="information-circle-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.spotlightActionText} numberOfLines={1}>Details</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.spotlightAction, styles.spotlightActionGhostBase, { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor }, !mapsReady && styles.spotlightActionDisabled]}
+              onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
+            >
+              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.accent} />
+              <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
+                {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+      <TouchableOpacity
+        style={[styles.spotlightFindMapBtn, !mapsReady && styles.spotlightActionDisabled]}
+        onPress={() => { if (!mapsReady) return; router.push('/(tabs)/map'); }}
+        disabled={!mapsReady}
+        activeOpacity={0.75}
+      >
+        <Ionicons name="map-outline" size={12} color={neonUi ? 'rgba(0,255,255,0.7)' : theme.subtext} />
+        <Text style={[styles.spotlightFindMapText, { color: neonUi ? 'rgba(0,255,255,0.7)' : theme.subtext }]}>
+          Find on local map
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const cardInner = (
     <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
       <NeonBorderCard borderRadius={26}>
         <View style={styles.spotlightPressLayer}>
-          <View style={styles.spotlightHeroRow}>
-            <View style={styles.spotlightTitleBlock}>
-              <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={3}>
-                {name}
-              </Text>
-              <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={2}>
-                {formatDistance(Math.round(place.distanceMeters ?? 0))} away
-                {rating ? ` · ${rating}★` : ''}
-                {reviewCount ? ` · ${reviewCount}` : ''}
-              </Text>
-            </View>
-            <View style={styles.matchOrb}>
-              {orbVariant === 'gradient' ? (
-                <LinearGradient colors={theme.matchOrbColors} style={styles.matchOrbGrad}>
-                  <Text style={[styles.matchOrbPct, { color: orbTextColor }]}>{match}</Text>
-                  <Text style={[styles.matchOrbLbl, { color: orbTextColor }]}>match</Text>
-                </LinearGradient>
-              ) : (
-                <MatchGauge
-                  match={match}
-                  arcColors={neonUi ? [ringColors[0], ringColors[2]] as [string, string] : theme.matchOrbColors}
-                  textColor={orbTextColor}
-                />
-              )}
-            </View>
-          </View>
-
-          <View style={styles.scoreShapeRow}>
-            <View style={styles.scorePentagonCol}>
-              <RestaurantScorePentagon
-                ai={ai}
-                stroke={theme.accent}
-                gridColor={theme.radarGridColor}
-                labelColor={theme.subtext}
-                svgHeight={SPOTLIGHT_RADAR_INLINE_HEIGHT}
-                neon={neonUi}
-                variant={radarVar}
-                gradientColors={neonUi ? undefined : theme.matchOrbColors}
-              />
-            </View>
-            <View style={styles.scoreBarsCol}>
-              <Text
-                style={[
-                  styles.valueMatchHeading,
-                  { color: neonUi ? 'rgba(255,255,255,0.72)' : theme.subtext },
-                  neonUi && styles.valueMatchHeadingNeon,
-                ]}
-              >
-                value match
-              </Text>
-              <EngineStatBars raw={scored.raw} compact neon={neonUi} />
-            </View>
-          </View>
-
-          <View style={styles.spotlightActions}>
-            {neonUi ? (
-              <>
-                <TouchableOpacity
-                  style={[!mapsReady && styles.spotlightActionDisabled, { flex: 1 }]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    if (!mapsReady) return;
-                    openMaps(name, lat, lng);
-                  }}
-                  disabled={!mapsReady}
-                  activeOpacity={0.88}
-                >
-                  <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
-                    <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
-                      <Ionicons
-                        name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
-                        size={16}
-                        color="#FFFFFF"
-                      />
-                      <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
-                        {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                      </Text>
-                    </View>
-                  </NeonOutlinePad>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ flex: 1 }}
-                  onPress={e => {
-                    e.stopPropagation();
-                    onOpenMap();
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <NeonOutlinePad borderRadius={14} neonColors={ringColors}>
-                    <View style={[styles.spotlightActionInnerNeon, styles.spotlightActionRow]}>
-                      <Ionicons name="map-outline" size={16} color="#FFFFFF" />
-                      <Text style={styles.spotlightActionTextNeon} numberOfLines={1}>
-                        Map tab
-                      </Text>
-                    </View>
-                  </NeonOutlinePad>
-                </TouchableOpacity>
-              </>
-            ) : btnVariant === 'outline-outline' ? (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionGhostBase,
-                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
-                    !mapsReady && styles.spotlightActionDisabled,
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    if (!mapsReady) return;
-                    openMaps(name, lat, lng);
-                  }}
-                >
-                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color={theme.text} />
-                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
-                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionGhostBase,
-                    { backgroundColor: 'transparent', borderColor: theme.cardBorderColor },
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    onOpenMap();
-                  }}
-                >
-                  <Ionicons name="map-outline" size={16} color={theme.text} />
-                  <Text style={[styles.spotlightActionText, { color: theme.text }]} numberOfLines={1}>
-                    Map tab
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionPrimaryBase,
-                    { backgroundColor: theme.accent },
-                    !mapsReady && styles.spotlightActionDisabled,
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    if (!mapsReady) return;
-                    openMaps(name, lat, lng);
-                  }}
-                >
-                  <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={16} color="#FFFFFF" />
-                  <Text style={styles.spotlightActionText} numberOfLines={1}>
-                    {Platform.OS === 'ios' ? 'Apple Maps' : 'Google Maps'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.spotlightAction,
-                    styles.spotlightActionGhostBase,
-                    { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
-                  ]}
-                  onPress={e => {
-                    e.stopPropagation();
-                    onOpenMap();
-                  }}
-                >
-                  <Ionicons name="map-outline" size={16} color={theme.accent} />
-                  <Text style={[styles.spotlightActionText, { color: theme.accent }]} numberOfLines={1}>
-                    Map tab
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+          <GestureDetector
+            gesture={Gesture.Exclusive(panGesture, tapGesture)}
+          >
+            <View>{cardBody}</View>
+          </GestureDetector>
+          {cardActions}
         </View>
       </NeonBorderCard>
     </Animated.View>
   );
 
-  return <GestureDetector gesture={cardGesture}>{cardInner}</GestureDetector>;
+  return cardInner;
 }
 
 export default function HomeScreen() {
@@ -911,7 +776,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const sessionRadiusRef = useRef(3000);
+  const sessionRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_METERS);
+  const hasFocusedOnceRef = useRef(false);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
@@ -922,7 +788,6 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
-  const [filmstripRefreshing, setFilmstripRefreshing] = useState(false);
   const visibleLenRef = useRef(-1);
   const pickIndexRef = useRef(0);
   pickIndexRef.current = pickIndex;
@@ -937,13 +802,13 @@ export default function HomeScreen() {
   } = useRestaurantLoadProgress(isLoading, 'health');
 
   const visibleList = useMemo(() => {
-    return ranked.slice(0, 10).filter(r => !rejectedIds.has(String(r.place?.id ?? '')));
+    return ranked.slice(0, 5).filter(r => !rejectedIds.has(String(r.place?.id ?? '')));
   }, [ranked, rejectedIds]);
 
   const rejectPickAt = useCallback(
     (placeId: string) => {
       setRejectedIds(prev => {
-        const curList = ranked.slice(0, 10).filter(r => !prev.has(String(r.place?.id ?? '')));
+        const curList = ranked.slice(0, 5).filter(r => !prev.has(String(r.place?.id ?? '')));
         if (curList.length <= 1) return prev;
         const idx = curList.findIndex(r => String(r.place?.id ?? '') === placeId);
         if (idx < 0) return prev;
@@ -964,7 +829,7 @@ export default function HomeScreen() {
         mealType: inferMealTypeFromClock(),
         groupSize: DEFAULT_SESSION_GROUP,
         budgetCeiling: DEFAULT_SESSION_BUDGET,
-        radiusMeters: radiusIdToMeters(p.defaultRadius),
+        radiusMeters: DEFAULT_SEARCH_RADIUS_METERS,
         sessionMood: null,
       });
     });
@@ -1023,8 +888,7 @@ export default function HomeScreen() {
         return;
       }
       coordsRef.current = coords;
-      const p = prefs ?? (await getRecommendationPrefs());
-      const rad = sessionRadiusRef.current || radiusIdToMeters(p.defaultRadius);
+      const rad = DEFAULT_SEARCH_RADIUS_METERS;
       const cacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(rad)}`;
       const cached = await getCachedResults(cacheKey);
       if (cached && cached.length > 0) {
@@ -1072,6 +936,20 @@ export default function HomeScreen() {
     }
   }, [loadSpotlight, prefs, session]);
 
+  useFocusEffect(
+    useCallback(() => {
+      sessionRadiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
+      setSession(s => (s ? { ...s, radiusMeters: DEFAULT_SEARCH_RADIUS_METERS } : s));
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      if (prefs) {
+        void loadSpotlight();
+      }
+    }, [loadSpotlight, prefs])
+  );
+
   const goToPick = useCallback((i: number) => {
     const max = Math.max(0, visibleList.length - 1);
     const next = Math.min(Math.max(0, i), max);
@@ -1098,23 +976,9 @@ export default function HomeScreen() {
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
   const homeBottomPad = tabBarHeight + 12;
   const rootNeon = Boolean(theme.neonColors);
-  const stripNeonColors = theme.neonColors ?? DEFAULT_NEON_RING_COLORS;
-  const titleText =
-    !isLoading && !errorMsg && !noPlacesAtAll && visibleList.length > 0
-      ? `Top ${visibleList.length} picks`
-      : 'Top 10 picks';
+  const [funTitle, setFunTitle] = useState(pickFunHomeTitle);
 
-  const onFilmstripRefresh = useCallback(async () => {
-    setFilmstripRefreshing(true);
-    setRejectedIds(new Set());
-    setPickIndex(0);
-    carouselRef.current?.scrollToOffset({ offset: 0, animated: true });
-    try {
-      await loadSpotlight({ skipFullScreenLoader: true });
-    } finally {
-      setFilmstripRefreshing(false);
-    }
-  }, [loadSpotlight]);
+  useEffect(() => onHomeTitleReroll(() => setFunTitle(pickFunHomeTitle())), []);
 
   const homeBody = (
     <>
@@ -1122,9 +986,9 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
           {rootNeon ? (
-            <HomeNeonTitle text={titleText} width={WINDOW_WIDTH - 32} />
+            <HomeNeonTitle text={funTitle} width={WINDOW_WIDTH - 32} />
           ) : (
-            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{titleText}</Text>
+            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
           )}
 
           <ScenarioQuickBar />
@@ -1174,113 +1038,26 @@ export default function HomeScreen() {
                       canReject={visibleList.length > 1}
                       onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
                       onPress={() => void openDetails(item)}
-                      onOpenMap={() => router.push('/map' as any)}
                     />
-                    <Text style={[styles.cardSwipeTooltip, { color: theme.subtext }]}>
-                      {visibleList.length > 1 ? 'Tap for details  ·  swipe ↓ to skip' : 'Tap for details'}
-                    </Text>
                   </View>
                 )}
               />
-              <View style={styles.filmstripBar}>
-                <TouchableOpacity
-                  style={styles.filmstripRefreshBtn}
-                  onPress={() => void onFilmstripRefresh()}
-                  disabled={filmstripRefreshing}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Refresh picks"
-                >
-                  {filmstripRefreshing ? (
-                    <ActivityIndicator size="small" color={theme.accent} />
-                  ) : (
-                    <Ionicons name="refresh-outline" size={22} color={theme.accent} />
-                  )}
-                </TouchableOpacity>
-                <View style={[styles.filmstripWrap, { width: FILM_STRIP_WIDTH }]}>
-                  <View style={[styles.filmstripRow, { gap: FILM_GAP, width: FILM_STRIP_WIDTH }]}>
-                    {visibleList.map((scored, i) => {
-                      const place = scored.place;
-                      const pid = String(place?.id ?? i);
-                      const palStd = FILMSTRIP_PALETTE[i % FILMSTRIP_PALETTE.length];
-                      const palNeon = FILMSTRIP_PALETTE_NEON[i % FILMSTRIP_PALETTE_NEON.length];
-                      const active = i === pickIndex;
-                      const dist = Math.abs(i - pickIndex);
-                      const scale = dist === 0 ? 1.46 : dist === 1 ? 0.94 : 0.78;
-                      const iconName = stripIconForPlaceId(pid);
-                      if (rootNeon) {
-                        return (
-                          <TouchableOpacity
-                            key={pid}
-                            activeOpacity={0.85}
-                            onPress={() => goToPick(i)}
-                            style={[
-                              styles.filmstripThumbNeonOuter,
-                              {
-                                width: FILM_CARD_W,
-                                height: FILM_CARD_H,
-                                transform: [{ scale }],
-                                zIndex: active ? 2 : 1,
-                              },
-                            ]}
-                          >
-                            {active ? (
-                              <LinearGradient
-                                colors={stripNeonColors}
-                                start={{ x: 0, y: 1 }}
-                                end={{ x: 1, y: 0 }}
-                                style={styles.filmstripThumbNeonGrad}
-                              >
-                                <View
-                                  style={[
-                                    styles.filmstripThumbNeonInner,
-                                    { backgroundColor: palNeon.bg },
-                                  ]}
-                                >
-                                  <Ionicons name={iconName} size={17} color={palNeon.mark} />
-                                </View>
-                              </LinearGradient>
-                            ) : (
-                              <View
-                                style={[
-                                  styles.filmstripThumbNeonInner,
-                                  {
-                                    backgroundColor: palNeon.bg,
-                                    borderWidth: 1,
-                                    borderColor: 'rgba(0,255,255,0.38)',
-                                  },
-                                ]}
-                              >
-                                <Ionicons name={iconName} size={17} color={palNeon.mark} />
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      }
-                      return (
-                        <TouchableOpacity
-                          key={pid}
-                          activeOpacity={0.85}
-                          onPress={() => goToPick(i)}
-                          style={[
-                            styles.filmstripThumb,
-                            {
-                              width: FILM_CARD_W,
-                              height: FILM_CARD_H,
-                              backgroundColor: palStd.bg,
-                              borderColor: active ? theme.accent : palStd.border,
-                              transform: [{ scale }],
-                              zIndex: active ? 2 : 1,
-                            },
-                            active && styles.filmstripThumbActive,
-                          ]}
-                        >
-                          <Ionicons name={iconName} size={17} color={palStd.mark} />
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
+              <View style={styles.dotsBar}>
+                {visibleList.map((_, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => goToPick(i)}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <View
+                      style={[
+                        styles.dot,
+                        i === pickIndex && styles.dotActive,
+                        { backgroundColor: i === pickIndex ? theme.accent : 'rgba(255,255,255,0.3)' },
+                      ]}
+                    />
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           ) : null}
@@ -1418,13 +1195,19 @@ const styles = StyleSheet.create({
   },
   spotlightHeroRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
+  },
+  spotlightThumbWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 14,
+    overflow: 'hidden',
+    flexShrink: 0,
   },
   spotlightTitleBlock: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 4,
     gap: 6,
   },
   spotlightTitle: {
@@ -1433,69 +1216,33 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   spotlightSub: { fontSize: 12 },
-  matchOrb: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    overflow: 'hidden',
-  },
-  matchOrbGrad: {
-    flex: 1,
+  scorePentagonCol: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 0,
+    overflow: 'visible',
+    marginTop: 2,
   },
-  matchOrbPct: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', marginTop: -2 },
-  matchOrbLbl: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: 'rgba(255,255,255,0.88)',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  scoreShapeRow: {
+  radarBlock: { width: '100%', marginTop: 0, overflow: 'visible' },
+  spotlightActionsCol: { gap: 8, marginTop: 4 },
+  spotlightActions: { flexDirection: 'row', gap: 10 },
+  spotlightFindMapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  scorePentagonCol: {
-    flex: 1.55,
-    minWidth: 0,
-    alignItems: 'stretch',
-  },
-  scoreBarsCol: {
-    flex: 0.55,
-    minWidth: 0,
     justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 5,
   },
-  valueMatchHeading: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 2,
+  spotlightFindMapText: { fontSize: 11, fontWeight: '600' },
+  dotsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 14,
   },
-  valueMatchHeadingNeon: {
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-    fontSize: 9,
-  },
-  radarBlock: { width: '100%', marginTop: 0 },
-  engineBars: { gap: 6, marginTop: 0 },
-  engineBarsCompact: { gap: 3, marginTop: 0 },
-  engineBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  engineBarRowCompact: { gap: 4 },
-  engineBarLabel: { width: 72, fontSize: 10, fontWeight: '600' },
-  engineBarLabelCompact: { width: 52, fontSize: 8.5 },
-  engineBarTrack: {
-    flex: 1,
-    height: 7,
-    borderRadius: 4,
-    overflow: 'hidden',
-    maxWidth: '100%',
-  },
-  engineBarTrackCompact: { height: 5, borderRadius: 3 },
-  engineBarFillWrap: { height: '100%', borderRadius: 4, overflow: 'hidden' },
-  spotlightActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  dotActive: { width: 9, height: 9, borderRadius: 4.5 },
   spotlightActionInnerNeon: {
     paddingVertical: 12,
     paddingHorizontal: 10,

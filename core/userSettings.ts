@@ -1,34 +1,57 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_SEARCH_RADIUS_METERS } from './searchRadiusOptions';
 
-const RADIUS_KEY = 'search_radius_meters';
+export type DistanceUnit = 'km' | 'mi';
+
 const DISTANCE_UNIT_KEY = 'distance_unit';
 const AUDIO_VOLUME_KEY = 'audio_volume';
 const HAPTICS_KEY = 'haptics_enabled';
 const THEME_KEY = 'app_theme';
+const DEFAULT_UNIT: DistanceUnit = 'km';
 
+const MILES_REGIONS = new Set([
+  'US',
+  'GB',
+  'UK',
+  'MM',
+  'LR',
+  'PR',
+  'VI',
+  'GU',
+  'AS',
+  'MP',
+]);
 
-const DEFAULT_RADIUS = 3000;
-const DEFAULT_UNIT = 'km';
+export function inferDistanceUnitFromLocale(): DistanceUnit {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+    const region = locale.split(/[-_]/).pop()?.toUpperCase() ?? '';
+    return MILES_REGIONS.has(region) ? 'mi' : 'km';
+  } catch {
+    return DEFAULT_UNIT;
+  }
+}
+
+export async function initDistanceUnit(): Promise<void> {
+  try {
+    const existing = await AsyncStorage.getItem(DISTANCE_UNIT_KEY);
+    if (existing === 'km' || existing === 'mi') return;
+    await AsyncStorage.setItem(DISTANCE_UNIT_KEY, inferDistanceUnitFromLocale());
+  } catch {
+    // keep default
+  }
+}
 const DEFAULT_VOLUME = 0.5;
 const DEFAULT_HAPTICS = true;
 const DEFAULT_THEME = 'neon_dark';
 
-
-export type DistanceUnit = 'km' | 'mi';
-
-export const getSearchRadius = async (): Promise<number> => {
-  return DEFAULT_RADIUS;
-};
-
-export const setSearchRadius = async (meters: number): Promise<void> => {
-  const clamped = Math.max(1000, Math.min(8000, meters));
-  await AsyncStorage.setItem(RADIUS_KEY, String(clamped));
-};
+export const getSearchRadius = async (): Promise<number> => DEFAULT_SEARCH_RADIUS_METERS;
 
 export const getDistanceUnit = async (): Promise<DistanceUnit> => {
   try {
     const val = await AsyncStorage.getItem(DISTANCE_UNIT_KEY);
-    return (val as DistanceUnit) || DEFAULT_UNIT;
+    if (val === 'km' || val === 'mi') return val;
+    return inferDistanceUnitFromLocale();
   } catch {
     return DEFAULT_UNIT;
   }
@@ -76,4 +99,3 @@ export const getTheme = async (): Promise<string> => {
 export const setTheme = async (theme: string): Promise<void> => {
   await AsyncStorage.setItem(THEME_KEY, theme);
 };
-

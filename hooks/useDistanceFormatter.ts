@@ -25,7 +25,6 @@ export function useDistanceFormatter() {
 
   const formatLabel = (meters: number): string => {
     if (unit === 'mi') {
-      if (meters === 3000) return '1.5 mi';
       const miles = meters * 0.000621371;
       return `${miles.toFixed(1)} mi`;
     } else {
@@ -33,5 +32,14 @@ export function useDistanceFormatter() {
     }
   };
 
-  return { unit, formatDistance, formatLabel };
+  /** Brisk walk (~6.2 km/h) — slightly faster than typical map walking ETA. */
+  const formatWalkingTime = (meters: number): string => {
+    const m = Math.max(0, Math.round(meters));
+    if (m < 80) return '< 1 min walk';
+    const mins = Math.floor(m / (6200 / 60));
+    if (mins < 1) return '< 1 min walk';
+    return `${mins} min walk`;
+  };
+
+  return { unit, formatDistance, formatLabel, formatWalkingTime };
 }
