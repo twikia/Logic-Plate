@@ -165,7 +165,9 @@ export default function QuickVoteWinnerScreen() {
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: theme.accent }]}
             onPress={openMaps}>
-            <Text style={[styles.btnText, { color: theme.text }]}>Open in Maps</Text>
+            <Text style={[styles.btnText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>
+              Open in Maps
+            </Text>
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity

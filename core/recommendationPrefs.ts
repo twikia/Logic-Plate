@@ -21,6 +21,11 @@ const LEGACY_WEIGHT_KEYS = ['distance', 'health', 'price', 'rating', 'novelty'] 
 
 let cachedPrefs: RecommendationPrefsV1 | null = null;
 let loadingPromise: Promise<RecommendationPrefsV1> | null = null;
+let prefsRevision = 0;
+
+export function getRecommendationPrefsRevision(): number {
+  return prefsRevision;
+}
 
 function weightsMatchDefaults(weights: RecommendationWeights): boolean {
   for (const key of allPriorityMetricKeys()) {
@@ -215,6 +220,7 @@ export async function saveRecommendationPrefs(prefs: RecommendationPrefsV1): Pro
     await writeOnboardingDoneFlag(true);
   }
   cachedPrefs = merged;
+  prefsRevision += 1;
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
 }
 
@@ -230,6 +236,7 @@ export async function markOnboardingComplete(partial?: Partial<RecommendationPre
 export async function resetRecommendationPrefsToOnboarding(): Promise<void> {
   cachedPrefs = { ...DEFAULT_PREFS_V1 };
   loadingPromise = null;
+  prefsRevision += 1;
   await writeOnboardingDoneFlag(false);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cachedPrefs));
 }

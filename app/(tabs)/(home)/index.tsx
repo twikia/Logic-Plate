@@ -12,7 +12,7 @@ import { getLocation } from '@/core/locationCache';
 import type { AiOverview } from '@/core/aiOverviewCache';
 import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
 import { scoreRestaurantPool } from '@/core/recommendationEngine';
-import { getRecommendationPrefs } from '@/core/recommendationPrefs';
+import { getRecommendationPrefs, getRecommendationPrefsRevision } from '@/core/recommendationPrefs';
 import {
   inferMealTypeFromClock,
   type RecommendationPrefsV1,
@@ -753,6 +753,7 @@ export default function HomeScreen() {
   const sessionRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_METERS);
   const hasFocusedOnceRef = useRef(false);
   const skipNextFocusReloadRef = useRef(false);
+  const lastPrefsRevisionRef = useRef<number | null>(null);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
@@ -814,6 +815,7 @@ export default function HomeScreen() {
   useEffect(() => {
     void getRecommendationPrefs().then(p => {
       setPrefs(p);
+      lastPrefsRevisionRef.current = getRecommendationPrefsRevision();
       setSession({
         mealType: inferMealTypeFromClock(),
         groupSize: DEFAULT_SESSION_GROUP,
@@ -944,10 +946,16 @@ export default function HomeScreen() {
         hasFocusedOnceRef.current = true;
         return;
       }
-      if (prefs) {
-        void loadSpotlight();
+      const currentRevision = getRecommendationPrefsRevision();
+      if (lastPrefsRevisionRef.current === currentRevision) {
+        return;
       }
-    }, [loadSpotlight, prefs, restoreCarouselPosition])
+      lastPrefsRevisionRef.current = currentRevision;
+      void getRecommendationPrefs().then(nextPrefs => {
+        setPrefs(nextPrefs);
+        void loadSpotlight();
+      });
+    }, [loadSpotlight, restoreCarouselPosition])
   );
 
   const goToPick = useCallback((i: number) => {

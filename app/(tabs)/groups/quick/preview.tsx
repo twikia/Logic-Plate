@@ -115,7 +115,9 @@ export default function QuickVotePreviewScreen() {
         <TouchableOpacity
           style={[styles.confirm, { backgroundColor: theme.accent }]}
           onPress={goVote}>
-          <Text style={[styles.confirmText, { color: theme.text }]}>Confirm & begin voting</Text>
+          <Text style={[styles.confirmText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>
+            Confirm & begin voting
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[

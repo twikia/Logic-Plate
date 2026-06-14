@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RestaurantImage } from '@/core/images';
-import { formatPlacePriceLabel } from '@/core/placePriceLabel';
+import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -97,7 +97,7 @@ export default function GroupWinnerScreen() {
   }
 
   const vibe = oneLineVibe(winner);
-  const price = formatPlacePriceLabel(winner as never);
+  const price = formatRestaurantCostLabel(winner as never);
   const dist =
     typeof winner.distanceMeters === 'number'
       ? formatDistance(winner.distanceMeters)
