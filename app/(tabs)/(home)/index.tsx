@@ -62,6 +62,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
+  Circle,
   Defs,
   FeGaussianBlur,
   Filter,
@@ -206,6 +207,107 @@ function formatAxisReading(max: 5 | 10, s: number | null): string {
   if (s == null) return '—';
   if (max === 10) return `${clampScore(s, max).toFixed(1)}/${max}`;
   return `${Math.round(clampScore(s, max))}/${max}`;
+}
+
+function RestaurantScoreRings({
+  ai,
+  svgHeight = SPOTLIGHT_RADAR_CARD_HEIGHT,
+}: {
+  ai: AiOverview | null | undefined;
+  svgHeight?: number;
+}) {
+  const gid = useId().replace(/:/g, '');
+
+  const RING_STROKE = 5;
+  const RING_STEP = 8;
+  const OUTER_R = 43;
+  const cx = 50;
+  const cy = 50;
+  const GRAD_ID = `rg-${gid}`;
+
+  const rings: { key: keyof AiOverview; label: string; max: 5 | 10; glowColor: string; dimColor: string }[] = [
+    { key: 'tasteScore',         label: 'TASTE',  max: 5,  glowColor: '#00EEFF', dimColor: 'rgba(0,238,255,0.20)'   },
+    { key: 'valueForMoneyScore', label: 'VALUE',  max: 5,  glowColor: '#00C8D4', dimColor: 'rgba(0,200,212,0.20)'   },
+    { key: 'dateWorthiness',     label: 'DATE',   max: 5,  glowColor: '#6655EE', dimColor: 'rgba(102,85,238,0.20)'  },
+    { key: 'healthScore',        label: 'HEALTH', max: 10, glowColor: '#9933EE', dimColor: 'rgba(153,51,238,0.20)'  },
+    { key: 'speedScore',         label: 'SPEED',  max: 5,  glowColor: '#CC00FF', dimColor: 'rgba(204,0,255,0.20)'   },
+  ];
+
+  return (
+    <View style={styles.radarBlock}>
+      <Svg width="100%" height={svgHeight} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <Defs>
+          <SvgLinearGradient id={GRAD_ID} x1="50" y1="0" x2="50" y2="100" gradientUnits="userSpaceOnUse">
+            <Stop offset="0"    stopColor="#00EEFF" />
+            <Stop offset="0.25" stopColor="#00C8D4" />
+            <Stop offset="0.5"  stopColor="#6655EE" />
+            <Stop offset="0.75" stopColor="#9933EE" />
+            <Stop offset="1"    stopColor="#CC00FF" />
+          </SvgLinearGradient>
+        </Defs>
+
+        {rings.map(({ key, label, max, glowColor, dimColor }, i) => {
+          const r = OUTER_R - i * RING_STEP;
+          const s = scoreAxis(ai, key);
+          const norm = s == null ? 0 : clampScore(s, max) / max;
+          const C = 2 * Math.PI * r;
+          // Per-ring gap angle: keep horizontal half-clearance = 9 SVG units so text never clips
+          const gapHalfRad = Math.asin(Math.min(1, 9 / r));
+          const gapDeg = gapHalfRad * 2 * (180 / Math.PI);
+          const arcStartRot = -90 + gapDeg / 2;
+          const available = C * (1 - gapDeg / 360);
+          const filled = norm * available;
+          const reading = formatAxisReading(max, s);
+
+          return (
+            <G key={key}>
+              {/* Dim track with gap */}
+              <Circle
+                cx={cx} cy={cy} r={r}
+                fill="none" stroke={dimColor} strokeWidth={RING_STROKE}
+                strokeDasharray={`${available} ${C - available}`}
+                strokeLinecap="round"
+                transform={`rotate(${arcStartRot}, ${cx}, ${cy})`}
+              />
+              {/* Glow halo */}
+              <Circle
+                cx={cx} cy={cy} r={r}
+                fill="none" stroke={glowColor} strokeWidth={RING_STROKE + 3}
+                strokeDasharray={`${filled} ${C - filled}`}
+                strokeLinecap="round"
+                transform={`rotate(${arcStartRot}, ${cx}, ${cy})`}
+                opacity={0.3}
+              />
+              {/* Gradient filled arc */}
+              <Circle
+                cx={cx} cy={cy} r={r}
+                fill="none" stroke={`url(#${GRAD_ID})`} strokeWidth={RING_STROKE}
+                strokeDasharray={`${filled} ${C - filled}`}
+                strokeLinecap="round"
+                transform={`rotate(${arcStartRot}, ${cx}, ${cy})`}
+              />
+              {/* Label in the gap at 12 o'clock */}
+              <SvgText
+                x={cx} y={cy - r}
+                fill={`url(#${GRAD_ID})`}
+                fontSize={4.2} fontWeight="800"
+                textAnchor="middle" alignmentBaseline="middle"
+              >
+                {`${label} ${reading}`}
+              </SvgText>
+            </G>
+          );
+        })}
+
+        <Circle cx={cx} cy={cy} r={11} fill="rgba(150,215,255,0.05)" />
+        <Circle cx={cx} cy={cy} r={8}  fill="rgba(170,220,255,0.12)" />
+        <Circle cx={cx} cy={cy} r={6}  fill="rgba(190,228,255,0.28)" />
+        <Circle cx={cx} cy={cy} r={4}  fill="rgba(210,235,255,0.62)" />
+        <Circle cx={cx} cy={cy} r={2.4} fill="rgba(230,242,255,0.9)" />
+        <Circle cx={cx} cy={cy} r={1.2} fill="#FFFFFF" />
+      </Svg>
+    </View>
+  );
 }
 
 function RestaurantScorePentagon({
@@ -629,15 +731,9 @@ function SpotlightCard({
         </View>
       </View>
       <View style={styles.scorePentagonCol}>
-        <RestaurantScorePentagon
+        <RestaurantScoreRings
           ai={ai}
-          stroke={theme.accent}
-          gridColor={theme.radarGridColor}
-          labelColor={theme.subtext}
           svgHeight={SPOTLIGHT_RADAR_CARD_HEIGHT}
-          neon={neonUi}
-          variant={radarVar}
-          gradientColors={neonUi ? undefined : theme.matchOrbColors}
         />
       </View>
     </>
