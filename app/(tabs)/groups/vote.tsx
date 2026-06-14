@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
 import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
+import { clearHostSessionId, onHostSessionEndRequest } from '@/core/groupSessionState';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -45,8 +46,15 @@ export default function GroupVoteScreen() {
 
   const goWinner = useCallback(() => {
     normalExit.current = true;
+    void clearHostSessionId();
     router.replace({ pathname: '/groups/winner', params: { sessionId } });
   }, [router, sessionId]);
+
+  useEffect(() => {
+    return onHostSessionEndRequest(() => {
+      normalExit.current = true;
+    });
+  }, []);
 
   const isHost = useMemo(
     () => Boolean(user?.id && hostUserId && user.id === hostUserId),
@@ -210,7 +218,11 @@ export default function GroupVoteScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <BackButton variant="circle" onPress={() => router.replace('/groups')} />
+        {isHost ? (
+          <View style={styles.topSpacer} />
+        ) : (
+          <BackButton variant="circle" onPress={() => router.replace('/groups')} />
+        )}
         <View style={styles.topTitles}>
           <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
           <Text style={[styles.subHeader, { color: theme.subtext }]}>

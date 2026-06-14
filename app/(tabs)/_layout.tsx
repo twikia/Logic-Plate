@@ -14,6 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { endHostSession } from '@/core/groupSessionState';
 import { requestHomeTitleReroll } from '@/core/homeTitle';
 import { requestRandomPickerReset } from '@/core/randomPickerState';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -127,7 +128,17 @@ export default function TabLayout() {
         options={{
           tabBarButton: (props) => (
             <AnimatedTabIcon
-              onPress={props.onPress as () => void}
+              onPress={() => {
+                if (isGroups) {
+                  void (async () => {
+                    await endHostSession();
+                    router.replace('/groups');
+                    router.navigate('/(tabs)/(home)');
+                  })();
+                } else {
+                  (props.onPress as (() => void) | undefined)?.();
+                }
+              }}
               isActive={isGroups}
               iconOn="people"
               iconOff="people-outline"

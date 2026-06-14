@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     gap: 12,
   },
   infoCol: {
@@ -180,9 +180,9 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, marginTop: 2 },
   expandHint: { fontSize: 12, fontWeight: '600', marginTop: 4 },
   voteBox: {
-    width: 62,
-    minHeight: 68,
-    alignSelf: 'stretch',
+    width: 56,
+    height: 56,
+    alignSelf: 'center',
     borderRadius: 12,
     borderWidth: 2,
     alignItems: 'center',
