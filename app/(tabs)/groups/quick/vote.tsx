@@ -103,7 +103,7 @@ export default function QuickVoteVoteScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <BackButton onPress={handleBack} />
+        <BackButton variant="circle" onPress={handleBack} />
         <View style={styles.voterBadge}>
           <Text style={[styles.voterText, { color: theme.accent }]}>
             Voter {currentVoter} / {voterCount}

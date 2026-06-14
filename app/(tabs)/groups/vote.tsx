@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
+import { BackButton } from '@/components/ui/BackButton';
 import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -209,7 +210,8 @@ export default function GroupVoteScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <View>
+        <BackButton variant="circle" onPress={() => router.replace('/groups')} />
+        <View style={styles.topTitles}>
           <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
           <Text style={[styles.subHeader, { color: theme.subtext }]}>
             {hasVoted ? 'Your vote is in ✓' : 'Tap a card to expand, then vote →'}
@@ -221,7 +223,9 @@ export default function GroupVoteScreen() {
             onPress={() => void endVoting()}>
             <Text style={[styles.endBtnText, { color: theme.subtext }]}>End</Text>
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <View style={styles.topSpacer} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
@@ -268,12 +272,14 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 15 },
   topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 4,
     paddingBottom: 8,
+    gap: 8,
   },
+  topTitles: { flex: 1, minWidth: 0 },
+  topSpacer: { width: 40 },
   header: { fontSize: 22, fontWeight: '800' },
   subHeader: { fontSize: 13, marginTop: 3 },
   endBtn: {
