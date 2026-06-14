@@ -1,13 +1,13 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Redirect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   BackHandler,
   Linking,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';

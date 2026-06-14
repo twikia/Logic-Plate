@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
+import { playTap } from '@/core/audioService';
 import Svg, { Circle, Polygon } from 'react-native-svg';
 
 const RADIUS = 14;
@@ -62,7 +63,10 @@ export function RestaurantMapMarker({
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
-      onPress={onPress}
+      onPress={() => {
+        playTap();
+        onPress();
+      }}
       zIndex={isSelected ? 100 : 10}
       anchor={{ x: 0.5, y: anchorY }}
       tracksViewChanges={tracksViewChanges}

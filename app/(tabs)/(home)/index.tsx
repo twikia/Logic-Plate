@@ -44,6 +44,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Dimensions,
   Linking,
@@ -52,7 +53,6 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { FlatList, Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -78,7 +78,6 @@ import Svg, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { hapticMedium, hapticSuccess } from '@/core/haptics';
-import { playSuccess } from '@/core/audioService';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
 const WINDOW_HEIGHT = Dimensions.get('window').height;
@@ -723,7 +722,7 @@ function SpotlightCard({
                 : { backgroundColor: theme.accent, borderColor: theme.accent },
               !mapsReady && styles.spotlightMapsBtnDisabled,
             ]}
-            onPress={() => { if (!mapsReady) return; hapticSuccess(); playSuccess(); openMaps(name, lat, lng); }}
+            onPress={() => { if (!mapsReady) return; hapticSuccess(); openMaps(name, lat, lng); }}
             disabled={!mapsReady}
             activeOpacity={0.85}
           >

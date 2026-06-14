@@ -1,11 +1,11 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +20,6 @@ import {
   type QuickVoteRestaurant,
 } from '@/utils/quickVote';
 import { hapticMedium, hapticLight } from '@/core/haptics';
-import { playSuccess } from '@/core/audioService';
 
 function parsePreviewParams(raw: Record<string, string | string[] | undefined>) {
   const restaurantsJson =
@@ -67,7 +66,6 @@ export default function QuickVotePreviewScreen() {
   const goVote = useCallback(() => {
     if (!parsed) return;
     hapticMedium();
-    playSuccess();
     router.replace({
       pathname: '/groups/quick/vote',
       params: {

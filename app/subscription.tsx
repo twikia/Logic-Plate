@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';

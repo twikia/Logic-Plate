@@ -1,7 +1,8 @@
 import { cuisineRankOf, MAX_CUISINE_RANKS, tapCuisineRank } from '@/core/cuisineRanking';
 import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 type Props = {
   ranked: string[];

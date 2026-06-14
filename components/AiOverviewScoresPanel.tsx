@@ -5,7 +5,8 @@ import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import type { ThemeColors } from '@/themes/types';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useId, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
 
 type Props = {

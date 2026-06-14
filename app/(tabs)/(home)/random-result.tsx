@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Animated,
   Dimensions,
@@ -26,7 +27,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';

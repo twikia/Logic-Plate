@@ -7,7 +7,8 @@ import {
 import type { ImportanceLevel, RecommendationWeights } from '@/core/recommendationTypes';
 import { useAppTheme } from '@/context/ThemeContext';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { hapticLight } from '@/core/haptics';
 

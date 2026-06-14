@@ -2,6 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
   AppState,
@@ -10,7 +11,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';

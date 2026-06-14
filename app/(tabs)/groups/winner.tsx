@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
   Linking,
@@ -7,7 +8,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';

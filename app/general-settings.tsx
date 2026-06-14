@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, ScrollView, Switch, Pressable, Modal, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { Pressable, TouchableOpacity } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View, ScrollView, Switch, Modal, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';

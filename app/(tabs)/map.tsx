@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
+import { StyleSheet, View, Text, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import MapView, { Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';

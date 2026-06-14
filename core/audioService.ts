@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { AppState, type AppStateStatus } from 'react-native';
 import { fetchAmbientAudioAssets, fetchAudioCatalogVersion } from './remoteResources';
 import {
@@ -42,6 +42,9 @@ export async function initAudio(): Promise<void> {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+      shouldDuckAndroid: false,
     });
     sfxVolume = await getSfxVolume();
     musicVolume = await getMusicVolume();

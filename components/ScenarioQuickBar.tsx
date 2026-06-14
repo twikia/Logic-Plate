@@ -6,6 +6,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -13,7 +14,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';

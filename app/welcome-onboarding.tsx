@@ -16,12 +16,12 @@ import { BackButton } from '@/components/ui/BackButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable } from '@/components/ui/soundPressable';
 import {
   Dimensions,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,7 +30,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { hapticMedium, hapticSuccess } from '@/core/haptics';
-import { playSuccess } from '@/core/audioService';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -78,7 +77,6 @@ export default function WelcomeOnboardingScreen() {
 
   const finish = useCallback(async () => {
     hapticSuccess();
-    playSuccess();
     await markOnboardingComplete({
       v: 1,
       weights,

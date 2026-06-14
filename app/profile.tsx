@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, ScrollView, Pressable, Alert } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View, ScrollView, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { useAppTheme } from '@/context/ThemeContext';
 import { Themes } from '@/constants/Themes';
@@ -22,7 +23,6 @@ import { clearImageCache } from '../core/images';
 import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { hapticLight, hapticMedium, hapticSuccess } from '@/core/haptics';
-import { playSelect } from '@/core/audioService';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -228,7 +228,6 @@ export default function ProfileScreen() {
                   style={[styles.iconOption, icon === item && styles.iconOptionSelected]}
                   onPress={async () => {
                     hapticLight();
-                    playSelect();
                     await changeIcon(item);
                     setIsSelectingIcon(false);
                   }}

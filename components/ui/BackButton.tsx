@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
 
 import { useAppTheme } from '@/context/ThemeContext';
 

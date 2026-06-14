@@ -1,4 +1,5 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';

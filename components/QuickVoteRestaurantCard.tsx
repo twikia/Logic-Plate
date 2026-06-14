@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { RestaurantImage } from '@/core/images';
 import { formatRestaurantCostLabel } from '@/core/placePriceLabel';

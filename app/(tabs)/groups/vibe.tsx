@@ -1,11 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Alert,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +17,6 @@ import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { subscribeToSessionStatus } from '@/utils/groupRealtime';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError, hapticSelection } from '@/core/haptics';
-import { playSelect, playSuccess, playError } from '@/core/audioService';
 
 const DIETARY_OPTIONS: { id: string; labelKey: string }[] = [
   { id: 'vegetarian', labelKey: 'vibe.dietary_vegetarian' },
@@ -68,7 +67,6 @@ export default function VibeQuestionsScreen() {
 
   const toggleDietary = (id: string) => {
     hapticSelection();
-    playSelect();
     if (id === 'none') {
       setDietaryVetoes([]);
       return;
@@ -103,7 +101,6 @@ export default function VibeQuestionsScreen() {
       setSubmitting(false);
       if (error) {
         hapticError();
-        playError();
         Alert.alert(
           t('vibe.alertSaveErrorTitle'),
           `${error.message}${error.code ? ` (${error.code})` : ''}\n\n${t('vibe.alertSaveErrorSessionNote')}`
@@ -111,7 +108,6 @@ export default function VibeQuestionsScreen() {
         return;
       }
       hapticSuccess();
-      playSuccess();
       const responseId = data?.id as string | undefined;
       if (flow === 'passphone' || flow === 'host') {
         if (flow === 'host' && responseId) {
