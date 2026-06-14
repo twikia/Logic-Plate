@@ -1,7 +1,11 @@
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
-import { AiOverviewRadar } from '@/components/AiOverviewRadar';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
-import { NUTRITION_METRICS, PERFORMANCE_METRICS } from '@/components/VibeStatsPodium';
+import {
+  NUTRITION_METRICS,
+  PERFORMANCE_METRICS,
+  sortMetricsByScore,
+  VibeStatsPodium,
+} from '@/components/VibeStatsPodium';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -260,21 +264,13 @@ function parseMacroPills(text: string): MacroPill[] {
     { emoji: '🥩', label: 'Protein', regex: /protein[:\s]*(\d+)\s*g/i },
     { emoji: '🍞', label: 'Carbs', regex: /carb(?:s|ohydrate)?[:\s]*(\d+)\s*g/i },
     { emoji: '🥑', label: 'Fats', regex: /fat[s]?[:\s]*(\d+)\s*g/i },
-    { emoji: '🔥', label: 'Calories', regex: /(\d+)\s*(?:k?cal|calories)/i },
   ];
   const pills: MacroPill[] = [];
   for (const { emoji, label, regex } of patterns) {
     const m = text.match(regex);
-    if (m) pills.push({ emoji, label, value: m[1] + (label === 'Calories' ? ' kcal' : 'g') });
+    if (m) pills.push({ emoji, label, value: m[1] + 'g' });
   }
   return pills;
-}
-
-function extractCalorieEstimate(text: string): string | null {
-  const m =
-    text.match(/(?:~|approx\.?\s*)?(\d{3,4})\s*(?:k?cal|calories?)/i) ??
-    text.match(/calories?[:\s~]*(?:~|approx\.?\s*)?(\d{3,4})/i);
-  return m ? `~${m[1]} kcal` : null;
 }
 
 export default function RandomResultScreen() {
@@ -387,9 +383,8 @@ export default function RandomResultScreen() {
   const macroPills = aiOverview?.absoluteMacros
     ? parseMacroPills(aiOverview.absoluteMacros)
     : [];
-  const calorieEstimate = aiOverview?.absoluteMacros
-    ? extractCalorieEstimate(aiOverview.absoluteMacros)
-    : null;
+  const sortedPerformanceMetrics = sortMetricsByScore(aiOverview, PERFORMANCE_METRICS);
+  const sortedNutritionMetrics = sortMetricsByScore(aiOverview, NUTRITION_METRICS);
 
   return (
     <LinearGradient
@@ -558,14 +553,15 @@ export default function RandomResultScreen() {
 
             {!ph ? (
               <SectionCard title="Performance" icon="analytics-outline" theme={theme}>
-                <AiOverviewRadar
+                <VibeStatsPodium
                   ai={aiOverview}
                   theme={theme}
-                  height={200}
-                  neon={!!theme.neonColors}
+                  compact
+                  embedded
+                  title={null}
                 />
                 <View style={styles.chipsGrid}>
-                  {PERFORMANCE_METRICS.map(m => (
+                  {sortedPerformanceMetrics.map(m => (
                     <MetricChip
                       key={m.key}
                       emoji={m.emoji}
@@ -582,7 +578,7 @@ export default function RandomResultScreen() {
             {!ph ? (
               <SectionCard title="Nutrition & portions" icon="nutrition-outline" theme={theme}>
                 <View style={styles.chipsGrid}>
-                  {NUTRITION_METRICS.map(m => (
+                  {sortedNutritionMetrics.map(m => (
                     <MetricChip
                       key={m.key}
                       emoji={m.emoji}
@@ -590,7 +586,6 @@ export default function RandomResultScreen() {
                       value={aiOverview?.[m.key] as number | undefined}
                       max={m.max}
                       theme={theme}
-                      detail={m.key === 'calorieScore' ? calorieEstimate ?? undefined : undefined}
                     />
                   ))}
                 </View>

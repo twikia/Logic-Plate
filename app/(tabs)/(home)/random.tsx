@@ -2,7 +2,9 @@ import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
+import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { useAppTheme } from '@/context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   BackHandler,
+  Dimensions,
   FlatList,
   Modal,
   Pressable,
@@ -20,7 +23,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -57,14 +60,21 @@ import {
   type RandomAiCutoffs,
   type RandomSortBy,
 } from '../../../core/randomPickerState';
+import { pickFunSelectTitle } from '../../../core/homeTitle';
 import {
   SORT_OPTIONS,
   compareRestaurantsBySort,
   getOverviewMetric,
+  lerpRedGreen,
 } from '../../../core/restaurantSort';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
 import { placeOffersSweets } from '../../../core/placeSweets';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
+import type { ThemeColors } from '@/themes/types';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const NEON_CYAN = '#00FFFF';
+const NEON_MAGENTA = '#FF00FF';
 
 const CUISINE_TYPE_MAP: Record<string, string[]> = {
   italian: ['italian_restaurant'],
@@ -120,9 +130,42 @@ function cuisineFilterLabel(key: string): string {
   return CUISINE_FILTER_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
 }
 
+function themedColors(theme: ThemeColors, neonUi: boolean) {
+  const accentOn = theme.accentOnColor ?? '#FFFFFF';
+  return {
+    accentOn,
+    pageBg: neonUi ? '#000000' : theme.gradient[0],
+    panelBg: neonUi ? 'rgba(0,0,0,0.92)' : theme.cardBackground,
+    panelBorder: neonUi ? 'rgba(0,255,255,0.22)' : theme.cardBorderColor,
+    glass: neonUi ? 'rgba(0,255,255,0.08)' : theme.glassBackground,
+    glassBorder: neonUi ? 'rgba(0,255,255,0.16)' : theme.cardBorderColor,
+    rowBg: neonUi ? 'rgba(0,255,255,0.05)' : theme.glassBackground,
+    rowBorder: neonUi ? 'rgba(0,255,255,0.14)' : theme.cardBorderColor,
+    rowSelectedBg: neonUi ? 'rgba(0,255,255,0.12)' : `${theme.accent}1A`,
+    rowSelectedBorder: neonUi ? 'rgba(0,255,255,0.5)' : `${theme.accent}80`,
+    chipBg: neonUi ? 'rgba(0,255,255,0.06)' : 'rgba(255,255,255,0.05)',
+    chipBorder: neonUi ? 'rgba(0,255,255,0.18)' : 'rgba(255,255,255,0.12)',
+    chipActiveBg: theme.accent,
+    chipActiveText: accentOn,
+    metaPillBg: neonUi ? 'rgba(0,255,255,0.1)' : 'rgba(255,255,255,0.08)',
+    metaPillBorder: neonUi ? 'rgba(0,255,255,0.2)' : 'rgba(255,255,255,0.06)',
+    distanceIcon: neonUi ? NEON_CYAN : theme.accent,
+    priceColor: neonUi ? NEON_MAGENTA : theme.tint,
+    pickGradient: neonUi
+      ? ([NEON_CYAN, NEON_MAGENTA] as [string, string])
+      : ([theme.accent, theme.tint] as [string, string]),
+    sliderMin: theme.accent,
+    modalBg: neonUi ? 'rgba(0,0,0,0.96)' : theme.cardBackground,
+    modalBorder: neonUi ? 'rgba(0,255,255,0.22)' : theme.cardBorderColor,
+  };
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function SkeletonRow() {
+  const { theme } = useAppTheme();
+  const neonUi = Boolean(theme.neonColors);
+  const tc = themedColors(theme, neonUi);
   const pulse = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
     Animated.loop(
@@ -133,11 +176,20 @@ function SkeletonRow() {
     ).start();
   }, [pulse]);
   return (
-    <Animated.View style={[styles.row, { opacity: pulse }]}>
-      <View style={styles.skeletonThumb} />
+    <Animated.View
+      style={[
+        styles.row,
+        {
+          opacity: pulse,
+          backgroundColor: tc.rowBg,
+          borderColor: tc.rowBorder,
+        },
+      ]}
+    >
+      <View style={[styles.skeletonThumb, { backgroundColor: theme.imageBackdrop }]} />
       <View style={{ flex: 1, gap: 8 }}>
-        <View style={{ height: 15, width: '70%', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 6 }} />
-        <View style={{ height: 12, width: '45%', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6 }} />
+        <View style={{ height: 15, width: '70%', backgroundColor: tc.chipBg, borderRadius: 6 }} />
+        <View style={{ height: 12, width: '45%', backgroundColor: tc.chipBg, borderRadius: 6 }} />
       </View>
     </Animated.View>
   );
@@ -200,6 +252,9 @@ function RestaurantRow({
   onOpenDetail: () => void;
   onToggleSelect: () => void;
 }) {
+  const { theme } = useAppTheme();
+  const neonUi = Boolean(theme.neonColors);
+  const tc = themedColors(theme, neonUi);
   const { formatDistance } = useDistanceFormatter();
 
   const name = item.displayName?.text || 'Unknown';
@@ -209,6 +264,12 @@ function RestaurantRow({
   const price = formatPlacePriceLabel(item);
   const overall = calculatePlateboundScore(ai, item.rating, item.priceLevel);
   const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
+  const ratingColor =
+    typeof item.rating === 'number' && item.rating > 0
+      ? lerpRedGreen(Math.max(0, Math.min(1, item.rating / 5)))
+      : theme.subtext;
+  const healthColor =
+    healthNum != null ? lerpRedGreen(Math.max(0, Math.min(1, healthNum / 10))) : theme.subtext;
   const lat = item.location?.latitude;
   const lng = item.location?.longitude;
   const [photos, setPhotos] = useState<any[]>(item.photos || []);
@@ -238,13 +299,21 @@ function RestaurantRow({
   }, [item?.id, name, lat, lng, item?.photos, item.primaryType, item.websiteUri, item.formattedAddress]);
 
   return (
-    <View style={[styles.row, selected && styles.rowSelected]}>
+    <View
+      style={[
+        styles.row,
+        {
+          backgroundColor: selected ? tc.rowSelectedBg : tc.rowBg,
+          borderColor: selected ? tc.rowSelectedBorder : tc.rowBorder,
+        },
+      ]}
+    >
       <TouchableOpacity
         activeOpacity={0.75}
         onPress={onOpenDetail}
         style={styles.rowMainTap}
       >
-        <View style={styles.thumbWrap}>
+        <View style={[styles.thumbWrap, { backgroundColor: theme.imageBackdrop }]}>
           <RestaurantImage
             restaurantId={item.id}
             photos={photos}
@@ -257,32 +326,36 @@ function RestaurantRow({
         </View>
 
         <View style={styles.rowTextCol}>
-          <Text style={styles.rowName} numberOfLines={1}>{name}</Text>
+          <Text style={[styles.rowName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
           <View style={styles.rowMeta}>
             {typeof item.rating === 'number' && item.rating > 0 ? (
-              <View style={styles.metaPill}>
-                <Ionicons name="star" size={9} color="#FBBF24" />
-                <Text style={[styles.metaText, styles.rowMapsRating]}>{item.rating.toFixed(1)}</Text>
+              <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
+                <Ionicons name="star" size={9} color={ratingColor} />
+                <Text style={[styles.metaText, { color: ratingColor, fontWeight: '700' }]}>
+                  {item.rating.toFixed(1)}
+                </Text>
               </View>
             ) : null}
-            <View style={styles.metaPill}>
-              <Ionicons name="ribbon-outline" size={9} color="#A78BFA" />
-              <Text style={styles.rowPlateboundScore}>{overall > 0 ? overall.toFixed(1) : '—'}</Text>
+            <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
+              <Ionicons name="ribbon-outline" size={9} color={neonUi ? NEON_MAGENTA : theme.tint} />
+              <Text style={[styles.rowPlateboundScore, { color: neonUi ? NEON_MAGENTA : theme.tint }]}>
+                {overall > 0 ? overall.toFixed(1) : '—'}
+              </Text>
             </View>
-            <View style={styles.metaPill}>
-              <Ionicons name="heart-outline" size={9} color="#4CD964" />
-              <Text style={[styles.metaText, { color: '#4CD964' }]}>
+            <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
+              <Ionicons name="heart-outline" size={9} color={healthColor} />
+              <Text style={[styles.metaText, { color: healthColor, fontWeight: '700' }]}>
                 {healthNum != null ? `${healthNum.toFixed(1)}/10` : '—'}
               </Text>
             </View>
             {price ? (
-              <View style={styles.metaPill}>
-                <Text style={[styles.metaText, { color: '#F9A06F' }]}>{price}</Text>
+              <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
+                <Text style={[styles.metaText, { color: tc.priceColor }]}>{price}</Text>
               </View>
             ) : null}
-            <View style={styles.metaPill}>
-              <Ionicons name="navigate-outline" size={9} color="#F9A06F" />
-              <Text style={styles.metaText}>{dist}</Text>
+            <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
+              <Ionicons name="navigate-outline" size={9} color={tc.distanceIcon} />
+              <Text style={[styles.metaText, { color: theme.subtext }]}>{dist}</Text>
             </View>
           </View>
         </View>
@@ -291,9 +364,13 @@ function RestaurantRow({
       <TouchableOpacity
         onPress={onToggleSelect}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        style={[styles.checkbox, selected && styles.checkboxSelected]}
+        style={[
+          styles.checkbox,
+          { borderColor: selected ? theme.accent : tc.chipBorder },
+          selected && { backgroundColor: theme.accent, borderColor: theme.accent },
+        ]}
       >
-        {selected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+        {selected && <Ionicons name="checkmark" size={16} color={tc.accentOn} />}
       </TouchableOpacity>
     </View>
   );
@@ -304,6 +381,9 @@ function RestaurantRow({
 export default function RandomScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { theme } = useAppTheme();
+  const neonUi = Boolean(theme.neonColors);
+  const tc = useMemo(() => themedColors(theme, neonUi), [theme, neonUi]);
   const params = useLocalSearchParams<{ scenario?: string | string[] }>();
   const paramScenario = useMemo((): ScenarioKey | null => {
     const raw = params.scenario;
@@ -337,6 +417,13 @@ export default function RandomScreen() {
   const [openCheckEpoch, setOpenCheckEpoch] = useState(0);
   const [scenarioKey, setScenarioKey] = useState<ScenarioKey | null>(null);
   const [scenarioFilterEnabled, setScenarioFilterEnabled] = useState(false);
+  const [pageTitle, setPageTitle] = useState(pickFunSelectTitle);
+
+  useFocusEffect(
+    useCallback(() => {
+      setPageTitle(pickFunSelectTitle());
+    }, [])
+  );
 
   const minAiCutoffs = useMemo(() => slotsToCutoffs(aiSlot1, aiSlot2), [aiSlot1, aiSlot2]);
   const hydratedRef = useRef(false);
@@ -630,72 +717,105 @@ export default function RandomScreen() {
 
   const selectedCount = filtered.filter(r => selected.has(r.id)).length;
 
-  return (
-    <LinearGradient colors={['#422046', '#FF9A6F']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
-      <SafeAreaView style={styles.safe} edges={['top']}>
+  const screenBody = (
+    <>
+    <SafeAreaView style={styles.safe} edges={['top']}>
 
         {/* Header */}
         <View style={styles.topChrome}>
         <View style={styles.header}>
-          <AnimatedPressable onPress={handleBack} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <AnimatedPressable
+            onPress={handleBack}
+            style={[styles.backBtn, { backgroundColor: tc.glass, borderColor: tc.glassBorder, borderWidth: 1 }]}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
           </AnimatedPressable>
-          <Text style={styles.title}>Select</Text>
+          {neonUi ? (
+            <NeonGradientTitle text={pageTitle} width={SCREEN_WIDTH - 120} fontSize={20} />
+          ) : (
+            <Text style={[styles.title, { color: theme.pageTitleColor }]} numberOfLines={1}>
+              {pageTitle}
+            </Text>
+          )}
           <View style={{ width: 40 }} />
         </View>
 
         {/* Search + Radius bar */}
         <View style={styles.toolRow}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={14} color="rgba(255,255,255,0.4)" />
+          <View style={[styles.searchBox, { backgroundColor: tc.glass, borderColor: tc.glassBorder, borderWidth: 1 }]}>
+            <Ionicons name="search-outline" size={14} color={theme.subtext} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.text }]}
               placeholder="Filter restaurants…"
-              placeholderTextColor="rgba(255,255,255,0.35)"
+              placeholderTextColor={theme.subtext}
               value={filter}
               onChangeText={setFilter}
             />
             {filter.length > 0 && (
               <TouchableOpacity onPress={() => setFilter('')}>
-                <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+                <Ionicons name="close-circle" size={16} color={theme.subtext} />
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity 
-            style={styles.radiusChip} 
+          <TouchableOpacity
+            style={[styles.radiusChip, { backgroundColor: tc.glass, borderColor: tc.glassBorder, borderWidth: 1 }]}
             onPress={() => {
               setShowRadius(!showRadius);
               if (!showRadius) setShowFilters(false);
             }}
           >
-            <Ionicons name="location" size={12} color="#F9A06F" />
-            <Text style={styles.radiusChipText}>{formatLabel(radius)}</Text>
-            <Ionicons name={showRadius ? 'chevron-up' : 'chevron-down'} size={12} color="rgba(255,255,255,0.4)" />
+            <Ionicons name="location" size={12} color={theme.accent} />
+            <Text style={[styles.radiusChipText, { color: theme.text }]}>{formatLabel(radius)}</Text>
+            <Ionicons name={showRadius ? 'chevron-up' : 'chevron-down'} size={12} color={theme.subtext} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.radiusChip, activeFilterCount > 0 && styles.filterChipActive]}
+            style={[
+              styles.radiusChip,
+              { backgroundColor: tc.glass, borderColor: tc.glassBorder, borderWidth: 1 },
+              activeFilterCount > 0 && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+            ]}
             onPress={() => {
               setShowFilters(!showFilters);
               if (!showFilters) setShowRadius(false);
             }}
           >
-            <Ionicons name="options-outline" size={12} color={activeFilterCount > 0 ? '#FFFFFF' : '#F9A06F'} />
-            <Text style={[styles.radiusChipText, activeFilterCount > 0 && { color: '#FFFFFF' }]}>
+            <Ionicons
+              name="options-outline"
+              size={12}
+              color={activeFilterCount > 0 ? tc.chipActiveText : theme.accent}
+            />
+            <Text
+              style={[
+                styles.radiusChipText,
+                { color: theme.text },
+                activeFilterCount > 0 && { color: tc.chipActiveText },
+              ]}
+            >
               Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </Text>
           </TouchableOpacity>
         </View>
 
         {showRadius && (
-          <View style={styles.radiusPicker}>
+          <View style={[styles.radiusPicker, { backgroundColor: tc.panelBg, borderColor: tc.panelBorder, borderWidth: 1 }]}>
             {SEARCH_RADIUS_OPTIONS_METERS.map(s => (
               <TouchableOpacity
                 key={s}
-                style={[styles.radiusOption, radius === s && styles.radiusOptionActive]}
+                style={[
+                  styles.radiusOption,
+                  { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                  radius === s && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                ]}
                 onPress={() => changeRadius(s)}
               >
-                <Text style={[styles.radiusOptionText, radius === s && styles.radiusOptionTextActive]}>
+                <Text
+                  style={[
+                    styles.radiusOptionText,
+                    { color: theme.subtext },
+                    radius === s && { color: tc.chipActiveText },
+                  ]}
+                >
                   {formatLabel(s)}
                 </Text>
               </TouchableOpacity>
@@ -713,47 +833,65 @@ export default function RandomScreen() {
         )}
 
         {showFilters && (
-          <View style={styles.filterPanel}>
+          <View style={[styles.filterPanel, { backgroundColor: tc.panelBg, borderColor: tc.panelBorder }]}>
             <View style={styles.filterPanelHeader}>
-              <Text style={styles.filterPanelTitle}>Filters</Text>
+              <Text style={[styles.filterPanelTitle, { color: theme.text }]}>Filters</Text>
               <TouchableOpacity
                 onPress={() => setShowFilters(false)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={styles.filterCloseBtn}
               >
-                <Ionicons name="close" size={24} color="rgba(255,255,255,0.9)" />
+                <Ionicons name="close" size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.quickFiltersBlock}>
               <View style={styles.quickFilterTogglesRow}>
                 <TouchableOpacity
-                  style={[styles.quickFilterToggle, openOnly && styles.quickFilterToggleOn]}
+                  style={[
+                    styles.quickFilterToggle,
+                    { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                    openOnly && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                  ]}
                   onPress={() => setOpenOnly((v) => !v)}
                   accessibilityLabel="Open now filter"
                 >
                   <Ionicons
                     name={openOnly ? 'checkmark-circle' : 'ellipse-outline'}
                     size={15}
-                    color={openOnly ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+                    color={openOnly ? tc.chipActiveText : theme.subtext}
                   />
-                  <Text style={[styles.quickFilterToggleText, openOnly && styles.quickFilterToggleTextOn]}>
+                  <Text
+                    style={[
+                      styles.quickFilterToggleText,
+                      { color: theme.subtext },
+                      openOnly && { color: tc.chipActiveText },
+                    ]}
+                  >
                     Open now
                   </Text>
                 </TouchableOpacity>
                 {scenarioKey ? (
                   <TouchableOpacity
-                    style={[styles.quickFilterToggle, scenarioFilterEnabled && styles.quickFilterToggleOn]}
+                    style={[
+                      styles.quickFilterToggle,
+                      { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                      scenarioFilterEnabled && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                    ]}
                     onPress={() => setScenarioFilterEnabled((v) => !v)}
                     accessibilityLabel="Scenario vibe filter"
                   >
                     <Ionicons
                       name={scenarioFilterEnabled ? 'checkmark-circle' : 'ellipse-outline'}
                       size={15}
-                      color={scenarioFilterEnabled ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+                      color={scenarioFilterEnabled ? tc.chipActiveText : theme.subtext}
                     />
                     <Text
-                      style={[styles.quickFilterToggleText, scenarioFilterEnabled && styles.quickFilterToggleTextOn]}
+                      style={[
+                        styles.quickFilterToggleText,
+                        { color: theme.subtext },
+                        scenarioFilterEnabled && { color: tc.chipActiveText },
+                      ]}
                       numberOfLines={1}
                     >
                       Vibe · {SCENARIO_LABELS[scenarioKey]}
@@ -763,27 +901,47 @@ export default function RandomScreen() {
               </View>
 
               <View style={styles.quickFilterRow}>
-                <Text style={styles.quickFilterRowLabel}>Price</Text>
+                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>Price</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.quickFilterPillsRow}
                 >
                   <TouchableOpacity
-                    style={[styles.quickFilterPill, selectedPrices.size === 0 && styles.quickFilterPillActive]}
+                    style={[
+                      styles.quickFilterPill,
+                      { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                      selectedPrices.size === 0 && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                    ]}
                     onPress={() => setSelectedPrices(new Set())}
                   >
-                    <Text style={[styles.quickFilterPillText, selectedPrices.size === 0 && styles.quickFilterPillTextActive]}>
+                    <Text
+                      style={[
+                        styles.quickFilterPillText,
+                        { color: theme.subtext },
+                        selectedPrices.size === 0 && { color: tc.chipActiveText },
+                      ]}
+                    >
                       Any
                     </Text>
                   </TouchableOpacity>
                   {PRICE_LEVELS.map(p => (
                     <TouchableOpacity
                       key={p.key}
-                      style={[styles.quickFilterPill, selectedPrices.has(p.key) && styles.quickFilterPillActive]}
+                      style={[
+                        styles.quickFilterPill,
+                        { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                        selectedPrices.has(p.key) && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                      ]}
                       onPress={() => togglePrice(p.key)}
                     >
-                      <Text style={[styles.quickFilterPillText, selectedPrices.has(p.key) && styles.quickFilterPillTextActive]}>
+                      <Text
+                        style={[
+                          styles.quickFilterPillText,
+                          { color: theme.subtext },
+                          selectedPrices.has(p.key) && { color: tc.chipActiveText },
+                        ]}
+                      >
                         {p.label}
                       </Text>
                     </TouchableOpacity>
@@ -792,7 +950,7 @@ export default function RandomScreen() {
               </View>
 
               <View style={styles.quickFilterRow}>
-                <Text style={styles.quickFilterRowLabel}>Rating</Text>
+                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>Rating</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -801,10 +959,20 @@ export default function RandomScreen() {
                   {RATING_OPTS.map(r => (
                     <TouchableOpacity
                       key={r}
-                      style={[styles.quickFilterPill, minRating === r && styles.quickFilterPillActive]}
+                      style={[
+                        styles.quickFilterPill,
+                        { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                        minRating === r && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                      ]}
                       onPress={() => setMinRating(r)}
                     >
-                      <Text style={[styles.quickFilterPillText, minRating === r && styles.quickFilterPillTextActive]}>
+                      <Text
+                        style={[
+                          styles.quickFilterPillText,
+                          { color: theme.subtext },
+                          minRating === r && { color: tc.chipActiveText },
+                        ]}
+                      >
                         {r === 0 ? 'Any' : `${r}+`}
                       </Text>
                     </TouchableOpacity>
@@ -813,35 +981,57 @@ export default function RandomScreen() {
               </View>
             </View>
 
-            <Text style={styles.filterSubLabel}>Cuisines</Text>
+            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>Cuisines</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
               {Object.keys(CUISINE_TYPE_MAP).map(key => (
                 <TouchableOpacity
                   key={key}
-                  style={[styles.filterPill, selectedCuisines.has(key) && styles.filterPillActive]}
+                  style={[
+                    styles.filterPill,
+                    { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                    selectedCuisines.has(key) && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                  ]}
                   onPress={() => toggleCuisine(key)}
                 >
-                  <Text style={[styles.filterPillText, selectedCuisines.has(key) && styles.filterPillTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterPillText,
+                      { color: theme.subtext },
+                      selectedCuisines.has(key) && { color: tc.chipActiveText },
+                    ]}
+                  >
                     {cuisineFilterLabel(key)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={styles.filterSubLabel}>Sort By</Text>
+            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>Sort By</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
               {SORT_OPTIONS.map(({ key, label }) => (
                 <TouchableOpacity
                   key={key}
-                  style={[styles.filterPill, sortBy === key && styles.filterPillActive]}
+                  style={[
+                    styles.filterPill,
+                    { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
+                    sortBy === key && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
+                  ]}
                   onPress={() => setSortBy(key)}
                 >
-                  <Text style={[styles.filterPillText, sortBy === key && styles.filterPillTextActive]}>{label}</Text>
+                  <Text
+                    style={[
+                      styles.filterPillText,
+                      { color: theme.subtext },
+                      sortBy === key && { color: tc.chipActiveText },
+                    ]}
+                  >
+                    {label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={styles.filterSubLabel}>Extra score cutoffs</Text>
+            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>Extra score cutoffs</Text>
             {[1, 2].map((slotNum) => {
               const slot = slotNum === 1 ? aiSlot1 : aiSlot2;
               const setSlot = slotNum === 1 ? setAiSlot1 : setAiSlot2;
@@ -851,14 +1041,14 @@ export default function RandomScreen() {
               return (
                 <View key={slotNum} style={styles.aiFilterBlock}>
                   <TouchableOpacity
-                    style={styles.aiCategoryField}
+                    style={[styles.aiCategoryField, { backgroundColor: tc.chipBg, borderColor: tc.chipBorder }]}
                     onPress={() => setCategoryModal(slotNum as 1 | 2)}
                     activeOpacity={0.75}
                   >
-                    <Text style={styles.aiCategoryFieldText} numberOfLines={1}>
+                    <Text style={[styles.aiCategoryFieldText, { color: theme.text }]} numberOfLines={1}>
                       {categoryLabel}
                     </Text>
-                    <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.45)" />
+                    <Ionicons name="chevron-down" size={14} color={theme.subtext} />
                   </TouchableOpacity>
                   {slot.key != null ? (
                     <View style={styles.aiScoreSliderRow}>
@@ -871,11 +1061,11 @@ export default function RandomScreen() {
                         onValueChange={(v) =>
                           setSlot((prev) => ({ ...prev, min: Math.round(v) }))
                         }
-                        minimumTrackTintColor="#F97352"
-                        maximumTrackTintColor="rgba(255,255,255,0.15)"
-                        thumbTintColor="#FFFFFF"
+                        minimumTrackTintColor={tc.sliderMin}
+                        maximumTrackTintColor={tc.chipBorder}
+                        thumbTintColor={theme.text}
                       />
-                      <Text style={styles.aiScoreSliderValue}>
+                      <Text style={[styles.aiScoreSliderValue, { color: theme.text }]}>
                         {slot.min === 0 ? 'Any' : `${slot.min}+`}
                       </Text>
                     </View>
@@ -890,12 +1080,20 @@ export default function RandomScreen() {
         {/* Select all row */}
         {!isLoading && !errorMsg && allResults.length > 0 && (
           <View style={styles.selectAllRow}>
-            <Text style={styles.subtitle}>{filtered.length} restaurants matching filters</Text>
+            <Text style={[styles.subtitle, { color: theme.subtext }]}>
+              {filtered.length} restaurants matching filters
+            </Text>
             <TouchableOpacity style={styles.selectAllBtn} onPress={toggleSelectAll}>
-              <View style={[styles.checkbox, allSelectedInView && styles.checkboxSelected]}>
-                {allSelectedInView && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+              <View
+                style={[
+                  styles.checkbox,
+                  { borderColor: allSelectedInView ? theme.accent : tc.chipBorder },
+                  allSelectedInView && { backgroundColor: theme.accent, borderColor: theme.accent },
+                ]}
+              >
+                {allSelectedInView && <Ionicons name="checkmark" size={14} color={tc.accentOn} />}
               </View>
-              <Text style={styles.selectAllText}>
+              <Text style={[styles.selectAllText, { color: theme.subtext }]}>
                 {allSelectedInView ? 'Deselect All' : 'Select All'}
               </Text>
             </TouchableOpacity>
@@ -910,18 +1108,26 @@ export default function RandomScreen() {
           </View>
         ) : errorMsg ? (
           <View style={styles.centerBox}>
-            <Ionicons name="location-outline" size={64} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.errorText}>{errorMsg}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => loadResults()}>
-              <Text style={styles.retryText}>Try Again</Text>
+            <Ionicons name="location-outline" size={64} color={theme.subtext} />
+            <Text style={[styles.errorText, { color: theme.subtext }]}>{errorMsg}</Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: theme.accent }]}
+              onPress={() => loadResults()}
+            >
+              <Text style={[styles.retryText, { color: tc.accentOn }]}>Try Again</Text>
             </TouchableOpacity>
           </View>
         ) : allResults.length === 0 ? (
           <View style={styles.centerBox}>
-            <Ionicons name="restaurant-outline" size={64} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.errorText}>No restaurants found within {formatLabel(radius)}.</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => setShowRadius(true)}>
-              <Text style={styles.retryText}>Expand Radius</Text>
+            <Ionicons name="restaurant-outline" size={64} color={theme.subtext} />
+            <Text style={[styles.errorText, { color: theme.subtext }]}>
+              No restaurants found within {formatLabel(radius)}.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: theme.accent }]}
+              onPress={() => setShowRadius(true)}
+            >
+              <Text style={[styles.retryText, { color: tc.accentOn }]}>Expand Radius</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -940,7 +1146,9 @@ export default function RandomScreen() {
                 onToggleSelect={() => toggleOne(item.id)}
               />
             )}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
+            }
             ListFooterComponent={<View style={{ height: 120 }} />}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
@@ -951,18 +1159,27 @@ export default function RandomScreen() {
         {/* Floating Pick One button */}
         {!isLoading && selectedCount > 0 && (
           <TouchableOpacity
-            style={styles.pickBtn}
+            style={[
+              styles.pickBtn,
+              neonUi && {
+                shadowColor: NEON_CYAN,
+                shadowOpacity: 0.55,
+                shadowRadius: 14,
+              },
+            ]}
             activeOpacity={0.85}
             onPress={pickOne}
           >
             <LinearGradient
-              colors={['#F97352', '#FF9A6F']}
+              colors={tc.pickGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.pickBtnGradient}
             >
-              <Ionicons name="shuffle" size={20} color="#FFFFFF" />
-              <Text style={styles.pickBtnText}>Pick One  ({selectedCount})</Text>
+              <Ionicons name="shuffle" size={20} color={neonUi ? '#000000' : tc.accentOn} />
+              <Text style={[styles.pickBtnText, { color: neonUi ? '#000000' : tc.accentOn }]}>
+                Pick One  ({selectedCount})
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -980,23 +1197,23 @@ export default function RandomScreen() {
             activeOpacity={1}
             onPress={() => setCategoryModal(null)}
           />
-          <View style={styles.categoryModalSheet}>
-            <Text style={styles.categoryModalTitle}>AI metric</Text>
+          <View style={[styles.categoryModalSheet, { backgroundColor: tc.modalBg, borderColor: tc.modalBorder }]}>
+            <Text style={[styles.categoryModalTitle, { color: theme.text }]}>AI metric</Text>
             <ScrollView style={styles.categoryModalList} keyboardShouldPersistTaps="handled">
               <TouchableOpacity
-                style={styles.categoryModalOption}
+                style={[styles.categoryModalOption, { borderBottomColor: tc.chipBorder }]}
                 onPress={() => {
                   if (categoryModal === 1) setAiSlot1({ key: null, min: 0 });
                   else if (categoryModal === 2) setAiSlot2({ key: null, min: 0 });
                   setCategoryModal(null);
                 }}
               >
-                <Text style={styles.categoryModalOptionText}>None</Text>
+                <Text style={[styles.categoryModalOptionText, { color: theme.text }]}>None</Text>
               </TouchableOpacity>
               {AI_METRICS.map((m) => (
                 <TouchableOpacity
                   key={m.key}
-                  style={styles.categoryModalOption}
+                  style={[styles.categoryModalOption, { borderBottomColor: tc.chipBorder }]}
                   onPress={() => {
                     if (categoryModal === 1) {
                       if (m.key === aiSlot2.key) setAiSlot2({ key: null, min: 0 });
@@ -1008,14 +1225,29 @@ export default function RandomScreen() {
                     setCategoryModal(null);
                   }}
                 >
-                  <Text style={styles.categoryModalOptionText}>{m.label}</Text>
-                  <Text style={styles.categoryModalScaleHint}>{m.scale === 'ten' ? '0–10' : '0–5'}</Text>
+                  <Text style={[styles.categoryModalOptionText, { color: theme.text }]}>{m.label}</Text>
+                  <Text style={[styles.categoryModalScaleHint, { color: theme.subtext }]}>
+                    {m.scale === 'ten' ? '0–10' : '0–5'}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
         </View>
       </Modal>
+    </>
+  );
+
+  return neonUi ? (
+    <View style={[styles.bg, { backgroundColor: tc.pageBg }]}>{screenBody}</View>
+  ) : (
+    <LinearGradient
+      colors={theme.gradient}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.bg}
+    >
+      {screenBody}
     </LinearGradient>
   );
 }
@@ -1033,8 +1265,8 @@ const styles = StyleSheet.create({
   },
   filterPanel: {
     marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: 'rgba(30,15,30,0.75)', borderRadius: 18,
-    padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 18,
+    padding: 14, borderWidth: 1,
     gap: 10, zIndex: 8,
   },
   header: {
@@ -1043,10 +1275,9 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
-  title: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  title: { fontSize: 20, fontWeight: '700', flex: 1, textAlign: 'center' },
 
   toolRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1054,48 +1285,44 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 14,
+    borderRadius: 14,
     paddingHorizontal: 12, paddingVertical: 9,
   },
-  searchInput: { flex: 1, fontSize: 14, color: '#FFFFFF', padding: 0 },
+  searchInput: { flex: 1, fontSize: 14, padding: 0 },
 
   radiusChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 14,
+    borderRadius: 14,
     paddingHorizontal: 10, paddingVertical: 9,
   },
-  radiusChipText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+  radiusChipText: { fontSize: 13, fontWeight: '600' },
 
   radiusPicker: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8,
     marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: 'rgba(30,15,30,0.7)', borderRadius: 16, padding: 12,
+    borderRadius: 16, padding: 12,
   },
   radiusOption: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
   },
-  radiusOptionActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
-  radiusOptionText: { fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
-  radiusOptionTextActive: { color: '#FFFFFF' },
+  radiusOptionText: { fontSize: 13, fontWeight: '600' },
 
   selectAllRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginHorizontal: 16, marginBottom: 6,
   },
   selectAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  selectAllText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
-  countText: { fontSize: 12, color: 'rgba(255,255,255,0.45)' },
+  selectAllText: { fontSize: 13, fontWeight: '600' },
 
-  subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 10 },
+  subtitle: { fontSize: 13, marginBottom: 10 },
   list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: 'rgba(30,15,30,0.55)', borderRadius: 16,
+    borderRadius: 16,
     marginBottom: 10, padding: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
   },
   rowMainTap: {
     flex: 1,
@@ -1105,43 +1332,36 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   rowTextCol: { flex: 1, minWidth: 0 },
-  rowSelected: {
-    borderColor: 'rgba(249,115,82,0.5)',
-    backgroundColor: 'rgba(249,115,82,0.1)',
-  },
   thumbWrap: { width: 52, height: 52, borderRadius: 11, overflow: 'hidden' },
   thumb: { width: 52, height: 52 },
   skeletonThumb: {
     width: 52, height: 52, borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
 
-  rowName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
+  rowName: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   rowMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   metaPill: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 7,
+    borderRadius: 7,
     paddingHorizontal: 5, paddingVertical: 2,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
   },
-  metaText: { fontSize: 10, color: 'rgba(255,255,255,0.65)' },
-  rowMapsRating: { fontSize: 10, color: '#FBBF24', fontWeight: '700' },
-  rowPlateboundScore: { fontSize: 10, color: '#C4B5FD', fontWeight: '800' },
+  metaText: { fontSize: 10 },
+  rowPlateboundScore: { fontSize: 10, fontWeight: '800' },
 
   checkbox: {
     width: 26, height: 26, borderRadius: 13,
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 2,
     justifyContent: 'center', alignItems: 'center',
   },
-  checkboxSelected: { backgroundColor: '#F97352', borderColor: '#F97352' },
 
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 16 },
-  errorText: { fontSize: 15, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 22 },
+  errorText: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   retryBtn: {
-    backgroundColor: '#F97352', borderRadius: 20,
+    borderRadius: 20,
     paddingHorizontal: 24, paddingVertical: 12, marginTop: 8,
   },
-  retryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  retryText: { fontWeight: '700', fontSize: 15 },
 
   // Floating Pick button
   pickBtn: {
@@ -1154,19 +1374,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 22, paddingVertical: 15, borderRadius: 30,
   },
-  pickBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+  pickBtnText: { fontSize: 16, fontWeight: '800' },
 
-  // Filter chip (active state)
-  filterChipActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
-
-  // Filter panel
   filterPanelHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 2,
   },
-  filterPanelTitle: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+  filterPanelTitle: { fontSize: 17, fontWeight: '800' },
   filterCloseBtn: { padding: 2 },
   quickFiltersBlock: { gap: 8 },
   quickFilterTogglesRow: { flexDirection: 'row', gap: 8 },
@@ -1178,20 +1394,15 @@ const styles = StyleSheet.create({
     minHeight: 32,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  quickFilterToggleOn: { backgroundColor: '#4CD964', borderColor: '#4CD964' },
-  quickFilterToggleText: { flex: 1, fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
-  quickFilterToggleTextOn: { color: '#FFFFFF' },
+  quickFilterToggleText: { flex: 1, fontSize: 12, fontWeight: '700' },
   quickFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   quickFilterRowLabel: {
     width: 44,
     fontSize: 11,
     fontWeight: '800',
-    color: 'rgba(255,255,255,0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -1201,12 +1412,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  quickFilterPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
-  quickFilterPillText: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
-  quickFilterPillTextActive: { color: '#FFFFFF' },
+  quickFilterPillText: { fontSize: 12, fontWeight: '700' },
   aiFilterBlock: { marginBottom: 4, gap: 8 },
   aiCategoryField: {
     flexDirection: 'row',
@@ -1216,11 +1423,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 9,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
   },
-  aiCategoryFieldText: { flex: 1, fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
+  aiCategoryFieldText: { flex: 1, fontSize: 13, fontWeight: '700' },
   aiScoreSliderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1231,7 +1436,6 @@ const styles = StyleSheet.create({
     minWidth: 40,
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
     textAlign: 'right',
   },
   categoryModalRoot: {
@@ -1246,14 +1450,12 @@ const styles = StyleSheet.create({
   categoryModalSheet: {
     width: '86%',
     maxHeight: '72%',
-    backgroundColor: 'rgba(28,14,32,0.98)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     padding: 14,
     zIndex: 2,
   },
-  categoryModalTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginBottom: 10 },
+  categoryModalTitle: { fontSize: 16, fontWeight: '800', marginBottom: 10 },
   categoryModalList: { maxHeight: 420 },
   categoryModalOption: {
     flexDirection: 'row',
@@ -1262,28 +1464,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  categoryModalOptionText: { fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.92)' },
-  categoryModalScaleHint: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.4)' },
-  filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  filterLabel: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
-  filterSubLabel: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600', marginTop: 4 },
-  filterToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-  filterToggleOn: { backgroundColor: '#4CD964', borderColor: '#4CD964' },
-  filterToggleText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.5)' },
+  categoryModalOptionText: { fontSize: 15, fontWeight: '600' },
+  categoryModalScaleHint: { fontSize: 12, fontWeight: '600' },
+  filterSubLabel: { fontSize: 12, fontWeight: '600', marginTop: 4 },
   filterPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   filterPill: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
   },
-  filterPillActive: { backgroundColor: '#F97352', borderColor: '#F97352' },
-  filterPillText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
-  filterPillTextActive: { color: '#FFFFFF' },
+  filterPillText: { fontSize: 13, fontWeight: '600' },
 });

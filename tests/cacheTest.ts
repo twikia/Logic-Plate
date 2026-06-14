@@ -1,4 +1,5 @@
 import { getNearbyRestaurants } from '../core/restaurantOrchestrator';
+import { runAiEdgeTest } from './aiEdgeTest';
 
 export const runCacheTests = async () => {
   console.log('\n\n========== STARTING CACHE ENGINE TESTS ==========');
@@ -53,4 +54,7 @@ export const runCacheTests = async () => {
   console.log(`This run was faster than Test 1 because some cells were already cached!`);
 
   console.log('\n========== CACHE ENGINE TESTS COMPLETED ==========\n\n');
+
+  console.log('\n[Test 4] AI Edge Function');
+  await runAiEdgeTest();
 };

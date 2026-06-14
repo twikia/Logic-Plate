@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useAppTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { 
   getDistanceUnit, setDistanceUnit, 
   getAudioVolume, setAudioVolume, 
@@ -14,6 +16,8 @@ import {
 
 export default function GeneralSettingsScreen() {
   const router = useRouter();
+  const { theme } = useAppTheme();
+  const { user, profile } = useAuth();
   const [unit, setUnit] = useState<DistanceUnit>('km');
   const [volume, setVolume] = useState(0.5);
   const [haptics, setHaptics] = useState(true);
@@ -49,52 +53,77 @@ export default function GeneralSettingsScreen() {
   };
 
   return (
-    <LinearGradient colors={['#3D2B3D', '#2A1B2A']} style={styles.container}>
+    <LinearGradient colors={[theme.gradient[0], theme.gradient[1] ?? theme.cardBackground]} style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+          <Pressable
+            onPress={() => router.back()}
+            style={[styles.backButton, { backgroundColor: theme.buttonBackground }]}
+          >
+            <Ionicons name="chevron-back" size={28} color={theme.text} />
           </Pressable>
-          <Text style={styles.title}>General Settings</Text>
+          <Text style={[styles.title, { color: theme.text }]}>General Settings</Text>
           <View style={{ width: 28 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Search Preferences</Text>
-            <View style={styles.settingCard}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>Account</Text>
+            <Pressable
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+              onPress={() => router.push('/edit-username')}
+            >
               <View style={styles.settingInfo}>
-                <Ionicons name="navigate-circle-outline" size={24} color="#F97352" />
+                <Ionicons name="person-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
-                  <Text style={styles.settingLabel}>Distance Unit</Text>
-                  <Text style={styles.settingDescription}>How search radiuses are displayed</Text>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>Username</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>
+                    {profile?.username ?? 'Not set'}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.unitToggle}>
+              <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
+            </Pressable>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>Search Preferences</Text>
+            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+              <View style={styles.settingInfo}>
+                <Ionicons name="navigate-circle-outline" size={24} color={theme.accent} />
+                <View style={styles.textContainer}>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>Distance Unit</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>How search radiuses are displayed</Text>
+                </View>
+              </View>
+              <View style={[styles.unitToggle, { backgroundColor: theme.cardBackground }]}>
                 <Pressable 
                   onPress={() => handleUnitChange('km')}
-                  style={[styles.unitBtn, unit === 'km' && styles.unitBtnActive]}
+                  style={[styles.unitBtn, unit === 'km' && { backgroundColor: theme.accent }]}
                 >
-                  <Text style={[styles.unitText, unit === 'km' && styles.unitTextActive]}>KM</Text>
+                  <Text style={[styles.unitText, { color: theme.subtext }, unit === 'km' && { color: theme.accentOnColor ?? '#FFFFFF' }]}>KM</Text>
                 </Pressable>
                 <Pressable 
                   onPress={() => handleUnitChange('mi')}
-                  style={[styles.unitBtn, unit === 'mi' && styles.unitBtnActive]}
+                  style={[styles.unitBtn, unit === 'mi' && { backgroundColor: theme.accent }]}
                 >
-                  <Text style={[styles.unitText, unit === 'mi' && styles.unitTextActive]}>Miles</Text>
+                  <Text style={[styles.unitText, { color: theme.subtext }, unit === 'mi' && { color: theme.accentOnColor ?? '#FFFFFF' }]}>Miles</Text>
                 </Pressable>
               </View>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Audio & Feedback</Text>
-            <View style={styles.settingCard}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>Audio & Feedback</Text>
+            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
               <View style={styles.settingInfo}>
-                <Ionicons name="volume-high-outline" size={24} color="#F97352" />
+                <Ionicons name="volume-high-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
-                  <Text style={styles.settingLabel}>App Volume</Text>
-                  <Text style={styles.settingDescription}>Volume level for UI sounds</Text>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>App Volume</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>Volume level for UI sounds</Text>
                 </View>
               </View>
               <View style={styles.volumeSteps}>
@@ -102,53 +131,61 @@ export default function GeneralSettingsScreen() {
                   <Pressable 
                     key={level}
                     onPress={() => handleVolumeChange(level)}
-                    style={[styles.volumeStep, volume === level && styles.volumeStepActive]}
+                    style={[
+                      styles.volumeStep,
+                      { backgroundColor: theme.cardBackground },
+                      volume === level && { backgroundColor: theme.accent, transform: [{ scale: 1.2 }] },
+                    ]}
                   />
                 ))}
               </View>
             </View>
 
-            <View style={styles.settingCard}>
+            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
               <View style={styles.settingInfo}>
-                <Ionicons name="phone-portrait-outline" size={24} color="#F97352" />
+                <Ionicons name="phone-portrait-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
-                  <Text style={styles.settingLabel}>Haptic Feedback</Text>
-                  <Text style={styles.settingDescription}>Vibrate on interactions</Text>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>Haptic Feedback</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>Vibrate on interactions</Text>
                 </View>
               </View>
               <Switch 
                 value={haptics} 
                 onValueChange={handleHapticsToggle}
-                trackColor={{ false: '#5C255C', true: '#F97352' }}
-                thumbColor={haptics ? '#FFFFFF' : '#B59EAA'}
+                trackColor={{ false: theme.buttonBackground, true: theme.accent }}
+                thumbColor={haptics ? (theme.accentOnColor ?? '#FFFFFF') : theme.subtext}
               />
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notifications</Text>
-            <View style={styles.settingCard}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>Notifications</Text>
+            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
               <View style={styles.settingInfo}>
-                <Ionicons name="notifications-outline" size={24} color="#F97352" />
+                <Ionicons name="notifications-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
-                  <Text style={styles.settingLabel}>Push Notifications</Text>
-                  <Text style={styles.settingDescription}>Get updates and alerts</Text>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>Push Notifications</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>Get updates and alerts</Text>
                 </View>
               </View>
               <Switch 
                 value={notifications} 
                 onValueChange={setNotifications}
-                trackColor={{ false: '#5C255C', true: '#F97352' }}
-                thumbColor={notifications ? '#FFFFFF' : '#B59EAA'}
+                trackColor={{ false: theme.buttonBackground, true: theme.accent }}
+                thumbColor={notifications ? (theme.accentOnColor ?? '#FFFFFF') : theme.subtext}
               />
             </View>
           </View>
 
           <View style={styles.section}>
-             <Text style={styles.sectionTitle}>About</Text>
-             <View style={styles.settingCard}>
-                <Text style={styles.versionText}>Version 1.0.4 (Phase 2)</Text>
-                <Text style={styles.creditsText}>Made with ❤️ for foodies</Text>
+             <Text style={[styles.sectionTitle, { color: theme.accent }]}>About</Text>
+             <View style={[styles.aboutCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+                <Text style={[styles.versionText, { color: theme.text }]}>Version 1.0.4 (Phase 2)</Text>
+                <Text style={[styles.creditsText, { color: theme.subtext }]}>Made with ❤️ for foodies</Text>
+                <Text style={[styles.aboutLabel, { color: theme.subtext }]}>User ID</Text>
+                <Text style={[styles.userIdText, { color: theme.text }]} selectable>
+                  {user?.id ?? '—'}
+                </Text>
              </View>
           </View>
         </ScrollView>
@@ -175,14 +212,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   scrollContent: {
     padding: 20,
@@ -193,14 +228,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F9A06F',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 12,
     marginLeft: 5,
   },
   settingCard: {
-    backgroundColor: 'rgba(92, 37, 92, 0.4)',
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
@@ -208,7 +241,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  aboutCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
   },
   settingInfo: {
     flexDirection: 'row',
@@ -222,16 +260,13 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   settingDescription: {
     fontSize: 12,
-    color: '#B59EAA',
     marginTop: 2,
   },
   unitToggle: {
     flexDirection: 'row',
-    backgroundColor: '#3D2B3D',
     borderRadius: 12,
     padding: 4,
   },
@@ -240,16 +275,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
-  unitBtnActive: {
-    backgroundColor: '#F97352',
-  },
   unitText: {
-    color: '#B59EAA',
     fontSize: 12,
     fontWeight: '600',
-  },
-  unitTextActive: {
-    color: '#FFFFFF',
   },
   volumeSteps: {
     flexDirection: 'row',
@@ -259,19 +287,23 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#5C255C',
-  },
-  volumeStepActive: {
-    backgroundColor: '#F97352',
-    transform: [{ scale: 1.2 }],
   },
   versionText: {
     fontSize: 14,
-    color: '#FFFFFF',
     fontWeight: '600',
   },
   creditsText: {
     fontSize: 12,
-    color: '#B59EAA',
-  }
+    marginTop: 4,
+  },
+  aboutLabel: {
+    fontSize: 12,
+    marginTop: 16,
+    fontWeight: '600',
+  },
+  userIdText: {
+    fontSize: 11,
+    marginTop: 4,
+    lineHeight: 16,
+  },
 });
