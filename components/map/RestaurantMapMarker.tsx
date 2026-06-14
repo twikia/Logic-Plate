@@ -5,17 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 import Svg, { Circle, Polygon } from 'react-native-svg';
 
-const RADIUS = 14;          // ~6% smaller than before (was 15)
+const RADIUS = 14;
 const GLOW = 4;
-const SEL_GLOW = 6;         // bigger glow ring when selected — no size change to the disc
 const TIP_H = 8;
 const TIP_SIDE = 5;
-const BOTTOM_PAD = 2;       // 2px transparent buffer so Android never clips the tip apex
+const BOTTOM_PAD = 2;
 
 const MARKER_BG = '#120A1F';
-const ACCENT_SELECTED = '#00FFFF'; // cyan highlight for the selected state
+const ACCENT_SELECTED = '#00FFFF';
 const BORDER_W = 2;
-const BORDER_W_SEL = 2.5;
 
 type RestaurantMapMarkerProps = {
   item: any;
@@ -47,20 +45,16 @@ export function RestaurantMapMarker({
     setTracksViewChanges(true);
   }, [iconName, isOpen, isSelected, markerColor]);
 
-  const glow = isSelected ? SEL_GLOW : GLOW;
   const accent = isSelected ? ACCENT_SELECTED : markerColor;
-  const borderW = isSelected ? BORDER_W_SEL : BORDER_W;
-  // glow ring is semi-transparent: ~40% selected, ~25% normal
   const glowColor = accent + (isSelected ? '66' : '40');
   const markerOpacity = isOpen ? 1 : 0.4;
 
-  // Canvas grows only to fit the glow ring — the disc itself stays at RADIUS
-  const svgW = (RADIUS + glow) * 2;
-  const tipApexY = glow + RADIUS * 2 + TIP_H;
+  const svgW = (RADIUS + GLOW) * 2;
+  const tipApexY = GLOW + RADIUS * 2 + TIP_H;
   const svgH = tipApexY + BOTTOM_PAD;
   const cx = svgW / 2;
-  const cy = glow + RADIUS;
-  const tipTopY = glow + RADIUS * 2;
+  const cy = GLOW + RADIUS;
+  const tipTopY = GLOW + RADIUS * 2;
   const tipPoints = `${cx - TIP_SIDE},${tipTopY} ${cx + TIP_SIDE},${tipTopY} ${cx},${tipApexY}`;
   // Anchor at the true tip apex, not the canvas bottom
   const anchorY = tipApexY / svgH;
@@ -79,9 +73,9 @@ export function RestaurantMapMarker({
       >
         <Svg width={svgW} height={svgH}>
           {/* Glow ring */}
-          <Circle cx={cx} cy={cy} r={RADIUS + glow} fill={glowColor} />
+          <Circle cx={cx} cy={cy} r={RADIUS + GLOW} fill={glowColor} />
           {/* Main disc */}
-          <Circle cx={cx} cy={cy} r={RADIUS} fill={MARKER_BG} stroke={accent} strokeWidth={borderW} />
+          <Circle cx={cx} cy={cy} r={RADIUS} fill={MARKER_BG} stroke={accent} strokeWidth={BORDER_W} />
           {/* Pointer tip */}
           <Polygon points={tipPoints} fill={accent} />
         </Svg>
@@ -92,7 +86,7 @@ export function RestaurantMapMarker({
           style={{
             position: 'absolute',
             left: cx - RADIUS,
-            top: glow,
+            top: GLOW,
             width: RADIUS * 2,
             height: RADIUS * 2,
             alignItems: 'center',

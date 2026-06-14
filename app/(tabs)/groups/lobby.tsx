@@ -6,13 +6,11 @@ import {
   ActivityIndicator,
   AppState,
   LayoutAnimation,
-  Platform,
   ScrollView,
   Share,
   StyleSheet,
   Text,
   TouchableOpacity,
-  UIManager,
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -33,10 +31,6 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { BackButton } from '@/components/ui/BackButton';
 import { subscribeToSessionResponses } from '@/utils/groupRealtime';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 type GroupMode = 'passphone' | 'qr' | 'code';
 
