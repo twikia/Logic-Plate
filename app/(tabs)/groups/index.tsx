@@ -10,11 +10,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
+import { hapticMedium, hapticError, hapticSuccess } from '@/core/haptics';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -25,18 +27,22 @@ function normalizeJoinCode(raw: string): string {
 export default function GroupsScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const [joinCode, setJoinCode] = useState('');
 
   const goLobby = (mode: 'passphone' | 'qr') => {
+    hapticMedium();
     router.push({ pathname: '/groups/lobby', params: { mode } });
   };
 
   const onJoin = async () => {
     const code = normalizeJoinCode(joinCode);
     if (code.length !== 6) {
-      Alert.alert('Enter code', 'Please enter the 6-character session code.');
+      hapticError();
+      Alert.alert(t('groups.alertEnterCodeTitle'), t('groups.alertEnterCodeMsg'));
       return;
     }
+    hapticMedium();
     const { data, error } = await supabase
       .from('group_sessions')
       .select('id, status, expires_at')
@@ -44,18 +50,22 @@ export default function GroupsScreen() {
       .maybeSingle();
 
     if (error || !data) {
-      Alert.alert('Not found', 'No active session matches that code.');
+      hapticError();
+      Alert.alert(t('groups.alertNotFoundTitle'), t('groups.alertNotFoundMsg'));
       return;
     }
     if (data.status === 'expired') {
-      Alert.alert('Expired', 'This session has expired.');
+      hapticError();
+      Alert.alert(t('groups.alertExpiredTitle'), t('groups.alertExpiredMsg'));
       return;
     }
     const exp = new Date(data.expires_at).getTime();
     if (exp <= Date.now()) {
-      Alert.alert('Expired', 'This session has expired.');
+      hapticError();
+      Alert.alert(t('groups.alertExpiredTitle'), t('groups.alertExpiredMsg'));
       return;
     }
+    hapticSuccess();
     router.push({
       pathname: '/groups/vibe',
       params: { sessionId: data.id, flow: 'join' },
@@ -70,22 +80,22 @@ export default function GroupsScreen() {
           <View style={styles.joinSection}>
             {theme.neonColors ? (
               <NeonGradientTitle
-                text="Vote together!"
+                text={t('groups.title')}
                 width={SCREEN_W - 48}
                 fontSize={26}
                 style={{ marginBottom: 10 }}
               />
             ) : (
-              <Text style={[styles.headerTitle, { color: theme.text }]}>Vote together!</Text>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>{t('groups.title')}</Text>
             )}
-            <Text style={[styles.joinLabel, { color: theme.subtext }]}>Have a code?</Text>
+            <Text style={[styles.joinLabel, { color: theme.subtext }]}>{t('groups.haveCode')}</Text>
             <View style={styles.joinRow}>
             <TextInput
               style={[
                 styles.input,
                 { color: theme.text, borderColor: theme.accent + '66', backgroundColor: theme.cardBackground },
               ]}
-              placeholder="Enter code"
+              placeholder={t('groups.enterCodePlaceholder')}
               placeholderTextColor={theme.subtext}
               autoCapitalize="characters"
               maxLength={8}
@@ -95,14 +105,14 @@ export default function GroupsScreen() {
             <TouchableOpacity
               style={[styles.joinBtn, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
               onPress={onJoin}>
-              <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>Join</Text>
+              <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>{t('groups.join')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
-          <Text style={[styles.dividerText, { color: theme.subtext }]}>or start one</Text>
+          <Text style={[styles.dividerText, { color: theme.subtext }]}>{t('groups.orStartOne')}</Text>
           <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
         </View>
 
@@ -113,7 +123,7 @@ export default function GroupsScreen() {
           ]}
           onPress={() => goLobby('qr')}>
           <Text style={styles.glowBtnEmoji}>📷</Text>
-          <Text style={[styles.glowBtnText, { color: theme.text }]}>Create session</Text>
+          <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.createSession')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -121,9 +131,9 @@ export default function GroupsScreen() {
             styles.glowBtn,
             { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
           ]}
-          onPress={() => router.push('/groups/quick')}>
+          onPress={() => { hapticMedium(); router.push('/groups/quick'); }}>
           <Text style={styles.glowBtnEmoji}>⚡</Text>
-          <Text style={[styles.glowBtnText, { color: theme.text }]}>Quick Vote</Text>
+          <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.quickVote')}</Text>
         </TouchableOpacity>
         </View>
       </SafeAreaView>

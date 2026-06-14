@@ -76,6 +76,9 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { hapticMedium, hapticSuccess } from '@/core/haptics';
+import { playSuccess } from '@/core/audioService';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
 const WINDOW_HEIGHT = Dimensions.get('window').height;
@@ -216,12 +219,13 @@ function RestaurantScorePentagon({
 }) {
   const gid = useId().replace(/:/g, '');
   const n = 5;
+  const { t: radarT } = useTranslation();
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
-    { key: 'healthScore', corner: 'Health', max: 10 },
-    { key: 'tasteScore', corner: 'Taste', max: 5 },
-    { key: 'valueForMoneyScore', corner: 'Value', max: 5 },
-    { key: 'dateWorthiness', corner: 'Date', max: 5 },
-    { key: 'speedScore', corner: 'Speed', max: 5 },
+    { key: 'healthScore', corner: radarT('home.radarHealth'), max: 10 },
+    { key: 'tasteScore', corner: radarT('home.radarTaste'), max: 5 },
+    { key: 'valueForMoneyScore', corner: radarT('home.radarValue'), max: 5 },
+    { key: 'dateWorthiness', corner: radarT('home.radarDate'), max: 5 },
+    { key: 'speedScore', corner: radarT('home.radarSpeed'), max: 5 },
   ];
   const norms = axes.map(({ key, max }) => {
     const s = scoreAxis(ai, key);
@@ -486,8 +490,9 @@ function SpotlightCard({
   onPress: () => void;
 }) {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const place = scored.place;
-  const name = place.displayName?.text || 'Unknown';
+  const name = place.displayName?.text || t('common.unknown');
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
@@ -718,7 +723,7 @@ function SpotlightCard({
                 : { backgroundColor: theme.accent, borderColor: theme.accent },
               !mapsReady && styles.spotlightMapsBtnDisabled,
             ]}
-            onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
+            onPress={() => { if (!mapsReady) return; hapticSuccess(); playSuccess(); openMaps(name, lat, lng); }}
             disabled={!mapsReady}
             activeOpacity={0.85}
           >
@@ -734,7 +739,7 @@ function SpotlightCard({
               ]}
               numberOfLines={1}
             >
-              {Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}
+              {Platform.OS === 'ios' ? t('common.openInAppleMaps') : t('common.openInGoogleMaps')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -747,6 +752,7 @@ function SpotlightCard({
 
 export default function HomeScreen() {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
@@ -876,7 +882,7 @@ export default function HomeScreen() {
     try {
       const coords = await getLocation(false);
       if (!coords) {
-        setErrorMsg('Turn on location to get your daily pick.');
+        setErrorMsg(t('home.locationError'));
         setRawPlaces([]);
         return;
       }
@@ -912,7 +918,7 @@ export default function HomeScreen() {
         return;
       }
       if (!hadCachedPlaces) {
-        setErrorMsg('Could not load restaurants nearby.');
+        setErrorMsg(t('home.loadError'));
         setRawPlaces([]);
       }
     } finally {
@@ -921,7 +927,7 @@ export default function HomeScreen() {
         setIsLoading(false);
       }
     }
-  }, [onOrchestratorProgress, prefs, snapProgressComplete, startFetchPhase, startGpsPhase]);
+  }, [onOrchestratorProgress, prefs, snapProgressComplete, startFetchPhase, startGpsPhase, t]);
 
   useEffect(() => {
     if (prefs && session) {
@@ -1018,15 +1024,15 @@ export default function HomeScreen() {
           ) : errorMsg ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>{errorMsg}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
-                <Text style={styles.retryText}>Try again</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => { hapticMedium(); void loadSpotlight(); }}>
+                <Text style={styles.retryText}>{t('common.tryAgain')}</Text>
               </TouchableOpacity>
             </View>
           ) : noPlacesAtAll ? (
             <View style={styles.messageBox}>
-              <Text style={styles.messageText}>No restaurants matched your filters nearby.</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
-                <Text style={styles.retryText}>Refresh</Text>
+              <Text style={styles.messageText}>{t('home.noResults')}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => { hapticMedium(); void loadSpotlight(); }}>
+                <Text style={styles.retryText}>{t('common.refresh')}</Text>
               </TouchableOpacity>
             </View>
           ) : visibleList.length > 0 ? (

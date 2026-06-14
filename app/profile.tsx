@@ -20,9 +20,13 @@ import { clearResultCache } from '../core/resultCache';
 import { clearLocationCache } from '../core/locationCache';
 import { clearImageCache } from '../core/images';
 import { useAuth } from '@/context/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { hapticLight, hapticMedium, hapticSuccess } from '@/core/haptics';
+import { playSelect } from '@/core/audioService';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, profile, signOut, isGuest } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [isSelectingIcon, setIsSelectingIcon] = useState(false);
@@ -62,7 +66,7 @@ export default function ProfileScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
               <View style={[styles.section, styles.profileHeaderSection]}>
-                <AnimatedPressable onPress={() => setIsSelectingIcon(true)} style={styles.profileIconWrapper}>
+                <AnimatedPressable onPress={() => { hapticLight(); setIsSelectingIcon(true); }} style={styles.profileIconWrapper}>
                   <View style={styles.avatarOuter}>
                     <View style={styles.profileIconContainer}>
                       <Text style={styles.profileIconEmoji}>{icon}</Text>
@@ -71,43 +75,43 @@ export default function ProfileScreen() {
                       <Ionicons name="pencil" size={14} color="#FFFFFF" />
                     </View>
                   </View>
-                  <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
-                  <Text style={[styles.greetingText, { color: theme.text }]}>Hi {greetingName}!</Text>
+                  <Text style={[styles.changeText, { color: theme.accent }]}>{t('profile.change')}</Text>
+                  <Text style={[styles.greetingText, { color: theme.text }]}>{t('profile.greeting', { name: greetingName })}</Text>
                 </AnimatedPressable>
 
                 {user ? (
                   !isGuest ? (
                     <AnimatedPressable
                       style={[styles.button, styles.signOutButton, { backgroundColor: theme.buttonBackground }]}
-                      onPress={() => signOut()}
+                      onPress={() => { hapticMedium(); signOut(); }}
                     >
-                      <Text style={[styles.buttonText, { color: theme.text }]}>Sign out</Text>
+                      <Text style={[styles.buttonText, { color: theme.text }]}>{t('profile.signOut')}</Text>
                     </AnimatedPressable>
                   ) : null
                 ) : (
                   <Text style={[styles.subtitle, styles.sessionError, { color: theme.subtext }]}>
-                    Could not start a session. Check your connection and Supabase anonymous sign-in.
+                    {t('profile.sessionError')}
                   </Text>
                 )}
               </View>
 
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('profile.settingsSection')}</Text>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
-                  onPress={() => router.push('/recommendation-settings' as any)}
+                  onPress={() => { hapticLight(); router.push('/recommendation-settings' as any); }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>Recommendations</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.recommendations')}</Text>
                     <Ionicons name="sparkles-outline" size={18} color={theme.accent} />
                   </View>
                 </AnimatedPressable>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
-                  onPress={() => router.push('/general-settings')}
+                  onPress={() => { hapticLight(); router.push('/general-settings'); }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>General Settings</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.generalSettings')}</Text>
                     <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
                   </View>
                 </AnimatedPressable>
@@ -121,23 +125,23 @@ export default function ProfileScreen() {
                       marginTop: 0,
                     },
                   ]}
-                  onPress={() => router.push('/subscription')}
+                  onPress={() => { hapticLight(); router.push('/subscription'); }}
                 >
                   <View style={styles.subInfo}>
                     <Ionicons name="star" size={20} color={theme.accent} />
                     <View style={{ marginLeft: 10 }}>
-                      <Text style={[styles.subPlanText, { color: theme.text }]}>Free Tier</Text>
-                      <Text style={[styles.subStatusText, { color: theme.subtext }]}>Standard features</Text>
+                      <Text style={[styles.subPlanText, { color: theme.text }]}>{t('profile.freeTier')}</Text>
+                      <Text style={[styles.subStatusText, { color: theme.subtext }]}>{t('profile.standardFeatures')}</Text>
                     </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.upgradeLabel, { color: theme.accent }]}>Upgrade</Text>
+                    <Text style={[styles.upgradeLabel, { color: theme.accent }]}>{t('profile.upgrade')}</Text>
                     <Ionicons name="chevron-forward" size={16} color={theme.accent} style={{ marginLeft: 4 }} />
                   </View>
                 </AnimatedPressable>
                 <View style={[styles.menuItem, { paddingVertical: 12, backgroundColor: theme.buttonBackground }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>Theme Preferences</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.themePreferences')}</Text>
                   </View>
 
                   <ScrollView 
@@ -145,19 +149,19 @@ export default function ProfileScreen() {
                     showsHorizontalScrollIndicator={false} 
                     contentContainerStyle={styles.themeSelector}
                   >
-                    {Object.entries(Themes).map(([id, t]: [string, any]) => (
+                    {Object.entries(Themes).map(([id, t2]: [string, any]) => (
                       <Pressable 
                         key={id}
-                        onPress={() => setTheme(id)}
+                        onPress={() => { hapticLight(); setTheme(id); }}
                         style={[
                           styles.themeBtn, 
                           themeName === id && styles.themeBtnActive,
-                          { borderColor: t.accent }
+                          { borderColor: t2.accent }
                         ]}
                       >
-                        <View style={[styles.themePreview, { backgroundColor: t.gradient[0] }]}>
+                        <View style={[styles.themePreview, { backgroundColor: t2.gradient[0] }]}>
                           <LinearGradient 
-                            colors={t.gradient} 
+                            colors={t2.gradient} 
                             style={StyleSheet.absoluteFill}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
@@ -166,24 +170,23 @@ export default function ProfileScreen() {
                         <Text style={[
                           styles.themeText, 
                           { color: theme.subtext },
-                          themeName === id && { color: t.accent, fontWeight: 'bold' }
+                          themeName === id && { color: t2.accent, fontWeight: 'bold' }
                         ]}>
-                          {t.name}
+                          {t2.name}
                         </Text>
                       </Pressable>
                     ))}
                   </ScrollView>
-
                 </View>
               </View>
 
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Developer</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('profile.developer')}</Text>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.accent }]} 
                   onPress={() => runCacheTests()}
                 >
-                  <Text style={[styles.menuItemText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>Run All Tests</Text>
+                  <Text style={[styles.menuItemText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>{t('profile.runAllTests')}</Text>
                 </AnimatedPressable>
 
                 <AnimatedPressable 
@@ -199,11 +202,12 @@ export default function ProfileScreen() {
                       clearRandomPickerState(),
                       resetRecommendationPrefsToOnboarding(),
                     ]);
-                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, Location, and Images) have been wiped. Recommendation preferences were reset.');
+                    hapticSuccess();
+                    Alert.alert(t('profile.cachePurgedTitle'), t('profile.cachePurgedMsg'));
                     router.replace('/welcome-onboarding' as any);
                   }}
                 >
-                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear All Caches</Text>
+                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>{t('profile.clearAllCaches')}</Text>
                 </AnimatedPressable>
               </View>
             </ScrollView>
@@ -216,13 +220,15 @@ export default function ProfileScreen() {
           <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} onPress={() => setIsSelectingIcon(false)} />
           <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={[styles.iconSelectionBox, { backgroundColor: theme.cardBackground }]}>
 
-            <Text style={[styles.iconSelectionTitle, { color: theme.text }]}>Choose an Avatar</Text>
+            <Text style={[styles.iconSelectionTitle, { color: theme.text }]}>{t('profile.chooseAvatar')}</Text>
             <View style={styles.iconGrid}>
               {icons.map((item) => (
                 <AnimatedPressable 
                   key={item} 
                   style={[styles.iconOption, icon === item && styles.iconOptionSelected]}
                   onPress={async () => {
+                    hapticLight();
+                    playSelect();
                     await changeIcon(item);
                     setIsSelectingIcon(false);
                   }}
@@ -276,7 +282,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-
   scrollContent: {
     padding: 24,
     paddingTop: 30,
@@ -324,7 +329,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 5,
   },
-
   themeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -339,7 +343,6 @@ const styles = StyleSheet.create({
   themeBtnActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
-
   themeText: {
     color: '#B59EAA',
     fontSize: 11,
@@ -403,7 +406,6 @@ const styles = StyleSheet.create({
   iconSelectionBox: {
     backgroundColor: '#3D2B3D',
     borderRadius: 25,
-
     padding: 25,
     width: '80%',
     maxWidth: 340,

@@ -28,6 +28,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { hapticMedium, hapticSuccess } from '@/core/haptics';
+import { playSuccess } from '@/core/audioService';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -39,6 +42,7 @@ const STEPS = CUISINE_PAGE + 1;
 export default function WelcomeOnboardingScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const listRef = useRef<FlatList>(null);
   const [page, setPage] = useState(0);
 
@@ -73,6 +77,8 @@ export default function WelcomeOnboardingScreen() {
   }, [router]);
 
   const finish = useCallback(async () => {
+    hapticSuccess();
+    playSuccess();
     await markOnboardingComplete({
       v: 1,
       weights,
@@ -87,6 +93,7 @@ export default function WelcomeOnboardingScreen() {
   };
 
   const goNext = () => {
+    hapticMedium();
     if (page < STEPS - 1) {
       listRef.current?.scrollToIndex({ index: page + 1, animated: true });
     } else {
@@ -134,10 +141,9 @@ export default function WelcomeOnboardingScreen() {
           value={weights.cuisine}
           onChange={level => setWeight('cuisine', level)}
         />
-        <Text style={[styles.title, styles.cuisineSectionTitle, { color: theme.text }]}>Rank your top cuisines</Text>
+        <Text style={[styles.title, styles.cuisineSectionTitle, { color: theme.text }]}>{t('onboarding.cuisineTitle')}</Text>
         <Text style={[styles.sub, { color: theme.subtext }]}>
-          Optional: tap up to 5 favorites in order — #1 is your top pick. Skip any you are not sure about; we still
-          surface great matches either way.
+          {t('onboarding.cuisineSubtitle')}
         </Text>
         <CuisineRankGrid
           ranked={favoriteCuisines}
@@ -184,7 +190,7 @@ export default function WelcomeOnboardingScreen() {
         <View style={styles.footer}>
           <Pressable onPress={goNext} style={[styles.primaryBtn, { backgroundColor: theme.accent }]}>
             <Text style={[styles.primaryBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
-              {page === STEPS - 1 ? 'Start exploring' : 'Continue'}
+              {page === STEPS - 1 ? t('onboarding.startExploring') : t('onboarding.continue')}
             </Text>
             <Ionicons name="arrow-forward" size={20} color={theme.accentOnColor ?? '#FFFFFF'} />
           </Pressable>

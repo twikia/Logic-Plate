@@ -6,13 +6,29 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { I18nextProvider } from 'react-i18next';
 
 import { AuthGate } from '@/components/auth/AuthGate';
-import { initDistanceUnit } from '@/core/userSettings';
+import { initDistanceUnit, getLanguage } from '@/core/userSettings';
 import { initLocationCache } from '@/core/locationCache';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { initAudio } from '@/core/audioService';
+import i18n from '@/i18n';
+
+// ─── Audio registration ───────────────────────────────────────────────────────
+// After adding your audio files to assets/audio/, uncomment these lines.
+// See assets/audio/README.md for file sources and naming conventions.
+//
+import { registerUiSound, registerAmbientTrack } from '@/core/audioService';
+registerUiSound('tap',     require('@/assets/audio/ui/denielcz-immersivecontrol-button-click-sound-463065.mp3'));
+// registerUiSound('select',  require('@/assets/audio/ui/select.mp3'));
+// registerUiSound('success', require('@/assets/audio/ui/success.mp3'));
+// registerUiSound('error',   require('@/assets/audio/ui/error.mp3'));
+registerAmbientTrack(require('@/assets/audio/ambient/mondamusic-food-food-cooking-music-512896.mp3'));
+registerAmbientTrack(require('@/assets/audio/ambient/prettyjohn1-food-503901.mp3'));
+// registerAmbientTrack(require('@/assets/audio/ambient/track_03.mp3'));
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -24,6 +40,12 @@ export default function RootLayout() {
   useEffect(() => {
     initLocationCache();
     void initDistanceUnit();
+    void initAudio();
+    getLanguage().then((saved) => {
+      if (saved && saved !== i18n.language) {
+        i18n.changeLanguage(saved);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -40,6 +62,7 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <I18nextProvider i18n={i18n}>
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <AuthProvider>
@@ -59,5 +82,6 @@ export default function RootLayout() {
       </AuthProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>
+    </I18nextProvider>
   );
 }

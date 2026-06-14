@@ -1,35 +1,33 @@
 import type { RestaurantLoadProgress, RestaurantLoadStage } from '@/core/restaurantOrchestrator';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import i18n from '@/i18n';
 
 export type RestaurantLoadProgressFlavor = 'health' | 'random' | 'cuisine';
 
-const DEFAULT_STAGE_LABELS: Record<Exclude<RestaurantLoadStage, 'done'>, string> = {
-  'reading-cache': 'Checking restaurant cache...',
-  'fetching-restaurants': 'Loading restaurants...',
-  'parsing-restaurants': 'Organizing restaurants...',
-  'loading-overviews': 'Finalizing results...',
-};
-
-const STAGE_LABELS: Record<
-  RestaurantLoadProgressFlavor,
-  Record<Exclude<RestaurantLoadStage, 'done'>, string>
-> = {
-  health: {
-    'reading-cache': 'Checking restaurant cache...',
-    'fetching-restaurants': 'Loading restaurants...',
-    'parsing-restaurants': 'Ranking restaurants...',
-    'loading-overviews': 'Finalizing health rankings...',
-  },
-  random: DEFAULT_STAGE_LABELS,
-  cuisine: DEFAULT_STAGE_LABELS,
-};
+function getLabels(flavor: RestaurantLoadProgressFlavor): Record<Exclude<RestaurantLoadStage, 'done'>, string> {
+  const t = i18n.t.bind(i18n);
+  if (flavor === 'health') {
+    return {
+      'reading-cache': t('loading.checkingCache'),
+      'fetching-restaurants': t('loading.loadingRestaurants'),
+      'parsing-restaurants': t('loading.rankingRestaurants'),
+      'loading-overviews': t('loading.finalizingHealth'),
+    };
+  }
+  return {
+    'reading-cache': t('loading.checkingCache'),
+    'fetching-restaurants': t('loading.loadingRestaurants'),
+    'parsing-restaurants': t('loading.organizing'),
+    'loading-overviews': t('loading.finalizingResults'),
+  };
+}
 
 export function useRestaurantLoadProgress(
   isLoading: boolean,
   flavor: RestaurantLoadProgressFlavor
 ) {
-  const [loadingStage, setLoadingStage] = useState('Preparing...');
+  const [loadingStage, setLoadingStage] = useState(i18n.t('loading.preparing'));
   const [loadingProgress, setLoadingProgress] = useState(0);
   const progressCeilingRef = useRef(0);
 
@@ -51,20 +49,20 @@ export function useRestaurantLoadProgress(
   }, [isLoading]);
 
   const startGpsPhase = useCallback(() => {
-    setLoadingStage('Acquiring GPS...');
+    setLoadingStage(i18n.t('loading.acquiringGps'));
     progressCeilingRef.current = 0.22;
     setLoadingProgress(0.08);
   }, []);
 
   const startFetchPhase = useCallback(() => {
-    setLoadingStage('Loading restaurants...');
+    setLoadingStage(i18n.t('loading.loadingRestaurants'));
     progressCeilingRef.current = 0.32;
     setLoadingProgress((prev) => Math.max(prev, 0.2));
   }, []);
 
   const onOrchestratorProgress = useCallback(
     ({ stage, progress }: RestaurantLoadProgress) => {
-      const labels = STAGE_LABELS[flavor];
+      const labels = getLabels(flavor);
       if (stage === 'reading-cache') {
         setLoadingStage(labels['reading-cache']);
         progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.38);
@@ -78,7 +76,7 @@ export function useRestaurantLoadProgress(
         setLoadingStage(labels['loading-overviews']);
         progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.97);
       } else if (stage === 'done') {
-        setLoadingStage('Done');
+        setLoadingStage(i18n.t('loading.done'));
         progressCeilingRef.current = 1;
       }
       setLoadingProgress((prev) => Math.max(prev, progress));

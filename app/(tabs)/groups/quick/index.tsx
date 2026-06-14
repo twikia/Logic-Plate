@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { BackButton } from '@/components/ui/BackButton';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
@@ -18,6 +19,7 @@ import {
   pickQuickVoteRestaurants,
   type QuickVoteRestaurant,
 } from '@/utils/quickVote';
+import { hapticLight, hapticMedium } from '@/core/haptics';
 
 const MIN_VOTERS = 2;
 const MAX_VOTERS = 12;
@@ -26,6 +28,7 @@ const DEFAULT_VOTER_COUNT = 3;
 export default function QuickVoteSetupScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const [picks, setPicks] = useState<QuickVoteRestaurant[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [cacheError, setCacheError] = useState(false);
@@ -55,11 +58,13 @@ export default function QuickVoteSetupScreen() {
   );
 
   const bumpVoters = (delta: number) => {
+    hapticLight();
     setVoterCount((n) => Math.min(MAX_VOTERS, Math.max(MIN_VOTERS, n + delta)));
   };
 
   const start = () => {
     if (!picks || picks.length < 5) return;
+    hapticMedium();
     router.replace({
       pathname: '/groups/quick/preview',
       params: {
@@ -79,18 +84,18 @@ export default function QuickVoteSetupScreen() {
         </View>
         <View style={styles.centerWrap}>
           <View style={styles.body}>
-          <Text style={[styles.title, { color: theme.text }]}>Quick Vote</Text>
-          <Text style={[styles.sub, { color: theme.subtext }]}>Vote and pass the phone!</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('quickVote.title')}</Text>
+          <Text style={[styles.sub, { color: theme.subtext }]}>{t('quickVote.subtitle')}</Text>
 
           {loading ? (
             <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 32 }} />
           ) : cacheError ? (
             <Text style={[styles.warn, { color: theme.text }]}>
-              Not enough nearby restaurants in local cache yet. Open Home or Map and wait for places to finish loading, then try again.
+              {t('quickVote.cacheWarning')}
             </Text>
           ) : (
             <>
-              <Text style={[styles.pickerLabel, { color: theme.subtext }]}>Number of voters</Text>
+              <Text style={[styles.pickerLabel, { color: theme.subtext }]}>{t('quickVote.numberOfVoters')}</Text>
               <View style={styles.pickerRow}>
                 <TouchableOpacity
                   style={[styles.pickerBtn, { backgroundColor: theme.cardBackground }]}
@@ -112,7 +117,7 @@ export default function QuickVoteSetupScreen() {
                 style={[styles.startBtn, { backgroundColor: theme.accent }]}
                 onPress={start}>
                 <Text style={[styles.startBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
-                  Start voting
+                  {t('quickVote.startVoting')}
                 </Text>
               </TouchableOpacity>
             </>

@@ -1,6 +1,5 @@
 import {
   SCENARIO_EMOJIS,
-  SCENARIO_LABELS,
   SCENARIO_ORDER,
 } from '@/core/scenarioFilters';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -17,6 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { hapticLight } from '@/core/haptics';
 
 const AUTO_SCROLL_MS = 52;
 const AUTO_SCROLL_DELTA = 1.1;
@@ -27,6 +28,7 @@ const PRESS_IN_DELAY_MS = 140;
 export function ScenarioQuickBar() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
   const scrollXRef = useRef(0);
   const singleCopyWRef = useRef(0);
@@ -170,6 +172,7 @@ export function ScenarioQuickBar() {
           delayPressIn={PRESS_IN_DELAY_MS}
           style={styles.chipWrap}
           onPress={() => {
+            hapticLight();
             router.push({ pathname: '/random', params: { scenario } });
           }}
         >
@@ -203,12 +206,12 @@ export function ScenarioQuickBar() {
             </View>
           )}
           <Text style={[styles.label, { color: theme.text }]} numberOfLines={2}>
-            {SCENARIO_LABELS[scenario]}
+            {t(`scenarios.${scenario}`, { defaultValue: scenario })}
           </Text>
         </TouchableOpacity>
       );
     });
-  }, [router, theme.cardBackground, theme.cardBorderColor, theme.glassBackground, theme.neonColors, theme.text]);
+  }, [router, t, theme.cardBackground, theme.cardBorderColor, theme.glassBackground, theme.neonColors, theme.text]);
 
   return (
     <View

@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
@@ -18,6 +19,8 @@ import {
   pickQuickVoteRestaurants,
   type QuickVoteRestaurant,
 } from '@/utils/quickVote';
+import { hapticMedium, hapticLight } from '@/core/haptics';
+import { playSuccess } from '@/core/audioService';
 
 function parsePreviewParams(raw: Record<string, string | string[] | undefined>) {
   const restaurantsJson =
@@ -39,6 +42,7 @@ function parsePreviewParams(raw: Record<string, string | string[] | undefined>) 
 export default function QuickVotePreviewScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const raw = useLocalSearchParams();
   const restaurantsJsonKey =
     typeof raw.restaurantsJson === 'string' ? raw.restaurantsJson : '';
@@ -62,6 +66,8 @@ export default function QuickVotePreviewScreen() {
 
   const goVote = useCallback(() => {
     if (!parsed) return;
+    hapticMedium();
+    playSuccess();
     router.replace({
       pathname: '/groups/quick/vote',
       params: {
@@ -75,6 +81,7 @@ export default function QuickVotePreviewScreen() {
 
   const reroll = useCallback(() => {
     if (!parsed) return;
+    hapticLight();
     const pool = allCached ?? [];
     const next = pickQuickVoteRestaurants(pool);
     if (next.length < 5) return;
@@ -99,9 +106,9 @@ export default function QuickVotePreviewScreen() {
       <View style={styles.topRow}>
         <BackButton onPress={() => router.replace('/groups')} />
       </View>
-      <Text style={[styles.header, { color: theme.text }]}>{"Tonight's picks"}</Text>
+      <Text style={[styles.header, { color: theme.text }]}>{t('quickVote.tonightsPicks')}</Text>
       <Text style={[styles.sub, { color: theme.subtext }]}>
-        {voterCount} voters · review the list, then confirm to begin
+        {t('quickVote.voterSubtitle', { count: voterCount })}
       </Text>
       {!allCached ? (
         <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />
@@ -116,7 +123,7 @@ export default function QuickVotePreviewScreen() {
           style={[styles.confirm, { backgroundColor: theme.accent }]}
           onPress={goVote}>
           <Text style={[styles.confirmText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>
-            Confirm & begin voting
+            {t('quickVote.confirmBegin')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -130,7 +137,7 @@ export default function QuickVotePreviewScreen() {
           ]}
           disabled={!allCached || allCached.length < 10}
           onPress={reroll}>
-          <Text style={[styles.rerollBigText, { color: theme.text }]}>Reroll all 5</Text>
+          <Text style={[styles.rerollBigText, { color: theme.text }]}>{t('quickVote.rerollAll')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

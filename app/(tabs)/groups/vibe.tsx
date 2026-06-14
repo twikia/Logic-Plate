@@ -9,26 +9,40 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { supabase } from '@/core/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { subscribeToSessionStatus } from '@/utils/groupRealtime';
+import { hapticLight, hapticMedium, hapticSuccess, hapticError, hapticSelection } from '@/core/haptics';
+import { playSelect, playSuccess, playError } from '@/core/audioService';
 
-const DIETARY_OPTIONS: { id: string; label: string }[] = [
-  { id: 'vegetarian', label: '🌱 Vegetarian' },
-  { id: 'vegan', label: '🌿 Vegan' },
-  { id: 'halal', label: '☪️ Halal' },
-  { id: 'kosher', label: '✡️ Kosher' },
-  { id: 'gluten_free', label: '🌾 Gluten-free' },
-  { id: 'dairy_free', label: '🥛 Dairy-free' },
-  { id: 'nut_free', label: '🥜 Nut allergy' },
+const DIETARY_OPTIONS: { id: string; labelKey: string }[] = [
+  { id: 'vegetarian', labelKey: 'vibe.dietary_vegetarian' },
+  { id: 'vegan', labelKey: 'vibe.dietary_vegan' },
+  { id: 'halal', labelKey: 'vibe.dietary_halal' },
+  { id: 'kosher', labelKey: 'vibe.dietary_kosher' },
+  { id: 'gluten_free', labelKey: 'vibe.dietary_gluten_free' },
+  { id: 'dairy_free', labelKey: 'vibe.dietary_dairy_free' },
+  { id: 'nut_free', labelKey: 'vibe.dietary_nut_free' },
 ];
+
+const DIETARY_EMOJIS: Record<string, string> = {
+  vegetarian: '🌱',
+  vegan: '🌿',
+  halal: '☪️',
+  kosher: '✡️',
+  gluten_free: '🌾',
+  dairy_free: '🥛',
+  nut_free: '🥜',
+};
 
 export default function VibeQuestionsScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{
     sessionId?: string;
     flow?: string;
@@ -53,6 +67,8 @@ export default function VibeQuestionsScreen() {
   }, [sessionId]);
 
   const toggleDietary = (id: string) => {
+    hapticSelection();
+    playSelect();
     if (id === 'none') {
       setDietaryVetoes([]);
       return;
@@ -62,10 +78,16 @@ export default function VibeQuestionsScreen() {
     );
   };
 
+  const advanceStep = (next: number) => {
+    hapticMedium();
+    setStep(next);
+  };
+
   const finishWithPriority = useCallback(
     async (priority: string) => {
       if (!sessionId || !energyLevel || !foodMood) return;
       setSubmitting(true);
+      hapticMedium();
       const { data, error } = await supabase
         .from('group_responses')
         .insert({
@@ -80,12 +102,16 @@ export default function VibeQuestionsScreen() {
         .single();
       setSubmitting(false);
       if (error) {
+        hapticError();
+        playError();
         Alert.alert(
-          'Could not save your answers',
-          `${error.message}${error.code ? ` (${error.code})` : ''}\n\nIf the host already started voting or the session expired, ask them to start a new group.`
+          t('vibe.alertSaveErrorTitle'),
+          `${error.message}${error.code ? ` (${error.code})` : ''}\n\n${t('vibe.alertSaveErrorSessionNote')}`
         );
         return;
       }
+      hapticSuccess();
+      playSuccess();
       const responseId = data?.id as string | undefined;
       if (flow === 'passphone' || flow === 'host') {
         if (flow === 'host' && responseId) {
@@ -99,7 +125,7 @@ export default function VibeQuestionsScreen() {
         });
       }
     },
-    [dietaryVetoes, energyLevel, flow, foodMood, router, sessionId]
+    [dietaryVetoes, energyLevel, flow, foodMood, router, sessionId, t]
   );
 
   if (!sessionId) {
@@ -111,19 +137,24 @@ export default function VibeQuestionsScreen() {
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
         <View style={styles.endedInner}>
           <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
-          <Text style={[styles.endedTitle, { color: theme.text }]}>Session Ended</Text>
-          <Text style={[styles.endedSub, { color: theme.subtext }]}>The host ended this session.</Text>
+          <Text style={[styles.endedTitle, { color: theme.text }]}>{t('vibe.sessionEnded')}</Text>
+          <Text style={[styles.endedSub, { color: theme.subtext }]}>{t('vibe.hostEndedSession')}</Text>
           <TouchableOpacity
             style={[styles.endedBtn, { backgroundColor: theme.accent }]}
-            onPress={() => router.back()}>
-            <Text style={[styles.endedBtnText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>Go Back</Text>
+            onPress={() => { hapticLight(); router.back(); }}>
+            <Text style={[styles.endedBtnText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>{t('vibe.goBack')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  const STEPS = ['Dietary needs', 'Energy', 'Craving', 'Priority'];
+  const STEPS = [
+    t('vibe.stepDietary'),
+    t('vibe.stepEnergy'),
+    t('vibe.stepCraving'),
+    t('vibe.stepPriority'),
+  ];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
@@ -154,8 +185,8 @@ export default function VibeQuestionsScreen() {
         keyboardShouldPersistTaps="handled">
         {step === 0 ? (
           <View style={styles.stepContent}>
-            <Text style={[styles.h1, { color: theme.text }]}>Any dietary needs?</Text>
-            <Text style={[styles.sub, { color: theme.subtext }]}>Select all that apply</Text>
+            <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.anyDietaryNeeds')}</Text>
+            <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.selectAllThatApply')}</Text>
             <TouchableOpacity
               style={[
                 styles.optionCard,
@@ -168,7 +199,7 @@ export default function VibeQuestionsScreen() {
               ]}
               onPress={() => toggleDietary('none')}>
               <Text style={styles.optEmoji}>✅</Text>
-              <Text style={[styles.optLabel, { color: theme.text }]}>None — I eat anything</Text>
+              <Text style={[styles.optLabel, { color: theme.text }]}>{t('vibe.noDietaryNeeds')}</Text>
             </TouchableOpacity>
             {DIETARY_OPTIONS.map((opt) => (
               <TouchableOpacity
@@ -185,9 +216,9 @@ export default function VibeQuestionsScreen() {
                   },
                 ]}
                 onPress={() => toggleDietary(opt.id)}>
-                <Text style={styles.optEmoji}>{opt.label.split(' ')[0]}</Text>
+                <Text style={styles.optEmoji}>{DIETARY_EMOJIS[opt.id]}</Text>
                 <Text style={[styles.optLabel, { color: theme.text }]}>
-                  {opt.label.split(' ').slice(1).join(' ')}
+                  {t(opt.labelKey)}
                 </Text>
                 {dietaryVetoes.includes(opt.id) ? (
                   <Text style={[styles.checkMark, { color: theme.accent }]}>✓</Text>
@@ -200,13 +231,13 @@ export default function VibeQuestionsScreen() {
 
         {step === 1 ? (
           <View style={styles.stepContent}>
-            <Text style={[styles.h1, { color: theme.text }]}>How are you feeling?</Text>
-            <Text style={[styles.sub, { color: theme.subtext }]}>Pick your vibe tonight</Text>
+            <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.howAreYouFeeling')}</Text>
+            <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.pickYourVibe')}</Text>
             {(
               [
-                ['low_key', '😴', 'Low key'],
-                ['pretty_good', '😊', 'Pretty good'],
-                ['lets_go', '🔥', "Let's go"],
+                ['low_key', '😴', t('vibe.energyLowKey')],
+                ['pretty_good', '😊', t('vibe.energyPrettyGood')],
+                ['lets_go', '🔥', t('vibe.energyLetsGo')],
               ] as const
             ).map(([id, emoji, label]) => (
               <TouchableOpacity
@@ -214,7 +245,7 @@ export default function VibeQuestionsScreen() {
                 style={[styles.bigCard, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '33' }]}
                 onPress={() => {
                   setEnergyLevel(id);
-                  setStep(2);
+                  advanceStep(2);
                 }}>
                 <Text style={styles.emoji}>{emoji}</Text>
                 <Text style={[styles.bigLabel, { color: theme.text }]}>{label}</Text>
@@ -226,15 +257,15 @@ export default function VibeQuestionsScreen() {
 
         {step === 2 ? (
           <View style={styles.stepContent}>
-            <Text style={[styles.h1, { color: theme.text }]}>What sounds good?</Text>
-            <Text style={[styles.sub, { color: theme.subtext }]}>Pick a craving</Text>
+            <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.whatSoundsGood')}</Text>
+            <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.pickACraving')}</Text>
             <View style={styles.grid2}>
               {(
                 [
-                  ['warm', '🍜', 'Warm & filling'],
-                  ['fresh', '🥗', 'Fresh & light'],
-                  ['comfort', '🍕', 'Comfort food'],
-                  ['bold', '🌮', 'Bold flavors'],
+                  ['warm', '🍜', t('vibe.cravingWarm')],
+                  ['fresh', '🥗', t('vibe.cravingFresh')],
+                  ['comfort', '🍕', t('vibe.cravingComfort')],
+                  ['bold', '🌮', t('vibe.cravingBold')],
                 ] as const
               ).map(([id, emoji, label]) => (
                 <TouchableOpacity
@@ -242,7 +273,7 @@ export default function VibeQuestionsScreen() {
                   style={[styles.gridCell, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '33' }]}
                   onPress={() => {
                     setFoodMood(id);
-                    setStep(3);
+                    advanceStep(3);
                   }}>
                   <Text style={styles.gridEmoji}>{emoji}</Text>
                   <Text style={[styles.gridLabel, { color: theme.text }]}>{label}</Text>
@@ -253,10 +284,10 @@ export default function VibeQuestionsScreen() {
               style={[styles.bigCard, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '33', marginTop: 12 }]}
               onPress={() => {
                 setFoodMood('surprise');
-                setStep(3);
+                advanceStep(3);
               }}>
               <Text style={styles.emoji}>🤷</Text>
-              <Text style={[styles.bigLabel, { color: theme.text }]}>Surprise me</Text>
+              <Text style={[styles.bigLabel, { color: theme.text }]}>{t('vibe.cravingSurprise')}</Text>
               <Text style={[styles.chevron, { color: theme.subtext }]}>›</Text>
             </TouchableOpacity>
           </View>
@@ -264,14 +295,14 @@ export default function VibeQuestionsScreen() {
 
         {step === 3 ? (
           <View style={styles.stepContent}>
-            <Text style={[styles.h1, { color: theme.text }]}>Tonight I care most about:</Text>
-            <Text style={[styles.sub, { color: theme.subtext }]}>This shapes your picks</Text>
+            <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.tonightICare')}</Text>
+            <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.shapesYourPicks')}</Text>
             {(
               [
-                ['affordable', '💸', 'Keeping it affordable'],
-                ['close', '📍', 'Something close by'],
-                ['quality', '⭐', 'Somewhere really good'],
-                ['new', '🎲', 'Trying something new'],
+                ['affordable', '💸', t('vibe.priorityAffordable')],
+                ['close', '📍', t('vibe.priorityClose')],
+                ['quality', '⭐', t('vibe.priorityQuality')],
+                ['new', '🎲', t('vibe.priorityNew')],
               ] as const
             ).map(([id, emoji, label]) => (
               <TouchableOpacity
@@ -285,7 +316,7 @@ export default function VibeQuestionsScreen() {
               </TouchableOpacity>
             ))}
             {submitting ? (
-              <Text style={[styles.submittingText, { color: theme.subtext }]}>Submitting…</Text>
+              <Text style={[styles.submittingText, { color: theme.subtext }]}>{t('vibe.submitting')}</Text>
             ) : null}
           </View>
         ) : null}
@@ -294,8 +325,8 @@ export default function VibeQuestionsScreen() {
       {step === 0 ? (
         <TouchableOpacity
           style={[styles.floatingNext, { backgroundColor: theme.accent }]}
-          onPress={() => setStep(1)}>
-          <Text style={[styles.floatingNextText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>Next →</Text>
+          onPress={() => advanceStep(1)}>
+          <Text style={[styles.floatingNextText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>{t('vibe.next')}</Text>
         </TouchableOpacity>
       ) : null}
     </SafeAreaView>

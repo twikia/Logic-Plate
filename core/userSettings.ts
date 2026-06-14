@@ -4,9 +4,12 @@ import { DEFAULT_SEARCH_RADIUS_METERS } from './searchRadiusOptions';
 export type DistanceUnit = 'km' | 'mi';
 
 const DISTANCE_UNIT_KEY = 'distance_unit';
-const AUDIO_VOLUME_KEY = 'audio_volume';
+const SFX_VOLUME_KEY = 'sfx_volume';
+const MUSIC_VOLUME_KEY = 'music_volume';
+const LEGACY_AUDIO_VOLUME_KEY = 'audio_volume';
 const HAPTICS_KEY = 'haptics_enabled';
 const THEME_KEY = 'app_theme';
+const LANGUAGE_KEY = 'app_language';
 const DEFAULT_UNIT: DistanceUnit = 'km';
 
 const MILES_REGIONS = new Set([
@@ -61,17 +64,27 @@ export const setDistanceUnit = async (unit: DistanceUnit): Promise<void> => {
   await AsyncStorage.setItem(DISTANCE_UNIT_KEY, unit);
 };
 
-export const getAudioVolume = async (): Promise<number> => {
+async function readVolume(key: string): Promise<number> {
   try {
-    const val = await AsyncStorage.getItem(AUDIO_VOLUME_KEY);
-    return val ? parseFloat(val) : DEFAULT_VOLUME;
+    const val = await AsyncStorage.getItem(key);
+    if (val) return parseFloat(val);
+    const legacy = await AsyncStorage.getItem(LEGACY_AUDIO_VOLUME_KEY);
+    return legacy ? parseFloat(legacy) : DEFAULT_VOLUME;
   } catch {
     return DEFAULT_VOLUME;
   }
+}
+
+export const getSfxVolume = async (): Promise<number> => readVolume(SFX_VOLUME_KEY);
+
+export const setSfxVolume = async (volume: number): Promise<void> => {
+  await AsyncStorage.setItem(SFX_VOLUME_KEY, String(volume));
 };
 
-export const setAudioVolume = async (volume: number): Promise<void> => {
-  await AsyncStorage.setItem(AUDIO_VOLUME_KEY, String(volume));
+export const getMusicVolume = async (): Promise<number> => readVolume(MUSIC_VOLUME_KEY);
+
+export const setMusicVolume = async (volume: number): Promise<void> => {
+  await AsyncStorage.setItem(MUSIC_VOLUME_KEY, String(volume));
 };
 
 export const getHapticsEnabled = async (): Promise<boolean> => {
@@ -98,4 +111,16 @@ export const getTheme = async (): Promise<string> => {
 
 export const setTheme = async (theme: string): Promise<void> => {
   await AsyncStorage.setItem(THEME_KEY, theme);
+};
+
+export const getLanguage = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(LANGUAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setLanguage = async (lang: string): Promise<void> => {
+  await AsyncStorage.setItem(LANGUAGE_KEY, lang);
 };
