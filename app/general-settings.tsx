@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, Switch, Pressable, Modal, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Switch, Pressable, Modal, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,15 @@ import {
 } from '@/core/userSettings';
 import { setSfxVolumeLevel, setMusicVolumeLevel } from '@/core/audioService';
 import { hapticLight, hapticSuccess, hapticSelection, refreshHapticsCache } from '@/core/haptics';
-import i18n, { SUPPORTED_LANGUAGES, LANGUAGE_NAMES, type SupportedLanguage } from '@/i18n';
+import {
+  BUNDLED_LANGUAGE,
+  changeAppLanguage,
+  getLanguageCatalog,
+  getLanguageName,
+  type SupportedLanguage,
+} from '@/core/translationLoader';
+import type { AppLanguage } from '@/core/remoteResources';
+import i18n from '@/i18n';
 
 export default function GeneralSettingsScreen() {
   const router = useRouter();
@@ -28,7 +36,9 @@ export default function GeneralSettingsScreen() {
   const [musicVolume, setMusicVolumeState] = useState(0.5);
   const [haptics, setHaptics] = useState(true);
   const [notifications, setNotifications] = useState(true);
-  const [language, setLanguageState] = useState<SupportedLanguage>('en');
+  const [language, setLanguageState] = useState<SupportedLanguage>(BUNDLED_LANGUAGE);
+  const [languages, setLanguages] = useState<AppLanguage[]>([]);
+  const [langLoading, setLangLoading] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
 
   useEffect(() => {
@@ -37,15 +47,17 @@ export default function GeneralSettingsScreen() {
       const savedSfxVolume = await getSfxVolume();
       const savedMusicVolume = await getMusicVolume();
       const savedHaptics = await getHapticsEnabled();
+      const catalog = await getLanguageCatalog();
+      setLanguages(catalog);
       const savedLang = await getLanguage();
       setUnit(savedUnit);
       setSfxVolumeState(savedSfxVolume);
       setMusicVolumeState(savedMusicVolume);
       setHaptics(savedHaptics);
-      if (savedLang && SUPPORTED_LANGUAGES.includes(savedLang as SupportedLanguage)) {
-        setLanguageState(savedLang as SupportedLanguage);
+      if (savedLang && catalog.some((row) => row.code === savedLang)) {
+        setLanguageState(savedLang);
       } else {
-        setLanguageState((i18n.language as SupportedLanguage) ?? 'en');
+        setLanguageState(i18n.language || BUNDLED_LANGUAGE);
       }
     }
     loadSettings();
@@ -77,9 +89,18 @@ export default function GeneralSettingsScreen() {
   };
 
   const handleLanguageSelect = async (lang: SupportedLanguage) => {
+    setLangLoading(true);
+    const ok = await changeAppLanguage(lang);
+    setLangLoading(false);
+    if (!ok) {
+      Alert.alert(
+        t('settings.languageUnavailableTitle'),
+        t('settings.languageUnavailableMsg')
+      );
+      return;
+    }
     setLanguageState(lang);
     await setLanguage(lang);
-    await i18n.changeLanguage(lang);
     setShowLangPicker(false);
     hapticSelection();
   };
@@ -228,7 +249,9 @@ export default function GeneralSettingsScreen() {
                 </View>
               </View>
               <View style={styles.langCurrent}>
-                <Text style={[styles.langCurrentText, { color: theme.accent }]}>{LANGUAGE_NAMES[language]}</Text>
+                <Text style={[styles.langCurrentText, { color: theme.accent }]}>
+                  {getLanguageName(language, languages)}
+                </Text>
                 <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
               </View>
             </Pressable>
@@ -279,24 +302,33 @@ export default function GeneralSettingsScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowLangPicker(false)}>
           <View style={[styles.modalBox, { backgroundColor: theme.cardBackground }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>{t('settings.language')}</Text>
-            {SUPPORTED_LANGUAGES.map((lang) => (
+            <ScrollView style={styles.langScroll} nestedScrollEnabled>
+            {langLoading ? (
+              <ActivityIndicator color={theme.accent} style={{ marginVertical: 12 }} />
+            ) : (
+              languages.map((row) => (
               <TouchableOpacity
-                key={lang}
+                key={row.code}
                 style={[
                   styles.langOption,
                   { borderColor: theme.cardBorderColor },
-                  language === lang && { backgroundColor: theme.accent + '22', borderColor: theme.accent },
+                  language === row.code && { backgroundColor: theme.accent + '22', borderColor: theme.accent },
                 ]}
-                onPress={() => handleLanguageSelect(lang)}
+                onPress={() => handleLanguageSelect(row.code)}
               >
-                <Text style={[styles.langOptionText, { color: theme.text }, language === lang && { color: theme.accent, fontWeight: '700' }]}>
-                  {LANGUAGE_NAMES[lang]}
-                </Text>
-                {language === lang && (
+                <View>
+                  <Text style={[styles.langOptionText, { color: theme.text }, language === row.code && { color: theme.accent, fontWeight: '700' }]}>
+                    {row.native_name}
+                  </Text>
+                  <Text style={[styles.langOptionSubtext, { color: theme.subtext }]}>{row.english_name}</Text>
+                </View>
+                {language === row.code && (
                   <Ionicons name="checkmark" size={18} color={theme.accent} />
                 )}
               </TouchableOpacity>
-            ))}
+            ))
+            )}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -374,10 +406,12 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     width: '78%',
+    maxHeight: '70%',
     borderRadius: 20,
     padding: 24,
     gap: 10,
   },
+  langScroll: { maxHeight: 420 },
   modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 6 },
   langOption: {
     flexDirection: 'row',
@@ -389,4 +423,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   langOptionText: { fontSize: 16 },
+  langOptionSubtext: { fontSize: 12, marginTop: 2 },
 });

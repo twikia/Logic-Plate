@@ -11,6 +11,7 @@ import { I18nextProvider } from 'react-i18next';
 import { AuthGate } from '@/components/auth/AuthGate';
 import { initDistanceUnit, getLanguage } from '@/core/userSettings';
 import { initLocationCache } from '@/core/locationCache';
+import { bootstrapLanguage } from '@/core/translationLoader';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
@@ -21,14 +22,12 @@ import i18n from '@/i18n';
 // After adding your audio files to assets/audio/, uncomment these lines.
 // See assets/audio/README.md for file sources and naming conventions.
 //
-import { registerUiSound, registerAmbientTrack } from '@/core/audioService';
-registerUiSound('tap',     require('@/assets/audio/ui/denielcz-immersivecontrol-button-click-sound-463065.mp3'));
-// registerUiSound('select',  require('@/assets/audio/ui/select.mp3'));
-// registerUiSound('success', require('@/assets/audio/ui/success.mp3'));
-// registerUiSound('error',   require('@/assets/audio/ui/error.mp3'));
-registerAmbientTrack(require('@/assets/audio/ambient/mondamusic-food-food-cooking-music-512896.mp3'));
-registerAmbientTrack(require('@/assets/audio/ambient/prettyjohn1-food-503901.mp3'));
-// registerAmbientTrack(require('@/assets/audio/ambient/track_03.mp3'));
+import { registerUiSound } from '@/core/audioService';
+const clickSound = require('@/assets/audio/ui/denielcz-immersivecontrol-button-click-sound-463065.mp3');
+registerUiSound('tap', clickSound);
+registerUiSound('select', clickSound);
+registerUiSound('success', clickSound);
+registerUiSound('error', clickSound);
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -42,9 +41,7 @@ export default function RootLayout() {
     void initDistanceUnit();
     void initAudio();
     getLanguage().then((saved) => {
-      if (saved && saved !== i18n.language) {
-        i18n.changeLanguage(saved);
-      }
+      void bootstrapLanguage(saved);
     });
   }, []);
 

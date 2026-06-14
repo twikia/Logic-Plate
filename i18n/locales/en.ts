@@ -200,6 +200,8 @@ const en = {
     languageSection: 'Language',
     language: 'Language',
     languageDesc: 'App display language',
+    languageUnavailableTitle: 'Translation not available',
+    languageUnavailableMsg: 'This language has not been added yet. English is still in use.',
     notificationsSection: 'Notifications',
     pushNotifications: 'Push Notifications',
     pushNotificationsDesc: 'Get updates and alerts',

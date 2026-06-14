@@ -1,47 +1,38 @@
 import { Audio } from 'expo-av';
 import { AppState, type AppStateStatus } from 'react-native';
+import { fetchAmbientAudioAssets, fetchAudioCatalogVersion } from './remoteResources';
+import {
+  getCachedAudioUri,
+  prefetchAudioTrack,
+  readAudioCatalogCache,
+  writeAudioCatalogCache,
+} from './resourceCache';
 import { getMusicVolume, getSfxVolume, setMusicVolume, setSfxVolume } from './userSettings';
 
 type SoundKey = 'tap' | 'select' | 'success' | 'error';
 
-// ─── Asset registry ───────────────────────────────────────────────────────────
-// To add UI sounds, uncomment the relevant require below and place the
-// corresponding file inside assets/audio/ui/.
-//
-// To add ambient music, call registerAmbientTrack() with each require below
-// and place MP3 files in assets/audio/ambient/.
-//
-// Example (in app/_layout.tsx):
-//   import { registerAmbientTrack, registerUiSound } from '@/core/audioService';
-//   registerUiSound('tap',     require('@/assets/audio/ui/tap.mp3'));
-//   registerUiSound('select',  require('@/assets/audio/ui/select.mp3'));
-//   registerUiSound('success', require('@/assets/audio/ui/success.mp3'));
-//   registerUiSound('error',   require('@/assets/audio/ui/error.mp3'));
-//   registerAmbientTrack(require('@/assets/audio/ambient/track_01.mp3'));
-//   registerAmbientTrack(require('@/assets/audio/ambient/track_02.mp3'));
+type PlaylistTrack = {
+  slug: string;
+  storagePath: string;
+  contentVersion: number;
+};
+
+// UI sounds are bundled via registerUiSound() in app/_layout.tsx.
+// Ambient music files live in Supabase Storage; downloaded once to device cache.
 
 const uiAssets: Partial<Record<SoundKey, number>> = {};
-const ambientAssets: number[] = [];
 
 export function registerUiSound(key: SoundKey, asset: number): void {
   uiAssets[key] = asset;
 }
 
-export function registerAmbientTrack(asset: number): void {
-  ambientAssets.push(asset);
-}
-
-// ─── Internal state ──────────────────────────────────────────────────────────
-
 let sfxVolume = 0.5;
 let musicVolume = 0.5;
 const uiSounds: Partial<Record<SoundKey, Audio.Sound>> = {};
 let ambientSound: Audio.Sound | null = null;
-let ambientPlaylist: number[] = [];
+let ambientPlaylist: PlaylistTrack[] = [];
 let ambientIndex = 0;
 let initialized = false;
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
 
 export async function initAudio(): Promise<void> {
   if (initialized) return;
@@ -49,17 +40,17 @@ export async function initAudio(): Promise<void> {
 
   try {
     await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: false,
+      playsInSilentModeIOS: true,
       staysActiveInBackground: false,
     });
     sfxVolume = await getSfxVolume();
     musicVolume = await getMusicVolume();
   } catch {
-    return;
+    // still try UI sounds even if audio mode setup fails
   }
 
   await _preloadUiSounds();
-  _buildShuffledPlaylist();
+  await _loadRemoteAmbientPlaylist();
   _startAmbient();
 
   AppState.addEventListener('change', _handleAppState);
@@ -79,18 +70,85 @@ async function _preloadUiSounds(): Promise<void> {
   }
 }
 
-// ─── Ambient playback ─────────────────────────────────────────────────────────
+async function _loadRemoteAmbientPlaylist(): Promise<void> {
+  try {
+    const cached = await readAudioCatalogCache();
+    let tracks: PlaylistTrack[] | null = null;
 
-function _buildShuffledPlaylist(): void {
-  if (ambientAssets.length === 0) return;
-  const arr = [...ambientAssets];
+    if (cached?.rows.length) {
+      tracks = cached.rows.map((row) => ({
+        slug: row.slug,
+        storagePath: row.storage_path,
+        contentVersion: row.content_version,
+      }));
+    }
+
+    try {
+      const remoteVersion = await fetchAudioCatalogVersion();
+      if (cached && cached.version === remoteVersion && cached.rows.length > 0) {
+        ambientPlaylist = _shuffle(tracks!);
+        ambientIndex = 0;
+        void _prefetchUpcomingTracks();
+        return;
+      }
+
+      const assets = await fetchAmbientAudioAssets();
+      if (assets.length === 0) {
+        if (tracks?.length) {
+          ambientPlaylist = _shuffle(tracks);
+          ambientIndex = 0;
+        }
+        return;
+      }
+
+      await writeAudioCatalogCache(
+        remoteVersion,
+        assets.map((asset) => ({
+          slug: asset.slug,
+          title: asset.title,
+          storage_path: asset.storage_path,
+          sort_order: asset.sort_order,
+          content_version: asset.content_version,
+        }))
+      );
+
+      tracks = assets.map((asset) => ({
+        slug: asset.slug,
+        storagePath: asset.storage_path,
+        contentVersion: asset.content_version,
+      }));
+    } catch {
+      if (!tracks?.length) return;
+    }
+
+    ambientPlaylist = _shuffle(tracks!);
+    ambientIndex = 0;
+    void _prefetchUpcomingTracks();
+  } catch {
+    // remote catalog unavailable
+  }
+}
+
+function _shuffle<T>(items: T[]): T[] {
+  const arr = [...items];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j]!, arr[i]!];
   }
-  // Ensure first track this session differs from last of previous session
-  ambientPlaylist = arr;
-  ambientIndex = 0;
+  return arr;
+}
+
+async function _prefetchUpcomingTracks(): Promise<void> {
+  if (ambientPlaylist.length === 0) return;
+  const ahead = Math.min(2, ambientPlaylist.length);
+  for (let i = 0; i < ahead; i++) {
+    const track = ambientPlaylist[(ambientIndex + i) % ambientPlaylist.length]!;
+    void prefetchAudioTrack(track.slug, track.storagePath, track.contentVersion);
+  }
+}
+
+async function _resolveTrackUri(track: PlaylistTrack): Promise<string | null> {
+  return getCachedAudioUri(track.slug, track.storagePath, track.contentVersion);
 }
 
 async function _startAmbient(): Promise<void> {
@@ -105,13 +163,22 @@ async function _playNextAmbient(): Promise<void> {
       await ambientSound.unloadAsync();
       ambientSound = null;
     }
-    const asset = ambientPlaylist[ambientIndex % ambientPlaylist.length]!;
+
+    const track = ambientPlaylist[ambientIndex % ambientPlaylist.length]!;
     ambientIndex = (ambientIndex + 1) % ambientPlaylist.length;
 
-    const { sound } = await Audio.Sound.createAsync(asset, {
-      volume: musicVolume,
-      shouldPlay: true,
-    });
+    const trackUri = await _resolveTrackUri(track);
+    if (!trackUri) return;
+
+    void _prefetchUpcomingTracks();
+
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: trackUri },
+      {
+        volume: musicVolume,
+        shouldPlay: true,
+      }
+    );
     ambientSound = sound;
 
     sound.setOnPlaybackStatusUpdate((status) => {
@@ -121,11 +188,9 @@ async function _playNextAmbient(): Promise<void> {
       }
     });
   } catch {
-    // file not yet provided; skip silently
+    // track unavailable
   }
 }
-
-// ─── AppState handler ─────────────────────────────────────────────────────────
 
 async function _handleAppState(state: AppStateStatus): Promise<void> {
   if (!ambientSound) return;
@@ -137,8 +202,6 @@ async function _handleAppState(state: AppStateStatus): Promise<void> {
     }
   } catch {}
 }
-
-// ─── UI sounds ───────────────────────────────────────────────────────────────
 
 async function _playUi(key: SoundKey): Promise<void> {
   if (sfxVolume === 0) return;
@@ -165,8 +228,6 @@ export function playSuccess(): void {
 export function playError(): void {
   void _playUi('error');
 }
-
-// ─── Volume control ──────────────────────────────────────────────────────────
 
 export async function setSfxVolumeLevel(level: number): Promise<void> {
   sfxVolume = level;

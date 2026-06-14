@@ -1,39 +1,43 @@
 # Audio Assets
 
-## UI Sounds (`ui/`)
+## UI Sounds (`ui/`) — bundled in the app
 
-Place short MP3 sound effects here. Expected filenames:
+Short MP3 effects stay in the repo and ship with the app. Register them in `app/_layout.tsx` via `registerUiSound()`.
 
-| File | When it plays |
-|------|---------------|
-| `tap.mp3` | Light button / card press |
-| `select.mp3` | Toggle on / option selected |
-| `success.mp3` | Positive completion (winner, join success, pick confirmed) |
-| `error.mp3` | Failure state (join error, load error) |
+## Ambient Music — Supabase Storage + on-device cache
 
-**Recommended source:** [Mixkit](https://mixkit.co/free-sound-effects/app/) — free, no attribution required.
+The MP3 **files live in Supabase**, not in the app package:
 
-## Ambient Music (`ambient/`)
+1. **Upload** the MP3 to Supabase → Storage → bucket **`app-audio`** (e.g. `ambient/my-track.mp3`).
+2. **Register** the track in **`app_audio_assets`** (metadata only — title, path, sort order):
 
-Place longer MP3 tracks here. Name them `track_01.mp3`, `track_02.mp3`, etc. (any name works as long as you register them in `_layout.tsx`).
-
-Tracks are shuffled randomly on each session start. The playlist loops automatically.
-
-**Recommended source:** [Pixabay Music](https://pixabay.com/music/) — 100% royalty-free, no attribution required.
-
-## Activating Audio
-
-Once you have your files, open `app/_layout.tsx` and uncomment the registration lines at the top of `RootLayout`. Example:
-
-```ts
-import { registerAmbientTrack, registerUiSound } from '@/core/audioService';
-
-// Inside the useEffect in RootLayout:
-registerUiSound('tap',     require('@/assets/audio/ui/tap.mp3'));
-registerUiSound('select',  require('@/assets/audio/ui/select.mp3'));
-registerUiSound('success', require('@/assets/audio/ui/success.mp3'));
-registerUiSound('error',   require('@/assets/audio/ui/error.mp3'));
-registerAmbientTrack(require('@/assets/audio/ambient/track_01.mp3'));
-registerAmbientTrack(require('@/assets/audio/ambient/track_02.mp3'));
-registerAmbientTrack(require('@/assets/audio/ambient/track_03.mp3'));
+```sql
+insert into public.app_audio_assets (slug, title, storage_path, category, sort_order, enabled, content_version)
+values ('my-track', 'My Track', 'ambient/my-track.mp3', 'ambient', 1, true, 1);
 ```
+
+On first play the app **downloads the file once** to the device cache (`expo-file-system` cache directory). Later sessions play from disk. Bump `content_version` when you replace a file so clients re-download.
+
+The `storage_path` column is not an external link — it is the path **inside your Supabase bucket** where the uploaded MP3 lives.
+
+## Translations — one Supabase table
+
+All language data is in **`app_languages`**:
+
+| Column | Purpose |
+|--------|---------|
+| `code`, `native_name`, `english_name` | Shown in the language picker (small, cached once) |
+| `strings` | Full UI JSON for that language (downloaded once per language, cached in AsyncStorage) |
+| `translation_version` | Bump to push updated strings to clients |
+
+English (`en`) also ships in the app bundle as offline fallback. Other languages load from Supabase on first use.
+
+There used to be a separate `app_translations` table; migration `20260614140000` merges it into `app_languages`.
+
+## Regenerating translation seeds
+
+```bash
+npm run generate-translation-seed
+```
+
+Then update `supabase/migrations/20260614130000_seed_app_translations.sql` (or run equivalent `UPDATE app_languages SET strings = ...` after the merge migration).

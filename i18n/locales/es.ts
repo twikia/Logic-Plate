@@ -202,6 +202,8 @@ const es: Translations = {
     languageSection: 'Idioma',
     language: 'Idioma',
     languageDesc: 'Idioma de visualizaci\u00f3n de la app',
+    languageUnavailableTitle: 'Traducci\u00f3n no disponible',
+    languageUnavailableMsg: 'Este idioma a\u00fan no se ha a\u00f1adido. Se sigue usando ingl\u00e9s.',
     notificationsSection: 'Notificaciones',
     pushNotifications: 'Notificaciones push',
     pushNotificationsDesc: 'Recibe actualizaciones y alertas',

@@ -202,6 +202,8 @@ const fr: Translations = {
     languageSection: 'Langue',
     language: 'Langue',
     languageDesc: "Langue d'affichage de l'app",
+    languageUnavailableTitle: 'Traduction indisponible',
+    languageUnavailableMsg: "Cette langue n'a pas encore \u00e9t\u00e9 ajout\u00e9e. L'anglais reste actif.",
     notificationsSection: 'Notifications',
     pushNotifications: 'Notifications push',
     pushNotificationsDesc: 'Recevoir des mises \u00e0 jour et alertes',
