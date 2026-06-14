@@ -1,3 +1,5 @@
+import { useAppTheme } from '@/context/ThemeContext';
+import type { ThemeColors } from '@/themes/types';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -57,6 +59,33 @@ interface Props {
 
 type LoadState = 'waiting' | 'loading' | 'loaded' | 'failed';
 
+function ImageFrame({
+  width,
+  height,
+  borderRadius,
+  theme,
+  children,
+}: {
+  width: number;
+  height: number;
+  borderRadius: number;
+  theme: ThemeColors;
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      style={{
+        width,
+        height,
+        borderRadius,
+        overflow: 'hidden',
+        backgroundColor: theme.imageBackdrop,
+      }}>
+      {children}
+    </View>
+  );
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 function RestaurantImageInner({
@@ -75,6 +104,8 @@ function RestaurantImageInner({
   cuisineKey,
   photoUrl,
 }: Props) {
+  const { theme } = useAppTheme();
+  const frameIconColor = theme.neonColors ? '#042F2E' : theme.subtext;
   const [state, setState] = useState<LoadState>('waiting');
   const [activeUri, setActiveUri] = useState<string | null>(null);
   const [resolvedPhotos, setResolvedPhotos] = useState<any[]>(photos);
@@ -209,33 +240,40 @@ function RestaurantImageInner({
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  const containerStyle = { width, height, borderRadius, overflow: 'hidden' as const };
+  const frameProps = { width, height, borderRadius, theme };
 
   // Waiting / Loading — show spinner
   if (state === 'waiting' || (state === 'loading' && !activeUri)) {
     return (
-      <View style={[styles.placeholder, containerStyle]}>
-        <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
-      </View>
+      <ImageFrame {...frameProps}>
+        <View style={[StyleSheet.absoluteFillObject, styles.placeholder]}>
+          <ActivityIndicator size="small" color={theme.accent} />
+        </View>
+      </ImageFrame>
     );
   }
 
   // All URLs failed — show default icon
   if (state === 'failed') {
     return (
-      <View style={[styles.placeholder, containerStyle]}>
-        <Ionicons name="restaurant-outline" size={Math.min(width, height) * 0.35} color="rgba(255,255,255,0.2)" />
-      </View>
+      <ImageFrame {...frameProps}>
+        <View style={[StyleSheet.absoluteFillObject, styles.placeholder]}>
+          <Ionicons
+            name="restaurant-outline"
+            size={Math.min(width, height) * 0.35}
+            color={frameIconColor}
+          />
+        </View>
+      </ImageFrame>
     );
   }
 
   // Loading or Loaded — render image
   return (
-    <View style={containerStyle}>
-      {/* Spinner behind the image while loading */}
+    <ImageFrame {...frameProps}>
       {state === 'loading' && (
         <View style={[StyleSheet.absoluteFillObject, styles.placeholder]}>
-          <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+          <ActivityIndicator size="small" color={theme.accent} />
         </View>
       )}
       <Image
@@ -247,7 +285,7 @@ function RestaurantImageInner({
         onError={onError}
         cachePolicy="memory-disk"
       />
-    </View>
+    </ImageFrame>
   );
 }
 
@@ -258,7 +296,6 @@ export const RestaurantImage = React.memo(RestaurantImageInner);
 
 const styles = StyleSheet.create({
   placeholder: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
   },
