@@ -547,9 +547,9 @@ export default function MapScreen() {
           <Circle
             center={circleCenter}
             radius={radius}
-            fillColor={theme.accent + '22'}
-            strokeColor={theme.accent}
-            strokeWidth={2}
+            fillColor="rgba(120,40,200,0.05)"
+            strokeColor="rgba(168,85,247,0.45)"
+            strokeWidth={1.5}
             zIndex={0}
           />
         ) : null}
@@ -892,27 +892,27 @@ export default function MapScreen() {
 const darkMapStyle = [
   { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
   { "featureType": "transit", "stylers": [{ "visibility": "off" }] },
-  { "elementType": "geometry", "stylers": [{ "color": "#212121" }] },
+  { "elementType": "geometry", "stylers": [{ "color": "#0d0d0d" }] },
   { "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
-  { "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
-  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#212121" }] },
-  { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "color": "#757575" }] },
-  { "featureType": "administrative.country", "elementType": "labels.text.fill", "stylers": [{ "color": "#9e9e9e" }] },
+  { "elementType": "labels.text.fill", "stylers": [{ "color": "#555555" }] },
+  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#0d0d0d" }] },
+  { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "color": "#444444" }] },
+  { "featureType": "administrative.country", "elementType": "labels.text.fill", "stylers": [{ "color": "#777777" }] },
   { "featureType": "administrative.land_parcel", "stylers": [{ "visibility": "off" }] },
-  { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#bdbdbd" }] },
-  { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
-  { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#181818" }] },
-  { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#616161" }] },
-  { "featureType": "poi.park", "elementType": "labels.text.stroke", "stylers": [{ "color": "#1b1b1b" }] },
-  { "featureType": "road", "elementType": "geometry.fill", "stylers": [{ "color": "#2c2c2c" }] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#8a8a8a" }] },
-  { "featureType": "road.arterial", "elementType": "geometry", "stylers": [{ "color": "#373737" }] },
-  { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#3c3c3c" }] },
-  { "featureType": "road.highway.controlled_access", "elementType": "geometry", "stylers": [{ "color": "#4e4e4e" }] },
-  { "featureType": "road.local", "elementType": "labels.text.fill", "stylers": [{ "color": "#616161" }] },
-  { "featureType": "transit", "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
+  { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#999999" }] },
+  { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#555555" }] },
+  { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#0a0f0a" }] },
+  { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#444444" }] },
+  { "featureType": "poi.park", "elementType": "labels.text.stroke", "stylers": [{ "color": "#0d0d0d" }] },
+  { "featureType": "road", "elementType": "geometry.fill", "stylers": [{ "color": "#1a1a1a" }] },
+  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#666666" }] },
+  { "featureType": "road.arterial", "elementType": "geometry", "stylers": [{ "color": "#222222" }] },
+  { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#252525" }] },
+  { "featureType": "road.highway.controlled_access", "elementType": "geometry", "stylers": [{ "color": "#303030" }] },
+  { "featureType": "road.local", "elementType": "labels.text.fill", "stylers": [{ "color": "#444444" }] },
+  { "featureType": "transit", "elementType": "labels.text.fill", "stylers": [{ "color": "#555555" }] },
   { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#000000" }] },
-  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#3d3d3d" }] }
+  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#2a2a2a" }] }
 ];
 
 const styles = StyleSheet.create({

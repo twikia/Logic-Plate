@@ -317,9 +317,38 @@ serve(async (req) => {
     );
   }
 
+  const top5Ids = top5
+    .map((r) => String((r as { id?: unknown }).id ?? ""))
+    .filter(Boolean);
+
+  const { data: aiRows } = await supabase
+    .from("ai_overview_cache")
+    .select("place_id, summary_good_bad, health_score")
+    .in("place_id", top5Ids);
+
+  const aiMap = new Map<string, { summaryGoodBad: string; healthScore: number }>();
+  for (const row of (aiRows ?? []) as {
+    place_id: string;
+    summary_good_bad: string | null;
+    health_score: number | null;
+  }[]) {
+    if (row.summary_good_bad && row.health_score != null) {
+      aiMap.set(row.place_id, {
+        summaryGoodBad: row.summary_good_bad,
+        healthScore: row.health_score,
+      });
+    }
+  }
+
+  const top5WithAi = top5.map((r: Record<string, unknown>) => {
+    const ai = aiMap.get(String(r.id ?? ""));
+    if (!ai) return r;
+    return { ...r, aiOverview: ai, healthScore: ai.healthScore };
+  });
+
   const { error: upErr } = await supabase
     .from("group_sessions")
-    .update({ status: "voting", picks: top5 })
+    .update({ status: "voting", picks: top5WithAi })
     .eq("id", sessionId);
 
   if (upErr) {
@@ -329,7 +358,7 @@ serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ picks: top5 }), {
+  return new Response(JSON.stringify({ picks: top5WithAi }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

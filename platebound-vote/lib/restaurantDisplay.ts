@@ -12,7 +12,8 @@ type RestaurantPick = {
   photos?: unknown[];
   photo_url?: string;
   gemini_summary?: string;
-  aiOverview?: { summaryGoodBad?: string };
+  aiOverview?: { summaryGoodBad?: string; healthScore?: number };
+  healthScore?: number;
   groupScore?: number;
 };
 

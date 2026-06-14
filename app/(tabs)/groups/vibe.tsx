@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -14,6 +14,7 @@ import { supabase } from '@/core/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
+import { subscribeToSessionStatus } from '@/utils/groupRealtime';
 
 const DIETARY_OPTIONS: { id: string; label: string }[] = [
   { id: 'vegetarian', label: '🌱 Vegetarian' },
@@ -41,6 +42,15 @@ export default function VibeQuestionsScreen() {
   const [energyLevel, setEnergyLevel] = useState<string | null>(null);
   const [foodMood, setFoodMood] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const ch = subscribeToSessionStatus(sessionId, (status) => {
+      if (status === 'expired') setSessionEnded(true);
+    });
+    return () => { supabase.removeChannel(ch); };
+  }, [sessionId]);
 
   const toggleDietary = (id: string) => {
     if (id === 'none') {
@@ -94,6 +104,23 @@ export default function VibeQuestionsScreen() {
 
   if (!sessionId) {
     return null;
+  }
+
+  if (sessionEnded) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+        <View style={styles.endedInner}>
+          <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
+          <Text style={[styles.endedTitle, { color: theme.text }]}>Session Ended</Text>
+          <Text style={[styles.endedSub, { color: theme.subtext }]}>The host ended this session.</Text>
+          <TouchableOpacity
+            style={[styles.endedBtn, { backgroundColor: theme.accent }]}
+            onPress={() => router.back()}>
+            <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   const STEPS = ['Dietary needs', 'Energy', 'Craving', 'Priority'];
@@ -343,4 +370,10 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   floatingNextText: { fontWeight: '800', fontSize: 17 },
+  endedInner: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  endedIcon: { fontSize: 48, marginBottom: 16 },
+  endedTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
+  endedSub: { fontSize: 15, textAlign: 'center', marginTop: 8, marginBottom: 32 },
+  endedBtn: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 16 },
+  endedBtnText: { fontSize: 16, fontWeight: '800' },
 });

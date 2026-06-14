@@ -91,6 +91,9 @@ export default function VoteByCodePage() {
     }
     const exp = new Date(data.expires_at).getTime();
     if (exp <= Date.now() || data.status === 'expired') {
+      if (exp <= Date.now() && data.status !== 'expired') {
+        void supabase.from('group_sessions').update({ status: 'expired' }).eq('id', data.id);
+      }
       setErr('This session has expired.');
       return;
     }
@@ -350,10 +353,11 @@ export default function VoteByCodePage() {
   if (err) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-zinc-950 to-slate-900 text-white flex items-center justify-center p-6">
-        <div className="text-center space-y-4">
-          <p className="text-5xl">🔒</p>
-          <p className="text-xl font-bold">{err}</p>
-          <p className="text-zinc-500 text-sm">This session is no longer active.</p>
+        <div className="text-center space-y-4 max-w-sm">
+          <p className="text-6xl">🔒</p>
+          <h1 className="text-2xl font-extrabold">Session Ended</h1>
+          <p className="text-zinc-400">{err}</p>
+          <p className="text-zinc-600 text-sm">Ask the host to start a new session.</p>
         </div>
       </div>
     );
@@ -651,6 +655,20 @@ export default function VoteByCodePage() {
                       ) : null}
                       {typeof r.groupScore === 'number' ? (
                         <p className="text-sky-400 font-semibold text-sm">Group match {r.groupScore}</p>
+                      ) : null}
+                      {typeof (r.healthScore ?? r.aiOverview?.healthScore) === 'number' ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 text-xs font-semibold w-12 shrink-0">Health</span>
+                          <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-green-500 rounded-full transition-all duration-500"
+                              style={{ width: `${(((r.healthScore ?? r.aiOverview?.healthScore) ?? 0) / 10) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-green-400 text-xs font-bold shrink-0">
+                            {((r.healthScore ?? r.aiOverview?.healthScore) ?? 0).toFixed(1)}/10
+                          </span>
+                        </div>
                       ) : null}
                       <div>
                         <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">

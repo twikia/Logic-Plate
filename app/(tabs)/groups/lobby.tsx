@@ -6,18 +6,21 @@ import {
   ActivityIndicator,
   AppState,
   LayoutAnimation,
-  Platform,
   ScrollView,
   Share,
   StyleSheet,
   Text,
   TouchableOpacity,
-  UIManager,
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  clearHostSessionId,
+  onHostSessionEndRequest,
+  setHostSessionId,
+} from '@/core/groupSessionState';
 import { logEdgeFunctionFailureAsync } from '@/core/supabaseFunctionErrors';
 import { supabase } from '@/core/supabaseClient';
 import { getLocation } from '@/core/locationCache';
@@ -28,10 +31,6 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { BackButton } from '@/components/ui/BackButton';
 import { subscribeToSessionResponses } from '@/utils/groupRealtime';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 type GroupMode = 'passphone' | 'qr' | 'code';
 
@@ -65,6 +64,13 @@ export default function GroupLobbyScreen() {
 
   const endSession = useCallback(async (id: string) => {
     await supabase.from('group_sessions').update({ status: 'expired' }).eq('id', id);
+    await clearHostSessionId();
+  }, []);
+
+  useEffect(() => {
+    return onHostSessionEndRequest(() => {
+      normalExit.current = true;
+    });
   }, []);
 
   useEffect(() => {
@@ -111,6 +117,7 @@ export default function GroupLobbyScreen() {
       }
       const sess = (data as { session: SessionRow }).session;
       setSession(sess);
+      await setHostSessionId(sess.id);
       setLoading(false);
     })();
     return () => {
@@ -257,7 +264,14 @@ export default function GroupLobbyScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <View style={styles.topRow}>
-        <BackButton onPress={() => router.back()} />
+        <BackButton
+          onPress={() => {
+            normalExit.current = true;
+            const id = sessionRef.current?.id;
+            if (id) void endSession(id);
+            router.back();
+          }}
+        />
         <Text style={[styles.topTitle, { color: theme.text }]}>New Session</Text>
         {!loading && !error ? (
           <TouchableOpacity
@@ -267,7 +281,9 @@ export default function GroupLobbyScreen() {
             style={[
               styles.startHeaderBtn,
               {
-                opacity: responses.length >= 2 && !reconciling ? 1 : 0.45,
+                borderColor: responses.length >= 2 ? theme.accent : theme.subtext + '44',
+                backgroundColor: theme.cardBackground,
+                opacity: responses.length >= 2 && !reconciling ? 1 : 0.5,
               },
             ]}>
             {reconciling ? (
@@ -397,14 +413,17 @@ const styles = StyleSheet.create({
   },
   topTitle: { fontSize: 17, fontWeight: '700', flex: 1, textAlign: 'center' },
   startHeaderBtn: {
-    minWidth: 56,
-    height: 40,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -4,
+    minWidth: 64,
+    height: 38,
   },
-  startHeaderSpacer: { width: 56 },
-  startHeaderText: { fontSize: 16, fontWeight: '700' },
+  startHeaderSpacer: { width: 64 },
+  startHeaderText: { fontSize: 15, fontWeight: '700' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
   loadingText: { fontSize: 15 },
   err: { textAlign: 'center', fontSize: 16 },

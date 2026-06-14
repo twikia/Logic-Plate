@@ -28,6 +28,12 @@ import {
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
+import {
+  consumeHomeReturnFromDetails,
+  getHomeCarouselIndex,
+  markHomeOpeningDetails,
+  setHomeCarouselIndex,
+} from '@/core/homeSpotlightState';
 import { pickFunHomeTitle, onHomeTitleReroll } from '@/core/homeTitle';
 import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -610,17 +616,9 @@ function SpotlightCard({
           />
         </View>
         <View style={styles.spotlightTitleBlock}>
-          <View style={styles.spotlightTitleRow}>
-            <Text style={[styles.spotlightTitle, { color: theme.text, flex: 1 }]} numberOfLines={2}>
-              {name}
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={24}
-              color={neonUi ? NEON_CYAN : theme.accent}
-              style={styles.spotlightChevron}
-            />
-          </View>
+          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
+            {name}
+          </Text>
           <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
             {formatDistance(Math.round(place.distanceMeters ?? 0))}
             {` \u00b7 ${formatWalkingTime(Math.round(place.distanceMeters ?? 0))}`}
@@ -694,19 +692,34 @@ export default function HomeScreen() {
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const sessionRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_METERS);
   const hasFocusedOnceRef = useRef(false);
+  const skipNextFocusReloadRef = useRef(false);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
   const [session, setSession] = useState<SessionOverrides | null>(null);
   const [rawPlaces, setRawPlaces] = useState<any[]>([]);
   const [ranked, setRanked] = useState<ScoredRestaurant[]>([]);
-  const [pickIndex, setPickIndex] = useState(0);
+  const [pickIndex, setPickIndex] = useState(() => getHomeCarouselIndex());
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(() => new Set());
   const visibleLenRef = useRef(-1);
   const pickIndexRef = useRef(0);
   pickIndexRef.current = pickIndex;
+
+  const restoreCarouselPosition = useCallback((index: number) => {
+    const idx = Math.max(0, index);
+    setPickIndex(idx);
+    pickIndexRef.current = idx;
+    setHomeCarouselIndex(idx);
+    requestAnimationFrame(() => {
+      carouselRef.current?.scrollToOffset({ offset: idx * CAROUSEL_PAGE, animated: false });
+    });
+  }, []);
+
+  useEffect(() => {
+    setHomeCarouselIndex(pickIndex);
+  }, [pickIndex]);
 
   const {
     loadingStage,
@@ -768,8 +781,10 @@ export default function HomeScreen() {
     });
     setRanked(scored);
     setRejectedIds(new Set());
-    setPickIndex(0);
-    carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
+    const nextVisibleLen = Math.max(0, scored.slice(0, 5).length - 1);
+    const nextPick = Math.min(pickIndexRef.current, nextVisibleLen);
+    setPickIndex(nextPick);
+    carouselRef.current?.scrollToOffset({ offset: nextPick * CAROUSEL_PAGE, animated: false });
   }, [prefs, session, rawPlaces]);
 
   useEffect(() => {
@@ -854,8 +869,17 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      sessionRadiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
-      setSession(s => (s ? { ...s, radiusMeters: DEFAULT_SEARCH_RADIUS_METERS } : s));
+      const returningFromDetails =
+        skipNextFocusReloadRef.current || consumeHomeReturnFromDetails();
+      if (returningFromDetails) {
+        skipNextFocusReloadRef.current = false;
+        restoreCarouselPosition(getHomeCarouselIndex());
+        return;
+      }
+      if (sessionRadiusRef.current !== DEFAULT_SEARCH_RADIUS_METERS) {
+        sessionRadiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
+        setSession(s => (s ? { ...s, radiusMeters: DEFAULT_SEARCH_RADIUS_METERS } : s));
+      }
       if (!hasFocusedOnceRef.current) {
         hasFocusedOnceRef.current = true;
         return;
@@ -863,7 +887,7 @@ export default function HomeScreen() {
       if (prefs) {
         void loadSpotlight();
       }
-    }, [loadSpotlight, prefs])
+    }, [loadSpotlight, prefs, restoreCarouselPosition])
   );
 
   const goToPick = useCallback((i: number) => {
@@ -884,6 +908,8 @@ export default function HomeScreen() {
   );
 
   const openDetails = async (item: ScoredRestaurant) => {
+    skipNextFocusReloadRef.current = true;
+    markHomeOpeningDetails(pickIndexRef.current);
     await appendVisit(String(item.place?.id || ''), String(item.place?.primaryType || ''));
     setCurrentRestaurant(item.place);
     router.push('/random-result');
@@ -1125,15 +1151,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 6,
-  },
-  spotlightTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  spotlightChevron: {
-    flexShrink: 0,
-    marginTop: 2,
   },
   spotlightTitle: {
     fontSize: 23,

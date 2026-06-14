@@ -9,6 +9,7 @@ import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
 import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { CuisineRankGrid } from '@/components/CuisineRankGrid';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
+import { BackButton } from '@/components/ui/BackButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -74,10 +75,12 @@ export default function WelcomeOnboardingScreen() {
     }
   };
 
+  const canGoBack = page > 0 || router.canGoBack();
+
   const goBack = () => {
     if (page > 0) {
       listRef.current?.scrollToIndex({ index: page - 1, animated: true });
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
     }
   };
@@ -129,9 +132,7 @@ export default function WelcomeOnboardingScreen() {
     <View style={[styles.root, { backgroundColor: theme.cardBackground }]}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topRow}>
-          <Pressable onPress={goBack} style={styles.navBtn}>
-            <Ionicons name="chevron-back" size={26} color={theme.text} />
-          </Pressable>
+          <BackButton onPress={goBack} disabled={!canGoBack} size={26} />
           <View style={styles.dots}>
             {Array.from({ length: STEPS }, (_, i) => (
               <View
@@ -176,7 +177,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 8,
   },
-  navBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   dots: { flexDirection: 'row', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   page: { paddingHorizontal: 20, paddingTop: 8 },
