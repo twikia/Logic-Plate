@@ -133,7 +133,6 @@ export default function TabLayout() {
                   void (async () => {
                     await endHostSession();
                     router.replace('/groups');
-                    router.navigate('/(tabs)/(home)');
                   })();
                 } else {
                   (props.onPress as (() => void) | undefined)?.();

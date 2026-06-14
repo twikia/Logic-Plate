@@ -1,25 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
-import Svg, { Rect, Polygon } from 'react-native-svg';
+import Svg, { Circle, Polygon } from 'react-native-svg';
 
-const PILL_W = 80;
-const PILL_H = 28;
-const SEL_PILL_H = 34;
-const TIP_H = 7;
-const SEL_TIP_H = 8;
-const TIP_SIDE = 6;
-const SEL_TIP_SIDE = 7;
+const RADIUS = 14;          // ~6% smaller than before (was 15)
 const GLOW = 4;
-const SEL_GLOW = 6;
+const SEL_GLOW = 6;         // bigger glow ring when selected — no size change to the disc
+const TIP_H = 8;
+const TIP_SIDE = 5;
+const BOTTOM_PAD = 2;       // 2px transparent buffer so Android never clips the tip apex
 
-function withAlpha(hex: string, alpha: number): string {
-  const a = Math.max(0, Math.min(255, Math.round(alpha * 255)));
-  const h = a.toString(16).padStart(2, '0');
-  return `${hex}${h}`;
-}
+const MARKER_BG = '#120A1F';
+const ACCENT_SELECTED = '#00FFFF'; // cyan highlight for the selected state
+const BORDER_W = 2;
+const BORDER_W_SEL = 2.5;
 
 type RestaurantMapMarkerProps = {
   item: any;
@@ -33,12 +29,12 @@ type RestaurantMapMarkerProps = {
 export function RestaurantMapMarker({
   item,
   markerColor,
-  displayScore,
   isOpen,
   isSelected,
   onPress,
 }: RestaurantMapMarkerProps) {
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
+  const iconName = markerIconForPlace(item);
 
   useEffect(() => {
     if (tracksViewChanges) {
@@ -47,46 +43,34 @@ export function RestaurantMapMarker({
     }
   }, [tracksViewChanges]);
 
-  const scoreText = typeof displayScore === 'number' ? displayScore.toFixed(1) : String(displayScore);
-  const iconName = markerIconForPlace(item);
-
-  const pillH = isSelected ? SEL_PILL_H : PILL_H;
-  const tipH = isSelected ? SEL_TIP_H : TIP_H;
-  const tipSide = isSelected ? SEL_TIP_SIDE : TIP_SIDE;
-  const glow = isSelected ? SEL_GLOW : GLOW;
-  const iconSize = isSelected ? 15 : 12;
-  const fontSize = isSelected ? 13 : 11;
-  const pillRadius = pillH / 2;
-  const borderWidth = isSelected ? 2.5 : 2;
-  const markerOpacity = isOpen ? 1 : 0.4;
-
   useEffect(() => {
     setTracksViewChanges(true);
-  }, [scoreText, iconName, isOpen, isSelected, markerColor]);
+  }, [iconName, isOpen, isSelected, markerColor]);
 
-  const accent = markerColor;
-  const pillBg = '#120A1F';
-  const glowColor = withAlpha(accent, isSelected ? 0.32 : 0.22);
+  const glow = isSelected ? SEL_GLOW : GLOW;
+  const accent = isSelected ? ACCENT_SELECTED : markerColor;
+  const borderW = isSelected ? BORDER_W_SEL : BORDER_W;
+  // glow ring is semi-transparent: ~40% selected, ~25% normal
+  const glowColor = accent + (isSelected ? '66' : '40');
+  const markerOpacity = isOpen ? 1 : 0.4;
 
-  // SVG canvas sized to fit glow + pill + tip with no overflow needed
-  const svgW = PILL_W + glow * 2;
-  const svgH = glow + pillH + tipH;
-
-  // Pill starts at (glow, glow) inside the canvas
-  const pillX = glow;
-  const pillY = glow;
-
-  // Tip triangle: base at bottom of pill, apex at bottom of canvas
-  const tipCX = svgW / 2;
-  const tipTopY = glow + pillH;
-  const tipPoints = `${tipCX - tipSide},${tipTopY} ${tipCX + tipSide},${tipTopY} ${tipCX},${svgH}`;
+  // Canvas grows only to fit the glow ring — the disc itself stays at RADIUS
+  const svgW = (RADIUS + glow) * 2;
+  const tipApexY = glow + RADIUS * 2 + TIP_H;
+  const svgH = tipApexY + BOTTOM_PAD;
+  const cx = svgW / 2;
+  const cy = glow + RADIUS;
+  const tipTopY = glow + RADIUS * 2;
+  const tipPoints = `${cx - TIP_SIDE},${tipTopY} ${cx + TIP_SIDE},${tipTopY} ${cx},${tipApexY}`;
+  // Anchor at the true tip apex, not the canvas bottom
+  const anchorY = tipApexY / svgH;
 
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
       onPress={onPress}
       zIndex={isSelected ? 100 : 10}
-      anchor={{ x: 0.5, y: 1.0 }}
+      anchor={{ x: 0.5, y: anchorY }}
       tracksViewChanges={tracksViewChanges}
     >
       <View
@@ -94,60 +78,28 @@ export function RestaurantMapMarker({
         collapsable={false}
       >
         <Svg width={svgW} height={svgH}>
-          {/* Glow: rounded rect extending glow px around the pill */}
-          <Rect
-            x={0}
-            y={0}
-            width={svgW}
-            height={glow * 2 + pillH}
-            rx={pillRadius + glow}
-            ry={pillRadius + glow}
-            fill={glowColor}
-          />
-          {/* Pill: filled background with accent border */}
-          <Rect
-            x={pillX}
-            y={pillY}
-            width={PILL_W}
-            height={pillH}
-            rx={pillRadius}
-            ry={pillRadius}
-            fill={pillBg}
-            stroke={accent}
-            strokeWidth={borderWidth}
-          />
-          {/* Tip triangle */}
+          {/* Glow ring */}
+          <Circle cx={cx} cy={cy} r={RADIUS + glow} fill={glowColor} />
+          {/* Main disc */}
+          <Circle cx={cx} cy={cy} r={RADIUS} fill={MARKER_BG} stroke={accent} strokeWidth={borderW} />
+          {/* Pointer tip */}
           <Polygon points={tipPoints} fill={accent} />
         </Svg>
 
-        {/* Icon and text: absolutely positioned within pill bounds — no overflow */}
+        {/* Icon — centered in disc, color matches the score gradient */}
         <View
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: pillX,
-            top: pillY,
-            width: PILL_W,
-            height: pillH,
-            flexDirection: 'row',
+            left: cx - RADIUS,
+            top: glow,
+            width: RADIUS * 2,
+            height: RADIUS * 2,
             alignItems: 'center',
             justifyContent: 'center',
-            paddingHorizontal: 9,
           }}
         >
-          <Ionicons name={iconName} size={iconSize} color="#FFFFFF" />
-          <Text
-            style={{
-              fontSize,
-              fontWeight: '800',
-              color: '#FFFFFF',
-              letterSpacing: -0.2,
-              marginLeft: 4,
-            }}
-            numberOfLines={1}
-          >
-            {scoreText}
-          </Text>
+          <Ionicons name={iconName} size={13} color={markerColor} />
         </View>
       </View>
     </Marker>
