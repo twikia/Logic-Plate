@@ -3,6 +3,8 @@ export interface ThemeColors {
   gradient: [string, string, ...string[]];
   cardBackground: string;
   accent: string;
+  /** Text/icon color on solid accent-filled buttons and chips. Defaults to '#FFFFFF'. */
+  accentOnColor?: string;
   text: string;
   subtext: string;
   tint: string;

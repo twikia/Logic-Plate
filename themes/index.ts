@@ -8,6 +8,7 @@ export const Themes: Record<string, ThemeColors> = {
     gradient: ['#000000', '#000000'],
     cardBackground: '#000000',
     accent: '#00FFFF',
+    accentOnColor: '#000000',
     text: '#FFFFFF',
     subtext: 'rgba(255,255,255,0.62)',
     tint: '#00FFFF',

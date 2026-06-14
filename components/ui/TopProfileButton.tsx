@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from './AnimatedPressable';
+import { profileButtonTop, PROFILE_BUTTON_RIGHT } from './profileButtonLayout';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -14,7 +15,7 @@ export function TopProfileButton() {
   const neon = theme.neonColors;
 
   return (
-    <View style={[styles.container, { top: Math.max(insets.top, 20) + 12 }]}>
+    <View style={[styles.container, { top: profileButtonTop(insets.top) }]}>
       <Link href={"/profile" as any} asChild>
         <AnimatedPressable>
           {({ pressed }) =>
@@ -54,7 +55,7 @@ export function TopProfileButton() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    right: 20,
+    right: PROFILE_BUTTON_RIGHT,
     zIndex: 100,
   },
   button: {

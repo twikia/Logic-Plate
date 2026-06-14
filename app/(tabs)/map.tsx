@@ -24,6 +24,8 @@ import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
 import { isOpenNow } from '@/core/isOpenNow';
 import { RestaurantMapMarker } from '@/components/map/RestaurantMapMarker';
+import { markerIconForPlace } from '@/core/markerIcons';
+import * as Clipboard from 'expo-clipboard';
 import type { RandomSortBy } from '@/core/randomPickerState';
 import {
   SORT_OPTIONS,
@@ -67,13 +69,27 @@ function MapSheetAiScores({
 }) {
   const border = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
   const num = (x: number | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
+  const scoreColor5 = (val: number | undefined) => {
+    if (ph || val == null) return theme.text;
+    const n = num(val);
+    if (n >= 3.5) return '#4CD964';
+    if (n < 2.5) return '#FF6B6B';
+    return '#FF9500';
+  };
+  const scoreColor10 = (val: number | undefined) => {
+    if (ph || val == null) return theme.accent;
+    const n = num(val);
+    if (n >= 7) return '#4CD964';
+    if (n < 5) return '#FF6B6B';
+    return '#FF9500';
+  };
   const sq = (emoji: string, label: string, val: number | undefined, k: string) => (
     <View key={k} style={[styles.aiSquare, { borderColor: border }]}>
       <Text style={styles.aiSquareEmoji}>{emoji}</Text>
       <Text style={[styles.aiSquareLabel, { color: theme.subtext }]} numberOfLines={2}>
         {label}
       </Text>
-      <Text style={[styles.aiSquareVal, { color: theme.text }]}>
+      <Text style={[styles.aiSquareVal, { color: scoreColor5(val) }]}>
         {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : `${num(val).toFixed(1)}/5`}
       </Text>
     </View>
@@ -81,18 +97,19 @@ function MapSheetAiScores({
   const bar10 = (label: string, val: number | undefined, k: string) => {
     const n = ph ? 0 : num(val);
     const pct = Math.max(0, Math.min(1, n / 10));
+    const barColor = scoreColor10(val);
     return (
       <View key={k} style={[styles.aiBarCard, { borderColor: border }]}>
         <View style={styles.aiBarTop}>
           <Text style={[styles.aiBarTitle, { color: theme.text }]} numberOfLines={1}>
             {label}
           </Text>
-          <Text style={[styles.aiBarNum, { color: theme.subtext }]}>
+          <Text style={[styles.aiBarNum, { color: barColor }]}>
             {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : `${n.toFixed(1)}/10`}
           </Text>
         </View>
         <View style={[styles.aiBarTrack, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
-          <View style={[styles.aiBarFill, { width: `${pct * 100}%`, backgroundColor: theme.accent }]} />
+          <View style={[styles.aiBarFill, { width: `${pct * 100}%`, backgroundColor: barColor }]} />
         </View>
       </View>
     );
@@ -113,7 +130,7 @@ function MapSheetAiScores({
           <Ionicons name="ribbon-outline" size={18} color="#C9A0FF" />
           <Text style={[styles.aiOverallLabel, { color: theme.subtext }]}>Overall Platebound</Text>
         </View>
-        <Text style={[styles.aiOverallVal, { color: theme.text }]}>
+        <Text style={[styles.aiOverallVal, { color: overallPh || overallScore == null ? theme.text : overallScore >= 7 ? '#4CD964' : overallScore < 5 ? '#FF6B6B' : '#FF9500' }]}>
           {overallPh ? AI_OVERVIEW_FIELD_PLACEHOLDER : overallScore != null ? `${overallScore.toFixed(1)}/10` : '—'}
         </Text>
       </View>
@@ -735,7 +752,7 @@ export default function MapScreen() {
             contentContainerStyle={[
               styles.sheetContent,
               {
-                paddingBottom: Math.max(insets.bottom, 24) + 110,
+                paddingBottom: Math.max(insets.bottom, 24) + 56,
               },
             ]}
             showsVerticalScrollIndicator={false}
@@ -744,13 +761,25 @@ export default function MapScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.sheetHeader}>
+              <View style={{ marginRight: 12 }}>
+                <RestaurantImage
+                  restaurantId={selectedRestaurant.id}
+                  photos={selectedRestaurant.photos}
+                  width={64}
+                  height={64}
+                  borderRadius={12}
+                />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.restaurantName, { color: theme.text }]}>
                   {selectedRestaurant.displayName?.text}
                 </Text>
-                <Text style={[styles.restaurantType, { color: theme.subtext }]}>
-                  {selectedRestaurant.primaryType?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Restaurant'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                  <Ionicons name={markerIconForPlace(selectedRestaurant)} size={12} color={theme.subtext} />
+                  <Text style={[styles.restaurantType, { color: theme.subtext }]}>
+                    {selectedRestaurant.primaryType?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Restaurant'}
+                  </Text>
+                </View>
               </View>
               <TouchableOpacity onPress={closeSheet} style={[styles.closeBtn, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
                 <Ionicons name="close" size={24} color={theme.text} />
@@ -808,39 +837,6 @@ export default function MapScreen() {
               </Text>
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={[styles.actionBtn, { backgroundColor: theme.accent, marginBottom: 14 }]}
-              onPress={() => openMaps(
-                selectedRestaurant.displayName?.text,
-                selectedRestaurant.location.latitude,
-                selectedRestaurant.location.longitude
-              )}
-            >
-              <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={18} color="#FFF" />
-              <Text style={styles.actionBtnText}>{Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}</Text>
-            </TouchableOpacity>
-
-            <View style={styles.imageContainer}>
-              <RestaurantImage
-                restaurantId={selectedRestaurant.id}
-                photos={selectedRestaurant.photos}
-                width={width - 40}
-                height={180}
-                borderRadius={20}
-              />
-            </View>
-
-            {selectedRestaurant.formattedAddress ? (
-              <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
-                <View style={styles.infoSectionHeader}>
-                  <Ionicons name="location-outline" size={15} color="#F9A06F" />
-                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>Address</Text>
-                </View>
-                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{selectedRestaurant.formattedAddress}</Text>
-              </View>
-            ) : null}
-
             <MapSheetAiScores
               ai={selectedRestaurant.aiOverview}
               ph={!selectedRestaurant.aiOverview}
@@ -858,6 +854,21 @@ export default function MapScreen() {
                   <Ionicons name="open-outline" size={12} color={theme.subtext} />
                 </View>
                 <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]}>{selectedRestaurant.nationalPhoneNumber}</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {selectedRestaurant.formattedAddress ? (
+              <TouchableOpacity
+                style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}
+                onPress={() => Clipboard.setStringAsync(selectedRestaurant.formattedAddress)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.infoSectionHeader}>
+                  <Ionicons name="location-outline" size={15} color="#F9A06F" />
+                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>Address</Text>
+                  <Ionicons name="copy-outline" size={12} color={theme.subtext} />
+                </View>
+                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{selectedRestaurant.formattedAddress}</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -885,6 +896,27 @@ export default function MapScreen() {
           </GestureScrollView>
         )}
       </Animated.View>
+
+      {selectedRestaurant ? (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={[
+            styles.mapsFab,
+            {
+              backgroundColor: theme.accent,
+              bottom: Math.max(insets.bottom, 16) + 8,
+            },
+          ]}
+          onPress={() => openMaps(
+            selectedRestaurant.displayName?.text,
+            selectedRestaurant.location.latitude,
+            selectedRestaurant.location.longitude
+          )}
+        >
+          <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={14} color="#000" />
+          <Text style={styles.mapsFabText}>Maps</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -971,11 +1003,23 @@ const styles = StyleSheet.create({
   imageContainer: {
     marginBottom: 25, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 15, shadowOffset: { width: 0, height: 8 },
   },
-  actionBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 20, gap: 12,
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8,
+  mapsFab: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    gap: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
+    zIndex: 10001,
   },
-  actionBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+  mapsFabText: { color: '#000', fontSize: 13, fontWeight: '800' },
   infoSection: {
     marginBottom: 10, backgroundColor: 'rgba(30,15,30,0.45)',
     borderRadius: 16, padding: 14, borderWidth: 1,

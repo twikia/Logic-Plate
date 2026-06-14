@@ -71,13 +71,14 @@ export default function QuickVoteSetupScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-      <View style={styles.headerRow}>
-        <BackButton onPress={() => router.replace('/groups')} />
-        <TopProfileButton />
-      </View>
-      <View style={styles.centerWrap}>
-        <View style={styles.body}>
+    <View style={[styles.root, { backgroundColor: theme.gradient[0] }]}>
+      <TopProfileButton />
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.headerRow}>
+          <BackButton onPress={() => router.replace('/groups')} />
+        </View>
+        <View style={styles.centerWrap}>
+          <View style={styles.body}>
           <Text style={[styles.title, { color: theme.text }]}>Quick Vote</Text>
           <Text style={[styles.sub, { color: theme.subtext }]}>Vote and pass the phone!</Text>
 
@@ -110,17 +111,21 @@ export default function QuickVoteSetupScreen() {
               <TouchableOpacity
                 style={[styles.startBtn, { backgroundColor: theme.accent }]}
                 onPress={start}>
-                <Text style={[styles.startBtnText, { color: theme.text }]}>Start voting</Text>
+                <Text style={[styles.startBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
+                  Start voting
+                </Text>
               </TouchableOpacity>
             </>
           )}
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   safe: { flex: 1 },
   headerRow: {
     flexDirection: 'row',

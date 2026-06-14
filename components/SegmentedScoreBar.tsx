@@ -8,9 +8,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-const FILLED_BEST = '#00E5FF';
-const FILLED_WORST = '#FF007F';
-const FILLED_OTHER = '#90A4AE';
+const FILLED_GOOD = '#4CD964';
+const FILLED_MID = '#FF9500';
+const FILLED_BAD = '#FF4444';
+const FILLED_UNKNOWN = '#90A4AE';
 const SEG_UNFILLED = 'rgba(255,255,255,0.08)';
 const SEG_COUNT = 5;
 const SEG_GAP = 3;
@@ -76,29 +77,24 @@ type Props = {
   ai: AiOverview | null | undefined;
 };
 
+function absoluteScoreColor(score: number | null, max: 5 | 10): string {
+  if (score == null) return FILLED_UNKNOWN;
+  const norm10 = (clampScore(score, max) / max) * 10;
+  if (norm10 >= 7) return FILLED_GOOD;
+  if (norm10 >= 4.5) return FILLED_MID;
+  return FILLED_BAD;
+}
+
 export function SegmentedScoreBar({ ai }: Props) {
-  const normalizedScores = METRICS.map(({ key, max }) => {
-    const s = scoreAxis(ai, key);
-    if (s == null) return 0;
-    return Math.round((clampScore(s, max) / max) * SEG_COUNT);
-  });
-
-  const maxNorm = Math.max(...normalizedScores);
-  const minNorm = Math.min(...normalizedScores);
-
-  const getColor = (norm: number): string => {
-    if (maxNorm === minNorm) return FILLED_OTHER;
-    if (norm === maxNorm) return FILLED_BEST;
-    if (norm === minNorm) return FILLED_WORST;
-    return FILLED_OTHER;
-  };
-
   return (
     <View style={styles.container}>
       {METRICS.map(({ key, label, max }, rowIdx) => {
         const s = scoreAxis(ai, key);
-        const norm = normalizedScores[rowIdx];
-        const color = getColor(norm);
+        const norm = (() => {
+          if (s == null) return 0;
+          return Math.round((clampScore(s, max) / max) * SEG_COUNT);
+        })();
+        const color = absoluteScoreColor(s, max);
         const reading = formatScore(max, s);
 
         return (
@@ -114,7 +110,7 @@ export function SegmentedScoreBar({ ai }: Props) {
                 />
               ))}
             </View>
-            <Text style={styles.score}>{reading}</Text>
+            <Text style={[styles.score, { color: color }]}>{reading}</Text>
           </View>
         );
       })}
@@ -137,7 +133,7 @@ const styles = StyleSheet.create({
     width: 44,
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.92)',
   },
   barContainer: {
     flex: 1,
@@ -154,8 +150,7 @@ const styles = StyleSheet.create({
   score: {
     width: 38,
     fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '700',
     textAlign: 'right',
   },
 });

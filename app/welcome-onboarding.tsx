@@ -183,8 +183,10 @@ export default function WelcomeOnboardingScreen() {
 
         <View style={styles.footer}>
           <Pressable onPress={goNext} style={[styles.primaryBtn, { backgroundColor: theme.accent }]}>
-            <Text style={styles.primaryBtnText}>{page === STEPS - 1 ? 'Start exploring' : 'Continue'}</Text>
-            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+            <Text style={[styles.primaryBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
+              {page === STEPS - 1 ? 'Start exploring' : 'Continue'}
+            </Text>
+            <Ionicons name="arrow-forward" size={20} color={theme.accentOnColor ?? '#FFFFFF'} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -217,5 +219,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
+  primaryBtnText: { fontSize: 17, fontWeight: '800' },
 });

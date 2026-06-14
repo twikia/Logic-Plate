@@ -4,7 +4,7 @@ const FUN_HOME_TITLES = [
   'Ready when you are',
   'Made for you boss!',
   "What's good today?",
-  "Todays's best bets",
+  "Today's",
   'Picks just for you',
   "Let's find something good",
 ];

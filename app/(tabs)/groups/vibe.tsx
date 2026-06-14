@@ -116,7 +116,7 @@ export default function VibeQuestionsScreen() {
           <TouchableOpacity
             style={[styles.endedBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.back()}>
-            <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>Go Back</Text>
+            <Text style={[styles.endedBtnText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -295,7 +295,7 @@ export default function VibeQuestionsScreen() {
         <TouchableOpacity
           style={[styles.floatingNext, { backgroundColor: theme.accent }]}
           onPress={() => setStep(1)}>
-          <Text style={[styles.floatingNextText, { color: theme.gradient[0] }]}>Next →</Text>
+          <Text style={[styles.floatingNextText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>Next →</Text>
         </TouchableOpacity>
       ) : null}
     </SafeAreaView>

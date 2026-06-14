@@ -3,6 +3,7 @@
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
 import { NeonBorderCard } from '@/components/NeonBorderCard';
+import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -81,9 +82,10 @@ const WINDOW_HEIGHT = Dimensions.get('window').height;
 const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
-const SPOTLIGHT_RADAR_CARD_HEIGHT = Math.round(
-  Math.min(WINDOW_WIDTH * 0.52, WINDOW_HEIGHT * 0.28, 240)
-);
+const SPOTLIGHT_RADAR_CARD_HEIGHT =
+  Math.round(Math.min(WINDOW_WIDTH * 0.62, WINDOW_HEIGHT * 0.32, 290)) - 3;
+const SPOTLIGHT_THUMB_SIZE = 72;
+const SPOTLIGHT_CARD_INSET = 18;
 
 function formatReviewCount(count: number): string {
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
@@ -131,8 +133,17 @@ const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
-const SCORE_BEST_COLOR = '#00E5FF';
-const SCORE_WORST_COLOR = '#FF4444';
+const SCORE_GOOD_COLOR = '#4CD964';
+const SCORE_MID_COLOR = '#FF9500';
+const SCORE_BAD_COLOR = '#FF4444';
+
+function absoluteScoreColor(score: number | null, max: 5 | 10, fallback: string): string {
+  if (score == null) return fallback;
+  const norm10 = (clampScore(score, max) / max) * 10;
+  if (norm10 >= 7) return SCORE_GOOD_COLOR;
+  if (norm10 >= 4.5) return SCORE_MID_COLOR;
+  return SCORE_BAD_COLOR;
+}
 
 const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
   { bg: 'rgba(0,35,48,0.92)', mark: '#FFFFFF' },
@@ -146,33 +157,6 @@ const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
   { bg: 'rgba(0,30,44,0.92)', mark: '#FFFFFF' },
   { bg: 'rgba(44,0,32,0.92)', mark: '#FFFFFF' },
 ];
-
-function HomeNeonTitle({ text, width }: { text: string; width: number }) {
-  const gid = useId().replace(/:/g, '');
-  const h = 42;
-  return (
-    <View style={{ height: h, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-      <Svg width={width} height={h}>
-        <Defs>
-          <SvgLinearGradient id={`htl-${gid}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={NEON_CYAN} />
-            <Stop offset="1" stopColor={NEON_MAGENTA} />
-          </SvgLinearGradient>
-        </Defs>
-        <SvgText
-          fill={`url(#htl-${gid})`}
-          fontSize={29}
-          fontWeight="800"
-          x={width / 2}
-          y={31}
-          textAnchor="middle"
-        >
-          {text}
-        </SvgText>
-      </Svg>
-    </View>
-  );
-}
 
 function openMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
@@ -268,29 +252,13 @@ function RestaurantScorePentagon({
   const ringLabel = useSketch
     ? labelColor
     : neon
-    ? 'rgba(255,255,255,0.78)'
+    ? 'rgba(255,255,255,0.92)'
     : labelColor;
   const gridSW = useSketch ? 0.3 : neon ? 0.5 : 0.35;
   const outerGridSW = useSketch ? 0.35 : neon ? 0.55 : 0.45;
   const polygonSW = useSketch ? 1.5 : neon ? 1.45 : 1.25;
-  const cornerFontSize = 5.8;
-  const scoreFontSize = 5.4;
-  const bestColor = neon ? NEON_CYAN : SCORE_BEST_COLOR;
-  const worstColor = SCORE_WORST_COLOR;
-  const axisNorms = axes.map(({ key, max }) => {
-    const s = scoreAxis(ai, key);
-    if (s == null) return 0;
-    return clampScore(s, max) / max;
-  });
-  const maxNorm = Math.max(...axisNorms);
-  const minNorm = Math.min(...axisNorms);
-  const axisLabelColor = (i: number) => {
-    if (maxNorm === minNorm) return ringLabel;
-    const norm = axisNorms[i];
-    if (norm === maxNorm) return bestColor;
-    if (norm === minNorm) return worstColor;
-    return ringLabel;
-  };
+  const cornerFontSize = 6.4;
+  const scoreFontSize = 6.0;
 
   const gradFrom = neon ? NEON_CYAN : gradientColors?.[0] ?? stroke;
   const gradTo = neon ? NEON_MAGENTA : gradientColors?.[1] ?? stroke;
@@ -416,13 +384,14 @@ function RestaurantScorePentagon({
             const ly = cy + labelR * Math.sin(t);
             const s = scoreAxis(ai, key);
             const reading = formatAxisReading(max, s);
-            const labelFill = axisLabelColor(i);
+            const cornerFill = ringLabel;
+            const scoreFill = absoluteScoreColor(s, max, ringLabel);
             return (
               <G key={corner}>
                 <SvgText
                   x={lx}
                   y={ly - 2.4}
-                  fill={labelFill}
+                  fill={cornerFill}
                   fontSize={cornerFontSize}
                   fontWeight="700"
                   textAnchor="middle"
@@ -433,9 +402,9 @@ function RestaurantScorePentagon({
                 <SvgText
                   x={lx}
                   y={ly + 3.6}
-                  fill={labelFill}
+                  fill={scoreFill}
                   fontSize={scoreFontSize}
-                  fontWeight="600"
+                  fontWeight="700"
                   textAnchor="middle"
                   alignmentBaseline="middle"
                 >
@@ -471,13 +440,14 @@ function RestaurantScorePentagon({
           const ly = cy + labelR * Math.sin(t);
           const s = scoreAxis(ai, key);
           const reading = formatAxisReading(max, s);
-          const labelFill = axisLabelColor(i);
+          const cornerFill = ringLabel;
+          const scoreFill = absoluteScoreColor(s, max, ringLabel);
           return (
             <G key={corner}>
               <SvgText
                 x={lx}
                 y={ly - 2.4}
-                fill={labelFill}
+                fill={cornerFill}
                 fontSize={cornerFontSize}
                 fontWeight="700"
                 textAnchor="middle"
@@ -488,9 +458,9 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly + 3.6}
-                fill={labelFill}
+                fill={scoreFill}
                 fontSize={scoreFontSize}
-                fontWeight="600"
+                fontWeight="700"
                 textAnchor="middle"
                 alignmentBaseline="middle"
               >
@@ -627,87 +597,95 @@ function SpotlightCard({
 
   const cardBody = (
     <>
-      <View style={styles.spotlightHeroRow}>
-        <View style={styles.spotlightThumbWrap}>
-          <RestaurantImage
-            restaurantId={String(place?.id ?? '')}
-            photos={photos}
-            width={72}
-            height={72}
-            quality={200}
-            loadDelay={300}
-            borderRadius={14}
-          />
-        </View>
-        <View style={styles.spotlightTitleBlock}>
-          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
-            {name}
-          </Text>
-          <View style={styles.spotlightMetaRow}>
-            <View
+      <View style={styles.spotlightThumbPinned}>
+        <RestaurantImage
+          restaurantId={String(place?.id ?? '')}
+          photos={photos}
+          width={SPOTLIGHT_THUMB_SIZE}
+          height={SPOTLIGHT_THUMB_SIZE}
+          quality={200}
+          loadDelay={300}
+          borderRadius={14}
+        />
+      </View>
+      <View style={styles.spotlightHeroText}>
+        <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
+          {name}
+        </Text>
+        <View style={styles.spotlightMetaRow}>
+          <View
+            style={[
+              styles.spotlightMetaPill,
+              neonUi
+                ? styles.spotlightMetaPillNeon
+                : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+            ]}
+          >
+            <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+            <Text
               style={[
-                styles.spotlightMetaPill,
-                neonUi
-                  ? styles.spotlightMetaPillNeon
-                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                styles.spotlightMetaText,
+                { color: neonUi ? 'rgba(255,255,255,0.92)' : theme.subtext },
               ]}
             >
-              <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
-              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
-                {formatDistance(Math.round(place.distanceMeters ?? 0))}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.spotlightMetaPill,
-                neonUi
-                  ? styles.spotlightMetaPillNeon
-                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
-              ]}
-            >
-              <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
-              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
-                {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
-              </Text>
-            </View>
-            {rating ? (
-              <View
-                style={[
-                  styles.spotlightMetaPill,
-                  neonUi
-                    ? styles.spotlightMetaPillNeon
-                    : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
-                ]}
-              >
-                <Ionicons name="star" size={11} color="#FBBF24" />
-                <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
-                  {rating}
-                  {reviews ? ` (${formatReviewCount(reviews)})` : ''}
-                </Text>
-              </View>
-            ) : null}
-            {costLabel ? (
-              <View
-                style={[
-                  styles.spotlightMetaPill,
-                  neonUi
-                    ? styles.spotlightMetaPillNeon
-                    : { backgroundColor: 'rgba(249,160,111,0.14)', borderColor: 'rgba(249,160,111,0.28)' },
-                ]}
-              >
-                <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
-                <Text
-                  style={[
-                    styles.spotlightMetaText,
-                    styles.spotlightMetaPrice,
-                    { color: neonUi ? NEON_MAGENTA : '#F9A06F' },
-                  ]}
-                >
-                  {costLabel}
-                </Text>
-              </View>
-            ) : null}
+              {formatDistance(Math.round(place.distanceMeters ?? 0))}
+            </Text>
           </View>
+          <View
+            style={[
+              styles.spotlightMetaPill,
+              neonUi
+                ? styles.spotlightMetaPillNeon
+                : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+            ]}
+          >
+            <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+            <Text
+              style={[
+                styles.spotlightMetaText,
+                { color: neonUi ? 'rgba(255,255,255,0.92)' : theme.subtext },
+              ]}
+            >
+              {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
+            </Text>
+          </View>
+          {rating ? (
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+              ]}
+            >
+              <Ionicons name="star" size={11} color="#FBBF24" />
+              <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
+                {rating}
+                {reviews ? ` (${formatReviewCount(reviews)})` : ''}
+              </Text>
+            </View>
+          ) : null}
+          {costLabel ? (
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: 'rgba(249,160,111,0.14)', borderColor: 'rgba(249,160,111,0.28)' },
+              ]}
+            >
+              <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
+              <Text
+                style={[
+                  styles.spotlightMetaText,
+                  styles.spotlightMetaPrice,
+                  { color: neonUi ? NEON_MAGENTA : '#F9A06F' },
+                ]}
+              >
+                {costLabel}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
       <View style={styles.scorePentagonCol}>
@@ -1009,11 +987,17 @@ export default function HomeScreen() {
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
-          {rootNeon ? (
-            <HomeNeonTitle text={funTitle} width={WINDOW_WIDTH - 32} />
-          ) : (
-            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
-          )}
+          <View style={styles.homeTitleWrap}>
+            {rootNeon ? (
+              <NeonGradientTitle
+                text={funTitle}
+                width={WINDOW_WIDTH - 32}
+                style={styles.homeNeonTitle}
+              />
+            ) : (
+              <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
+            )}
+          </View>
 
           <ScenarioQuickBar />
 
@@ -1106,20 +1090,26 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   background: { flex: 1 },
-  safeArea: { flex: 1, paddingTop: 56 },
+  safeArea: { flex: 1, paddingTop: 24 },
   homeContent: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 18,
-    gap: 18,
+    paddingTop: 8,
+  },
+  homeTitleWrap: {
+    marginTop: 20,
+    marginBottom: 2,
+  },
+  homeNeonTitle: {
+    marginBottom: 2,
   },
   pageTitle: {
     fontSize: 30,
     fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
   },
-  galleryBlock: { marginHorizontal: -20, flexGrow: 0 },
+  galleryBlock: { marginHorizontal: -20, flexGrow: 0, marginTop: 16, marginBottom: 5 },
   carouselPage: {
     width: CAROUSEL_PAGE,
     paddingHorizontal: 10,
@@ -1192,6 +1182,7 @@ const styles = StyleSheet.create({
   },
   loadingBox: { marginTop: 12 },
   messageBox: {
+    marginTop: 16,
     backgroundColor: 'rgba(30,15,30,0.55)',
     borderRadius: 18,
     padding: 20,
@@ -1214,24 +1205,23 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   spotlightPressLayer: {
-    padding: 18,
+    position: 'relative',
+    padding: SPOTLIGHT_CARD_INSET,
     gap: 12,
   },
-  spotlightHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  spotlightThumbWrap: {
-    width: 72,
-    height: 72,
+  spotlightThumbPinned: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SPOTLIGHT_THUMB_SIZE,
+    height: SPOTLIGHT_THUMB_SIZE,
     borderRadius: 14,
     overflow: 'hidden',
-    flexShrink: 0,
+    zIndex: 2,
   },
-  spotlightTitleBlock: {
-    flex: 1,
-    minWidth: 0,
+  spotlightHeroText: {
+    marginLeft: SPOTLIGHT_THUMB_SIZE + 12,
+    minHeight: SPOTLIGHT_THUMB_SIZE,
     gap: 6,
   },
   spotlightTitle: {
@@ -1259,7 +1249,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,255,255,0.22)',
   },
   spotlightMetaText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.1,
   },
@@ -1275,7 +1265,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
-    marginTop: 2,
+    marginTop: 8,
   },
   radarBlock: { width: '100%', marginTop: 0, overflow: 'visible' },
   spotlightMapsBtn: {
@@ -1303,7 +1293,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 14,
+    paddingTop: 6,
+    paddingBottom: 0,
+    marginTop: 1,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
   dotActive: { width: 9, height: 9, borderRadius: 4.5 },

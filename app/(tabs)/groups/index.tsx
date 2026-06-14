@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
+  Dimensions,
   StyleSheet,
   Text,
   TextInput,
@@ -10,9 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
+
+const { width: SCREEN_W } = Dimensions.get('window');
 
 function normalizeJoinCode(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
@@ -59,16 +63,23 @@ export default function GroupsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-      <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Vote together!</Text>
-        <TopProfileButton />
-      </View>
-
-      <View style={styles.centerContent}>
-        <View style={styles.joinSection}>
-          <Text style={[styles.joinLabel, { color: theme.subtext }]}>Have a code?</Text>
-          <View style={styles.joinRow}>
+    <View style={[styles.root, { backgroundColor: theme.gradient[0] }]}>
+      <TopProfileButton />
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.centerContent}>
+          <View style={styles.joinSection}>
+            {theme.neonColors ? (
+              <NeonGradientTitle
+                text="Vote together!"
+                width={SCREEN_W - 48}
+                fontSize={26}
+                style={{ marginBottom: 10 }}
+              />
+            ) : (
+              <Text style={[styles.headerTitle, { color: theme.text }]}>Vote together!</Text>
+            )}
+            <Text style={[styles.joinLabel, { color: theme.subtext }]}>Have a code?</Text>
+            <View style={styles.joinRow}>
             <TextInput
               style={[
                 styles.input,
@@ -114,21 +125,16 @@ export default function GroupsScreen() {
           <Text style={styles.glowBtnEmoji}>⚡</Text>
           <Text style={[styles.glowBtnText, { color: theme.text }]}>Quick Vote</Text>
         </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 4,
-  },
-  headerTitle: { fontSize: 22, fontWeight: '800' },
+  headerTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
@@ -137,6 +143,8 @@ const styles = StyleSheet.create({
   },
   joinSection: {
     marginBottom: 4,
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   joinLabel: {
     fontSize: 13,
@@ -145,8 +153,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+    alignSelf: 'stretch',
   },
-  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center', alignSelf: 'stretch' },
   input: {
     flex: 1,
     borderWidth: 1.5,
