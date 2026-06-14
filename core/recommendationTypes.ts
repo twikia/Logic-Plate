@@ -9,12 +9,9 @@ export type RecommendationWeights = {
   cost: ImportanceLevel;
   distance: ImportanceLevel;
   health: ImportanceLevel;
-  workoutRecovery: ImportanceLevel;
   protein: ImportanceLevel;
   calories: ImportanceLevel;
   cuisine: ImportanceLevel;
-  cuisineVariety: ImportanceLevel;
-  cuisineAdherence: ImportanceLevel;
   taste: ImportanceLevel;
   ratingAdherence: ImportanceLevel;
 };
@@ -97,12 +94,9 @@ export const DEFAULT_WEIGHTS: RecommendationWeights = {
   cost: 3,
   distance: 3,
   health: 3,
-  workoutRecovery: 3,
   protein: 3,
   calories: 3,
   cuisine: 3,
-  cuisineVariety: 3,
-  cuisineAdherence: 3,
   taste: 3,
   ratingAdherence: 3,
 };

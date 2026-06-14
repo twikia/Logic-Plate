@@ -35,6 +35,7 @@ import {
   setHomeCarouselIndex,
 } from '@/core/homeSpotlightState';
 import { pickFunHomeTitle, onHomeTitleReroll } from '@/core/homeTitle';
+import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -523,6 +524,7 @@ function SpotlightCard({
   const { formatDistance, formatWalkingTime } = useDistanceFormatter();
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
   const reviews = place.userRatingCount;
+  const costLabel = formatRestaurantCostLabel(place);
   const [photos, setPhotos] = useState<any[]>(place.photos || []);
 
   useEffect(() => {
@@ -641,13 +643,71 @@ function SpotlightCard({
           <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
             {name}
           </Text>
-          <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
-            {formatDistance(Math.round(place.distanceMeters ?? 0))}
-            {` \u00b7 ${formatWalkingTime(Math.round(place.distanceMeters ?? 0))}`}
-            {rating
-              ? ` \u00b7 ${rating} \u2605${reviews ? ` (${formatReviewCount(reviews)})` : ''}`
-              : ''}
-          </Text>
+          <View style={styles.spotlightMetaRow}>
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+              ]}
+            >
+              <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
+                {formatDistance(Math.round(place.distanceMeters ?? 0))}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+              ]}
+            >
+              <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
+                {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
+              </Text>
+            </View>
+            {rating ? (
+              <View
+                style={[
+                  styles.spotlightMetaPill,
+                  neonUi
+                    ? styles.spotlightMetaPillNeon
+                    : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                ]}
+              >
+                <Ionicons name="star" size={11} color="#FBBF24" />
+                <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
+                  {rating}
+                  {reviews ? ` (${formatReviewCount(reviews)})` : ''}
+                </Text>
+              </View>
+            ) : null}
+            {costLabel ? (
+              <View
+                style={[
+                  styles.spotlightMetaPill,
+                  neonUi
+                    ? styles.spotlightMetaPillNeon
+                    : { backgroundColor: 'rgba(249,160,111,0.14)', borderColor: 'rgba(249,160,111,0.28)' },
+                ]}
+              >
+                <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
+                <Text
+                  style={[
+                    styles.spotlightMetaText,
+                    styles.spotlightMetaPrice,
+                    { color: neonUi ? NEON_MAGENTA : '#F9A06F' },
+                  ]}
+                >
+                  {costLabel}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
       <View style={styles.scorePentagonCol}>
@@ -1179,7 +1239,37 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: '800',
   },
-  spotlightSub: { fontSize: 12 },
+  spotlightMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 5,
+  },
+  spotlightMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  spotlightMetaPillNeon: {
+    backgroundColor: 'rgba(0,255,255,0.1)',
+    borderColor: 'rgba(0,255,255,0.22)',
+  },
+  spotlightMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
+  spotlightMetaRating: {
+    color: '#FBBF24',
+    fontWeight: '700',
+  },
+  spotlightMetaPrice: {
+    fontWeight: '700',
+  },
   scorePentagonCol: {
     width: '100%',
     alignItems: 'center',

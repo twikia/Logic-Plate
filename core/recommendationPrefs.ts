@@ -15,8 +15,60 @@ import {
 const TOP_CUISINE_IDS = new Set(TOP_CUISINE_TILES.map(t => t.id));
 
 const STORAGE_KEY = 'recommendation_prefs_v1';
+const ONBOARDING_DONE_KEY = 'recommendation_onboarding_done_v1';
 
 const LEGACY_WEIGHT_KEYS = ['distance', 'health', 'price', 'rating', 'novelty'] as const;
+
+let cachedPrefs: RecommendationPrefsV1 | null = null;
+let loadingPromise: Promise<RecommendationPrefsV1> | null = null;
+
+function weightsMatchDefaults(weights: RecommendationWeights): boolean {
+  for (const key of allPriorityMetricKeys()) {
+    if (weights[key] !== DEFAULT_WEIGHTS[key]) return false;
+  }
+  return true;
+}
+
+export function hasConfiguredRecommendationPrefs(prefs: RecommendationPrefsV1): boolean {
+  if (prefs.favoriteCuisines.length > 0) return true;
+  return !weightsMatchDefaults(prefs.weights);
+}
+
+export function needsRecommendationOnboarding(prefs: RecommendationPrefsV1): boolean {
+  if (prefs.onboardingComplete) return false;
+  return !hasConfiguredRecommendationPrefs(prefs);
+}
+
+async function readOnboardingDoneFlag(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(ONBOARDING_DONE_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+async function writeOnboardingDoneFlag(done: boolean): Promise<void> {
+  try {
+    if (done) {
+      await AsyncStorage.setItem(ONBOARDING_DONE_KEY, '1');
+    } else {
+      await AsyncStorage.removeItem(ONBOARDING_DONE_KEY);
+    }
+  } catch {
+    //
+  }
+}
+
+export async function isRecommendationOnboardingRequired(): Promise<boolean> {
+  if (await readOnboardingDoneFlag()) return false;
+
+  const prefs = await getRecommendationPrefs();
+  const needs = needsRecommendationOnboarding(prefs);
+  if (!needs) {
+    await writeOnboardingDoneFlag(true);
+  }
+  return needs;
+}
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
@@ -75,10 +127,7 @@ function sanitizeWeights(w: Partial<RecommendationWeights> | Record<string, unkn
     }
     if (legacy.novelty != null) {
       const n = legacyLevelFromHundred(legacy.novelty, 3);
-      if (out.cuisineVariety === DEFAULT_WEIGHTS.cuisineVariety) out.cuisineVariety = n;
-      if (out.cuisineAdherence === DEFAULT_WEIGHTS.cuisineAdherence) {
-        out.cuisineAdherence = (6 - n) as ImportanceLevel;
-      }
+      if (out.cuisine === DEFAULT_WEIGHTS.cuisine) out.cuisine = n;
     }
   }
 
@@ -104,7 +153,15 @@ function sanitizeFavoriteCuisines(raw: unknown): string[] {
 }
 
 export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | null): RecommendationPrefsV1 {
-  if (!raw || raw.v !== 1) return { ...DEFAULT_PREFS_V1 };
+  if (!raw) return { ...DEFAULT_PREFS_V1 };
+
+  const hasStoredData =
+    raw.weights != null ||
+    (Array.isArray(raw.favoriteCuisines) && raw.favoriteCuisines.length > 0) ||
+    typeof raw.onboardingComplete === 'boolean';
+
+  if (raw.v !== 1 && !hasStoredData) return { ...DEFAULT_PREFS_V1 };
+
   const weights = sanitizeWeights(raw.weights);
   return {
     v: 1,
@@ -119,23 +176,50 @@ export function mergeRecommendationPrefs(raw: Partial<RecommendationPrefsV1> | n
   };
 }
 
-export async function getRecommendationPrefs(): Promise<RecommendationPrefsV1> {
+async function loadPrefsFromStorage(): Promise<RecommendationPrefsV1> {
   try {
     const s = await AsyncStorage.getItem(STORAGE_KEY);
     if (!s) return { ...DEFAULT_PREFS_V1 };
     const parsed = JSON.parse(s) as Partial<RecommendationPrefsV1>;
-    return mergeRecommendationPrefs(parsed);
+    let merged = mergeRecommendationPrefs(parsed);
+    if (!merged.onboardingComplete && hasConfiguredRecommendationPrefs(merged)) {
+      merged = { ...merged, onboardingComplete: true };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    }
+    return merged;
   } catch {
     return { ...DEFAULT_PREFS_V1 };
   }
 }
 
+export async function getRecommendationPrefs(): Promise<RecommendationPrefsV1> {
+  if (cachedPrefs) return { ...cachedPrefs };
+
+  if (!loadingPromise) {
+    loadingPromise = loadPrefsFromStorage().then(prefs => {
+      cachedPrefs = prefs;
+      loadingPromise = null;
+      return prefs;
+    });
+  }
+
+  return { ...(await loadingPromise) };
+}
+
 export async function saveRecommendationPrefs(prefs: RecommendationPrefsV1): Promise<void> {
-  const merged = mergeRecommendationPrefs(prefs);
+  let merged = mergeRecommendationPrefs(prefs);
+  if (!merged.onboardingComplete && hasConfiguredRecommendationPrefs(merged)) {
+    merged = { ...merged, onboardingComplete: true };
+  }
+  if (merged.onboardingComplete) {
+    await writeOnboardingDoneFlag(true);
+  }
+  cachedPrefs = merged;
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
 }
 
 export async function markOnboardingComplete(partial?: Partial<RecommendationPrefsV1>): Promise<void> {
+  await writeOnboardingDoneFlag(true);
   const cur = await getRecommendationPrefs();
   await saveRecommendationPrefs({
     ...mergeRecommendationPrefs({ ...cur, ...partial, onboardingComplete: true }),
@@ -144,5 +228,8 @@ export async function markOnboardingComplete(partial?: Partial<RecommendationPre
 }
 
 export async function resetRecommendationPrefsToOnboarding(): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ ...DEFAULT_PREFS_V1 }));
+  cachedPrefs = { ...DEFAULT_PREFS_V1 };
+  loadingPromise = null;
+  await writeOnboardingDoneFlag(false);
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cachedPrefs));
 }
