@@ -2,6 +2,7 @@
 
 import { fetchPhotoUrlsForPlaces } from '@/lib/restaurantPhotos';
 import {
+  aiOverviewBody,
   formatDistance,
   formatRestaurantCostLabel,
   oneLineSummary,
@@ -584,7 +585,7 @@ export default function VoteByCodePage() {
         <div className="max-w-lg mx-auto px-4 py-8">
           <h1 className="text-2xl font-extrabold mb-1">Pick your favorite</h1>
           <p className="text-zinc-400 text-sm mb-6">
-            {hasVoted ? 'Your vote is in ✓' : 'Tap a card to expand · tap the box to vote'}
+            {hasVoted ? 'Your vote is in ✓' : 'Tap a card to expand, then vote →'}
           </p>
           {voteErr ? (
             <p className="text-red-400 text-sm mb-4 p-3 bg-red-900/20 rounded-xl" role="alert">
@@ -607,7 +608,8 @@ export default function VoteByCodePage() {
               ].filter(Boolean);
               const isExpanded = expandedCards.has(r.id);
               const isVotedFor = votedForId === r.id;
-              const summary = oneLineSummary(r);
+              const overview = aiOverviewBody(r);
+              const healthScore = r.healthScore ?? r.aiOverview?.healthScore;
               return (
                 <div
                   key={r.id}
@@ -620,10 +622,10 @@ export default function VoteByCodePage() {
                       <img
                         src={photo}
                         alt=""
-                        className="w-16 h-16 rounded-xl object-cover shrink-0 bg-zinc-800"
+                        className="w-16 h-16 rounded-xl object-cover shrink-0 bg-[#CCFBF1]"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-xl bg-zinc-800 shrink-0" />
+                      <div className="w-16 h-16 rounded-xl bg-[#CCFBF1] shrink-0" />
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-base leading-snug">{r.displayName?.text ?? 'Restaurant'}</div>
@@ -638,37 +640,46 @@ export default function VoteByCodePage() {
                       type="button"
                       disabled={hasVoted}
                       onClick={(e) => { e.stopPropagation(); void castVote(r.id); }}
-                      className={`w-9 h-9 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${
+                      className={`w-14 h-14 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all ${
                         isVotedFor
                           ? 'border-sky-500 bg-sky-500/20'
                           : hasVoted
                           ? 'border-zinc-700 bg-transparent cursor-not-allowed'
                           : 'border-zinc-600 bg-transparent hover:border-sky-500 cursor-pointer'
                       }`}>
-                      {isVotedFor ? <span className="text-sky-400 font-bold text-base">✓</span> : null}
+                      {isVotedFor ? (
+                        <span className="text-sky-400 font-extrabold text-[26px] leading-none">✓</span>
+                      ) : hasVoted ? null : (
+                        <span className="text-zinc-400 font-extrabold text-[13px] tracking-wide">Vote</span>
+                      )}
                     </button>
                   </div>
                   {isExpanded ? (
                     <div className="mt-3 pt-3 border-t border-zinc-800/80 space-y-3">
-                      {summary ? (
-                        <p className="text-zinc-300 text-sm leading-relaxed">{summary}</p>
-                      ) : null}
-                      {typeof r.groupScore === 'number' ? (
-                        <p className="text-sky-400 font-semibold text-sm">Group match {r.groupScore}</p>
-                      ) : null}
-                      {typeof (r.healthScore ?? r.aiOverview?.healthScore) === 'number' ? (
+                      {typeof healthScore === 'number' ? (
                         <div className="flex items-center gap-2">
                           <span className="text-zinc-500 text-xs font-semibold w-12 shrink-0">Health</span>
-                          <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-green-500 rounded-full transition-all duration-500"
-                              style={{ width: `${(((r.healthScore ?? r.aiOverview?.healthScore) ?? 0) / 10) * 100}%` }}
+                              style={{ width: `${(healthScore / 10) * 100}%` }}
                             />
                           </div>
-                          <span className="text-green-400 text-xs font-bold shrink-0">
-                            {((r.healthScore ?? r.aiOverview?.healthScore) ?? 0).toFixed(1)}/10
+                          <span className="text-green-400 text-[11px] font-bold shrink-0 min-w-[36px] text-right">
+                            {healthScore.toFixed(1)}/10
                           </span>
                         </div>
+                      ) : null}
+                      {overview ? (
+                        <div>
+                          <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mb-1">
+                            AI overview
+                          </p>
+                          <p className="text-zinc-100 text-sm leading-[21px] whitespace-pre-wrap">{overview}</p>
+                        </div>
+                      ) : null}
+                      {typeof r.groupScore === 'number' ? (
+                        <p className="text-sky-400 font-bold text-sm">Group match {r.groupScore}</p>
                       ) : null}
                       <div>
                         <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -698,7 +709,7 @@ export default function VoteByCodePage() {
               <img
                 src={pickPhotoUrl(winnerPlace, photoUrls[winnerPlace.id] ?? null) ?? ''}
                 alt=""
-                className="w-full rounded-xl object-cover aspect-[16/9] bg-zinc-800"
+                className="w-full rounded-xl object-cover aspect-[16/9] bg-[#CCFBF1]"
               />
             ) : null}
             <h2 className="text-2xl font-bold">{winnerPlace.displayName?.text}</h2>

@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useRouter, useRootNavigationState, useSegments } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import { getRecommendationPrefs } from '@/core/recommendationPrefs';
+import { isRecommendationOnboardingRequired } from '@/core/recommendationPrefs';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function resolveAuthRoute(
   segments: string[],
   needsUsername: boolean,
-  onboardingComplete: boolean,
+  needsOnboarding: boolean,
   isGuest: boolean
 ): string | null {
   const seg0 = segments[0];
@@ -27,8 +27,12 @@ function resolveAuthRoute(
     return inAuth && onPickUsername ? null : '/(auth)/pick-username';
   }
 
-  if (!onboardingComplete) {
+  if (needsOnboarding) {
     return onWelcome ? null : '/welcome-onboarding';
+  }
+
+  if (onWelcome) {
+    return '/(tabs)';
   }
 
   if (inAuth) {
@@ -71,10 +75,10 @@ export function AuthGate() {
     let cancelled = false;
 
     void (async () => {
-      const prefs = await getRecommendationPrefs();
+      const needsOnboarding = await isRecommendationOnboardingRequired();
       if (cancelled) return;
 
-      const target = resolveAuthRoute(segs, needsUsername, !!prefs.onboardingComplete, isGuest);
+      const target = resolveAuthRoute(segs, needsUsername, needsOnboarding, isGuest);
       if (target) {
         if (routeMatchesTarget(segs, target)) {
           pendingTarget.current = null;

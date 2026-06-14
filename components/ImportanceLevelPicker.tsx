@@ -58,6 +58,14 @@ export function ImportanceLevelPicker({ metric, value, onChange, compact }: Prop
           );
         })}
       </View>
+      {metric.rangeLowLabel && metric.rangeHighLabel ? (
+        <View style={styles.rangeRow}>
+          <Text style={[styles.rangeLabel, { color: theme.subtext }]}>{metric.rangeLowLabel}</Text>
+          <Text style={[styles.rangeLabel, styles.rangeLabelRight, { color: theme.subtext }]}>
+            {metric.rangeHighLabel}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -120,4 +128,12 @@ const styles = StyleSheet.create({
   levelEmoji: { fontSize: 22 },
   levelEmojiCompact: { fontSize: 18 },
   levelNum: { fontSize: 10, fontWeight: '800', marginTop: 2 },
+  rangeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    gap: 8,
+  },
+  rangeLabel: { flex: 1, fontSize: 11, fontWeight: '600', lineHeight: 15 },
+  rangeLabelRight: { textAlign: 'right' },
 });

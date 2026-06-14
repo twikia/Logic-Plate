@@ -8,6 +8,8 @@ export interface ThemeColors {
   tint: string;
   buttonBackground: string;
   glassBackground: string;
+  /** Muted backdrop for transparent restaurant logos/images */
+  imageBackdrop: string;
   /** Controls button/chip shape rendering strategy.
    *  'pill' | 'rectangle' → standard borderRadius views.
    *  'trapezoid' | 'hexagon' → absolute-positioned SVG behind content. */

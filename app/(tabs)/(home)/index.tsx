@@ -35,6 +35,7 @@ import {
   setHomeCarouselIndex,
 } from '@/core/homeSpotlightState';
 import { pickFunHomeTitle, onHomeTitleReroll } from '@/core/homeTitle';
+import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -130,6 +131,8 @@ const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
+const SCORE_BEST_COLOR = '#00E5FF';
+const SCORE_WORST_COLOR = '#FF4444';
 
 const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
   { bg: 'rgba(0,35,48,0.92)', mark: '#FFFFFF' },
@@ -270,6 +273,24 @@ function RestaurantScorePentagon({
   const gridSW = useSketch ? 0.3 : neon ? 0.5 : 0.35;
   const outerGridSW = useSketch ? 0.35 : neon ? 0.55 : 0.45;
   const polygonSW = useSketch ? 1.5 : neon ? 1.45 : 1.25;
+  const cornerFontSize = 5.8;
+  const scoreFontSize = 5.4;
+  const bestColor = neon ? NEON_CYAN : SCORE_BEST_COLOR;
+  const worstColor = SCORE_WORST_COLOR;
+  const axisNorms = axes.map(({ key, max }) => {
+    const s = scoreAxis(ai, key);
+    if (s == null) return 0;
+    return clampScore(s, max) / max;
+  });
+  const maxNorm = Math.max(...axisNorms);
+  const minNorm = Math.min(...axisNorms);
+  const axisLabelColor = (i: number) => {
+    if (maxNorm === minNorm) return ringLabel;
+    const norm = axisNorms[i];
+    if (norm === maxNorm) return bestColor;
+    if (norm === minNorm) return worstColor;
+    return ringLabel;
+  };
 
   const gradFrom = neon ? NEON_CYAN : gradientColors?.[0] ?? stroke;
   const gradTo = neon ? NEON_MAGENTA : gradientColors?.[1] ?? stroke;
@@ -395,13 +416,14 @@ function RestaurantScorePentagon({
             const ly = cy + labelR * Math.sin(t);
             const s = scoreAxis(ai, key);
             const reading = formatAxisReading(max, s);
+            const labelFill = axisLabelColor(i);
             return (
               <G key={corner}>
                 <SvgText
                   x={lx}
                   y={ly - 2.4}
-                  fill={ringLabel}
-                  fontSize={5}
+                  fill={labelFill}
+                  fontSize={cornerFontSize}
                   fontWeight="700"
                   textAnchor="middle"
                   alignmentBaseline="middle"
@@ -411,8 +433,8 @@ function RestaurantScorePentagon({
                 <SvgText
                   x={lx}
                   y={ly + 3.6}
-                  fill={ringLabel}
-                  fontSize={4.1}
+                  fill={labelFill}
+                  fontSize={scoreFontSize}
                   fontWeight="600"
                   textAnchor="middle"
                   alignmentBaseline="middle"
@@ -449,13 +471,14 @@ function RestaurantScorePentagon({
           const ly = cy + labelR * Math.sin(t);
           const s = scoreAxis(ai, key);
           const reading = formatAxisReading(max, s);
+          const labelFill = axisLabelColor(i);
           return (
             <G key={corner}>
               <SvgText
                 x={lx}
                 y={ly - 2.4}
-                fill={ringLabel}
-                fontSize={5}
+                fill={labelFill}
+                fontSize={cornerFontSize}
                 fontWeight="700"
                 textAnchor="middle"
                 alignmentBaseline="middle"
@@ -465,8 +488,8 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly + 3.6}
-                fill={ringLabel}
-                fontSize={4.1}
+                fill={labelFill}
+                fontSize={scoreFontSize}
                 fontWeight="600"
                 textAnchor="middle"
                 alignmentBaseline="middle"
@@ -501,6 +524,7 @@ function SpotlightCard({
   const { formatDistance, formatWalkingTime } = useDistanceFormatter();
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
   const reviews = place.userRatingCount;
+  const costLabel = formatRestaurantCostLabel(place);
   const [photos, setPhotos] = useState<any[]>(place.photos || []);
 
   useEffect(() => {
@@ -619,13 +643,71 @@ function SpotlightCard({
           <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
             {name}
           </Text>
-          <Text style={[styles.spotlightSub, { color: theme.subtext }]} numberOfLines={1}>
-            {formatDistance(Math.round(place.distanceMeters ?? 0))}
-            {` \u00b7 ${formatWalkingTime(Math.round(place.distanceMeters ?? 0))}`}
-            {rating
-              ? ` \u00b7 ${rating} \u2605${reviews ? ` (${formatReviewCount(reviews)})` : ''}`
-              : ''}
-          </Text>
+          <View style={styles.spotlightMetaRow}>
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+              ]}
+            >
+              <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
+                {formatDistance(Math.round(place.distanceMeters ?? 0))}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+              ]}
+            >
+              <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
+                {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
+              </Text>
+            </View>
+            {rating ? (
+              <View
+                style={[
+                  styles.spotlightMetaPill,
+                  neonUi
+                    ? styles.spotlightMetaPillNeon
+                    : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                ]}
+              >
+                <Ionicons name="star" size={11} color="#FBBF24" />
+                <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
+                  {rating}
+                  {reviews ? ` (${formatReviewCount(reviews)})` : ''}
+                </Text>
+              </View>
+            ) : null}
+            {costLabel ? (
+              <View
+                style={[
+                  styles.spotlightMetaPill,
+                  neonUi
+                    ? styles.spotlightMetaPillNeon
+                    : { backgroundColor: 'rgba(249,160,111,0.14)', borderColor: 'rgba(249,160,111,0.28)' },
+                ]}
+              >
+                <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
+                <Text
+                  style={[
+                    styles.spotlightMetaText,
+                    styles.spotlightMetaPrice,
+                    { color: neonUi ? NEON_MAGENTA : '#F9A06F' },
+                  ]}
+                >
+                  {costLabel}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
       <View style={styles.scorePentagonCol}>
@@ -1157,7 +1239,37 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: '800',
   },
-  spotlightSub: { fontSize: 12 },
+  spotlightMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 5,
+  },
+  spotlightMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  spotlightMetaPillNeon: {
+    backgroundColor: 'rgba(0,255,255,0.1)',
+    borderColor: 'rgba(0,255,255,0.22)',
+  },
+  spotlightMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
+  spotlightMetaRating: {
+    color: '#FBBF24',
+    fontWeight: '700',
+  },
+  spotlightMetaPrice: {
+    fontWeight: '700',
+  },
   scorePentagonCol: {
     width: '100%',
     alignItems: 'center',

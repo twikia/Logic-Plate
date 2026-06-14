@@ -15,6 +15,7 @@ type RestaurantPick = {
   aiOverview?: { summaryGoodBad?: string; healthScore?: number };
   healthScore?: number;
   groupScore?: number;
+  editorialSummary?: { text?: string };
 };
 
 function moneyToNumber(m?: Money): number | null {
@@ -81,6 +82,16 @@ export function oneLineSummary(r: RestaurantPick): string {
   const raw = r.gemini_summary ?? r.aiOverview?.summaryGoodBad ?? '';
   const line = raw.split('\n')[0]?.trim() ?? '';
   return line.length > 120 ? `${line.slice(0, 117)}…` : line;
+}
+
+export function aiOverviewBody(r: RestaurantPick): string {
+  const g = r.gemini_summary?.trim();
+  if (g) return g;
+  const s = r.aiOverview?.summaryGoodBad?.trim();
+  if (s) return s;
+  const ed = r.editorialSummary?.text?.trim();
+  if (ed) return ed;
+  return '';
 }
 
 export function pickPhotoUrl(r: RestaurantPick, cacheUrl?: string | null): string | null {

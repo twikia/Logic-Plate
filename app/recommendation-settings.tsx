@@ -1,6 +1,6 @@
-import { PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
+import { ImportanceLevelPicker, PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
 import { useAppTheme } from '@/context/ThemeContext';
-import { PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
+import { CUISINE_FIT_METRIC, PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { CuisineRankGrid } from '@/components/CuisineRankGrid';
 import { getRecommendationPrefs, saveRecommendationPrefs } from '@/core/recommendationPrefs';
 import {
@@ -84,8 +84,14 @@ export default function RecommendationSettingsScreen() {
 
           <Text style={[styles.sectionLabel, { color: theme.accent, marginTop: 24 }]}>Top cuisines</Text>
           <Text style={[styles.cuisineHint, { color: theme.subtext }]}>
-            Rank up to 5 in order. Higher ranks weigh more; adherence is set in Taste & cuisine above.
+            Rank up to 5 in order, then set how much we favor them when picking.
           </Text>
+          <ImportanceLevelPicker
+            metric={CUISINE_FIT_METRIC}
+            value={prefs.weights.cuisine}
+            onChange={level => setWeight('cuisine', level)}
+            compact
+          />
           <CuisineRankGrid
             ranked={prefs.favoriteCuisines}
             onChange={next => void persist({ ...prefs, favoriteCuisines: next })}
