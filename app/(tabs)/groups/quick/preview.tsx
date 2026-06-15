@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
   loadCachedRestaurants,
@@ -100,7 +101,8 @@ export default function QuickVotePreviewScreen() {
   const { restaurants, voterCount } = parsed;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <ThemedScreenBackground>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         <BackButton onPress={() => router.replace('/groups')} />
       </View>
@@ -139,6 +141,7 @@ export default function QuickVotePreviewScreen() {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
+    </ThemedScreenBackground>
   );
 }
 

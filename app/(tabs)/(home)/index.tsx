@@ -6,6 +6,7 @@ import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
+import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
@@ -57,9 +58,12 @@ import {
 } from 'react-native';
 import { FlatList, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -719,6 +723,7 @@ function SpotlightCard({
   const opacity = useSharedValue(1);
   const pressScale = useSharedValue(1);
   const panStartY = useSharedValue(0);
+  const floatY = useSharedValue(0);
 
   const rejectRef = useRef(onReject);
   rejectRef.current = onReject;
@@ -731,6 +736,17 @@ function SpotlightCard({
     ty.value = 0;
     opacity.value = 1;
   }, [placeId, ty, opacity]);
+
+  useEffect(() => {
+    floatY.value = withRepeat(
+      withSequence(
+        withTiming(-3, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    );
+  }, [floatY]);
 
   const pressRef = useRef(onPress);
   pressRef.current = onPress;
@@ -785,7 +801,7 @@ function SpotlightCard({
   );
 
   const cardAnim = useAnimatedStyle(() => ({
-    transform: [{ translateY: ty.value }, { scale: pressScale.value }],
+    transform: [{ translateY: ty.value + floatY.value }, { scale: pressScale.value }],
     opacity: opacity.value,
   }));
 
@@ -803,7 +819,7 @@ function SpotlightCard({
         />
       </View>
       <View style={styles.spotlightHeroText}>
-        <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
+        <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
           {name}
         </Text>
         <View style={styles.spotlightMetaRow}>
@@ -939,6 +955,73 @@ function SpotlightCard({
   );
 
   return cardInner;
+}
+
+function AnimatedDot({ active, accentColor, inactiveColor }: { active: boolean; accentColor: string; inactiveColor: string }) {
+  const scale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (active) {
+      scale.value = withRepeat(
+        withSequence(
+          withTiming(1.35, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1.0, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      );
+      glowOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.7, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.25, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      scale.value = withTiming(1, { duration: 300 });
+      glowOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [active, scale, glowOpacity]);
+
+  const dotAnim = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const glowAnim = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
+  return (
+    <View style={{ width: 16, height: 16, justifyContent: 'center', alignItems: 'center' }}>
+      {active && (
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              width: 16,
+              height: 16,
+              borderRadius: 8,
+              backgroundColor: accentColor,
+            },
+            glowAnim,
+          ]}
+        />
+      )}
+      <Animated.View
+        style={[
+          {
+            width: active ? 9 : 6,
+            height: active ? 9 : 6,
+            borderRadius: active ? 4.5 : 3,
+            backgroundColor: active ? accentColor : inactiveColor,
+          },
+          dotAnim,
+        ]}
+      />
+    </View>
+  );
 }
 
 export default function HomeScreen() {
@@ -1262,12 +1345,10 @@ export default function HomeScreen() {
                     onPress={() => goToPick(i)}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   >
-                    <View
-                      style={[
-                        styles.dot,
-                        i === pickIndex && styles.dotActive,
-                        { backgroundColor: i === pickIndex ? theme.accent : (rootNeon ? 'rgba(255,255,255,0.3)' : theme.cardBorderColor) },
-                      ]}
+                    <AnimatedDot
+                      active={i === pickIndex}
+                      accentColor={theme.accent}
+                      inactiveColor={rootNeon ? 'rgba(255,255,255,0.3)' : theme.cardBorderColor}
                     />
                   </TouchableOpacity>
                 ))}
@@ -1280,7 +1361,10 @@ export default function HomeScreen() {
   );
 
   return rootNeon ? (
-    <View style={[styles.background, { backgroundColor: '#000000' }]}>{homeBody}</View>
+    <View style={[styles.background, { backgroundColor: '#000000' }]}>
+      <NeonAmbientGlow />
+      {homeBody}
+    </View>
   ) : (
     <LinearGradient
       colors={theme.gradient}

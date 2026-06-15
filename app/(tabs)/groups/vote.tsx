@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
 import { clearHostSessionId, onHostSessionEndRequest } from '@/core/groupSessionState';
 import { supabase } from '@/core/supabaseClient';
@@ -189,34 +190,39 @@ export default function GroupVoteScreen() {
 
   if (sessionEnded) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <View style={styles.center}>
-          <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
-          <Text style={[styles.endedTitle, { color: theme.text }]}>Session Ended</Text>
-          <Text style={[styles.endedSub, { color: theme.subtext }]}>The host ended this session.</Text>
-          <TouchableOpacity
-            style={[styles.endedBtn, { backgroundColor: theme.accent }]}
-            onPress={() => router.replace('/groups')}>
-            <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>Back to Groups</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <ThemedScreenBackground>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
+            <Text style={[styles.endedTitle, { color: theme.text }]}>Session Ended</Text>
+            <Text style={[styles.endedSub, { color: theme.subtext }]}>The host ended this session.</Text>
+            <TouchableOpacity
+              style={[styles.endedBtn, { backgroundColor: theme.accent }]}
+              onPress={() => router.replace('/groups')}>
+              <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>Back to Groups</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </ThemedScreenBackground>
     );
   }
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} size="large" />
-          <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading restaurants…</Text>
-        </View>
-      </SafeAreaView>
+      <ThemedScreenBackground>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            <ActivityIndicator color={theme.accent} size="large" />
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading restaurants…</Text>
+          </View>
+        </SafeAreaView>
+      </ThemedScreenBackground>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <ThemedScreenBackground>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         {isHost ? (
           <View style={styles.topSpacer} />
@@ -275,6 +281,7 @@ export default function GroupVoteScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
+    </ThemedScreenBackground>
   );
 }
 

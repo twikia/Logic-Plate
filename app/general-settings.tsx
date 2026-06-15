@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '@/context/ThemeContext';
+import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import { useAuth } from '@/context/AuthContext';
 import { 
   getDistanceUnit, setDistanceUnit, 
@@ -108,6 +109,7 @@ export default function GeneralSettingsScreen() {
 
   return (
     <LinearGradient colors={[theme.gradient[0], theme.gradient[1] ?? theme.cardBackground]} style={styles.container}>
+      <NeonAmbientGlow />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import type { ThemeColors } from './types';
 
 export type { ThemeColors };
@@ -22,9 +23,33 @@ export const Themes: Record<string, ThemeColors> = {
     radarGridColor: 'rgba(0,255,255,0.22)',
     pageTitleColor: '#FFFFFF',
     neonColors: ['#00FFFF', '#9400FF', '#FF00FF', '#00FFFF'],
-    neonBorderSpin: false,
+    neonBorderSpin: true,
     matchOrbVariant: 'segmented',
     radarVariant: 'gradient',
+  },
+  hacker_green: {
+    name: 'Hacker',
+    gradient: ['#000000', '#001500'],
+    cardBackground: '#010e01',
+    accent: '#00FF41',
+    accentOnColor: '#000000',
+    text: '#D0FFD0',
+    subtext: 'rgba(0,255,65,0.58)',
+    tint: '#00FF41',
+    buttonBackground: 'rgba(0,255,65,0.10)',
+    glassBackground: 'rgba(0,255,65,0.06)',
+    imageBackdrop: '#001200',
+    buttonShape: 'pill',
+    cardBorderColor: 'rgba(0,255,65,0.45)',
+    cardShadowColor: '#00FF41',
+    matchOrbColors: ['#00FF41', '#39FF14'],
+    radarGridColor: 'rgba(0,255,65,0.18)',
+    pageTitleColor: '#00FF41',
+    neonColors: ['#00FF41', '#007A1F', '#39FF14', '#00FF41'],
+    neonBorderSpin: true,
+    matchOrbVariant: 'segmented',
+    radarVariant: 'gradient',
+    fontFamily: Platform.select({ ios: 'Courier New', android: 'monospace', default: '"Courier New", Courier, monospace' }),
   },
   sketch_paper: {
     name: 'Sketch Paper',

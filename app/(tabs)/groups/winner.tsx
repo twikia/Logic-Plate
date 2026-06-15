@@ -18,6 +18,7 @@ import { RestaurantImage } from '@/core/images';
 import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { subscribeToSessionStatus } from '@/utils/groupRealtime';
 import { oneLineVibe, type QuickVoteRestaurant } from '@/utils/quickVote';
@@ -100,12 +101,14 @@ export default function GroupWinnerScreen() {
 
   if (loading || !winner) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} size="large" />
-          <Text style={[styles.loadingText, { color: theme.subtext }]}>{t('groupWinner.tallyingVotes')}</Text>
-        </View>
-      </SafeAreaView>
+      <ThemedScreenBackground>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            <ActivityIndicator color={theme.accent} size="large" />
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>{t('groupWinner.tallyingVotes')}</Text>
+          </View>
+        </SafeAreaView>
+      </ThemedScreenBackground>
     );
   }
 
@@ -117,7 +120,8 @@ export default function GroupWinnerScreen() {
       : null;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <ThemedScreenBackground>
+    <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={[styles.celebrate, { color: theme.accent }]}>🎉</Text>
         <Text style={[styles.winTitle, { color: theme.text }]}>{t('groupWinner.youreGoingHere')}</Text>
@@ -180,6 +184,7 @@ export default function GroupWinnerScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+    </ThemedScreenBackground>
   );
 }
 

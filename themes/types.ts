@@ -59,4 +59,6 @@ export interface ThemeColors {
    *  'primary-ghost'     → first button accent-filled, second ghost (default).
    *  'outline-outline'   → both buttons outlined, no fill. */
   buttonVariant?: 'primary-ghost' | 'outline-outline';
+  /** Optional font family override for titles and key text elements. */
+  fontFamily?: string;
 }

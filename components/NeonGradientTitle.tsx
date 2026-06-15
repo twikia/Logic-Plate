@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import { useAppTheme } from '@/context/ThemeContext';
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
@@ -15,20 +16,26 @@ type Props = {
 export function NeonGradientTitle({ text, width, fontSize = 29, style }: Props) {
   const gid = useId().replace(/:/g, '');
   const h = Math.round(fontSize * 1.45);
+  const { theme } = useAppTheme();
+
+  const fromColor = theme.neonColors?.[0] ?? NEON_CYAN;
+  const toColor = theme.neonColors?.[2] ?? NEON_MAGENTA;
+  const fontFamily = theme.fontFamily ?? undefined;
 
   return (
     <View style={[styles.wrap, { height: h, marginBottom: 4 }, style]}>
       <Svg width={width} height={h}>
         <Defs>
           <SvgLinearGradient id={`ngt-${gid}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={NEON_CYAN} />
-            <Stop offset="1" stopColor={NEON_MAGENTA} />
+            <Stop offset="0" stopColor={fromColor} />
+            <Stop offset="1" stopColor={toColor} />
           </SvgLinearGradient>
         </Defs>
         <SvgText
           fill={`url(#ngt-${gid})`}
           fontSize={fontSize}
           fontWeight="800"
+          fontFamily={fontFamily}
           x={width / 2}
           y={h - 11}
           textAnchor="middle"

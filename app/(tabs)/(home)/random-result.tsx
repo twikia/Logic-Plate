@@ -1,4 +1,5 @@
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
+import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import {
   NUTRITION_METRICS,
@@ -393,6 +394,7 @@ export default function RandomResultScreen() {
       end={{ x: 1, y: 0 }}
       style={styles.bg}
     >
+      <NeonAmbientGlow />
       <View style={styles.root}>
         <View style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}>
           <AnimatedPressable

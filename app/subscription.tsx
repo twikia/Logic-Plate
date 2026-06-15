@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import * as Haptics from 'expo-haptics';
 import { useAppTheme } from '@/context/ThemeContext';
+import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -65,6 +66,7 @@ export default function SubscriptionScreen() {
 
   return (
     <LinearGradient colors={[theme.gradient[0], '#1A1A1A']} style={styles.container}>
+      <NeonAmbientGlow />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>

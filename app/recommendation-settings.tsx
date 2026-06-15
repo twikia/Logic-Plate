@@ -1,4 +1,5 @@
 import { ImportanceLevelPicker, PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import { CUISINE_FIT_METRIC, PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { CuisineRankGrid } from '@/components/CuisineRankGrid';
@@ -46,7 +47,7 @@ export default function RecommendationSettingsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.cardBackground }]}>
+    <ThemedScreenBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable onPress={() => { hapticLight(); router.back(); }} style={styles.back}>
@@ -115,11 +116,11 @@ export default function RecommendationSettingsScreen() {
         </ScrollView>
       </SafeAreaView>
     </View>
+    </ThemedScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   safe: { flex: 1 },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {

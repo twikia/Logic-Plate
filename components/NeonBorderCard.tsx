@@ -154,7 +154,7 @@ function NeonAnimatedBorder({
 
   useEffect(() => {
     rotate.value = withRepeat(
-      withTiming(360, { duration: 3000, easing: Easing.linear }),
+      withTiming(360, { duration: 8000, easing: Easing.linear }),
       -1,
       false
     );

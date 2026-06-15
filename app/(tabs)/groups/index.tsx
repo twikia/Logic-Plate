@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 
 import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
 import { hapticMedium, hapticError, hapticSuccess } from '@/core/haptics';
@@ -73,7 +74,7 @@ export default function GroupsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.gradient[0] }]}>
+    <ThemedScreenBackground>
       <TopProfileButton />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.centerContent}>
@@ -137,12 +138,11 @@ export default function GroupsScreen() {
         </TouchableOpacity>
         </View>
       </SafeAreaView>
-    </View>
+    </ThemedScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   safe: { flex: 1 },
   headerTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   centerContent: {

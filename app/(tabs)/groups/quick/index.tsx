@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import { BackButton } from '@/components/ui/BackButton';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
   loadCachedRestaurants,
@@ -76,7 +77,7 @@ export default function QuickVoteSetupScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.gradient[0] }]}>
+    <ThemedScreenBackground>
       <TopProfileButton />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.headerRow}>
@@ -125,12 +126,11 @@ export default function QuickVoteSetupScreen() {
           </View>
         </View>
       </SafeAreaView>
-    </View>
+    </ThemedScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   safe: { flex: 1 },
   headerRow: {
     flexDirection: 'row',
