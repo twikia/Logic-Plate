@@ -26,8 +26,8 @@ import { registerUiSound } from '@/core/audioService';
 const clickSound = require('@/assets/audio/ui/denielcz-immersivecontrol-button-click-sound-463065.mp3');
 registerUiSound('tap', clickSound);
 registerUiSound('select', clickSound);
-registerUiSound('success', clickSound);
-registerUiSound('error', clickSound);
+registerUiSound('success', require('@/assets/audio/ui/juniorsoundays-ui-sound-70-527837.mp3'));
+registerUiSound('error', require('@/assets/audio/ui/miraclei-sample_deny_error04_kofi_by_miraclei-360158.mp3'));
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',

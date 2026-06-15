@@ -1,4 +1,4 @@
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { AppState, type AppStateStatus } from 'react-native';
 import { fetchAmbientAudioAssets, fetchAudioCatalogVersion } from './remoteResources';
 import {
@@ -8,6 +8,7 @@ import {
   writeAudioCatalogCache,
 } from './resourceCache';
 import { getMusicVolume, getSfxVolume, setMusicVolume, setSfxVolume } from './userSettings';
+import { musicUiLevelToPlayback } from './musicVolume';
 
 type SoundKey = 'tap' | 'select' | 'success' | 'error';
 
@@ -28,8 +29,8 @@ export function registerUiSound(key: SoundKey, asset: number): void {
 
 let sfxVolume = 0.5;
 let musicVolume = 0.5;
-const uiSounds: Partial<Record<SoundKey, Audio.Sound>> = {};
-let ambientSound: Audio.Sound | null = null;
+const uiSounds: Partial<Record<SoundKey, AudioPlayer>> = {};
+let ambientSound: AudioPlayer | null = null;
 let ambientPlaylist: PlaylistTrack[] = [];
 let ambientIndex = 0;
 let initialized = false;
@@ -39,12 +40,10 @@ export async function initAudio(): Promise<void> {
   initialized = true;
 
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-      shouldDuckAndroid: false,
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'mixWithOthers',
     });
     sfxVolume = await getSfxVolume();
     musicVolume = await getMusicVolume();
@@ -54,7 +53,12 @@ export async function initAudio(): Promise<void> {
 
   await _preloadUiSounds();
   await _loadRemoteAmbientPlaylist();
-  _startAmbient();
+  if (__DEV__ && ambientPlaylist.length === 0) {
+    console.warn(
+      '[audio] No ambient tracks loaded. Upload MP3s to the app-audio bucket and enable rows in app_audio_assets.'
+    );
+  }
+  await _startAmbient();
 
   AppState.addEventListener('change', _handleAppState);
 }
@@ -62,11 +66,9 @@ export async function initAudio(): Promise<void> {
 async function _preloadUiSounds(): Promise<void> {
   for (const [key, asset] of Object.entries(uiAssets) as [SoundKey, number][]) {
     try {
-      const { sound } = await Audio.Sound.createAsync(asset, {
-        volume: Math.min(sfxVolume, 0.5),
-        shouldPlay: false,
-      });
-      uiSounds[key] = sound;
+      const player = createAudioPlayer(asset);
+      player.volume = Math.min(sfxVolume, 0.5);
+      uiSounds[key] = player;
     } catch {
       // file not yet provided; skip silently
     }
@@ -97,6 +99,12 @@ async function _loadRemoteAmbientPlaylist(): Promise<void> {
 
       const assets = await fetchAmbientAudioAssets();
       if (assets.length === 0) {
+        if (__DEV__) {
+          console.warn(
+            '[audio] app_audio_assets returned 0 enabled ambient tracks. ' +
+              'Register rows with enabled=true; storage_path is the file path inside the bucket (not the bucket name).'
+          );
+        }
         if (tracks?.length) {
           ambientPlaylist = _shuffle(tracks);
           ambientIndex = 0;
@@ -120,15 +128,16 @@ async function _loadRemoteAmbientPlaylist(): Promise<void> {
         storagePath: asset.storage_path,
         contentVersion: asset.content_version,
       }));
-    } catch {
+    } catch (error) {
+      if (__DEV__) console.warn('[audio] Ambient catalog fetch failed:', error);
       if (!tracks?.length) return;
     }
 
     ambientPlaylist = _shuffle(tracks!);
     ambientIndex = 0;
     void _prefetchUpcomingTracks();
-  } catch {
-    // remote catalog unavailable
+  } catch (error) {
+    if (__DEV__) console.warn('[audio] Failed to load ambient catalog:', error);
   }
 }
 
@@ -154,6 +163,28 @@ async function _resolveTrackUri(track: PlaylistTrack): Promise<string | null> {
   return getCachedAudioUri(track.slug, track.storagePath, track.contentVersion);
 }
 
+async function _playWhenReady(player: AudioPlayer): Promise<void> {
+  if (player.isLoaded) {
+    player.play();
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      subscription.remove();
+      reject(new Error('audio load timeout'));
+    }, 30000);
+
+    const subscription = player.addListener('playbackStatusUpdate', (status) => {
+      if (!status.isLoaded) return;
+      clearTimeout(timeout);
+      subscription.remove();
+      player.play();
+      resolve();
+    });
+  });
+}
+
 async function _startAmbient(): Promise<void> {
   if (ambientPlaylist.length === 0 || musicVolume === 0) return;
   await _playNextAmbient();
@@ -163,7 +194,7 @@ async function _playNextAmbient(): Promise<void> {
   if (ambientPlaylist.length === 0 || musicVolume === 0) return;
   try {
     if (ambientSound) {
-      await ambientSound.unloadAsync();
+      ambientSound.remove();
       ambientSound = null;
     }
 
@@ -171,27 +202,30 @@ async function _playNextAmbient(): Promise<void> {
     ambientIndex = (ambientIndex + 1) % ambientPlaylist.length;
 
     const trackUri = await _resolveTrackUri(track);
-    if (!trackUri) return;
+    if (!trackUri) {
+      if (__DEV__) console.warn('[audio] No URI for track:', track.slug, track.storagePath);
+      return;
+    }
 
     void _prefetchUpcomingTracks();
 
-    const { sound } = await Audio.Sound.createAsync(
+    const isRemote = /^https?:\/\//i.test(trackUri);
+    const player = createAudioPlayer(
       { uri: trackUri },
-      {
-        volume: musicVolume,
-        shouldPlay: true,
-      }
+      isRemote ? { downloadFirst: true } : undefined
     );
-    ambientSound = sound;
+    player.volume = musicUiLevelToPlayback(musicVolume);
+    ambientSound = player;
 
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (!status.isLoaded) return;
+    player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish) {
         void _playNextAmbient();
       }
     });
-  } catch {
-    // track unavailable
+
+    await _playWhenReady(player);
+  } catch (error) {
+    if (__DEV__) console.warn('[audio] Ambient playback failed:', error);
   }
 }
 
@@ -199,20 +233,20 @@ async function _handleAppState(state: AppStateStatus): Promise<void> {
   if (!ambientSound) return;
   try {
     if (state === 'active') {
-      if (musicVolume > 0) await ambientSound.playAsync();
+      if (musicVolume > 0) ambientSound.play();
     } else {
-      await ambientSound.pauseAsync();
+      ambientSound.pause();
     }
   } catch {}
 }
 
 async function _playUi(key: SoundKey): Promise<void> {
   if (sfxVolume === 0) return;
-  const sound = uiSounds[key];
-  if (!sound) return;
+  const player = uiSounds[key];
+  if (!player) return;
   try {
-    await sound.setPositionAsync(0);
-    await sound.playAsync();
+    await player.seekTo(0);
+    player.play();
   } catch {}
 }
 
@@ -236,9 +270,9 @@ export async function setSfxVolumeLevel(level: number): Promise<void> {
   sfxVolume = level;
   await setSfxVolume(level);
 
-  for (const sound of Object.values(uiSounds)) {
+  for (const player of Object.values(uiSounds)) {
     try {
-      await sound?.setVolumeAsync(Math.min(level, 0.5));
+      if (player) player.volume = Math.min(level, 0.5);
     } catch {}
   }
 }
@@ -250,12 +284,11 @@ export async function setMusicVolumeLevel(level: number): Promise<void> {
   if (ambientSound) {
     try {
       if (level === 0) {
-        await ambientSound.pauseAsync();
+        ambientSound.pause();
       } else {
-        await ambientSound.setVolumeAsync(level);
-        const status = await ambientSound.getStatusAsync();
-        if (status.isLoaded && !status.isPlaying) {
-          await ambientSound.playAsync();
+        ambientSound.volume = musicUiLevelToPlayback(level);
+        if (!ambientSound.playing) {
+          ambientSound.play();
         }
       }
     } catch {}

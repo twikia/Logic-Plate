@@ -1,20 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 import { playTap } from '@/core/audioService';
-import Svg, { Circle, Polygon } from 'react-native-svg';
 
 const RADIUS = 14;
 const GLOW = 4;
-const TIP_H = 8;
-const TIP_SIDE = 5;
-const BOTTOM_PAD = 2;
+const CLIP_PAD = 6;
+// ▼ is a font glyph — rendered by TextPaint directly onto the software canvas,
+// so it always appears in the react-native-maps bitmap capture on Android.
+// Transforms (rotate) and SVG both use hardware layers that the software-canvas
+// capture silently skips, which is why those approaches produced no pointer.
+const TIP_FONT_SIZE = 13;
+const TIP_OVERLAP = 1; // px the ▼ slides under the disc edge to avoid gaps
 
 const MARKER_BG = '#120A1F';
 const ACCENT_SELECTED = '#00FFFF';
 const BORDER_W = 2;
+
+const GLOW_DIAM = (RADIUS + GLOW) * 2;  // 36
+const DISC_DIAM = RADIUS * 2;           // 28
+const TOTAL_W = GLOW_DIAM + CLIP_PAD * 2; // 48
+const DISC_TOP = CLIP_PAD + GLOW;        // 10
+const DISC_BOTTOM = DISC_TOP + DISC_DIAM; // 38
+const TIP_TOP = DISC_BOTTOM - TIP_OVERLAP; // 37
+const TOTAL_H = TIP_TOP + TIP_FONT_SIZE + 2; // 52  (2 dp safety at bottom)
 
 type RestaurantMapMarkerProps = {
   item: any;
@@ -37,7 +48,7 @@ export function RestaurantMapMarker({
 
   useEffect(() => {
     if (tracksViewChanges) {
-      const t = setTimeout(() => setTracksViewChanges(false), 800);
+      const t = setTimeout(() => setTracksViewChanges(false), 1200);
       return () => clearTimeout(t);
     }
   }, [tracksViewChanges]);
@@ -50,16 +61,6 @@ export function RestaurantMapMarker({
   const glowColor = accent + (isSelected ? '66' : '40');
   const markerOpacity = isOpen ? 1 : 0.4;
 
-  const svgW = (RADIUS + GLOW) * 2;
-  const tipApexY = GLOW + RADIUS * 2 + TIP_H;
-  const svgH = tipApexY + BOTTOM_PAD;
-  const cx = svgW / 2;
-  const cy = GLOW + RADIUS;
-  const tipTopY = GLOW + RADIUS * 2;
-  const tipPoints = `${cx - TIP_SIDE},${tipTopY} ${cx + TIP_SIDE},${tipTopY} ${cx},${tipApexY}`;
-  // Anchor at the true tip apex, not the canvas bottom
-  const anchorY = tipApexY / svgH;
-
   return (
     <Marker
       coordinate={{ latitude: item.location.latitude, longitude: item.location.longitude }}
@@ -68,31 +69,68 @@ export function RestaurantMapMarker({
         onPress();
       }}
       zIndex={isSelected ? 100 : 10}
-      anchor={{ x: 0.5, y: anchorY }}
+      anchor={{ x: 0.5, y: 1.0 }}
       tracksViewChanges={tracksViewChanges}
     >
       <View
-        style={{ width: svgW, height: svgH, opacity: markerOpacity }}
+        style={{ width: TOTAL_W, height: TOTAL_H, opacity: markerOpacity }}
         collapsable={false}
       >
-        <Svg width={svgW} height={svgH}>
-          {/* Glow ring */}
-          <Circle cx={cx} cy={cy} r={RADIUS + GLOW} fill={glowColor} />
-          {/* Main disc */}
-          <Circle cx={cx} cy={cy} r={RADIUS} fill={MARKER_BG} stroke={accent} strokeWidth={BORDER_W} />
-          {/* Pointer tip */}
-          <Polygon points={tipPoints} fill={accent} />
-        </Svg>
+        {/* Glow halo — plain View, no transform, renders fine in software canvas */}
+        <View
+          style={{
+            position: 'absolute',
+            left: CLIP_PAD,
+            top: CLIP_PAD,
+            width: GLOW_DIAM,
+            height: GLOW_DIAM,
+            borderRadius: RADIUS + GLOW,
+            backgroundColor: glowColor,
+          }}
+        />
 
-        {/* Icon — centered in disc, color matches the score gradient */}
+        {/* ▼ pointer — Text rendered by TextPaint (software), same path as Ionicons */}
+        <Text
+          allowFontScaling={false}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: TIP_TOP,
+            width: TOTAL_W,
+            textAlign: 'center',
+            color: accent,
+            fontSize: TIP_FONT_SIZE,
+            lineHeight: TIP_FONT_SIZE,
+            includeFontPadding: false,
+          }}
+        >
+          {'▼'}
+        </Text>
+
+        {/* Main disc — rendered after ▼ so it covers the TIP_OVERLAP portion */}
+        <View
+          style={{
+            position: 'absolute',
+            left: CLIP_PAD + GLOW,
+            top: DISC_TOP,
+            width: DISC_DIAM,
+            height: DISC_DIAM,
+            borderRadius: RADIUS,
+            backgroundColor: MARKER_BG,
+            borderWidth: BORDER_W,
+            borderColor: accent,
+          }}
+        />
+
+        {/* Icon centered in disc */}
         <View
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: cx - RADIUS,
-            top: GLOW,
-            width: RADIUS * 2,
-            height: RADIUS * 2,
+            left: CLIP_PAD + GLOW,
+            top: DISC_TOP,
+            width: DISC_DIAM,
+            height: DISC_DIAM,
             alignItems: 'center',
             justifyContent: 'center',
           }}

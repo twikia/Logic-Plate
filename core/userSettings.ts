@@ -44,7 +44,8 @@ export async function initDistanceUnit(): Promise<void> {
     // keep default
   }
 }
-const DEFAULT_VOLUME = 0.5;
+const DEFAULT_SFX_VOLUME = 0.5;
+const DEFAULT_MUSIC_VOLUME = 0.5;
 const DEFAULT_HAPTICS = true;
 const DEFAULT_THEME = 'neon_dark';
 
@@ -64,24 +65,25 @@ export const setDistanceUnit = async (unit: DistanceUnit): Promise<void> => {
   await AsyncStorage.setItem(DISTANCE_UNIT_KEY, unit);
 };
 
-async function readVolume(key: string): Promise<number> {
+async function readVolume(key: string, defaultVolume: number): Promise<number> {
   try {
     const val = await AsyncStorage.getItem(key);
     if (val) return parseFloat(val);
     const legacy = await AsyncStorage.getItem(LEGACY_AUDIO_VOLUME_KEY);
-    return legacy ? parseFloat(legacy) : DEFAULT_VOLUME;
+    return legacy ? parseFloat(legacy) : defaultVolume;
   } catch {
-    return DEFAULT_VOLUME;
+    return defaultVolume;
   }
 }
 
-export const getSfxVolume = async (): Promise<number> => readVolume(SFX_VOLUME_KEY);
+export const getSfxVolume = async (): Promise<number> => readVolume(SFX_VOLUME_KEY, DEFAULT_SFX_VOLUME);
 
 export const setSfxVolume = async (volume: number): Promise<void> => {
   await AsyncStorage.setItem(SFX_VOLUME_KEY, String(volume));
 };
 
-export const getMusicVolume = async (): Promise<number> => readVolume(MUSIC_VOLUME_KEY);
+export const getMusicVolume = async (): Promise<number> =>
+  readVolume(MUSIC_VOLUME_KEY, DEFAULT_MUSIC_VOLUME);
 
 export const setMusicVolume = async (volume: number): Promise<void> => {
   await AsyncStorage.setItem(MUSIC_VOLUME_KEY, String(volume));

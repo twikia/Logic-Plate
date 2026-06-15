@@ -104,11 +104,12 @@ create policy "app_audio_assets_public_read"
   using (enabled = true);
 
 -- Placeholder rows — upload MP3s to storage, then set enabled = true.
+-- Paths are relative to the app-audio bucket root (e.g. my-track.mp3 or ambient/my-track.mp3).
 insert into public.app_audio_assets (slug, title, storage_path, category, sort_order, enabled) values
   (
     'food-cooking-music',
     'Food Cooking Music',
-    'ambient/mondamusic-food-food-cooking-music-512896.mp3',
+    'mondamusic-food-food-cooking-music-512896.mp3',
     'ambient',
     1,
     false
@@ -116,7 +117,7 @@ insert into public.app_audio_assets (slug, title, storage_path, category, sort_o
   (
     'food-ambient-503901',
     'Food Ambient',
-    'ambient/prettyjohn1-food-503901.mp3',
+    'prettyjohn1-food-503901.mp3',
     'ambient',
     2,
     false

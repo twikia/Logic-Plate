@@ -20,7 +20,10 @@ export type AmbientAudioAsset = {
 export function getPublicStorageUrl(storagePath: string): string {
   const base = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
   if (!base) return '';
-  const path = storagePath.replace(/^\/+/, '');
+  let path = storagePath.replace(/^\/+/, '');
+  if (path.startsWith(`${AUDIO_BUCKET}/`)) {
+    path = path.slice(AUDIO_BUCKET.length + 1);
+  }
   return `${base}/storage/v1/object/public/${AUDIO_BUCKET}/${path}`;
 }
 

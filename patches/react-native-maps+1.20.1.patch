@@ -1,0 +1,35 @@
+diff --git a/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java b/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java
+index b755f9b..96842cb 100644
+--- a/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java
++++ b/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java
+@@ -521,9 +521,28 @@ public class MapMarker extends MapFeature {
+     mLastBitmapCreated = null;
+   }
+ 
++  // Fabric (New Architecture) does not reliably drive SizeReportingShadowNode, so
++  // this.width/this.height can be 0 or undersized, causing custom marker bitmaps to
++  // be clipped. Recover the true size from the already laid-out native view subtree.
++  private static void expandSnapshotSizeFromSubtree(View view, int offsetX, int offsetY, int[] maxWh) {
++    int right = offsetX + view.getWidth();
++    int bottom = offsetY + view.getHeight();
++    if (right > maxWh[0]) maxWh[0] = right;
++    if (bottom > maxWh[1]) maxWh[1] = bottom;
++    if (view instanceof android.view.ViewGroup) {
++      android.view.ViewGroup group = (android.view.ViewGroup) view;
++      for (int i = 0; i < group.getChildCount(); i++) {
++        View child = group.getChildAt(i);
++        expandSnapshotSizeFromSubtree(child, offsetX + child.getLeft(), offsetY + child.getTop(), maxWh);
++      }
++    }
++  }
++
+   private Bitmap createDrawable() {
+-    int width = this.width <= 0 ? 100 : this.width;
+-    int height = this.height <= 0 ? 100 : this.height;
++    int[] maxWh = new int[] { this.width, this.height };
++    expandSnapshotSizeFromSubtree(this, 0, 0, maxWh);
++    int width = maxWh[0] <= 0 ? 100 : maxWh[0];
++    int height = maxWh[1] <= 0 ? 100 : maxWh[1];
+     this.buildDrawingCache();
+ 
+     // Do not create the doublebuffer-bitmap each time. reuse it to save memory.
