@@ -15,14 +15,13 @@ import { bootstrapLanguage } from '@/core/translationLoader';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
-import { initAudio } from '@/core/audioService';
+import { initAudio, registerUiSound } from '@/core/audioService';
 import i18n from '@/i18n';
 
 // ─── Audio registration ───────────────────────────────────────────────────────
 // After adding your audio files to assets/audio/, uncomment these lines.
 // See assets/audio/README.md for file sources and naming conventions.
 //
-import { registerUiSound } from '@/core/audioService';
 const clickSound = require('@/assets/audio/ui/denielcz-immersivecontrol-button-click-sound-463065.mp3');
 registerUiSound('tap', clickSound);
 registerUiSound('select', clickSound);
@@ -66,12 +65,20 @@ export default function RootLayout() {
         <AppThemeProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AuthGate />
-            <Stack screenOptions={{ headerShown: false }}>
+            <Stack screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              animationDuration: 280,
+              contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' },
+            }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="welcome-onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="profile" options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }} />
               <Stack.Screen name="edit-username" options={{ presentation: 'modal', headerShown: false }} />
+              <Stack.Screen name="general-settings" options={{ animation: 'slide_from_bottom', contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' } }} />
+              <Stack.Screen name="recommendation-settings" options={{ animation: 'slide_from_bottom', contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' } }} />
+              <Stack.Screen name="subscription" options={{ animation: 'slide_from_bottom', contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' } }} />
             </Stack>
             <StatusBar style="auto" />
           </ThemeProvider>

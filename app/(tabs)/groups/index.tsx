@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
@@ -78,7 +79,7 @@ export default function GroupsScreen() {
       <TopProfileButton />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.centerContent}>
-          <View style={styles.joinSection}>
+          <Animated.View entering={FadeInDown.delay(0).springify()} style={styles.joinSection}>
             {theme.neonColors ? (
               <NeonGradientTitle
                 text={t('groups.title')}
@@ -108,34 +109,38 @@ export default function GroupsScreen() {
               onPress={onJoin}>
               <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>{t('groups.join')}</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+            </View>
+          </Animated.View>
 
-        <View style={styles.dividerRow}>
+        <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
           <Text style={[styles.dividerText, { color: theme.subtext }]}>{t('groups.orStartOne')}</Text>
           <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
-        </View>
+        </Animated.View>
 
-        <TouchableOpacity
-          style={[
-            styles.glowBtn,
-            { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent },
-          ]}
-          onPress={() => goLobby('qr')}>
-          <Text style={styles.glowBtnEmoji}>📷</Text>
-          <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.createSession')}</Text>
-        </TouchableOpacity>
+        <Animated.View entering={FadeInUp.delay(160).springify()}>
+          <TouchableOpacity
+            style={[
+              styles.glowBtn,
+              { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent },
+            ]}
+            onPress={() => goLobby('qr')}>
+            <Text style={styles.glowBtnEmoji}>📷</Text>
+            <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.createSession')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
 
-        <TouchableOpacity
-          style={[
-            styles.glowBtn,
-            { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
-          ]}
-          onPress={() => { hapticMedium(); router.push('/groups/quick'); }}>
-          <Text style={styles.glowBtnEmoji}>⚡</Text>
-          <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.quickVote')}</Text>
-        </TouchableOpacity>
+        <Animated.View entering={FadeInUp.delay(240).springify()}>
+          <TouchableOpacity
+            style={[
+              styles.glowBtn,
+              { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
+            ]}
+            onPress={() => { hapticMedium(); router.push('/groups/quick'); }}>
+            <Text style={styles.glowBtnEmoji}>⚡</Text>
+            <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.quickVote')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
         </View>
       </SafeAreaView>
     </ThemedScreenBackground>

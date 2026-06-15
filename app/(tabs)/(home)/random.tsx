@@ -24,6 +24,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import ReAnimated, {
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+  runOnJS,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { AiOverview } from '../../../core/aiOverviewCache';
@@ -424,6 +433,9 @@ export default function RandomScreen() {
     }, [])
   );
 
+  const pickBtnScale = useSharedValue(1);
+  const pickBtnAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: pickBtnScale.value }] }));
+
   const minAiCutoffs = useMemo(() => slotsToCutoffs(aiSlot1, aiSlot2), [aiSlot1, aiSlot2]);
   const hydratedRef = useRef(false);
   const isResettingRef = useRef(false);
@@ -706,12 +718,19 @@ export default function RandomScreen() {
     setSelected(next);
   };
 
+  const navigateToResult = useCallback(() => {
+    router.push('/random-result');
+  }, [router]);
+
   const pickOne = () => {
     const pool = filtered.filter(r => selected.has(r.id));
     if (pool.length === 0) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     setCurrentRestaurant(pick);
-    router.push('/random-result');
+    pickBtnScale.value = withSequence(
+      withSpring(1.2, { damping: 6, stiffness: 350 }),
+      withSpring(0.9, { damping: 10, stiffness: 300 }, runOnJS(navigateToResult))
+    );
   };
 
   const selectedCount = filtered.filter(r => selected.has(r.id)).length;
@@ -721,7 +740,7 @@ export default function RandomScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
 
         {/* Header */}
-        <View style={styles.topChrome}>
+        <ReAnimated.View entering={FadeInDown.duration(350).springify()} style={styles.topChrome}>
         <View style={styles.header}>
           <AnimatedPressable
             onPress={handleBack}
@@ -822,7 +841,7 @@ export default function RandomScreen() {
           </View>
         )}
 
-        </View>
+        </ReAnimated.View>
 
         {showFilters && (
           <Pressable
@@ -1075,7 +1094,7 @@ export default function RandomScreen() {
           </View>
         )}
 
-        <View style={styles.mainContent}>
+        <ReAnimated.View entering={FadeInUp.delay(120).duration(400).springify()} style={styles.mainContent}>
         {/* Select all row */}
         {!isLoading && !errorMsg && allResults.length > 0 && (
           <View style={styles.selectAllRow}>
@@ -1153,11 +1172,12 @@ export default function RandomScreen() {
             showsVerticalScrollIndicator={false}
           />
         )}
-        </View>
+        </ReAnimated.View>
 
         {/* Floating Pick One button */}
         {!isLoading && selectedCount > 0 && (
-          <TouchableOpacity
+          <ReAnimated.View
+            entering={FadeInUp.delay(200).springify()}
             style={[
               styles.pickBtn,
               neonUi && {
@@ -1165,22 +1185,27 @@ export default function RandomScreen() {
                 shadowOpacity: 0.55,
                 shadowRadius: 14,
               },
+              pickBtnAnimStyle,
             ]}
-            activeOpacity={0.85}
-            onPress={pickOne}
           >
-            <LinearGradient
-              colors={tc.pickGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.pickBtnGradient}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={pickOne}
+              animated={false}
             >
-              <Ionicons name="shuffle" size={20} color={neonUi ? '#000000' : tc.accentOn} />
-              <Text style={[styles.pickBtnText, { color: neonUi ? '#000000' : tc.accentOn }]}>
-                Pick One  ({selectedCount})
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={tc.pickGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.pickBtnGradient}
+              >
+                <Ionicons name="shuffle" size={20} color={neonUi ? '#000000' : tc.accentOn} />
+                <Text style={[styles.pickBtnText, { color: neonUi ? '#000000' : tc.accentOn }]}>
+                  Pick One  ({selectedCount})
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ReAnimated.View>
         )}
       </SafeAreaView>
 

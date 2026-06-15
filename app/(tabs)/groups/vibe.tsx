@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Alert,
@@ -7,7 +7,15 @@ import {
   StyleSheet,
   Text,
   View,
+  ViewStyle,
 } from 'react-native';
+import Animated, {
+  FadeInRight,
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withSpring,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
@@ -38,6 +46,43 @@ const DIETARY_EMOJIS: Record<string, string> = {
   dairy_free: '🥛',
   nut_free: '🥜',
 };
+
+function AnimatedSelectCard({
+  selected,
+  onPress,
+  children,
+  style,
+}: {
+  selected: boolean;
+  onPress: () => void;
+  children: React.ReactNode;
+  style?: ViewStyle | ViewStyle[];
+}) {
+  const scale = useSharedValue(1);
+  const prevSelected = useRef(selected);
+
+  useEffect(() => {
+    if (prevSelected.current !== selected) {
+      prevSelected.current = selected;
+      if (selected) {
+        scale.value = withSequence(
+          withSpring(0.93, { damping: 10, stiffness: 400 }),
+          withSpring(1.0, { damping: 12, stiffness: 300 })
+        );
+      }
+    }
+  }, [selected, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity style={style} onPress={onPress}>
+        {children}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function VibeQuestionsScreen() {
   const { theme } = useAppTheme();
@@ -184,10 +229,12 @@ export default function VibeQuestionsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         {step === 0 ? (
-          <View style={styles.stepContent}>
+          <Animated.View key="step-0" entering={FadeInRight.duration(320)} style={styles.stepContent}>
             <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.anyDietaryNeeds')}</Text>
             <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.selectAllThatApply')}</Text>
-            <TouchableOpacity
+            <AnimatedSelectCard
+              selected={dietaryVetoes.length === 0}
+              onPress={() => toggleDietary('none')}
               style={[
                 styles.optionCard,
                 {
@@ -197,13 +244,15 @@ export default function VibeQuestionsScreen() {
                     dietaryVetoes.length === 0 ? theme.accent : theme.subtext + '33',
                 },
               ]}
-              onPress={() => toggleDietary('none')}>
+            >
               <Text style={styles.optEmoji}>✅</Text>
               <Text style={[styles.optLabel, { color: theme.text }]}>{t('vibe.noDietaryNeeds')}</Text>
-            </TouchableOpacity>
+            </AnimatedSelectCard>
             {DIETARY_OPTIONS.map((opt) => (
-              <TouchableOpacity
+              <AnimatedSelectCard
                 key={opt.id}
+                selected={dietaryVetoes.includes(opt.id)}
+                onPress={() => toggleDietary(opt.id)}
                 style={[
                   styles.optionCard,
                   {
@@ -215,7 +264,7 @@ export default function VibeQuestionsScreen() {
                       : theme.subtext + '33',
                   },
                 ]}
-                onPress={() => toggleDietary(opt.id)}>
+              >
                 <Text style={styles.optEmoji}>{DIETARY_EMOJIS[opt.id]}</Text>
                 <Text style={[styles.optLabel, { color: theme.text }]}>
                   {t(opt.labelKey)}
@@ -223,14 +272,14 @@ export default function VibeQuestionsScreen() {
                 {dietaryVetoes.includes(opt.id) ? (
                   <Text style={[styles.checkMark, { color: theme.accent }]}>✓</Text>
                 ) : null}
-              </TouchableOpacity>
+              </AnimatedSelectCard>
             ))}
             <View style={{ height: 80 }} />
-          </View>
+          </Animated.View>
         ) : null}
 
         {step === 1 ? (
-          <View style={styles.stepContent}>
+          <Animated.View key="step-1" entering={FadeInRight.duration(320)} style={styles.stepContent}>
             <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.howAreYouFeeling')}</Text>
             <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.pickYourVibe')}</Text>
             {(
@@ -252,11 +301,11 @@ export default function VibeQuestionsScreen() {
                 <Text style={[styles.chevron, { color: theme.subtext }]}>›</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </Animated.View>
         ) : null}
 
         {step === 2 ? (
-          <View style={styles.stepContent}>
+          <Animated.View key="step-2" entering={FadeInRight.duration(320)} style={styles.stepContent}>
             <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.whatSoundsGood')}</Text>
             <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.pickACraving')}</Text>
             <View style={styles.grid2}>
@@ -290,11 +339,11 @@ export default function VibeQuestionsScreen() {
               <Text style={[styles.bigLabel, { color: theme.text }]}>{t('vibe.cravingSurprise')}</Text>
               <Text style={[styles.chevron, { color: theme.subtext }]}>›</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         ) : null}
 
         {step === 3 ? (
-          <View style={styles.stepContent}>
+          <Animated.View key="step-3" entering={FadeInRight.duration(320)} style={styles.stepContent}>
             <Text style={[styles.h1, { color: theme.text }]}>{t('vibe.tonightICare')}</Text>
             <Text style={[styles.sub, { color: theme.subtext }]}>{t('vibe.shapesYourPicks')}</Text>
             {(
@@ -318,7 +367,7 @@ export default function VibeQuestionsScreen() {
             {submitting ? (
               <Text style={[styles.submittingText, { color: theme.subtext }]}>{t('vibe.submitting')}</Text>
             ) : null}
-          </View>
+          </Animated.View>
         ) : null}
       </ScrollView>
 

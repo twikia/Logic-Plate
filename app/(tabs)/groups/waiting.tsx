@@ -81,7 +81,7 @@ export default function WaitingScreen() {
           <Text style={[styles.checkIcon, { color: theme.accent }]}>✓</Text>
         </View>
 
-        <Text style={[styles.title, { color: theme.text }]}>You're in!</Text>
+        <Text style={[styles.title, { color: theme.text }]}>You&apos;re in!</Text>
         <Text style={[styles.subtitle, { color: theme.subtext }]}>
           Your preferences have been saved
         </Text>

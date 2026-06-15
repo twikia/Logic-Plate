@@ -16,10 +16,9 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
-  Animated,
   Dimensions,
   Linking,
   Platform,
@@ -30,6 +29,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import ReAnimated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -288,16 +288,6 @@ export default function RandomResultScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [heroPhotos, setHeroPhotos] = useState<any[]>(place.photos || []);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(18)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 450, delay: 180, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 450, delay: 180, useNativeDriver: true }),
-    ]).start();
-  }, [fadeAnim, slideAnim]);
-
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
 
   const name = place.displayName?.text || 'Unknown';
@@ -427,7 +417,7 @@ export default function RandomResultScreen() {
             />
           }
         >
-          <View style={styles.heroWrap}>
+          <ReAnimated.View entering={FadeIn.duration(350)} style={styles.heroWrap}>
             <RestaurantImage
               restaurantId={place.id ?? 'unknown'}
               photos={heroPhotos}
@@ -487,9 +477,9 @@ export default function RandomResultScreen() {
                 </View>
               </View>
             </View>
-          </View>
+          </ReAnimated.View>
 
-          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <ReAnimated.View entering={FadeInUp.delay(160).springify()}>
             {plateboundScore != null ? (
               <View
                 style={[
@@ -543,7 +533,7 @@ export default function RandomResultScreen() {
                     <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
                     <View style={styles.cardHeader}>
                       <Text style={styles.cardEmoji}>🎯</Text>
-                      <Text style={[styles.cardTitle, { color: theme.text }]}>Who it's for</Text>
+                      <Text style={[styles.cardTitle, { color: theme.text }]}>Who it&apos;s for</Text>
                     </View>
                     <Text style={[styles.bodyText, { color: theme.subtext }]}>
                       {aiOverview.whoThisPlaceIsFor}
@@ -690,10 +680,11 @@ export default function RandomResultScreen() {
             ) : null}
 
             <View style={{ height: 16 }} />
-          </Animated.View>
+          </ReAnimated.View>
         </ScrollView>
 
-        <View
+        <ReAnimated.View
+          entering={FadeInUp.delay(280).springify()}
           style={[
             styles.stickyBar,
             {
@@ -741,7 +732,7 @@ export default function RandomResultScreen() {
               </Text>
             </View>
           )}
-        </View>
+        </ReAnimated.View>
       </View>
     </LinearGradient>
   );

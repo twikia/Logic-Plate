@@ -20,7 +20,7 @@ const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
 let cachedCoords: { latitude: number; longitude: number } | null = null;
 let cachedAt = 0;
-let refreshInterval: NodeJS.Timeout | null = null;
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 let pendingLocationPromise: Promise<{ latitude: number; longitude: number } | null> | null = null;
 

@@ -115,7 +115,6 @@ export default function RecommendationSettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </View>
     </ThemedScreenBackground>
   );
 }

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
-import { Pressable } from '@/components/ui/soundPressable';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 
 import { useAppTheme } from '@/context/ThemeContext';
 
@@ -28,7 +28,7 @@ export function BackButton({
   const iconColor = disabled ? theme.subtext + '55' : (color ?? theme.text);
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       hitSlop={hitSlop}
@@ -44,7 +44,7 @@ export function BackButton({
       ]}
     >
       <Ionicons name="chevron-back" size={size} color={iconColor} />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

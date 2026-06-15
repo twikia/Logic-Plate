@@ -1,4 +1,4 @@
-﻿import {
+import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
@@ -102,43 +102,6 @@ function formatReviewCount(count: number): string {
 }
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
-const FILM_STRIP_FRAC = 0.66;
-const FILM_GAP = 2;
-const FILM_STRIP_WIDTH = WINDOW_WIDTH * FILM_STRIP_FRAC;
-const FILM_CARD_W = (FILM_STRIP_WIDTH - 9 * FILM_GAP) / 10;
-const FILM_CARD_H = FILM_CARD_W * 1.55;
-
-const FILMSTRIP_ICONS: React.ComponentProps<typeof Ionicons>['name'][] = [
-  'restaurant-outline',
-  'fast-food-outline',
-  'wine-outline',
-  'cafe-outline',
-  'pizza-outline',
-  'ice-cream-outline',
-  'nutrition-outline',
-  'fish-outline',
-];
-
-function stripIconForPlaceId(id: string): React.ComponentProps<typeof Ionicons>['name'] {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) | 0;
-  }
-  return FILMSTRIP_ICONS[Math.abs(h) % FILMSTRIP_ICONS.length] ?? 'restaurant-outline';
-}
-
-const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
-  { bg: 'rgba(249,115,82,0.62)', border: '#FFD4CC', mark: '#3F0D00' },
-  { bg: 'rgba(250,204,21,0.55)', border: '#FFF7C2', mark: '#3A2800' },
-  { bg: 'rgba(74,222,128,0.52)', border: '#DCFCE7', mark: '#0F2918' },
-  { bg: 'rgba(56,189,248,0.55)', border: '#CFFAFE', mark: '#082F49' },
-  { bg: 'rgba(167,139,250,0.58)', border: '#EDE9FE', mark: '#2E1065' },
-  { bg: 'rgba(244,114,182,0.55)', border: '#FCE7F3', mark: '#4A051E' },
-  { bg: 'rgba(45,212,191,0.52)', border: '#CCFBF1', mark: '#042F2E' },
-  { bg: 'rgba(251,146,60,0.58)', border: '#FFEDD5', mark: '#431407' },
-  { bg: 'rgba(129,140,248,0.55)', border: '#E0E7FF', mark: '#1E1B4B' },
-  { bg: 'rgba(250,112,154,0.55)', border: '#FFE4E9', mark: '#4A0D24' },
-];
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
@@ -153,19 +116,6 @@ function absoluteScoreColor(score: number | null, max: 5 | 10, fallback: string)
   if (norm10 >= 4.5) return SCORE_MID_COLOR;
   return SCORE_BAD_COLOR;
 }
-
-const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
-  { bg: 'rgba(0,35,48,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(40,0,48,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,28,32,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(32,0,40,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,24,36,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(36,0,28,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,32,40,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(28,0,36,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,30,44,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(44,0,32,0.92)', mark: '#FFFFFF' },
-];
 
 const WATERCOLOR_FILLS = [
   '#F0A8B8',
@@ -673,12 +623,10 @@ function RestaurantScorePentagon({
 
 function SpotlightCard({
   scored,
-  canReject,
   onReject,
   onPress,
 }: {
   scored: ScoredRestaurant;
-  canReject: boolean;
   onReject: () => void;
   onPress: () => void;
 }) {
@@ -713,7 +661,7 @@ function SpotlightCard({
     };
     loadPhotos();
     return () => { cancelled = true; };
-  }, [place?.id, name, lat, lng]);
+  }, [place?.id, place.formattedAddress, place.photos, place.primaryType, place.websiteUri, name, lat, lng]);
 
   const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
@@ -782,7 +730,7 @@ function SpotlightCard({
             opacity.value = withSpring(1, { damping: 20, stiffness: 260 });
           }
         }),
-    [canReject, fireReject, opacity, panStartY, ty]
+    [fireReject, opacity, panStartY, ty]
   );
 
   const tapGesture = useMemo(
@@ -1201,7 +1149,7 @@ export default function HomeScreen() {
         setIsLoading(false);
       }
     }
-  }, [onOrchestratorProgress, prefs, snapProgressComplete, startFetchPhase, startGpsPhase, t]);
+  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase, t]);
 
   useEffect(() => {
     if (prefs && session) {
@@ -1331,7 +1279,6 @@ export default function HomeScreen() {
                   <View style={styles.carouselPage}>
                     <SpotlightCard
                       scored={item}
-                      canReject={visibleList.length > 1}
                       onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
                       onPress={() => void openDetails(item)}
                     />

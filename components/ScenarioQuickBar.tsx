@@ -16,6 +16,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, { FadeInRight } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { hapticLight } from '@/core/haptics';
 
@@ -161,54 +162,60 @@ export function ScenarioQuickBar() {
   const chips = useMemo(() => {
     const neon = Boolean(theme.neonColors);
     const neonColors = theme.neonColors;
+    const scenarioCount = SCENARIO_ORDER.length;
     return SCENARIO_TRIPLE.map((scenario, i) => {
       const circleInner = (
         <Text style={styles.emoji}>{SCENARIO_EMOJIS[scenario]}</Text>
       );
+      const staggerDelay = (i % scenarioCount) * 40;
       return (
-        <TouchableOpacity
+        <Animated.View
           key={`${i}-${scenario}`}
-          activeOpacity={0.82}
-          delayPressIn={PRESS_IN_DELAY_MS}
-          style={styles.chipWrap}
-          onPress={() => {
-            hapticLight();
-            router.push({ pathname: '/random', params: { scenario } });
-          }}
+          entering={FadeInRight.delay(staggerDelay).duration(350)}
         >
-          {neon && neonColors ? (
-            <LinearGradient
-              colors={neonColors}
-              start={{ x: 0, y: 1 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.circleNeonGrad}
-            >
+          <TouchableOpacity
+            activeOpacity={0.82}
+            delayPressIn={PRESS_IN_DELAY_MS}
+            style={styles.chipWrap}
+            onPress={() => {
+              hapticLight();
+              router.push({ pathname: '/random', params: { scenario } });
+            }}
+          >
+            {neon && neonColors ? (
+              <LinearGradient
+                colors={neonColors}
+                start={{ x: 0, y: 1 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.circleNeonGrad}
+              >
+                <View
+                  style={[
+                    styles.circleNeonInner,
+                    { backgroundColor: theme.cardBackground },
+                  ]}
+                >
+                  {circleInner}
+                </View>
+              </LinearGradient>
+            ) : (
               <View
                 style={[
-                  styles.circleNeonInner,
-                  { backgroundColor: theme.cardBackground },
+                  styles.circle,
+                  {
+                    backgroundColor: theme.glassBackground,
+                    borderColor: theme.cardBorderColor,
+                  },
                 ]}
               >
                 {circleInner}
               </View>
-            </LinearGradient>
-          ) : (
-            <View
-              style={[
-                styles.circle,
-                {
-                  backgroundColor: theme.glassBackground,
-                  borderColor: theme.cardBorderColor,
-                },
-              ]}
-            >
-              {circleInner}
-            </View>
-          )}
-          <Text style={[styles.label, { color: theme.text }]} numberOfLines={2}>
-            {t(`scenarios.${scenario}`, { defaultValue: scenario })}
-          </Text>
-        </TouchableOpacity>
+            )}
+            <Text style={[styles.label, { color: theme.text }]} numberOfLines={2}>
+              {t(`scenarios.${scenario}`, { defaultValue: scenario })}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
       );
     });
   }, [router, t, theme.cardBackground, theme.cardBorderColor, theme.glassBackground, theme.neonColors, theme.text]);
