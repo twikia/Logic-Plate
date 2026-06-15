@@ -99,13 +99,15 @@ export default function TabLayout() {
 
   const tabBarStyle = useMemo(
     () => ({
-      backgroundColor: theme.neonColors ? '#000000' : theme.cardBackground,
+      backgroundColor: theme.neonColors
+        ? '#000000'
+        : (theme.tabBarBackground ?? theme.cardBackground),
       borderTopWidth: 0,
       height: 52 + insets.bottom,
       paddingBottom: insets.bottom,
       paddingTop: 4,
     }),
-    [theme.cardBackground, theme.neonColors, insets.bottom]
+    [theme.cardBackground, theme.neonColors, theme.tabBarBackground, insets.bottom]
   );
 
   const isMap = pathname.startsWith('/map');
@@ -216,7 +218,7 @@ export default function TabLayout() {
                       width: 56,
                       height: 56,
                       borderRadius: 28,
-                      backgroundColor: theme.accent,
+                      backgroundColor: theme.tabHomeBackground ?? theme.accent,
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}

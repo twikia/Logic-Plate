@@ -64,12 +64,15 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
+  Circle as SvgCircle,
   Defs,
+  Ellipse as SvgEllipse,
   FeGaussianBlur,
   Filter,
   G,
   Line as SvgLine,
   LinearGradient as SvgLinearGradient,
+  Path as SvgPath,
   Pattern,
   Polygon,
   Stop,
@@ -160,6 +163,115 @@ const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
   { bg: 'rgba(44,0,32,0.92)', mark: '#FFFFFF' },
 ];
 
+const WATERCOLOR_FILLS = [
+  '#F0A8B8',
+  '#9ABCD8',
+  '#B4CC58',
+  '#B0A0D8',
+  '#ECA888',
+] as const;
+
+function PaperFoodIllustrations({ tabBarHeight }: { tabBarHeight: number }) {
+  const STROKE = 'rgba(115,85,50,0.22)';
+  const FILL_S = 'rgba(200,170,130,0.07)';
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* Donut — upper left */}
+      <View style={{ position: 'absolute', top: -35, left: -30 }}>
+        <Svg width={140} height={140} viewBox="0 0 120 120">
+          <SvgPath
+            d="M 60 12 C 36 12 12 35 12 60 C 12 85 35 108 60 108 C 85 108 108 85 108 60 C 108 35 85 12 60 12 Z M 60 42 C 49 42 42 49 42 60 C 42 71 49 78 60 78 C 71 78 78 71 78 60 C 78 49 71 42 60 42 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.5} fillRule="evenodd"
+          />
+          <SvgPath
+            d="M 24 54 Q 36 22 60 18 Q 84 22 96 54 Q 80 68 60 66 Q 40 68 24 54 Z"
+            fill="rgba(200,170,130,0.1)" stroke={STROKE} strokeWidth={0.9}
+          />
+          <SvgLine x1={42} y1={30} x2={48} y2={24} stroke={STROKE} strokeWidth={2.6} strokeLinecap="round" />
+          <SvgLine x1={56} y1={23} x2={61} y2={17} stroke={STROKE} strokeWidth={2.6} strokeLinecap="round" />
+          <SvgLine x1={70} y1={26} x2={76} y2={21} stroke={STROKE} strokeWidth={2.3} strokeLinecap="round" />
+          <SvgLine x1={84} y1={36} x2={89} y2={31} stroke={STROKE} strokeWidth={2.1} strokeLinecap="round" />
+          <SvgLine x1={33} y1={41} x2={38} y2={36} stroke={STROKE} strokeWidth={2.1} strokeLinecap="round" />
+          <SvgLine x1={24} y1={53} x2={29} y2={48} stroke={STROKE} strokeWidth={1.9} strokeLinecap="round" />
+        </Svg>
+      </View>
+
+      {/* Pizza slice — upper right */}
+      <View style={{ position: 'absolute', top: -28, right: -30 }}>
+        <Svg width={120} height={120} viewBox="0 0 100 100">
+          <SvgPath
+            d="M 50 95 L 8 20 Q 28 5 50 3 Q 72 5 92 20 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.5} strokeLinejoin="round"
+          />
+          <SvgPath
+            d="M 8 20 Q 28 5 50 3 Q 72 5 92 20"
+            fill="none" stroke={STROKE} strokeWidth={5.5} strokeLinecap="round" strokeOpacity={0.35}
+          />
+          <SvgPath
+            d="M 22 38 Q 50 33 78 38"
+            fill="none" stroke={STROKE} strokeWidth={0.7} strokeDasharray="3 2.5"
+          />
+          <SvgEllipse cx={38} cy={46} rx={6} ry={6} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={1} />
+          <SvgEllipse cx={64} cy={46} rx={5} ry={5} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={1} />
+          <SvgEllipse cx={50} cy={62} rx={6} ry={6} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={1} />
+          <SvgEllipse cx={35} cy={64} rx={4} ry={4} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={0.9} />
+        </Svg>
+      </View>
+
+      {/* Coffee cup — lower left */}
+      <View style={{ position: 'absolute', bottom: tabBarHeight + 95, left: -20 }}>
+        <Svg width={115} height={125} viewBox="0 0 100 110">
+          <SvgPath
+            d="M 22 30 L 28 88 L 72 88 L 78 30 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.4} strokeLinejoin="round"
+          />
+          <SvgEllipse cx={50} cy={30} rx={28} ry={8} fill={FILL_S} stroke={STROKE} strokeWidth={1.2} />
+          <SvgEllipse cx={50} cy={90} rx={34} ry={7} fill={FILL_S} stroke={STROKE} strokeWidth={1} />
+          <SvgPath d="M 78 42 Q 100 56 78 72" fill="none" stroke={STROKE} strokeWidth={1.5} strokeLinecap="round" />
+          <SvgPath d="M 37 22 Q 41 13 37 5" fill="none" stroke={STROKE} strokeWidth={1.0} strokeLinecap="round" />
+          <SvgPath d="M 50 20 Q 54 11 50 3" fill="none" stroke={STROKE} strokeWidth={1.0} strokeLinecap="round" />
+          <SvgPath d="M 63 22 Q 67 13 63 5" fill="none" stroke={STROKE} strokeWidth={1.0} strokeLinecap="round" />
+        </Svg>
+      </View>
+
+      {/* Compass — lower right */}
+      <View style={{ position: 'absolute', bottom: tabBarHeight + 65, right: -18 }}>
+        <Svg width={108} height={108} viewBox="0 0 100 100">
+          <SvgCircle cx={50} cy={50} r={44} fill="none" stroke={STROKE} strokeWidth={1.4} />
+          <SvgCircle cx={50} cy={50} r={39} fill="none" stroke={STROKE} strokeWidth={0.5} strokeDasharray="2.5 2" />
+          <SvgPath d="M 50 10 L 43 36 L 50 29 L 57 36 Z" fill={STROKE} fillOpacity={0.6} />
+          <SvgPath d="M 50 90 L 43 64 L 50 71 L 57 64 Z" fill={STROKE} fillOpacity={0.25} />
+          <SvgPath d="M 90 50 L 64 43 L 71 50 L 64 57 Z" fill={STROKE} fillOpacity={0.25} />
+          <SvgPath d="M 10 50 L 36 43 L 29 50 L 36 57 Z" fill={STROKE} fillOpacity={0.25} />
+          <SvgCircle cx={50} cy={50} r={7} fill={FILL_S} stroke={STROKE} strokeWidth={1} />
+          <SvgCircle cx={50} cy={50} r={2.5} fill={STROKE} fillOpacity={0.55} />
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+            const angle = (i * Math.PI * 2) / 8;
+            const x1 = 50 + 36 * Math.cos(angle);
+            const y1 = 50 + 36 * Math.sin(angle);
+            const x2 = 50 + 41 * Math.cos(angle);
+            const y2 = 50 + 41 * Math.sin(angle);
+            return <SvgLine key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={STROKE} strokeWidth={1.1} strokeLinecap="round" />;
+          })}
+        </Svg>
+      </View>
+
+      {/* Small bread roll — right side mid-screen */}
+      <View style={{ position: 'absolute', top: WINDOW_HEIGHT * 0.33, right: -14 }}>
+        <Svg width={75} height={65} viewBox="0 0 80 70">
+          <SvgPath
+            d="M 6 52 Q 5 10 40 6 Q 75 10 74 52 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.3} strokeLinejoin="round"
+          />
+          <SvgPath d="M 6 52 Q 40 58 74 52" fill="none" stroke={STROKE} strokeWidth={1.0} />
+          <SvgLine x1={20} y1={27} x2={60} y2={26} stroke={STROKE} strokeWidth={0.7} strokeDasharray="3 2" />
+          <SvgLine x1={22} y1={36} x2={58} y2={35} stroke={STROKE} strokeWidth={0.6} strokeDasharray="2.5 2" />
+        </Svg>
+      </View>
+    </View>
+  );
+}
+
 function openMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
   if (Platform.OS === 'ios') {
@@ -213,7 +325,7 @@ function RestaurantScorePentagon({
   labelColor?: string;
   svgHeight?: number;
   neon?: boolean;
-  variant?: 'solid' | 'gradient' | 'sketch';
+  variant?: 'solid' | 'gradient' | 'sketch' | 'watercolor';
   gradientColors?: [string, string];
 }) {
   const gid = useId().replace(/:/g, '');
@@ -245,6 +357,7 @@ function RestaurantScorePentagon({
 
   const useGradient = neon || variant === 'gradient';
   const useSketch = !neon && variant === 'sketch';
+  const useWatercolor = !neon && variant === 'watercolor';
 
   const ringStroke = neon ? NEON_CYAN : stroke;
   const ringGrid = useSketch
@@ -270,6 +383,83 @@ function RestaurantScorePentagon({
     : useSketch
     ? 'transparent'
     : `${stroke}55`;
+
+  if (useWatercolor) {
+    const WFILLS = WATERCOLOR_FILLS;
+    const fillPointsArr = norms.map((norm, i) => {
+      const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      return { x: cx + norm * R * Math.cos(t), y: cy + norm * R * Math.sin(t) };
+    });
+    const wcLabel = 'rgba(65,40,18,0.85)';
+    return (
+      <View style={styles.radarBlock}>
+        <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
+          <Defs>
+            <Filter id={`wcf-${gid}`} x="-35%" y="-35%" width="170%" height="170%" filterUnits="objectBoundingBox">
+              <FeGaussianBlur stdDeviation="3.5" />
+            </Filter>
+            <Pattern id={`wcp-${gid}`} x="0" y="0" width="13" height="13" patternUnits="userSpaceOnUse" patternTransform="rotate(-32 50 50)">
+              <SvgLine x1="-4" y1="0" x2="17" y2="0" stroke="rgba(100,70,40,1)" strokeWidth="5" strokeLinecap="round" strokeOpacity="0.04" />
+              <SvgLine x1="-4" y1="6.5" x2="17" y2="6.5" stroke="rgba(100,70,40,1)" strokeWidth="3.5" strokeLinecap="round" strokeOpacity="0.03" />
+            </Pattern>
+          </Defs>
+
+          {/* Pencil-style grid rings */}
+          <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="none" stroke="rgba(120,85,50,0.08)" strokeWidth={0.3} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 0.7 2.5 0.6 3.5 0.7" />
+          <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="none" stroke="rgba(120,85,50,0.08)" strokeWidth={0.3} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 0.8 3 0.6 4 0.7" />
+          <Polygon points={polygonRing(cx, cy, R, n)} fill="none" stroke="rgba(120,85,50,0.10)" strokeWidth={0.35} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5.5 0.8 3.5 0.7 4.5 0.8" />
+
+          {/* Blurred watercolor halo — extends to outer ring for bleeding effect */}
+          {Array.from({ length: n }, (_, i) => {
+            const next = (i + 1) % n;
+            const ti = -Math.PI / 2 + (2 * Math.PI * i) / n;
+            const tn = -Math.PI / 2 + (2 * Math.PI * next) / n;
+            const orPts = `${cx},${cy} ${(cx + (R + 10) * Math.cos(ti)).toFixed(2)},${(cy + (R + 10) * Math.sin(ti)).toFixed(2)} ${(cx + (R + 10) * Math.cos(tn)).toFixed(2)},${(cy + (R + 10) * Math.sin(tn)).toFixed(2)}`;
+            return <Polygon key={`wch-${i}`} points={orPts} fill={WFILLS[i]} fillOpacity={0.38} filter={`url(#wcf-${gid})`} />;
+          })}
+
+          {/* Crisp fill sections clipped to score polygon */}
+          {fillPointsArr.map((fp, i) => {
+            const next = fillPointsArr[(i + 1) % n];
+            return (
+              <Polygon
+                key={`wcfl-${i}`}
+                points={`${cx},${cy} ${fp.x.toFixed(2)},${fp.y.toFixed(2)} ${next.x.toFixed(2)},${next.y.toFixed(2)}`}
+                fill={WFILLS[i]}
+                fillOpacity={0.26}
+              />
+            );
+          })}
+
+          {/* Cross-hatch paper texture */}
+          <Polygon points={fillPts} fill={`url(#wcp-${gid})`} />
+
+          {/* Sketch brush stroke outline — three layers for depth */}
+          <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.11)" strokeWidth={5.5} strokeLinejoin="round" strokeLinecap="round" />
+          <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.5)" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="7.5 0.8 4.5 0.6 6.5 0.8 3 0.5 5 0.7" />
+          <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.72)" strokeWidth={0.9} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1" />
+
+          {axes.map(({ key, corner, max }, i) => {
+            const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+            const lx = cx + labelR * Math.cos(t);
+            const ly = cy + labelR * Math.sin(t);
+            const s = scoreAxis(ai, key);
+            const reading = formatAxisReading(max, s);
+            return (
+              <G key={corner}>
+                <SvgText x={lx} y={ly - 2.4} fill={wcLabel} fontSize={cornerFontSize} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">
+                  {corner}
+                </SvgText>
+                <SvgText x={lx} y={ly + 3.6} fill={absoluteScoreColor(s, max, wcLabel)} fontSize={scoreFontSize} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">
+                  {reading}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+      </View>
+    );
+  }
 
   if (useSketch) {
     return (
@@ -622,7 +812,7 @@ function SpotlightCard({
               styles.spotlightMetaPill,
               neonUi
                 ? styles.spotlightMetaPillNeon
-                : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
             ]}
           >
             <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
@@ -640,7 +830,7 @@ function SpotlightCard({
               styles.spotlightMetaPill,
               neonUi
                 ? styles.spotlightMetaPillNeon
-                : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
             ]}
           >
             <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
@@ -659,7 +849,7 @@ function SpotlightCard({
                 styles.spotlightMetaPill,
                 neonUi
                   ? styles.spotlightMetaPillNeon
-                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                  : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
               ]}
             >
               <Ionicons name="star" size={11} color="#FBBF24" />
@@ -675,7 +865,7 @@ function SpotlightCard({
                 styles.spotlightMetaPill,
                 neonUi
                   ? styles.spotlightMetaPillNeon
-                  : { backgroundColor: 'rgba(249,160,111,0.14)', borderColor: 'rgba(249,160,111,0.28)' },
+                  : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
               ]}
             >
               <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
@@ -719,7 +909,9 @@ function SpotlightCard({
               styles.spotlightMapsBtn,
               neonUi
                 ? { backgroundColor: 'rgba(0,255,255,0.14)', borderColor: NEON_CYAN }
-                : { backgroundColor: theme.accent, borderColor: theme.accent },
+                : theme.buttonVariant === 'outline-outline'
+                  ? { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }
+                  : { backgroundColor: theme.accent, borderColor: theme.accent },
               !mapsReady && styles.spotlightMapsBtnDisabled,
             ]}
             onPress={() => { if (!mapsReady) return; hapticSuccess(); openMaps(name, lat, lng); }}
@@ -729,12 +921,12 @@ function SpotlightCard({
             <Ionicons
               name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
               size={22}
-              color={neonUi ? NEON_CYAN : '#FFFFFF'}
+              color={neonUi ? NEON_CYAN : (theme.buttonVariant === 'outline-outline' ? theme.text : '#FFFFFF')}
             />
             <Text
               style={[
                 styles.spotlightMapsBtnText,
-                { color: neonUi ? NEON_CYAN : '#FFFFFF' },
+                { color: neonUi ? NEON_CYAN : (theme.buttonVariant === 'outline-outline' ? theme.text : '#FFFFFF') },
               ]}
               numberOfLines={1}
             >
@@ -1074,7 +1266,7 @@ export default function HomeScreen() {
                       style={[
                         styles.dot,
                         i === pickIndex && styles.dotActive,
-                        { backgroundColor: i === pickIndex ? theme.accent : 'rgba(255,255,255,0.3)' },
+                        { backgroundColor: i === pickIndex ? theme.accent : (rootNeon ? 'rgba(255,255,255,0.3)' : theme.cardBorderColor) },
                       ]}
                     />
                   </TouchableOpacity>
@@ -1096,6 +1288,7 @@ export default function HomeScreen() {
       end={{ x: 1, y: 0 }}
       style={styles.background}
     >
+      {theme.paperIllustrations && <PaperFoodIllustrations tabBarHeight={tabBarHeight} />}
       {homeBody}
     </LinearGradient>
   );
