@@ -7,7 +7,8 @@ export default function QuickVoteLayout() {
     <Stack screenOptions={{
       headerShown: false,
       animation: 'slide_from_right',
-      animationDuration: 280,
+      animationDuration: 140,
+      detachInactiveScreens: false,
       contentStyle: { backgroundColor: theme.gradient[0] },
     }} />
   );

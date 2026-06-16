@@ -59,22 +59,37 @@ export default function RootLayout() {
 
   return (
     <I18nextProvider i18n={i18n}>
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaProvider>
       <AuthProvider>
         <AppThemeProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <ThemeProvider value={{
+            ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme),
+            colors: {
+              ...(colorScheme === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+              background: '#000000',
+            }
+          }}>
             <AuthGate />
             <Stack screenOptions={{
               headerShown: false,
               animation: 'slide_from_right',
-              animationDuration: 280,
+              animationDuration: 140,
+              detachInactiveScreens: false,
               contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' },
             }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="welcome-onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-              <Stack.Screen name="profile" options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }} />
+              <Stack.Screen
+                name="profile"
+                options={{
+                  presentation: 'transparentModal',
+                  animation: 'none',
+                  headerShown: false,
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+              />
               <Stack.Screen name="edit-username" options={{ presentation: 'modal', headerShown: false }} />
               <Stack.Screen name="general-settings" options={{ animation: 'slide_from_bottom', contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' } }} />
               <Stack.Screen name="recommendation-settings" options={{ animation: 'slide_from_bottom', contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' } }} />

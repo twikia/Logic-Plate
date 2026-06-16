@@ -45,7 +45,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.overlayContainer}>
+    <View style={[styles.overlayContainer, { backgroundColor: 'transparent' }]}>
       {!isClosing && (
         <Animated.View 
           style={[StyleSheet.absoluteFill, styles.backdrop]} 
@@ -253,6 +253,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
   },
   backdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

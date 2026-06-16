@@ -119,6 +119,7 @@ export default function TabLayout() {
   return (
     <Tabs
       initialRouteName="(home)"
+      sceneContainerStyle={{ backgroundColor: '#000000' }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,

@@ -2,6 +2,7 @@ import {
   SCENARIO_EMOJIS,
   SCENARIO_ORDER,
 } from '@/core/scenarioFilters';
+import { scenarioGradientLayout } from '@/core/scenarioGradientLayout';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,7 +17,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, { FadeInRight } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { hapticLight } from '@/core/haptics';
 
@@ -25,6 +25,14 @@ const AUTO_SCROLL_DELTA = 1.1;
 const SCENARIO_TRIPLE = [...SCENARIO_ORDER, ...SCENARIO_ORDER, ...SCENARIO_ORDER];
 const USER_PAUSE_MS = 2200;
 const PRESS_IN_DELAY_MS = 140;
+
+function normalizeLoopX(x: number, singleW: number): number {
+  if (singleW < 80) return x;
+  let next = x;
+  while (next >= 2 * singleW) next -= singleW;
+  while (next < singleW) next += singleW;
+  return next;
+}
 
 export function ScenarioQuickBar() {
   const router = useRouter();
@@ -51,11 +59,6 @@ export function ScenarioQuickBar() {
     }, USER_PAUSE_MS);
   }, []);
 
-  const jumpMargin = useCallback(() => {
-    const w = singleCopyWRef.current;
-    return w > 0 ? Math.min(48, w * 0.22) : 0;
-  }, []);
-
   const applyScrollX = useCallback((x: number) => {
     suppressScrollSyncRef.current = true;
     scrollXRef.current = x;
@@ -65,21 +68,15 @@ export function ScenarioQuickBar() {
   const fixLoopBoundaries = useCallback(
     (x: number) => {
       const singleW = singleCopyWRef.current;
-      const layoutW = layoutWRef.current;
-      if (singleW < 80 || layoutW < 40) return x;
-      const j = jumpMargin();
-      const maxScroll = 3 * singleW - layoutW;
-      if (x < j) {
-        applyScrollX(x + singleW);
-        return scrollXRef.current;
-      }
-      if (x > maxScroll - j) {
-        applyScrollX(x - singleW);
-        return scrollXRef.current;
+      if (singleW < 80) return x;
+      const normalized = normalizeLoopX(x, singleW);
+      if (normalized !== x) {
+        applyScrollX(normalized);
+        return normalized;
       }
       return x;
     },
-    [applyScrollX, jumpMargin]
+    [applyScrollX]
   );
 
   const tryInitialScroll = useCallback(() => {
@@ -102,9 +99,7 @@ export function ScenarioQuickBar() {
         scrollXRef.current = raw;
         return;
       }
-      let x = raw;
-      x = fixLoopBoundaries(x);
-      scrollXRef.current = x;
+      scrollXRef.current = fixLoopBoundaries(raw);
     },
     [fixLoopBoundaries]
   );
@@ -140,39 +135,30 @@ export function ScenarioQuickBar() {
       if (singleW < 80 || layoutW < 40) return;
       const maxScroll = 3 * singleW - layoutW;
       if (maxScroll <= 8) return;
-      let next = scrollXRef.current + AUTO_SCROLL_DELTA;
-      const j = jumpMargin();
-      if (next > maxScroll - j) next -= singleW;
-      if (next < j) next += singleW;
+      const next = normalizeLoopX(scrollXRef.current + AUTO_SCROLL_DELTA, singleW);
       scrollXRef.current = next;
       scrollRef.current?.scrollTo({ x: next, animated: false });
     }, AUTO_SCROLL_MS);
     return () => clearInterval(id);
-  }, [jumpMargin]);
+  }, []);
 
   const syncLoopAfterUserScroll = useCallback(() => {
     const singleW = singleCopyWRef.current;
     const layoutW = layoutWRef.current;
     if (singleW < 80 || layoutW < 40) return;
-    let x = scrollXRef.current;
-    x = fixLoopBoundaries(x);
-    scrollXRef.current = x;
+    scrollXRef.current = fixLoopBoundaries(scrollXRef.current);
   }, [fixLoopBoundaries]);
 
   const chips = useMemo(() => {
     const neon = Boolean(theme.neonColors);
     const neonColors = theme.neonColors;
-    const scenarioCount = SCENARIO_ORDER.length;
     return SCENARIO_TRIPLE.map((scenario, i) => {
+      const gradLayout = scenarioGradientLayout(scenario);
       const circleInner = (
         <Text style={styles.emoji}>{SCENARIO_EMOJIS[scenario]}</Text>
       );
-      const staggerDelay = (i % scenarioCount) * 40;
       return (
-        <Animated.View
-          key={`${i}-${scenario}`}
-          entering={FadeInRight.delay(staggerDelay).duration(350)}
-        >
+        <View key={`${i}-${scenario}`}>
           <TouchableOpacity
             activeOpacity={0.82}
             delayPressIn={PRESS_IN_DELAY_MS}
@@ -185,8 +171,8 @@ export function ScenarioQuickBar() {
             {neon && neonColors ? (
               <LinearGradient
                 colors={neonColors}
-                start={{ x: 0, y: 1 }}
-                end={{ x: 1, y: 0 }}
+                start={gradLayout.start}
+                end={gradLayout.end}
                 style={styles.circleNeonGrad}
               >
                 <View
@@ -215,7 +201,7 @@ export function ScenarioQuickBar() {
               {t(`scenarios.${scenario}`, { defaultValue: scenario })}
             </Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       );
     });
   }, [router, t, theme.cardBackground, theme.cardBorderColor, theme.glassBackground, theme.neonColors, theme.text]);

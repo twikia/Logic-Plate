@@ -6,7 +6,6 @@ import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
-import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
@@ -42,7 +41,6 @@ import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
@@ -671,7 +669,6 @@ function SpotlightCard({
   const opacity = useSharedValue(1);
   const pressScale = useSharedValue(1);
   const panStartY = useSharedValue(0);
-  const floatY = useSharedValue(0);
 
   const rejectRef = useRef(onReject);
   rejectRef.current = onReject;
@@ -684,17 +681,6 @@ function SpotlightCard({
     ty.value = 0;
     opacity.value = 1;
   }, [placeId, ty, opacity]);
-
-  useEffect(() => {
-    floatY.value = withRepeat(
-      withSequence(
-        withTiming(-3, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    );
-  }, [floatY]);
 
   const pressRef = useRef(onPress);
   pressRef.current = onPress;
@@ -749,7 +735,7 @@ function SpotlightCard({
   );
 
   const cardAnim = useAnimatedStyle(() => ({
-    transform: [{ translateY: ty.value + floatY.value }, { scale: pressScale.value }],
+    transform: [{ translateY: ty.value }, { scale: pressScale.value }],
     opacity: opacity.value,
   }));
 
@@ -1307,21 +1293,10 @@ export default function HomeScreen() {
     </>
   );
 
-  return rootNeon ? (
+  return (
     <View style={[styles.background, { backgroundColor: '#000000' }]}>
-      <NeonAmbientGlow />
       {homeBody}
     </View>
-  ) : (
-    <LinearGradient
-      colors={theme.gradient}
-      start={{ x: 0, y: 1 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.background}
-    >
-      {theme.paperIllustrations && <PaperFoodIllustrations tabBarHeight={tabBarHeight} />}
-      {homeBody}
-    </LinearGradient>
   );
 }
 
@@ -1346,10 +1321,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 0,
   },
-  galleryBlock: { marginHorizontal: -20, flexGrow: 0, marginTop: 16, marginBottom: 5 },
+  galleryBlock: { marginHorizontal: -20, flexGrow: 0, marginTop: 16, marginBottom: 5, overflow: 'visible' },
   carouselPage: {
     width: CAROUSEL_PAGE,
     paddingHorizontal: 10,
+    overflow: 'visible',
   },
   cardSwipeTooltip: {
     fontSize: 12,
