@@ -17,7 +17,6 @@ import { useTranslation } from 'react-i18next';
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
 import { RestaurantImage } from '@/core/images';
-import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
   determineWinner,
@@ -109,7 +108,7 @@ export default function QuickVoteWinnerScreen() {
   const maxVotes = Math.max(...breakdown.map((x) => x.c), 1);
 
   return (
-    <ThemedScreenBackground>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         <BackButton onPress={exitToGroups} />
@@ -191,7 +190,7 @@ export default function QuickVoteWinnerScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
-    </ThemedScreenBackground>
+    </View>
   );
 }
 

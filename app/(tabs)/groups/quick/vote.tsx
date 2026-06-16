@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
-import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import { type QuickVoteRestaurant } from '@/utils/quickVote';
 
@@ -102,7 +101,7 @@ export default function QuickVoteVoteScreen() {
   const { restaurants, voterCount, currentVoter } = parsed;
 
   return (
-    <ThemedScreenBackground>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         <BackButton variant="circle" onPress={handleBack} />
@@ -132,7 +131,7 @@ export default function QuickVoteVoteScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
-    </ThemedScreenBackground>
+    </View>
   );
 }
 

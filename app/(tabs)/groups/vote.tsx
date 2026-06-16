@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
-import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
 import { clearHostSessionId, onHostSessionEndRequest } from '@/core/groupSessionState';
 import { supabase } from '@/core/supabaseClient';
@@ -190,7 +189,7 @@ export default function GroupVoteScreen() {
 
   if (sessionEnded) {
     return (
-      <ThemedScreenBackground>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.center}>
             <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
@@ -203,25 +202,25 @@ export default function GroupVoteScreen() {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
-      </ThemedScreenBackground>
+      </View>
     );
   }
 
   if (loading) {
     return (
-      <ThemedScreenBackground>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.center}>
             <ActivityIndicator color={theme.accent} size="large" />
             <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading restaurants…</Text>
           </View>
         </SafeAreaView>
-      </ThemedScreenBackground>
+      </View>
     );
   }
 
   return (
-    <ThemedScreenBackground>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         {isHost ? (
@@ -281,7 +280,7 @@ export default function GroupVoteScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
-    </ThemedScreenBackground>
+    </View>
   );
 }
 

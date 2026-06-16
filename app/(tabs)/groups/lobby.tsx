@@ -30,7 +30,6 @@ import { readCacheBulk } from '@/core/cacheManager';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { BackButton } from '@/components/ui/BackButton';
-import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { subscribeToSessionResponses } from '@/utils/groupRealtime';
 
 type GroupMode = 'passphone' | 'qr' | 'code';
@@ -263,7 +262,7 @@ export default function GroupLobbyScreen() {
   const qrValue = session?.code ? `${voteBaseUrl}/vote/${session.code}` : '';
 
   return (
-    <ThemedScreenBackground>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         <BackButton
@@ -400,7 +399,7 @@ export default function GroupLobbyScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
-    </ThemedScreenBackground>
+    </View>
   );
 }
 

@@ -141,17 +141,21 @@ function RestaurantImageInner({
         return;
       }
 
-      const urls = await fetchRestaurantPhotoUrls({
-        placeId: restaurantId,
-        name,
-        latitude,
-        longitude,
-        websiteUrl,
-        formattedAddress,
-        cuisineKey,
-      });
-      if (cancelled) return;
-      setResolvedPhotos(urls.length > 0 ? urls : photos);
+      try {
+        const urls = await fetchRestaurantPhotoUrls({
+          placeId: restaurantId,
+          name,
+          latitude,
+          longitude,
+          websiteUrl,
+          formattedAddress,
+          cuisineKey,
+        });
+        if (cancelled) return;
+        setResolvedPhotos(urls.length > 0 ? urls : photos);
+      } catch {
+        if (!cancelled) setResolvedPhotos(photos);
+      }
     };
 
     void loadPhotos();

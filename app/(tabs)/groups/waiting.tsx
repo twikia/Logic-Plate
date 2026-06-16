@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
-import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { subscribeToSessionResponses, subscribeToSessionStatus } from '@/utils/groupRealtime';
 
 export default function WaitingScreen() {
@@ -54,7 +53,7 @@ export default function WaitingScreen() {
 
   if (sessionEnded) {
     return (
-      <ThemedScreenBackground>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.inner}>
           <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
@@ -69,12 +68,12 @@ export default function WaitingScreen() {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
-      </ThemedScreenBackground>
+      </View>
     );
   }
 
   return (
-    <ThemedScreenBackground>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaView style={styles.safe}>
       <View style={styles.inner}>
         <View style={[styles.checkCircle, { backgroundColor: theme.accent + '22', borderColor: theme.accent + '44' }]}>
@@ -112,7 +111,7 @@ export default function WaitingScreen() {
         <ActivityIndicator color={theme.accent} style={{ marginTop: 32 }} size="large" />
       </View>
     </SafeAreaView>
-    </ThemedScreenBackground>
+    </View>
   );
 }
 

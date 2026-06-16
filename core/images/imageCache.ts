@@ -25,6 +25,7 @@ const MIN_FALLBACK_URLS = 2;
 // In-memory LRU — avoids AsyncStorage reads on repeated renders
 const memoryCache = new Map<string, string>();
 const MAX_MEMORY  = 200;
+const pendingPhotoFetches = new Map<string, Promise<string[]>>();
 
 // ─── URL Resolution ───────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ const mergeCachedPhotoUrls = (row: RestaurantPhotoCacheRow): string[] => {
  * Photo order returned:  OG image → Wikimedia Commons → Unsplash (all tiers, deduped)
  * Max photos:            up to 6 fallback URLs
  */
-export const fetchRestaurantPhotoUrls = async ({
+async function fetchRestaurantPhotoUrlsInternal({
   placeId,
   name,
   latitude,
@@ -235,7 +236,7 @@ export const fetchRestaurantPhotoUrls = async ({
   websiteUrl,
   formattedAddress,
   cuisineKey,
-}: FetchRestaurantPhotosInput): Promise<string[]> => {
+}: FetchRestaurantPhotosInput): Promise<string[]> {
   if (!placeId || !name || Number.isNaN(latitude) || Number.isNaN(longitude)) {
     console.error('[ImageCache] fetch skipped — invalid input:', { placeId, name, latitude, longitude });
     return [];
@@ -268,76 +269,101 @@ export const fetchRestaurantPhotoUrls = async ({
   }
 
   // ── L2: Supabase DB ────────────────────────────────────────────────────────
-  const tierColumns = 'google_place_id, photo_urls, og_urls, wikimedia_urls, unsplash_urls, updated_at';
-  let { data, error: dbError } = await supabase
-    .from('restaurant_photo_cache')
-    .select(tierColumns)
-    .eq('google_place_id', placeId)
-    .maybeSingle();
-
-  if (dbError?.code === '42703') {
-    const fallback = await supabase
+  try {
+    const tierColumns = 'google_place_id, photo_urls, og_urls, wikimedia_urls, unsplash_urls, updated_at';
+    let { data, error: dbError } = await supabase
       .from('restaurant_photo_cache')
-      .select('google_place_id, photo_urls, og_urls, unsplash_urls, updated_at')
+      .select(tierColumns)
       .eq('google_place_id', placeId)
       .maybeSingle();
-    data = fallback.data as typeof data;
-    dbError = fallback.error;
-  }
 
-  if (dbError) {
-    console.error('[ImageCache] DB lookup error:', dbError);
-  }
+    if (dbError?.code === '42703') {
+      const fallback = await supabase
+        .from('restaurant_photo_cache')
+        .select('google_place_id, photo_urls, og_urls, unsplash_urls, updated_at')
+        .eq('google_place_id', placeId)
+        .maybeSingle();
+      data = fallback.data as typeof data;
+      dbError = fallback.error;
+    }
 
-  const cached = data as RestaurantPhotoCacheRow | null;
-  if (cached?.updated_at) {
-    const ageMs = Date.now() - new Date(cached.updated_at).getTime();
-    if (ageMs < PHOTO_CACHE_TTL_MS) {
-      const urls = mergeCachedPhotoUrls(cached);
-      if (urls.length >= MIN_FALLBACK_URLS) {
-        AsyncStorage.setItem(localKey, JSON.stringify({
-          photo_urls: urls,
-          ts: Date.now(),
-          pipeline_version: PHOTO_PIPELINE_VERSION,
-        })).catch(e => console.error('[ImageCache] Local backfill write error:', e));
-        return urls;
+    if (dbError) {
+      console.error('[ImageCache] DB lookup error:', dbError);
+    }
+
+    const cached = data as RestaurantPhotoCacheRow | null;
+    if (cached?.updated_at) {
+      const ageMs = Date.now() - new Date(cached.updated_at).getTime();
+      if (ageMs < PHOTO_CACHE_TTL_MS) {
+        const urls = mergeCachedPhotoUrls(cached);
+        if (urls.length >= MIN_FALLBACK_URLS) {
+          AsyncStorage.setItem(localKey, JSON.stringify({
+            photo_urls: urls,
+            ts: Date.now(),
+            pipeline_version: PHOTO_PIPELINE_VERSION,
+          })).catch(e => console.error('[ImageCache] Local backfill write error:', e));
+          return urls;
+        }
       }
     }
+  } catch (err) {
+    console.warn('[ImageCache] DB lookup failed:', err);
   }
 
   // ── L3: Edge Function (live fetch from all sources) ───────────────────────
-  console.log(`[ImageCache] Calling fetch-restaurant-photos for "${name}" (${placeId})`);
-  const { data: invoked, error: invokeError } = await supabase.functions.invoke('fetch-restaurant-photos', {
-    body: {
-      place_id:          placeId,
-      name,
-      latitude,
-      longitude,
-      website_url:       websiteUrl ?? null,
-      formatted_address: formattedAddress ?? null,
-      cuisine_key:       cuisineKey ?? null,
-    },
-    headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET ?? '' },
-  });
+  try {
+    console.log(`[ImageCache] Calling fetch-restaurant-photos for "${name}" (${placeId})`);
+    const { data: invoked, error: invokeError } = await supabase.functions.invoke('fetch-restaurant-photos', {
+      body: {
+        place_id:          placeId,
+        name,
+        latitude,
+        longitude,
+        website_url:       websiteUrl ?? null,
+        formatted_address: formattedAddress ?? null,
+        cuisine_key:       cuisineKey ?? null,
+      },
+      headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET ?? '' },
+    });
 
-  if (invokeError) {
-    console.error('[ImageCache] Edge function invoke error:', invokeError);
+    if (invokeError) {
+      console.error('[ImageCache] Edge function invoke error:', invokeError);
+      return [];
+    }
+
+    const urls: string[] = dedupeUrls([
+      ...(Array.isArray(invoked?.photo_urls) ? invoked.photo_urls : []),
+      ...(Array.isArray(invoked?.og_urls) ? invoked.og_urls : []),
+      ...(Array.isArray(invoked?.wikimedia_urls) ? invoked.wikimedia_urls : []),
+      ...(Array.isArray(invoked?.unsplash_urls) ? invoked.unsplash_urls : []),
+    ]);
+    console.log(`[ImageCache] Edge function returned ${urls.length} URLs for ${placeId}`);
+
+    AsyncStorage.setItem(localKey, JSON.stringify({
+      photo_urls: urls,
+      ts: Date.now(),
+      pipeline_version: PHOTO_PIPELINE_VERSION,
+    })).catch(e => console.error('[ImageCache] Local write after edge error:', e));
+
+    return urls;
+  } catch (err) {
+    console.warn('[ImageCache] Edge function invoke failed:', err);
     return [];
   }
+}
 
-  const urls: string[] = dedupeUrls([
-    ...(Array.isArray(invoked?.photo_urls) ? invoked.photo_urls : []),
-    ...(Array.isArray(invoked?.og_urls) ? invoked.og_urls : []),
-    ...(Array.isArray(invoked?.wikimedia_urls) ? invoked.wikimedia_urls : []),
-    ...(Array.isArray(invoked?.unsplash_urls) ? invoked.unsplash_urls : []),
-  ]);
-  console.log(`[ImageCache] Edge function returned ${urls.length} URLs for ${placeId}`);
+export const fetchRestaurantPhotoUrls = async (
+  input: FetchRestaurantPhotosInput
+): Promise<string[]> => {
+  const { placeId } = input;
+  if (!placeId) return [];
 
-  AsyncStorage.setItem(localKey, JSON.stringify({
-    photo_urls: urls,
-    ts: Date.now(),
-    pipeline_version: PHOTO_PIPELINE_VERSION,
-  })).catch(e => console.error('[ImageCache] Local write after edge error:', e));
+  const pending = pendingPhotoFetches.get(placeId);
+  if (pending) return pending;
 
-  return urls;
+  const promise = fetchRestaurantPhotoUrlsInternal(input).finally(() => {
+    pendingPhotoFetches.delete(placeId);
+  });
+  pendingPhotoFetches.set(placeId, promise);
+  return promise;
 };

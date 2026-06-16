@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '@/core/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackButton } from '@/components/ui/BackButton';
-import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import { subscribeToSessionStatus } from '@/utils/groupRealtime';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError, hapticSelection } from '@/core/haptics';
@@ -176,7 +175,7 @@ export default function VibeQuestionsScreen() {
 
   if (sessionEnded) {
     return (
-      <ThemedScreenBackground>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.endedInner}>
           <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
@@ -189,7 +188,7 @@ export default function VibeQuestionsScreen() {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
-      </ThemedScreenBackground>
+      </View>
     );
   }
 
@@ -201,7 +200,7 @@ export default function VibeQuestionsScreen() {
   ];
 
   return (
-    <ThemedScreenBackground>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
         <BackButton onPress={() => (step > 0 ? setStep(step - 1) : router.back())} />
@@ -379,7 +378,7 @@ export default function VibeQuestionsScreen() {
         </TouchableOpacity>
       ) : null}
     </SafeAreaView>
-    </ThemedScreenBackground>
+    </View>
   );
 }
 

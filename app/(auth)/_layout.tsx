@@ -9,7 +9,7 @@ export default function AuthGroupLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'fade',
-        animationDuration: 150,
+        animationDuration: 100,
         contentStyle: { backgroundColor: theme.gradient[0] },
       }}
     />

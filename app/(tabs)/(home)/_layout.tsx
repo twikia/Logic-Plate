@@ -7,7 +7,7 @@ export default function IndexLayout() {
     <Stack screenOptions={{
       headerShown: false,
       animation: 'slide_from_right',
-      animationDuration: 140,
+      animationDuration: 95,
       detachInactiveScreens: false,
       contentStyle: { backgroundColor: '#000000' },
     }} />

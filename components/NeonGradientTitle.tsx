@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import {
   Easing,
@@ -53,13 +53,20 @@ export function NeonGradientTitle({ text, width, fontSize = 29, style }: Props) 
     setStop1Color(c1);
   }, [c0, c1]);
 
+  const updateStopColors = useCallback(
+    (value: number) => {
+      setStop0Color(interpolateColor(value, [0, 1], [c0, c2]));
+      setStop1Color(interpolateColor(value, [0, 1], [c1, c3]));
+    },
+    [c0, c1, c2, c3],
+  );
+
   useAnimatedReaction(
     () => phase.value,
     (value) => {
-      runOnJS(setStop0Color)(interpolateColor(value, [0, 1], [c0, c2]));
-      runOnJS(setStop1Color)(interpolateColor(value, [0, 1], [c1, c3]));
+      runOnJS(updateStopColors)(value);
     },
-    [c0, c1, c2, c3],
+    [updateStopColors],
   );
 
   return (

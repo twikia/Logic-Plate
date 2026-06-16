@@ -28,7 +28,7 @@ import {
   getNearbyRestaurants,
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
-import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
+import { RestaurantImage } from '@/core/images';
 import {
   consumeHomeReturnFromDetails,
   getHomeCarouselIndex,
@@ -82,6 +82,7 @@ import Svg, {
 } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { hapticMedium, hapticSuccess } from '@/core/haptics';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
@@ -639,28 +640,6 @@ function SpotlightCard({
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
   const reviews = place.userRatingCount;
   const costLabel = formatRestaurantCostLabel(place);
-  const [photos, setPhotos] = useState<any[]>(place.photos || []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadPhotos = async () => {
-      if (!place?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
-      const urls = await fetchRestaurantPhotoUrls({
-        placeId: place.id,
-        name,
-        latitude: lat,
-        longitude: lng,
-        websiteUrl: place.websiteUri || undefined,
-        formattedAddress: place.formattedAddress || undefined,
-        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
-      });
-      if (cancelled) return;
-      setPhotos(urls.length > 0 ? urls : (place.photos || []));
-    };
-    loadPhotos();
-    return () => { cancelled = true; };
-  }, [place?.id, place.formattedAddress, place.photos, place.primaryType, place.websiteUri, name, lat, lng]);
-
   const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
   const radarVar = theme.radarVariant ?? 'solid';
@@ -744,12 +723,18 @@ function SpotlightCard({
       <View style={styles.spotlightThumbPinned}>
         <RestaurantImage
           restaurantId={String(place?.id ?? '')}
-          photos={photos}
+          photos={place.photos || []}
           width={SPOTLIGHT_THUMB_SIZE}
           height={SPOTLIGHT_THUMB_SIZE}
           quality={200}
           loadDelay={300}
           borderRadius={14}
+          name={name}
+          latitude={lat}
+          longitude={lng}
+          websiteUrl={place.websiteUri || undefined}
+          formattedAddress={place.formattedAddress || undefined}
+          cuisineKey={place.primaryType?.replace(/_restaurant$/, '') || undefined}
         />
       </View>
       <View style={styles.spotlightHeroText}>
@@ -1079,7 +1064,12 @@ export default function HomeScreen() {
     }
   }, [visibleList.length, pickIndex]);
 
+  const spotlightLoadingRef = useRef(false);
+  const loadSpotlightRef = useRef<(opts?: { skipFullScreenLoader?: boolean }) => Promise<void>>(async () => {});
+
   const loadSpotlight = useCallback(async (opts?: { skipFullScreenLoader?: boolean }) => {
+    if (spotlightLoadingRef.current) return;
+    spotlightLoadingRef.current = true;
     const skipLoader = opts?.skipFullScreenLoader === true;
     if (!skipLoader) {
       setIsLoading(true);
@@ -1090,7 +1080,7 @@ export default function HomeScreen() {
     try {
       const coords = await getLocation(false);
       if (!coords) {
-        setErrorMsg(t('home.locationError'));
+        setErrorMsg(i18n.t('home.locationError'));
         setRawPlaces([]);
         return;
       }
@@ -1126,22 +1116,25 @@ export default function HomeScreen() {
         return;
       }
       if (!hadCachedPlaces) {
-        setErrorMsg(t('home.loadError'));
+        setErrorMsg(i18n.t('home.loadError'));
         setRawPlaces([]);
       }
     } finally {
+      spotlightLoadingRef.current = false;
       snapProgressComplete();
       if (!skipLoader) {
         setIsLoading(false);
       }
     }
-  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase, t]);
+  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase]);
+
+  loadSpotlightRef.current = loadSpotlight;
 
   useEffect(() => {
     if (prefs && session) {
-      void loadSpotlight();
+      void loadSpotlightRef.current();
     }
-  }, [loadSpotlight, prefs, session]);
+  }, [prefs, session]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1167,9 +1160,9 @@ export default function HomeScreen() {
       lastPrefsRevisionRef.current = currentRevision;
       void getRecommendationPrefs().then(nextPrefs => {
         setPrefs(nextPrefs);
-        void loadSpotlight();
+        void loadSpotlightRef.current();
       });
-    }, [loadSpotlight, restoreCarouselPosition])
+    }, [restoreCarouselPosition])
   );
 
   const goToPick = useCallback((i: number) => {

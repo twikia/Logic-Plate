@@ -1,15 +1,13 @@
 import { Stack } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
 
 export default function QuickVoteLayout() {
-  const { theme } = useAppTheme();
   return (
     <Stack screenOptions={{
       headerShown: false,
       animation: 'slide_from_right',
-      animationDuration: 140,
+      animationDuration: 95,
       detachInactiveScreens: false,
-      contentStyle: { backgroundColor: theme.gradient[0] },
+      contentStyle: { backgroundColor: '#000000' },
     }} />
   );
 }
