@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
@@ -13,49 +14,49 @@ import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 
 type BillingCycle = 'monthly' | 'yearly';
 
-interface TierProps {
-  name: string;
+type TierKey = 'free' | 'minimal' | 'pro' | 'ultimate';
+
+interface TierConfig {
   price: string;
-  features: string[];
   color: string;
   icon: keyof typeof Ionicons.glyphMap;
   isPopular?: boolean;
+  featureKeys: string[];
 }
 
-const Tiers: Record<string, TierProps> = {
+const TIER_CONFIG: Record<TierKey, TierConfig> = {
   free: {
-    name: 'Free',
     price: '$0',
-    features: ['Basic Search', '5 AI Overviews/day', 'Standard Map View'],
     color: '#B59EAA',
     icon: 'leaf-outline',
+    featureKeys: ['basicSearch', 'aiOverviews5', 'standardMap'],
   },
   minimal: {
-    name: 'Minimal',
     price: '$4.99',
-    features: ['Advanced Search', '25 AI Overviews/day', 'Theme Customization', 'No Ads'],
     color: '#8AAAE5',
     icon: 'sparkles-outline',
+    featureKeys: ['advancedSearch', 'aiOverviews25', 'themeCustomization', 'noAds'],
   },
   pro: {
-    name: 'Pro',
     price: '$9.99',
-    features: ['Unlimited Search', 'Unlimited AI Overviews', 'Custom Icons', 'Early Access Features', 'Priority Support'],
     color: '#F97352',
     icon: 'flash-outline',
     isPopular: true,
+    featureKeys: ['unlimitedSearch', 'unlimitedAi', 'customIcons', 'earlyAccess', 'prioritySupport'],
   },
   ultimate: {
-    name: 'Ultimate',
     price: '$19.99',
-    features: ['Everything in Pro', 'Personalized Dining AI', 'Multi-device Sync', 'Exclusive Themes', 'Private Beta Access'],
     color: '#FFD700',
     icon: 'diamond-outline',
+    featureKeys: ['everythingPro', 'personalizedAi', 'multiDevice', 'exclusiveThemes', 'privateBeta'],
   },
 };
 
+const TIER_ORDER: TierKey[] = ['free', 'minimal', 'pro', 'ultimate'];
+
 export default function SubscriptionScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { theme } = useAppTheme();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
 
@@ -72,14 +73,14 @@ export default function SubscriptionScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
           </Pressable>
-          <Text style={styles.title}>Subscription</Text>
+          <Text style={styles.title}>{t('subscription.title')}</Text>
           <View style={{ width: 28 }} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <Animated.View entering={FadeInUp.delay(100).duration(400)} style={styles.heroSection}>
-            <Text style={[styles.heroTitle, { color: '#FFFFFF' }]}>Level Up Your Experience</Text>
-            <Text style={[styles.heroSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>Choose the plan that fits your appetite for discovery.</Text>
+            <Text style={[styles.heroTitle, { color: '#FFFFFF' }]}>{t('subscription.heroTitle')}</Text>
+            <Text style={[styles.heroSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('subscription.heroSubtitle')}</Text>
           </Animated.View>
 
           {/* Billing Toggle */}
@@ -89,16 +90,16 @@ export default function SubscriptionScreen() {
                 onPress={() => handleCycleChange('monthly')}
                 style={[styles.cycleBtn, billingCycle === 'monthly' && { backgroundColor: theme.accent }]}
               >
-                <Text style={[styles.cycleText, billingCycle === 'monthly' && styles.cycleTextActive]}>Monthly</Text>
+                <Text style={[styles.cycleText, billingCycle === 'monthly' && styles.cycleTextActive]}>{t('subscription.monthly')}</Text>
               </Pressable>
               <Pressable 
                 onPress={() => handleCycleChange('yearly')}
                 style={[styles.cycleBtn, billingCycle === 'yearly' && { backgroundColor: theme.accent }]}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.cycleText, billingCycle === 'yearly' && styles.cycleTextActive]}>Yearly</Text>
+                  <Text style={[styles.cycleText, billingCycle === 'yearly' && styles.cycleTextActive]}>{t('subscription.yearly')}</Text>
                   <View style={styles.discountBadge}>
-                    <Text style={styles.discountText}>-20%</Text>
+                    <Text style={styles.discountText}>{t('subscription.discount')}</Text>
                   </View>
                 </View>
               </Pressable>
@@ -107,7 +108,9 @@ export default function SubscriptionScreen() {
 
           {/* Subscription Cards */}
           <View style={styles.tiersContainer}>
-            {Object.entries(Tiers).map(([key, tier], index) => (
+            {TIER_ORDER.map((key, index) => {
+              const tier = TIER_CONFIG[key];
+              return (
               <Animated.View 
                 key={key} 
                 entering={FadeInRight.delay(300 + index * 100).duration(500)}
@@ -119,7 +122,7 @@ export default function SubscriptionScreen() {
               >
                 {tier.isPopular && (
                   <View style={[styles.popularBadge, { backgroundColor: tier.color }]}>
-                    <Text style={styles.popularText}>MOST POPULAR</Text>
+                    <Text style={styles.popularText}>{t('subscription.mostPopular')}</Text>
                   </View>
                 )}
                 <View style={styles.tierHeader}>
@@ -127,7 +130,7 @@ export default function SubscriptionScreen() {
                     <Ionicons name={tier.icon} size={24} color={tier.color} />
                   </View>
                   <View>
-                    <Text style={[styles.tierName, { color: '#FFFFFF' }]}>{tier.name}</Text>
+                    <Text style={[styles.tierName, { color: '#FFFFFF' }]}>{t(`subscription.tiers.${key}`)}</Text>
                     <View style={styles.priceRow}>
                       <Text style={[styles.tierPrice, { color: '#FFFFFF' }]}>
                         {billingCycle === 'yearly' 
@@ -135,17 +138,17 @@ export default function SubscriptionScreen() {
                           : tier.price}
                       </Text>
                       <Text style={[styles.tierPeriod, { color: 'rgba(255,255,255,0.6)' }]}>
-                        /{billingCycle === 'yearly' ? 'yr' : 'mo'}
+                        {billingCycle === 'yearly' ? t('subscription.perYear') : t('subscription.perMonth')}
                       </Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.featuresList}>
-                  {tier.features.map((feature, fIndex) => (
-                    <View key={fIndex} style={styles.featureItem}>
+                  {tier.featureKeys.map((featureKey) => (
+                    <View key={featureKey} style={styles.featureItem}>
                       <Ionicons name="checkmark-circle" size={18} color={tier.color} />
-                      <Text style={[styles.featureText, { color: 'rgba(255,255,255,0.8)' }]}>{feature}</Text>
+                      <Text style={[styles.featureText, { color: 'rgba(255,255,255,0.8)' }]}>{t(`subscription.features.${featureKey}`)}</Text>
                     </View>
                   ))}
                 </View>
@@ -161,16 +164,17 @@ export default function SubscriptionScreen() {
                       styles.subscribeBtnText, 
                       { color: tier.isPopular ? '#FFFFFF' : '#FFFFFF' }
                     ]}>
-                      {key === 'free' ? 'Current Plan' : 'Select Plan'}
+                      {key === 'free' ? t('subscription.currentPlan') : t('subscription.selectPlan')}
                     </Text>
                 </AnimatedPressable>
               </Animated.View>
-            ))}
+            );
+            })}
           </View>
 
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: 'rgba(255,255,255,0.5)' }]}>
-              Secure payment via App Store. Cancel anytime in settings.
+              {t('subscription.footer')}
             </Text>
           </View>
         </ScrollView>

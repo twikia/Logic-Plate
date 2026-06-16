@@ -1,6 +1,8 @@
-import { cuisineRankOf, MAX_CUISINE_RANKS, tapCuisineRank } from '@/core/cuisineRanking';
+import { cuisineRankOf, tapCuisineRank } from '@/core/cuisineRanking';
+import { tCuisineLabel } from '@/core/i18nLabels';
 import { TOP_CUISINE_TILES } from '@/core/recommendationCuisines';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
@@ -21,6 +23,7 @@ export function CuisineRankGrid({
   tileWidth = '47%',
   style,
 }: Props) {
+  const { t } = useTranslation();
   const onTap = (id: string) => onChange(tapCuisineRank(ranked, id));
 
   return (
@@ -45,14 +48,12 @@ export function CuisineRankGrid({
             )}
             <Text style={styles.emoji}>{t.emoji}</Text>
             <Text style={[styles.label, { color: textColor }]} numberOfLines={2}>
-              {t.label}
+              {tCuisineLabel(t.id)}
             </Text>
           </Pressable>
         );
       })}
-      <Text style={styles.hint}>
-        Tap up to {MAX_CUISINE_RANKS} in order — #1 first. Tap again to remove; re-tap in order to change ranks.
-      </Text>
+      <Text style={styles.hint}>{t('onboarding.cuisineTapHint')}</Text>
     </View>
   );
 }

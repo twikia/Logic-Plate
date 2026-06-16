@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { RestaurantImage } from '@/core/images';
 import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
@@ -49,6 +50,7 @@ export function QuickVoteRestaurantCard({
   hideTitle = false,
   belowOverview,
 }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const { formatDistance } = useDistanceFormatter();
   const health = healthScoreOf(r);
@@ -56,7 +58,7 @@ export function QuickVoteRestaurantCard({
   const overview = aiOverviewBody(r);
   const vibeLine = oneLineVibe(r);
   const cost = formatRestaurantCostLabel(r as never);
-  const name = r.displayName?.text ?? 'Restaurant';
+  const name = r.displayName?.text ?? t('common.restaurant');
   const lat = r.location?.latitude;
   const lng = r.location?.longitude;
   const metaParts: string[] = [];
@@ -104,7 +106,7 @@ export function QuickVoteRestaurantCard({
             </Text>
           ) : null}
           <Text style={[styles.expandHint, { color: theme.accent }]}>
-            {expanded ? 'Less ▲' : 'Details ▾'}
+            {expanded ? t('quickVote.less') : t('quickVote.details')}
           </Text>
         </View>
         {onVote ? (
@@ -121,7 +123,7 @@ export function QuickVoteRestaurantCard({
             {voted ? (
               <Text style={[styles.voteCheck, { color: theme.accent }]}>✓</Text>
             ) : (
-              <Text style={[styles.voteLabel, { color: theme.subtext }]}>Vote</Text>
+              <Text style={[styles.voteLabel, { color: theme.subtext }]}>{t('quickVote.vote')}</Text>
             )}
           </TouchableOpacity>
         ) : null}
@@ -132,7 +134,7 @@ export function QuickVoteRestaurantCard({
           <View style={[styles.divider, { backgroundColor: theme.subtext + '22' }]} />
           {health != null ? (
             <View style={styles.healthRow}>
-              <Text style={[styles.healthLabel, { color: theme.subtext }]}>Health</Text>
+              <Text style={[styles.healthLabel, { color: theme.subtext }]}>{t('scores.health')}</Text>
               <View style={[styles.healthBar, { backgroundColor: theme.subtext + '18' }]}>
                 <View
                   style={[styles.healthFill, { width: `${healthPct}%`, backgroundColor: '#4CD964' }]}
@@ -145,7 +147,7 @@ export function QuickVoteRestaurantCard({
           ) : null}
           {overview ? (
             <>
-              <Text style={[styles.sectionLabel, { color: theme.subtext }]}>AI overview</Text>
+              <Text style={[styles.sectionLabel, { color: theme.subtext }]}>{t('map.aiOverview')}</Text>
               <Text style={[styles.overview, { color: theme.text }]}>{overview}</Text>
             </>
           ) : vibeLine ? (

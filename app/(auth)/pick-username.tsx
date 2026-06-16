@@ -1,14 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { SetUsernameForm } from '@/components/auth/SetUsernameForm';
 
 export default function PickUsernameScreen() {
+  const { t } = useTranslation();
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.pad}>
         <SetUsernameForm
-          title="Choose a username"
-          subtitle="This appears below your profile picture. You can change it later in settings."
+          title={t('auth.chooseUsername')}
+          subtitle={t('auth.usernameSubtitle')}
         />
       </View>
     </SafeAreaView>

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import {
   clearHostSessionId,
@@ -44,6 +45,7 @@ type SessionRow = {
 
 export default function GroupLobbyScreen() {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -88,14 +90,12 @@ export default function GroupLobbyScreen() {
         loc != null ? getCellsInRadius(loc.latitude, loc.longitude, radius) : [];
       cellIdsRef.current = cellIds;
       if (cellIds.length === 0) {
-        setError('Location is required to start a group session.');
+        setError(t('groups.lobby.errors.locationRequired'));
         setLoading(false);
         return;
       }
       if (!appSecret) {
-        setError(
-          'EXPO_PUBLIC_APP_SECRET is not set in this app build. It must match the APP_SECRET secret on your Supabase Edge Functions so create-group-session can authorize.'
-        );
+        setError(t('groups.lobby.errors.appSecret'));
         setLoading(false);
         return;
       }
@@ -123,20 +123,20 @@ export default function GroupLobbyScreen() {
     return () => {
       cancelled = true;
     };
-  }, [appSecret, mode, user?.id]);
+  }, [appSecret, mode, t, user?.id]);
 
   useEffect(() => {
     if (!session?.expires_at) return;
     const ms = new Date(session.expires_at).getTime() - Date.now();
     if (ms <= 0) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (!normalExit.current && sessionRef.current?.id) {
         void endSession(sessionRef.current.id);
-        setError('Session timed out.');
+        setError(t('groups.lobby.errors.sessionTimedOut'));
       }
     }, ms);
-    return () => clearTimeout(t);
-  }, [endSession, session?.expires_at]);
+    return () => clearTimeout(timer);
+  }, [endSession, session?.expires_at, t]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
@@ -194,7 +194,7 @@ export default function GroupLobbyScreen() {
 
   const shareCode = async () => {
     if (!session?.code) return;
-    await Share.share({ message: `Join our Platebound vote! Code: ${session.code}` });
+    await Share.share({ message: t('groups.lobby.shareMessage', { code: session.code }) });
   };
 
   const addGuestHere = () => {
@@ -216,9 +216,7 @@ export default function GroupLobbyScreen() {
   const everyoneIn = async () => {
     if (!sessionId || responses.length < 2) return;
     if (!appSecret) {
-      setError(
-        'EXPO_PUBLIC_APP_SECRET is not set in this app build. It must match APP_SECRET on Supabase for reconcile-group to run.'
-      );
+      setError(t('groups.lobby.errors.appSecretReconcile'));
       return;
     }
     let localRestaurantCache: { cellId: string; restaurants: unknown[] }[] = [];
@@ -273,7 +271,7 @@ export default function GroupLobbyScreen() {
             router.back();
           }}
         />
-        <Text style={[styles.topTitle, { color: theme.text }]}>New Session</Text>
+        <Text style={[styles.topTitle, { color: theme.text }]}>{t('groups.lobby.newSession')}</Text>
         {!loading && !error ? (
           <TouchableOpacity
             onPress={everyoneIn}
@@ -295,7 +293,7 @@ export default function GroupLobbyScreen() {
                   styles.startHeaderText,
                   { color: responses.length >= 2 ? theme.accent : theme.subtext },
                 ]}>
-                Start
+                {t('groups.lobby.start')}
               </Text>
             )}
           </TouchableOpacity>
@@ -307,7 +305,7 @@ export default function GroupLobbyScreen() {
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={[styles.loadingText, { color: theme.subtext }]}>Creating session…</Text>
+          <Text style={[styles.loadingText, { color: theme.subtext }]}>{t('groups.lobby.creating')}</Text>
         </View>
       ) : error ? (
         <ScrollView contentContainerStyle={styles.center}>
@@ -315,18 +313,18 @@ export default function GroupLobbyScreen() {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.title, { color: theme.text }]}>Invite your group</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('groups.lobby.inviteTitle')}</Text>
           <Text style={[styles.subtitle, { color: theme.subtext }]}>
-            Share the code or QR so everyone can join
+            {t('groups.lobby.inviteSubtitle')}
           </Text>
 
           <TouchableOpacity
             style={[styles.codeBlock, { backgroundColor: theme.cardBackground, borderColor: theme.accent + '44' }]}
             onPress={copyCode}
             activeOpacity={0.8}>
-            <Text style={[styles.codeSmall, { color: theme.subtext }]}>SESSION CODE</Text>
+            <Text style={[styles.codeSmall, { color: theme.subtext }]}>{t('groups.lobby.sessionCode')}</Text>
             <Text style={[styles.codeBig, { color: theme.accent }]}>{codeDisplay}</Text>
-            <Text style={[styles.tapCopy, { color: theme.subtext }]}>Tap to copy</Text>
+            <Text style={[styles.tapCopy, { color: theme.subtext }]}>{t('groups.lobby.tapToCopy')}</Text>
           </TouchableOpacity>
 
           {mode === 'qr' && qrValue ? (
@@ -340,7 +338,7 @@ export default function GroupLobbyScreen() {
               <TouchableOpacity
                 style={[styles.halfBtn, { backgroundColor: theme.accent }]}
                 onPress={addGuestHere}>
-                <Text style={[styles.halfBtnText, { color: theme.gradient[0] }]}>Pass phone</Text>
+                <Text style={[styles.halfBtnText, { color: theme.gradient[0] }]}>{t('groups.lobby.passPhone')}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -350,31 +348,31 @@ export default function GroupLobbyScreen() {
                 mode !== 'passphone' && { flex: 1 },
               ]}
               onPress={answerForMyself}>
-              <Text style={[styles.halfBtnText, { color: theme.accent }]}>Answer for myself</Text>
+              <Text style={[styles.halfBtnText, { color: theme.accent }]}>{t('groups.lobby.answerSelf')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.halfBtn, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '33', borderWidth: 1.5 }]}
               onPress={shareCode}>
-              <Text style={[styles.halfBtnText, { color: theme.text }]}>Share link</Text>
+              <Text style={[styles.halfBtnText, { color: theme.text }]}>{t('groups.lobby.shareLink')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={[styles.responsesBox, { backgroundColor: theme.cardBackground }]}>
             <Text style={[styles.waitingTitle, { color: theme.text }]}>
-              Responses
+              {t('groups.lobby.responses')}
               <Text style={[styles.responseCount, { color: theme.accent }]}>
                 {' '}{responses.length}
               </Text>
               <Text style={[styles.minNoteInline, { color: theme.subtext }]}>
                 {' · '}
                 {responses.length < 2
-                  ? `Need ${2 - responses.length} more to start`
-                  : 'Ready to go!'}
+                  ? t('groups.lobby.needMore', { count: 2 - responses.length })
+                  : t('groups.lobby.ready')}
               </Text>
             </Text>
             {responses.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.subtext }]}>
-                Waiting for the first response…
+                {t('groups.lobby.waitingFirst')}
               </Text>
             ) : null}
             {responses.map((r) => (

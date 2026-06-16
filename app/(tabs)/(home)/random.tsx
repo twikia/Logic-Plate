@@ -10,6 +10,7 @@ import Slider from '@react-native-community/slider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Animated,
@@ -53,9 +54,9 @@ import {
   getScenarioPreferredSort,
   normalizeScenarioKey,
   restaurantMatchesScenario,
-  SCENARIO_LABELS,
   type ScenarioKey,
 } from '../../../core/scenarioFilters';
+import { tCuisineLabel, tScenarioLabel, tScoreLabel, tSortLabel } from '../../../core/i18nLabels';
 import {
   DEFAULT_RANDOM_AI_CUTOFFS,
   clearRandomPickerState,
@@ -127,17 +128,6 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
   ],
 };
 
-const CUISINE_FILTER_LABELS: Record<string, string> = {
-  cafe: 'Café',
-  drinks: 'Drinks',
-  non_food: 'Non-food',
-  bars: 'Bars',
-};
-
-function cuisineFilterLabel(key: string): string {
-  return CUISINE_FILTER_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
-}
-
 function themedColors(theme: ThemeColors, neonUi: boolean) {
   const accentOn = theme.accentOnColor ?? '#FFFFFF';
   return {
@@ -203,17 +193,17 @@ function SkeletonRow() {
   );
 }
 
-const AI_METRICS: { key: RandomAiCutoffKey; label: string; scale: 'five' | 'ten' }[] = [
-  { key: 'taste', label: 'Taste', scale: 'five' },
-  { key: 'valueForMoney', label: 'Value', scale: 'five' },
-  { key: 'speed', label: 'Speed', scale: 'five' },
-  { key: 'workoutRecovery', label: 'Workout recovery', scale: 'ten' },
-  { key: 'munchy', label: 'Munchy', scale: 'five' },
-  { key: 'protein', label: 'Protein', scale: 'five' },
-  { key: 'calorie', label: 'Calorie fit', scale: 'five' },
-  { key: 'dateWorthiness', label: 'Date worthy', scale: 'five' },
-  { key: 'soloDiner', label: 'Solo diner', scale: 'five' },
-  { key: 'energySustain', label: 'Energy sustain', scale: 'five' },
+const AI_METRICS: { key: RandomAiCutoffKey; scale: 'five' | 'ten' }[] = [
+  { key: 'taste', scale: 'five' },
+  { key: 'valueForMoney', scale: 'five' },
+  { key: 'speed', scale: 'five' },
+  { key: 'workoutRecovery', scale: 'ten' },
+  { key: 'munchy', scale: 'five' },
+  { key: 'protein', scale: 'five' },
+  { key: 'calorie', scale: 'five' },
+  { key: 'dateWorthiness', scale: 'five' },
+  { key: 'soloDiner', scale: 'five' },
+  { key: 'energySustain', scale: 'five' },
 ];
 
 type AiMetricSlot = { key: RandomAiCutoffKey | null; min: number };
@@ -260,12 +250,13 @@ function RestaurantRow({
   onOpenDetail: () => void;
   onToggleSelect: () => void;
 }) {
+  const { t } = useTranslation();
   const { theme } = useAppTheme();
   const neonUi = Boolean(theme.neonColors);
   const tc = themedColors(theme, neonUi);
   const { formatDistance } = useDistanceFormatter();
 
-  const name = item.displayName?.text || 'Unknown';
+  const name = item.displayName?.text || t('common.unknown');
   const ai = item.aiOverview as AiOverview | undefined | null;
   const distM = Math.round(item.distanceMeters ?? 0);
   const dist = formatDistance(distM);
@@ -387,6 +378,7 @@ function RestaurantRow({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RandomScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
   const { theme } = useAppTheme();
@@ -543,7 +535,7 @@ export default function RandomScreen() {
     try {
       const coords = await getLocation(isRefresh);
       if (!coords) {
-        setErrorMsg('Location access is needed to find nearby restaurants.\n\nEnable it in Settings → Privacy → Location.');
+        setErrorMsg(t('random.locationError'));
         setIsLoading(false);
         return;
       }
@@ -610,15 +602,14 @@ export default function RandomScreen() {
         return;
       }
       console.error(e);
-      const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
-      setErrorMsg(message);
+      setErrorMsg(t('random.loadError'));
     } finally {
       snapProgressComplete();
       setIsLoading(false);
       hydratedRef.current = true;
       setOpenCheckEpoch((e) => e + 1);
     }
-  }, [onOrchestratorProgress, paramScenario, startFetchPhase, startGpsPhase, snapProgressComplete]);
+  }, [onOrchestratorProgress, paramScenario, startFetchPhase, startGpsPhase, snapProgressComplete, t]);
 
   useEffect(() => {
     void loadResults(DEFAULT_SEARCH_RADIUS_METERS);
@@ -774,7 +765,7 @@ export default function RandomScreen() {
             <Ionicons name="search-outline" size={14} color={theme.subtext} />
             <TextInput
               style={[styles.searchInput, { color: theme.text }]}
-              placeholder="Filter restaurants…"
+              placeholder={t('random.filterPlaceholder')}
               placeholderTextColor={theme.subtext}
               value={filter}
               onChangeText={setFilter}
@@ -820,7 +811,9 @@ export default function RandomScreen() {
                 activeFilterCount > 0 && { color: tc.chipActiveText },
               ]}
             >
-              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              {activeFilterCount > 0
+                ? t('random.filtersCount', { count: activeFilterCount })
+                : t('random.filters')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -863,7 +856,7 @@ export default function RandomScreen() {
         {showFilters && (
           <View style={[styles.filterPanel, { backgroundColor: tc.panelBg, borderColor: tc.panelBorder }]}>
             <View style={styles.filterPanelHeader}>
-              <Text style={[styles.filterPanelTitle, { color: theme.text }]}>Filters</Text>
+              <Text style={[styles.filterPanelTitle, { color: theme.text }]}>{t('random.filters')}</Text>
               <TouchableOpacity
                 onPress={() => setShowFilters(false)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -882,7 +875,7 @@ export default function RandomScreen() {
                     openOnly && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
                   ]}
                   onPress={() => setOpenOnly((v) => !v)}
-                  accessibilityLabel="Open now filter"
+                  accessibilityLabel={t('random.a11yOpenNow')}
                 >
                   <Ionicons
                     name={openOnly ? 'checkmark-circle' : 'ellipse-outline'}
@@ -896,7 +889,7 @@ export default function RandomScreen() {
                       openOnly && { color: tc.chipActiveText },
                     ]}
                   >
-                    Open now
+                    {t('random.openNow')}
                   </Text>
                 </TouchableOpacity>
                 {scenarioKey ? (
@@ -907,7 +900,7 @@ export default function RandomScreen() {
                       scenarioFilterEnabled && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
                     ]}
                     onPress={() => setScenarioFilterEnabled((v) => !v)}
-                    accessibilityLabel="Scenario vibe filter"
+                    accessibilityLabel={t('random.a11yScenarioVibe')}
                   >
                     <Ionicons
                       name={scenarioFilterEnabled ? 'checkmark-circle' : 'ellipse-outline'}
@@ -922,14 +915,14 @@ export default function RandomScreen() {
                       ]}
                       numberOfLines={1}
                     >
-                      Vibe · {SCENARIO_LABELS[scenarioKey]}
+                      {t('random.vibeFilter', { scenario: tScenarioLabel(scenarioKey) })}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
 
               <View style={styles.quickFilterRow}>
-                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>Price</Text>
+                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>{t('random.price')}</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -950,7 +943,7 @@ export default function RandomScreen() {
                         selectedPrices.size === 0 && { color: tc.chipActiveText },
                       ]}
                     >
-                      Any
+                      {t('random.any')}
                     </Text>
                   </TouchableOpacity>
                   {PRICE_LEVELS.map(p => (
@@ -978,7 +971,7 @@ export default function RandomScreen() {
               </View>
 
               <View style={styles.quickFilterRow}>
-                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>Rating</Text>
+                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>{t('random.rating')}</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -1001,7 +994,7 @@ export default function RandomScreen() {
                           minRating === r && { color: tc.chipActiveText },
                         ]}
                       >
-                        {r === 0 ? 'Any' : `${r}+`}
+                        {r === 0 ? t('random.any') : `${r}+`}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1009,7 +1002,7 @@ export default function RandomScreen() {
               </View>
             </View>
 
-            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>Cuisines</Text>
+            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>{t('random.cuisines')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
               {Object.keys(CUISINE_TYPE_MAP).map(key => (
                 <TouchableOpacity
@@ -1028,15 +1021,15 @@ export default function RandomScreen() {
                       selectedCuisines.has(key) && { color: tc.chipActiveText },
                     ]}
                   >
-                    {cuisineFilterLabel(key)}
+                    {tCuisineLabel(key)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>Sort By</Text>
+            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>{t('random.sortBy')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
-              {SORT_OPTIONS.map(({ key, label }) => (
+              {SORT_OPTIONS.map(({ key }) => (
                 <TouchableOpacity
                   key={key}
                   style={[
@@ -1053,19 +1046,19 @@ export default function RandomScreen() {
                       sortBy === key && { color: tc.chipActiveText },
                     ]}
                   >
-                    {label}
+                    {tSortLabel(key)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>Extra score cutoffs</Text>
+            <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>{t('random.extraCutoffs')}</Text>
             {[1, 2].map((slotNum) => {
               const slot = slotNum === 1 ? aiSlot1 : aiSlot2;
               const setSlot = slotNum === 1 ? setAiSlot1 : setAiSlot2;
               const maxScore = slot.key == null ? 5 : metricScale(slot.key) === 'ten' ? 10 : 5;
               const categoryLabel =
-                slot.key == null ? 'Metric' : AI_METRICS.find((m) => m.key === slot.key)?.label ?? 'Metric';
+                slot.key == null ? t('random.metric') : tScoreLabel(slot.key);
               return (
                 <View key={slotNum} style={styles.aiFilterBlock}>
                   <TouchableOpacity
@@ -1094,7 +1087,7 @@ export default function RandomScreen() {
                         thumbTintColor={theme.text}
                       />
                       <Text style={[styles.aiScoreSliderValue, { color: theme.text }]}>
-                        {slot.min === 0 ? 'Any' : `${slot.min}+`}
+                        {slot.min === 0 ? t('random.any') : `${slot.min}+`}
                       </Text>
                     </View>
                   ) : null}
@@ -1109,7 +1102,7 @@ export default function RandomScreen() {
         {!isLoading && !errorMsg && allResults.length > 0 && (
           <View style={styles.selectAllRow}>
             <Text style={[styles.subtitle, { color: theme.subtext }]}>
-              {filtered.length} restaurants matching filters
+              {t('random.matchingCount', { count: filtered.length })}
             </Text>
             <TouchableOpacity style={styles.selectAllBtn} onPress={toggleSelectAll}>
               <View
@@ -1122,7 +1115,7 @@ export default function RandomScreen() {
                 {allSelectedInView && <Ionicons name="checkmark" size={14} color={tc.accentOn} />}
               </View>
               <Text style={[styles.selectAllText, { color: theme.subtext }]}>
-                {allSelectedInView ? 'Deselect All' : 'Select All'}
+                {allSelectedInView ? t('common.deselectAll') : t('common.selectAll')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1142,20 +1135,20 @@ export default function RandomScreen() {
               style={[styles.retryBtn, { backgroundColor: theme.accent }]}
               onPress={() => loadResults()}
             >
-              <Text style={[styles.retryText, { color: tc.accentOn }]}>Try Again</Text>
+              <Text style={[styles.retryText, { color: tc.accentOn }]}>{t('common.tryAgain')}</Text>
             </TouchableOpacity>
           </View>
         ) : allResults.length === 0 ? (
           <View style={styles.centerBox}>
             <Ionicons name="restaurant-outline" size={64} color={theme.subtext} />
             <Text style={[styles.errorText, { color: theme.subtext }]}>
-              No restaurants found within {formatLabel(radius)}.
+              {t('random.noResultsInRadius', { radius: formatLabel(radius) })}
             </Text>
             <TouchableOpacity
               style={[styles.retryBtn, { backgroundColor: theme.accent }]}
               onPress={() => setShowRadius(true)}
             >
-              <Text style={[styles.retryText, { color: tc.accentOn }]}>Expand Radius</Text>
+              <Text style={[styles.retryText, { color: tc.accentOn }]}>{t('random.expandRadius')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1211,7 +1204,7 @@ export default function RandomScreen() {
                 >
                   <Ionicons name="shuffle" size={20} color={neonUi ? '#000000' : tc.accentOn} />
                   <Text style={[styles.pickBtnText, { color: neonUi ? '#000000' : tc.accentOn }]}>
-                    Pick One  ({selectedCount})
+                    {t('random.pickOne', { count: selectedCount })}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -1233,7 +1226,7 @@ export default function RandomScreen() {
             onPress={() => setCategoryModal(null)}
           />
           <View style={[styles.categoryModalSheet, { backgroundColor: tc.modalBg, borderColor: tc.modalBorder }]}>
-            <Text style={[styles.categoryModalTitle, { color: theme.text }]}>AI metric</Text>
+            <Text style={[styles.categoryModalTitle, { color: theme.text }]}>{t('random.aiMetric')}</Text>
             <ScrollView style={styles.categoryModalList} keyboardShouldPersistTaps="handled">
               <TouchableOpacity
                 style={[styles.categoryModalOption, { borderBottomColor: tc.chipBorder }]}
@@ -1243,7 +1236,7 @@ export default function RandomScreen() {
                   setCategoryModal(null);
                 }}
               >
-                <Text style={[styles.categoryModalOptionText, { color: theme.text }]}>None</Text>
+                <Text style={[styles.categoryModalOptionText, { color: theme.text }]}>{t('random.none')}</Text>
               </TouchableOpacity>
               {AI_METRICS.map((m) => (
                 <TouchableOpacity
@@ -1260,9 +1253,9 @@ export default function RandomScreen() {
                     setCategoryModal(null);
                   }}
                 >
-                  <Text style={[styles.categoryModalOptionText, { color: theme.text }]}>{m.label}</Text>
+                  <Text style={[styles.categoryModalOptionText, { color: theme.text }]}>{tScoreLabel(m.key)}</Text>
                   <Text style={[styles.categoryModalScaleHint, { color: theme.subtext }]}>
-                    {m.scale === 'ten' ? '0–10' : '0–5'}
+                    {m.scale === 'ten' ? t('random.scaleTen') : t('random.scaleFive')}
                   </Text>
                 </TouchableOpacity>
               ))}

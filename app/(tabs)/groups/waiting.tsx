@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -10,6 +11,7 @@ import { subscribeToSessionResponses, subscribeToSessionStatus } from '@/utils/g
 
 export default function WaitingScreen() {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ sessionId?: string; responseId?: string }>();
   const sessionId = typeof params.sessionId === 'string' ? params.sessionId : '';
@@ -57,14 +59,14 @@ export default function WaitingScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.inner}>
           <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
-          <Text style={[styles.title, { color: theme.text }]}>Session Ended</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('vibe.sessionEnded')}</Text>
           <Text style={[styles.subtitle, { color: theme.subtext }]}>
-            The host ended this session.
+            {t('vibe.hostEndedSession')}
           </Text>
           <TouchableOpacity
             style={[styles.backBtn, { backgroundColor: theme.accent }]}
             onPress={() => router.replace('/groups')}>
-            <Text style={[styles.backBtnText, { color: theme.gradient[0] }]}>Back to Groups</Text>
+            <Text style={[styles.backBtnText, { color: theme.gradient[0] }]}>{t('groups.backToGroups')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -80,15 +82,17 @@ export default function WaitingScreen() {
           <Text style={[styles.checkIcon, { color: theme.accent }]}>✓</Text>
         </View>
 
-        <Text style={[styles.title, { color: theme.text }]}>You&apos;re in!</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('groups.waiting.youreIn')}</Text>
         <Text style={[styles.subtitle, { color: theme.subtext }]}>
-          Your preferences have been saved
+          {t('groups.waiting.prefsSaved')}
         </Text>
 
         <View style={[styles.countBox, { backgroundColor: theme.cardBackground }]}>
           <Text style={[styles.countNum, { color: theme.accent }]}>{totalResponses}</Text>
           <Text style={[styles.countLabel, { color: theme.subtext }]}>
-            {totalResponses === 1 ? 'person ready' : 'people ready'}
+            {totalResponses === 1
+              ? t('groups.waiting.personReady', { count: totalResponses })
+              : t('groups.waiting.peopleReady', { count: totalResponses })}
           </Text>
         </View>
 
@@ -105,7 +109,7 @@ export default function WaitingScreen() {
         </View>
 
         <Text style={[styles.note, { color: theme.subtext }]}>
-          {"Waiting for the host to start the vote…"}
+          {t('groups.waiting.waitingForHost')}
         </Text>
 
         <ActivityIndicator color={theme.accent} style={{ marginTop: 32 }} size="large" />

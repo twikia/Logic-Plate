@@ -159,13 +159,13 @@ export default function GeneralSettingsScreen() {
                   onPress={() => handleUnitChange('km')}
                   style={[styles.unitBtn, unit === 'km' && { backgroundColor: theme.accent }]}
                 >
-                  <Text style={[styles.unitText, { color: theme.subtext }, unit === 'km' && { color: theme.accentOnColor ?? '#FFFFFF' }]}>KM</Text>
+                  <Text style={[styles.unitText, { color: theme.subtext }, unit === 'km' && { color: theme.accentOnColor ?? '#FFFFFF' }]}>{t('settings.unitKm')}</Text>
                 </Pressable>
                 <Pressable 
                   onPress={() => handleUnitChange('mi')}
                   style={[styles.unitBtn, unit === 'mi' && { backgroundColor: theme.accent }]}
                 >
-                  <Text style={[styles.unitText, { color: theme.subtext }, unit === 'mi' && { color: theme.accentOnColor ?? '#FFFFFF' }]}>Miles</Text>
+                  <Text style={[styles.unitText, { color: theme.subtext }, unit === 'mi' && { color: theme.accentOnColor ?? '#FFFFFF' }]}>{t('settings.unitMiles')}</Text>
                 </Pressable>
               </View>
             </View>

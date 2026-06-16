@@ -18,8 +18,10 @@ import { supabase } from '@/core/supabaseClient';
 import { linkOAuthProvider, signInWithOAuthProvider } from '@/core/auth/oauth';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useAuth } from '@/context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, loading: authLoading, setUsernameViaEdge, refreshProfile, isGuest } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -67,22 +69,22 @@ export default function LoginScreen() {
     if (mode === 'signup') {
       const u = username.trim();
       if (!isGuest && u.length < 2) {
-        setMessage('Choose a username (2+ characters).');
+        setMessage(t('auth.errors.chooseUsername'));
         return;
       }
       if (isGuest && u.length > 0 && u.length < 2) {
-        setMessage('Username must be at least 2 characters or leave blank.');
+        setMessage(t('auth.errors.usernameMin'));
         return;
       }
     }
     if (mode === 'signin' && isGuest) {
       Alert.alert(
-        'Sign in to an existing account?',
-        'You will leave this guest profile on the server under its current user ID. To keep progress on this device, use Sign up to attach email and password to your guest profile instead.',
+        t('auth.guestSignInAlert.title'),
+        t('auth.guestSignInAlert.message'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('auth.guestSignInAlert.cancel'), style: 'cancel' },
           {
-          text: 'Continue',
+          text: t('auth.guestSignInAlert.continue'),
           style: 'destructive',
           onPress: () => {
             setBusy(true);
@@ -110,12 +112,12 @@ export default function LoginScreen() {
             const res = await setUsernameViaEdge(u);
             if (!res.ok) {
               const map: Record<string, string> = {
-                profanity: 'Username not allowed.',
-                taken: 'Username taken.',
-                invalid_username: 'Check username format.',
-                network: 'Could not save username.',
+                profanity: t('auth.errors.profanity'),
+                taken: t('auth.errors.taken'),
+                invalid_username: t('auth.errors.invalidUsername'),
+                network: t('auth.errors.network'),
               };
-              setMessage(map[res.code] || 'Could not save username.');
+              setMessage(map[res.code] || t('auth.errors.network'));
               return;
             }
           }
@@ -128,12 +130,12 @@ export default function LoginScreen() {
           const res = await setUsernameViaEdge(username.trim());
           if (!res.ok) {
             const map: Record<string, string> = {
-              profanity: 'Username not allowed.',
-              taken: 'Username taken.',
-              invalid_username: 'Check username format.',
-              network: 'Could not save username.',
+              profanity: t('auth.errors.profanity'),
+              taken: t('auth.errors.taken'),
+              invalid_username: t('auth.errors.invalidUsername'),
+              network: t('auth.errors.network'),
             };
-            setMessage(map[res.code] || 'Account created; set username on the next screen.');
+            setMessage(map[res.code] || t('auth.errors.accountCreated'));
             return;
           }
         }
@@ -174,13 +176,13 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.brand}>Platebound</Text>
+          <Text style={styles.brand}>{t('auth.brand')}</Text>
           <Text style={styles.headline}>
             {mode === 'signin'
-              ? 'Welcome back'
+              ? t('auth.welcomeBack')
               : isGuest
-                ? 'Save this profile'
-                : 'Create an account'}
+                ? t('auth.saveProfile')
+                : t('auth.createAccount')}
           </Text>
 
           <View style={styles.toggleRow}>
@@ -189,7 +191,7 @@ export default function LoginScreen() {
               onPress={() => setMode('signin')}
             >
               <Text style={[styles.toggleText, mode === 'signin' && styles.toggleTextOn]}>
-                Sign in
+                {t('auth.signIn')}
               </Text>
             </AnimatedPressable>
             <AnimatedPressable
@@ -197,7 +199,7 @@ export default function LoginScreen() {
               onPress={() => setMode('signup')}
             >
               <Text style={[styles.toggleText, mode === 'signup' && styles.toggleTextOn]}>
-                Sign up
+                {t('auth.signUp')}
               </Text>
             </AnimatedPressable>
           </View>
@@ -208,7 +210,7 @@ export default function LoginScreen() {
               onChangeText={setUsername}
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder={isGuest ? 'Username (optional)' : 'Username'}
+              placeholder={isGuest ? t('auth.usernameOptional') : t('auth.username')}
               placeholderTextColor="rgba(255,255,255,0.35)"
               style={styles.input}
               editable={!busy}
@@ -220,7 +222,7 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            placeholder="Email"
+            placeholder={t('auth.email')}
             placeholderTextColor="rgba(255,255,255,0.35)"
             style={styles.input}
             editable={!busy}
@@ -228,7 +230,7 @@ export default function LoginScreen() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Password"
+            placeholder={t('auth.password')}
             placeholderTextColor="rgba(255,255,255,0.35)"
             style={styles.input}
             secureTextEntry
@@ -246,12 +248,12 @@ export default function LoginScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.primaryText}>
-                {mode === 'signin' ? 'Sign in' : 'Sign up'}
+                {mode === 'signin' ? t('auth.signIn') : t('auth.signUp')}
               </Text>
             )}
           </AnimatedPressable>
 
-          <Text style={styles.divider}>or</Text>
+          <Text style={styles.divider}>{t('auth.or')}</Text>
 
           <View style={styles.socialGrid}>
             <AnimatedPressable
@@ -342,7 +344,7 @@ export default function LoginScreen() {
               {guestBusy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.secondaryCtaText}>Continue as guest for now</Text>
+                <Text style={styles.secondaryCtaText}>{t('auth.continueGuest')}</Text>
               )}
             </AnimatedPressable>
           ) : null}
@@ -351,7 +353,7 @@ export default function LoginScreen() {
               style={[styles.secondaryCta, styles.tailCta]}
               onPress={() => router.replace('/(tabs)' as any)}
             >
-              <Text style={styles.secondaryCtaText}>Back to app</Text>
+              <Text style={styles.secondaryCtaText}>{t('auth.backToApp')}</Text>
             </AnimatedPressable>
           ) : null}
         </ScrollView>

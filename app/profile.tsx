@@ -34,7 +34,7 @@ export default function ProfileScreen() {
   const { theme, themeName, setTheme } = useAppTheme();
 
   const greetingName =
-    profile?.username ?? (isGuest ? 'Guest' : user?.email?.split('@')[0] ?? 'there');
+    profile?.username ?? (isGuest ? t('profile.guest') : user?.email?.split('@')[0] ?? 'there');
 
   const handleClose = () => {
     if (isClosing) return;

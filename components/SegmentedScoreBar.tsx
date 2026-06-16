@@ -1,5 +1,6 @@
 import type { AiOverview } from '@/core/aiOverviewCache';
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -28,8 +29,8 @@ function scoreAxis(ai: AiOverview | null | undefined, key: keyof AiOverview): nu
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function formatScore(max: 5 | 10, s: number | null): string {
-  if (s == null) return '—';
+function formatScore(max: 5 | 10, s: number | null, missing: string): string {
+  if (s == null) return missing;
   if (max === 10) return `${clampScore(s, max).toFixed(1)}/${max}`;
   return `${Math.round(clampScore(s, max))}/${max}`;
 }
@@ -65,12 +66,12 @@ function AnimatedSegment({
   );
 }
 
-const METRICS: { key: keyof AiOverview; label: string; max: 5 | 10 }[] = [
-  { key: 'tasteScore', label: 'Taste', max: 5 },
-  { key: 'valueForMoneyScore', label: 'Value', max: 5 },
-  { key: 'dateWorthiness', label: 'Date', max: 5 },
-  { key: 'healthScore', label: 'Health', max: 10 },
-  { key: 'speedScore', label: 'Speed', max: 5 },
+const METRICS: { key: keyof AiOverview; labelKey: string; max: 5 | 10 }[] = [
+  { key: 'tasteScore', labelKey: 'taste', max: 5 },
+  { key: 'valueForMoneyScore', labelKey: 'value', max: 5 },
+  { key: 'dateWorthiness', labelKey: 'dateWorthiness', max: 5 },
+  { key: 'healthScore', labelKey: 'health', max: 10 },
+  { key: 'speedScore', labelKey: 'speed', max: 5 },
 ];
 
 type Props = {
@@ -86,20 +87,23 @@ function absoluteScoreColor(score: number | null, max: 5 | 10): string {
 }
 
 export function SegmentedScoreBar({ ai }: Props) {
+  const { t } = useTranslation();
+  const missing = t('common.missingScore');
+
   return (
     <View style={styles.container}>
-      {METRICS.map(({ key, label, max }, rowIdx) => {
+      {METRICS.map(({ key, labelKey, max }, rowIdx) => {
         const s = scoreAxis(ai, key);
         const norm = (() => {
           if (s == null) return 0;
           return Math.round((clampScore(s, max) / max) * SEG_COUNT);
         })();
         const color = absoluteScoreColor(s, max);
-        const reading = formatScore(max, s);
+        const reading = formatScore(max, s, missing);
 
         return (
           <View key={key} style={styles.row}>
-            <Text style={styles.label}>{label}</Text>
+            <Text style={styles.label}>{t(`scores.${labelKey}`)}</Text>
             <View style={styles.barContainer}>
               {Array.from({ length: SEG_COUNT }, (_, segIdx) => (
                 <AnimatedSegment

@@ -1,34 +1,35 @@
 import type { AiOverview } from '@/core/aiOverviewCache';
 import type { ThemeColors } from '@/themes/types';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, G, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 
 export type PerformanceMetric = {
   key: keyof AiOverview;
-  label: string;
+  labelKey: string;
   emoji: string;
   max: 5 | 10;
 };
 
 export const NUTRITION_METRICS: PerformanceMetric[] = [
-  { key: 'calorieScore', label: 'Calories', emoji: '🔥', max: 5 },
-  { key: 'proteinScore', label: 'Protein', emoji: '🥩', max: 5 },
-  { key: 'carbScore', label: 'Carb balance', emoji: '🌾', max: 5 },
-  { key: 'macroFriendlyScore', label: 'Macro-friendly', emoji: '📊', max: 5 },
-  { key: 'workoutRecoveryScore', label: 'Workout', emoji: '💪', max: 10 },
-  { key: 'energySustainScore', label: 'Energy', emoji: '🔋', max: 5 },
+  { key: 'calorieScore', labelKey: 'calorie', emoji: '🔥', max: 5 },
+  { key: 'proteinScore', labelKey: 'protein', emoji: '🥩', max: 5 },
+  { key: 'carbScore', labelKey: 'carbBalance', emoji: '🌾', max: 5 },
+  { key: 'macroFriendlyScore', labelKey: 'macroFriendly', emoji: '📊', max: 5 },
+  { key: 'workoutRecoveryScore', labelKey: 'workout', emoji: '💪', max: 10 },
+  { key: 'energySustainScore', labelKey: 'energySustain', emoji: '🔋', max: 5 },
 ];
 
 export const PERFORMANCE_METRICS: PerformanceMetric[] = [
-  { key: 'tasteScore', label: 'Taste', emoji: '👅', max: 5 },
-  { key: 'valueForMoneyScore', label: 'Value', emoji: '💵', max: 5 },
-  { key: 'speedScore', label: 'Speed', emoji: '⚡', max: 5 },
-  { key: 'munchyScore', label: 'Munchy', emoji: '🌙', max: 5 },
-  { key: 'dateWorthiness', label: 'Date', emoji: '💕', max: 5 },
-  { key: 'soloDinerScore', label: 'Solo', emoji: '🪑', max: 5 },
-  { key: 'workFriendlyScore', label: 'Work', emoji: '💻', max: 5 },
-  { key: 'varietyScore', label: 'Variety', emoji: '🔄', max: 5 },
+  { key: 'tasteScore', labelKey: 'taste', emoji: '👅', max: 5 },
+  { key: 'valueForMoneyScore', labelKey: 'value', emoji: '💵', max: 5 },
+  { key: 'speedScore', labelKey: 'speed', emoji: '⚡', max: 5 },
+  { key: 'munchyScore', labelKey: 'munchy', emoji: '🌙', max: 5 },
+  { key: 'dateWorthiness', labelKey: 'dateWorthiness', emoji: '💕', max: 5 },
+  { key: 'soloDinerScore', labelKey: 'soloDinerFriendly', emoji: '🪑', max: 5 },
+  { key: 'workFriendlyScore', labelKey: 'workFriendly', emoji: '💻', max: 5 },
+  { key: 'varietyScore', labelKey: 'variety', emoji: '🔄', max: 5 },
 ];
 
 export function sortMetricsByScore(
@@ -159,8 +160,11 @@ export function VibeStatsPodium({
   theme,
   compact = false,
   embedded = false,
-  title = 'Top Vibe Stats',
+  title,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedTitle = title === undefined ? t('scores.topVibeStats') : title;
+  const metricLabel = (metric: PerformanceMetric) => t(`scores.${metric.labelKey}`);
   const top3 = useMemo(() => getTopPerformanceMetrics(ai, 3), [ai]);
 
   if (top3.length === 0) return null;
@@ -225,7 +229,7 @@ export function VibeStatsPodium({
           <Pillar
             key={slot}
             slot={slot}
-            label={metric.label}
+            label={metricLabel(metric)}
             emoji={metric.emoji}
             displayValue={display}
             compact={compact}
@@ -240,7 +244,7 @@ export function VibeStatsPodium({
                 style={[styles.legendDot, { backgroundColor: SLOT_COLORS[slot].glow }]}
               />
               <Text style={[styles.legendText, { color: theme.subtext }]}>
-                {metric.emoji} {metric.label}
+                {metric.emoji} {metricLabel(metric)}
               </Text>
             </View>
           ))}
@@ -263,7 +267,9 @@ export function VibeStatsPodium({
         },
       ]}
     >
-      {title ? <Text style={[styles.title, { color: theme.text }]}>{title}</Text> : null}
+      {resolvedTitle ? (
+        <Text style={[styles.title, { color: theme.text }]}>{resolvedTitle}</Text>
+      ) : null}
       {podium}
     </View>
   );

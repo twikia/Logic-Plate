@@ -1,10 +1,12 @@
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { AiOverviewRadar } from '@/components/AiOverviewRadar';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
+import { tScoreLabel } from '@/core/i18nLabels';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import type { ThemeColors } from '@/themes/types';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
@@ -205,13 +207,14 @@ function sectionPreview(values: (string | undefined)[], ph: boolean): string | u
 }
 
 export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel }: Props) {
+  const { t } = useTranslation();
   const overall = ph ? null : calculatePlateboundScore(ai, googleRating, priceLevel);
   const border = theme.cardBorderColor;
 
   return (
     <View style={styles.root}>
       <ExpandableSection
-        title="AI overview"
+        title={t('map.aiOverview')}
         icon="sparkles-outline"
         accent="#C9A0FF"
         defaultOpen
@@ -221,28 +224,28 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
         {ph ? (
           <Text style={[styles.body, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
         ) : (
-          <AiOverviewSummaryBody text={ai!.summaryGoodBad || 'No summary yet.'} style={[styles.body, { color: theme.subtext }]} />
+          <AiOverviewSummaryBody text={ai!.summaryGoodBad || t('result.noSummary')} style={[styles.body, { color: theme.subtext }]} />
         )}
       </ExpandableSection>
 
       <View style={[styles.section, styles.glanceSection, { borderColor: border }]}>
         <View style={styles.sectionHead}>
           <Ionicons name="analytics-outline" size={16} color={theme.tint} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>At a glance</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('scores.atAGlance')}</Text>
         </View>
 
         <View style={[styles.overallRow, { borderColor: border, backgroundColor: theme.glassBackground }]}>
           <View style={styles.overallLeft}>
             <Ionicons name="ribbon-outline" size={18} color={theme.tint} />
-            <Text style={[styles.overallLabel, { color: theme.subtext }]}>Platebound overall</Text>
+            <Text style={[styles.overallLabel, { color: theme.subtext }]}>{t('scores.plateboundOverall')}</Text>
           </View>
           <Text style={[styles.overallVal, { color: theme.text }]}>
-            {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : overall != null ? `${overall.toFixed(1)}/10` : '—'}
+            {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : overall != null ? `${overall.toFixed(1)}/10` : t('common.missingScore')}
           </Text>
         </View>
 
         <View style={styles.healthRow}>
-          <Text style={[styles.healthLabel, { color: theme.text }]}>Health score</Text>
+          <Text style={[styles.healthLabel, { color: theme.text }]}>{t('scores.healthScore')}</Text>
           <Text style={[styles.healthVal, { color: '#A8D5A2' }]}>
             {typeof ai?.healthScore === 'number' ? `${ai.healthScore.toFixed(1)}/10` : AI_OVERVIEW_FIELD_PLACEHOLDER}
           </Text>
@@ -263,7 +266,7 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
       </View>
 
       <ExpandableSection
-        title="Flavor & value"
+        title={t('scores.flavorValue')}
         icon="restaurant-outline"
         accent="#FFB84D"
         emoji="👅"
@@ -271,13 +274,13 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
         preview={sectionPreview([fmt5(ai?.tasteScore, ph), fmt5(ai?.valueForMoneyScore, ph)], ph)}
       >
         <TwoColGrid>
-          <ScoreCell emoji="👅" label="Taste" value={ai?.tasteScore} ph={ph} theme={theme} />
-          <ScoreCell emoji="💵" label="Value for money" value={ai?.valueForMoneyScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="👅" label={tScoreLabel('taste')} value={ai?.tasteScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="💵" label={tScoreLabel('valueForMoney')} value={ai?.valueForMoneyScore} ph={ph} theme={theme} />
         </TwoColGrid>
       </ExpandableSection>
 
       <ExpandableSection
-        title="Convenience"
+        title={t('scores.convenience')}
         icon="flash-outline"
         accent={theme.tint}
         emoji="⚡"
@@ -286,18 +289,18 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
       >
         <ScaleBarCell
           emoji="⏱️"
-          label="Speed"
+          label={tScoreLabel('speed')}
           value={ai?.speedScore}
           ph={ph}
           theme={theme}
           max={5}
-          lowLabel="🐌 slow"
-          highLabel="fast ⚡"
+          lowLabel={t('scores.slow')}
+          highLabel={t('scores.fast')}
         />
       </ExpandableSection>
 
       <ExpandableSection
-        title="Recovery"
+        title={t('scores.recovery')}
         icon="barbell-outline"
         accent={theme.tint}
         emoji="💪"
@@ -311,20 +314,20 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
           ph={ph}
           theme={theme}
           rows={[
-            { label: 'Workout', value: ai?.workoutRecoveryScore, max: 10, color: theme.tint },
-            { label: 'Processed', value: ai?.processedScore, max: 10, color: '#68D8A3' },
-            { label: 'Hungover', value: ai?.hungoverRecoveryScore, max: 5, color: '#FFD66B' },
+            { label: tScoreLabel('workout'), value: ai?.workoutRecoveryScore, max: 10, color: theme.tint },
+            { label: tScoreLabel('processed'), value: ai?.processedScore, max: 10, color: '#68D8A3' },
+            { label: tScoreLabel('hungover'), value: ai?.hungoverRecoveryScore, max: 5, color: '#FFD66B' },
           ]}
         />
         <TwoColGrid>
-          <ScoreCell emoji="💪" label="Workout recovery" value={ai?.workoutRecoveryScore} ph={ph} theme={theme} max={10} />
-          <ScoreCell emoji="🍎" label="Processed load" value={ai?.processedScore} ph={ph} theme={theme} max={10} fillColor="#68D8A3" />
-          <ScoreCell emoji="🥴" label="Hungover recovery" value={ai?.hungoverRecoveryScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="💪" label={tScoreLabel('workoutRecovery')} value={ai?.workoutRecoveryScore} ph={ph} theme={theme} max={10} />
+          <ScoreCell emoji="🍎" label={tScoreLabel('processedLoad')} value={ai?.processedScore} ph={ph} theme={theme} max={10} fillColor="#68D8A3" />
+          <ScoreCell emoji="🥴" label={tScoreLabel('hungoverRecovery')} value={ai?.hungoverRecoveryScore} ph={ph} theme={theme} />
         </TwoColGrid>
       </ExpandableSection>
 
       <ExpandableSection
-        title="Cravings & menu"
+        title={t('scores.cravingsMenu')}
         icon="fast-food-outline"
         accent="#C9A0FF"
         emoji="🌙"
@@ -332,13 +335,13 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
         preview={sectionPreview([fmt5(ai?.munchyScore, ph), fmt5(ai?.varietyScore, ph)], ph)}
       >
         <TwoColGrid>
-          <ScoreCell emoji="🌙" label="Munchy score" value={ai?.munchyScore} ph={ph} theme={theme} />
-          <ScoreCell emoji="🔄" label="Variety" value={ai?.varietyScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="🌙" label={tScoreLabel('munchy')} value={ai?.munchyScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="🔄" label={tScoreLabel('variety')} value={ai?.varietyScore} ph={ph} theme={theme} />
         </TwoColGrid>
       </ExpandableSection>
 
       <ExpandableSection
-        title="Nutrition & portions"
+        title={t('scores.nutritionPortions')}
         icon="nutrition-outline"
         accent="#FFD66B"
         emoji="🍽️"
@@ -349,17 +352,17 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
           ph={ph}
           theme={theme}
           rows={[
-            { label: 'Calorie', value: ai?.calorieScore, max: 5, color: '#FF8C5A' },
-            { label: 'Protein', value: ai?.proteinScore, max: 5, color: '#E85D75' },
-            { label: 'Carb', value: ai?.carbScore, max: 5, color: '#D4A84B' },
-            { label: 'Macro', value: ai?.macroFriendlyScore, max: 5, color: theme.tint },
+            { label: tScoreLabel('calorie'), value: ai?.calorieScore, max: 5, color: '#FF8C5A' },
+            { label: tScoreLabel('protein'), value: ai?.proteinScore, max: 5, color: '#E85D75' },
+            { label: tScoreLabel('carb'), value: ai?.carbScore, max: 5, color: '#D4A84B' },
+            { label: tScoreLabel('macro'), value: ai?.macroFriendlyScore, max: 5, color: theme.tint },
           ]}
         />
         <TwoColGrid>
-          <ScoreCell emoji="🔥" label="Calorie fit" value={ai?.calorieScore} ph={ph} theme={theme} />
-          <ScoreCell emoji="🥩" label="Protein" value={ai?.proteinScore} ph={ph} theme={theme} />
-          <ScoreCell emoji="🌾" label="Carb balance" value={ai?.carbScore} ph={ph} theme={theme} />
-          <ScoreCell emoji="📊" label="Macro-friendly" value={ai?.macroFriendlyScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="🔥" label={tScoreLabel('calorieFit')} value={ai?.calorieScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="🥩" label={tScoreLabel('protein')} value={ai?.proteinScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="🌾" label={tScoreLabel('carbBalance')} value={ai?.carbScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="📊" label={tScoreLabel('macroFriendly')} value={ai?.macroFriendlyScore} ph={ph} theme={theme} />
         </TwoColGrid>
         {ph ? (
           <Text style={[styles.macros, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
@@ -369,7 +372,7 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
       </ExpandableSection>
 
       <ExpandableSection
-        title="Vibe & social"
+        title={t('scores.vibeSocial')}
         icon="people-outline"
         accent="#E9A0C8"
         emoji="💫"
@@ -381,33 +384,33 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
             ph
               ? AI_OVERVIEW_FIELD_PLACEHOLDER
               : ai?.groupSizeSweetSpot != null
-                ? `${ai.groupSizeSweetSpot} ppl`
+                ? t('common.ppl', { count: ai.groupSizeSweetSpot })
                 : undefined,
           ],
           ph
         )}
       >
         <TwoColGrid>
-          <ScoreCell emoji="💕" label="Date worthiness" value={ai?.dateWorthiness} ph={ph} theme={theme} />
-          <ScoreCell emoji="🔊" label="Noise level" value={ai?.noiseLevelEstimate} ph={ph} theme={theme} />
+          <ScoreCell emoji="💕" label={tScoreLabel('dateWorthiness')} value={ai?.dateWorthiness} ph={ph} theme={theme} />
+          <ScoreCell emoji="🔊" label={tScoreLabel('noiseLevel')} value={ai?.noiseLevelEstimate} ph={ph} theme={theme} />
         </TwoColGrid>
         <View style={[styles.cell, styles.cellFull, { borderColor: border, backgroundColor: theme.glassBackground, marginTop: 8 }]}>
           <View style={styles.cellTop}>
             <Text style={styles.cellEmoji}>👥</Text>
-            <Text style={[styles.cellLabel, { color: theme.text }]}>Group sweet spot</Text>
+            <Text style={[styles.cellLabel, { color: theme.text }]}>{tScoreLabel('groupSweetSpot')}</Text>
             <Text style={[styles.cellVal, { color: theme.tint }]}>
               {ph
                 ? AI_OVERVIEW_FIELD_PLACEHOLDER
                 : ai?.groupSizeSweetSpot != null
-                  ? `${ai.groupSizeSweetSpot} people`
-                  : '—'}
+                  ? t('common.people', { count: ai.groupSizeSweetSpot })
+                  : t('common.missingScore')}
             </Text>
           </View>
         </View>
       </ExpandableSection>
 
       <ExpandableSection
-        title="Solo & work"
+        title={t('scores.soloWork')}
         icon="laptop-outline"
         accent="#9BC99D"
         emoji="💻"
@@ -415,18 +418,18 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
         preview={sectionPreview([fmt5(ai?.soloDinerScore, ph), fmt5(ai?.workFriendlyScore, ph)], ph)}
       >
         <TwoColGrid>
-          <ScoreCell emoji="🪑" label="Solo diner friendly" value={ai?.soloDinerScore} ph={ph} theme={theme} />
-          <ScoreCell emoji="💻" label="Work friendly" value={ai?.workFriendlyScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="🪑" label={tScoreLabel('soloDinerFriendly')} value={ai?.soloDinerScore} ph={ph} theme={theme} />
+          <ScoreCell emoji="💻" label={tScoreLabel('workFriendly')} value={ai?.workFriendlyScore} ph={ph} theme={theme} />
         </TwoColGrid>
         <ScaleBarCell
           emoji="🔋"
-          label="Energy sustain"
+          label={tScoreLabel('energySustain')}
           value={ai?.energySustainScore}
           ph={ph}
           theme={theme}
           max={5}
-          lowLabel="⚡ crashy"
-          highLabel="slow sustain"
+          lowLabel={t('scores.crashy')}
+          highLabel={t('scores.slowSustain')}
           fillColor="#7EC8E3"
         />
       </ExpandableSection>
@@ -435,10 +438,10 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
         <View style={styles.sectionHead}>
           <Text style={styles.emoji}>🎯</Text>
           <Ionicons name="person-outline" size={16} color="#B8E0FF" />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Who is this place for?</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('scores.whoIsThisPlaceFor')}</Text>
         </View>
         <Text style={[styles.body, { color: theme.subtext }]}>
-          {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : ai?.whoThisPlaceIsFor || '—'}
+          {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : ai?.whoThisPlaceIsFor || t('common.missingScore')}
         </Text>
       </View>
     </View>

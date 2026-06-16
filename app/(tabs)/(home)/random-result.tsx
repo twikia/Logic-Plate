@@ -17,6 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Dimensions,
@@ -258,18 +259,18 @@ function ContactRow({
   return row;
 }
 
-type MacroPill = { emoji: string; label: string; value: string };
+type MacroPill = { emoji: string; labelKey: 'protein' | 'carbs' | 'fats'; value: string };
 
 function parseMacroPills(text: string): MacroPill[] {
-  const patterns: { emoji: string; label: string; regex: RegExp }[] = [
-    { emoji: '🥩', label: 'Protein', regex: /protein[:\s]*(\d+)\s*g/i },
-    { emoji: '🍞', label: 'Carbs', regex: /carb(?:s|ohydrate)?[:\s]*(\d+)\s*g/i },
-    { emoji: '🥑', label: 'Fats', regex: /fat[s]?[:\s]*(\d+)\s*g/i },
+  const patterns: { emoji: string; labelKey: MacroPill['labelKey']; regex: RegExp }[] = [
+    { emoji: '🥩', labelKey: 'protein', regex: /protein[:\s]*(\d+)\s*g/i },
+    { emoji: '🍞', labelKey: 'carbs', regex: /carb(?:s|ohydrate)?[:\s]*(\d+)\s*g/i },
+    { emoji: '🥑', labelKey: 'fats', regex: /fat[s]?[:\s]*(\d+)\s*g/i },
   ];
   const pills: MacroPill[] = [];
-  for (const { emoji, label, regex } of patterns) {
+  for (const { emoji, labelKey, regex } of patterns) {
     const m = text.match(regex);
-    if (m) pills.push({ emoji, label, value: m[1] + 'g' });
+    if (m) pills.push({ emoji, labelKey, value: m[1] + 'g' });
   }
   return pills;
 }
@@ -279,6 +280,7 @@ export default function RandomResultScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
 
   const [, setSelectionEpoch] = useState(0);
   useEffect(() => subscribeCurrentRestaurant(() => setSelectionEpoch(e => e + 1)), []);
@@ -290,7 +292,7 @@ export default function RandomResultScreen() {
 
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
 
-  const name = place.displayName?.text || 'Unknown';
+  const name = place.displayName?.text || t('common.unknown');
   const address = place.formattedAddress || '';
   const phone = place.nationalPhoneNumber || '';
   const website = place.websiteUri || '';
@@ -368,9 +370,19 @@ export default function RandomResultScreen() {
   const accentHex = scoreColor(pScore);
   const healthScore = aiOverview?.healthScore ?? 0;
   const healthWord =
-    healthScore >= 7 ? 'Nutritious' : healthScore >= 4 ? 'Moderate' : 'Indulgent';
+    healthScore >= 7
+      ? t('result.healthTier.nutritious')
+      : healthScore >= 4
+        ? t('result.healthTier.moderate')
+        : t('result.healthTier.indulgent');
   const plateboundWord =
-    pScore >= 8 ? 'Excellent' : pScore >= 6.5 ? 'Great' : pScore >= 4.5 ? 'Good' : 'Fair';
+    pScore >= 8
+      ? t('result.matchTier.excellent')
+      : pScore >= 6.5
+        ? t('result.matchTier.great')
+        : pScore >= 4.5
+          ? t('result.matchTier.good')
+          : t('result.matchTier.fair');
   const macroPills = aiOverview?.absoluteMacros
     ? parseMacroPills(aiOverview.absoluteMacros)
     : [];
@@ -453,7 +465,7 @@ export default function RandomResultScreen() {
                     ]}
                   />
                   <Text style={{ color: isOpen ? '#4CD964' : '#FF6B6B', fontSize: 11, fontWeight: '700' }}>
-                    {isOpen ? 'Open now' : 'Closed'}
+                    {isOpen ? t('map.openStatus') : t('map.closedStatus')}
                   </Text>
                 </View>
               </View>
@@ -496,7 +508,7 @@ export default function RandomResultScreen() {
                   theme={theme}
                   centerText={plateboundScore.toFixed(1)}
                   centerSub={plateboundWord}
-                  label="Match Score"
+                  label={t('result.matchScore')}
                 />
                 <OrbitalGauge
                   score={healthScore}
@@ -504,7 +516,7 @@ export default function RandomResultScreen() {
                   theme={theme}
                   centerText={healthWord}
                   centerSub={`${healthScore.toFixed(1)}/10`}
-                  label="Health Score"
+                  label={t('result.healthScore')}
                 />
               </View>
             ) : null}
@@ -525,10 +537,10 @@ export default function RandomResultScreen() {
                 />
                 <View style={styles.cardHeader}>
                   <Ionicons name="sparkles" size={15} color="#C9A0FF" />
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>AI Overview</Text>
+                  <Text style={[styles.cardTitle, { color: theme.text }]}>{t('map.aiOverview')}</Text>
                 </View>
                 <AiOverviewSummaryBody
-                  text={aiOverview!.summaryGoodBad || 'No summary yet.'}
+                  text={aiOverview!.summaryGoodBad || t('result.noSummary')}
                   style={[styles.bodyText, { color: theme.subtext }]}
                 />
                 {aiOverview?.whoThisPlaceIsFor ? (
@@ -536,7 +548,7 @@ export default function RandomResultScreen() {
                     <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
                     <View style={styles.cardHeader}>
                       <Text style={styles.cardEmoji}>🎯</Text>
-                      <Text style={[styles.cardTitle, { color: theme.text }]}>Who it&apos;s for</Text>
+                      <Text style={[styles.cardTitle, { color: theme.text }]}>{t('map.whoIsItFor')}</Text>
                     </View>
                     <Text style={[styles.bodyText, { color: theme.subtext }]}>
                       {aiOverview.whoThisPlaceIsFor}
@@ -547,7 +559,7 @@ export default function RandomResultScreen() {
             ) : null}
 
             {!ph ? (
-              <SectionCard title="Performance" icon="analytics-outline" theme={theme}>
+              <SectionCard title={t('scores.performance')} icon="analytics-outline" theme={theme}>
                 <VibeStatsPodium
                   ai={aiOverview}
                   theme={theme}
@@ -560,7 +572,7 @@ export default function RandomResultScreen() {
                     <MetricChip
                       key={m.key}
                       emoji={m.emoji}
-                      label={m.label}
+                      label={t(`scores.${m.labelKey}`)}
                       value={aiOverview?.[m.key] as number | undefined}
                       max={m.max}
                       theme={theme}
@@ -571,13 +583,13 @@ export default function RandomResultScreen() {
             ) : null}
 
             {!ph ? (
-              <SectionCard title="Nutrition & portions" icon="nutrition-outline" theme={theme}>
+              <SectionCard title={t('scores.nutrition')} icon="nutrition-outline" theme={theme}>
                 <View style={styles.chipsGrid}>
                   {sortedNutritionMetrics.map(m => (
                     <MetricChip
                       key={m.key}
                       emoji={m.emoji}
-                      label={m.label}
+                      label={t(`scores.${m.labelKey}`)}
                       value={aiOverview?.[m.key] as number | undefined}
                       max={m.max}
                       theme={theme}
@@ -588,7 +600,7 @@ export default function RandomResultScreen() {
                   <View style={[styles.macroRow, { marginTop: 12 }]}>
                     {macroPills.map(p => (
                       <View
-                        key={p.label}
+                        key={p.labelKey}
                         style={[
                           styles.macroPill,
                           {
@@ -598,7 +610,9 @@ export default function RandomResultScreen() {
                         ]}
                       >
                         <Text style={styles.macroEmoji}>{p.emoji}</Text>
-                        <Text style={[styles.macroLabel, { color: theme.subtext }]}>{p.label}</Text>
+                        <Text style={[styles.macroLabel, { color: theme.subtext }]}>
+                          {t(`scores.macros.${p.labelKey}`)}
+                        </Text>
                         <Text style={[styles.macroValue, { color: theme.text }]}>{p.value}</Text>
                       </View>
                     ))}
@@ -613,14 +627,14 @@ export default function RandomResultScreen() {
             ) : null}
 
             {hasContact || weekdays.length > 0 ? (
-              <SectionCard title="Contact & Hours" icon="time-outline" theme={theme}>
+              <SectionCard title={t('scores.contactHours')} icon="time-outline" theme={theme}>
                 {hasContact ? (
                   <>
                     {address ? (
                       <ContactRow
                         icon="location-outline"
                         value={address}
-                        hint={addressCopied ? '✓ Copied!' : 'Tap to copy'}
+                        hint={addressCopied ? t('result.copied') : t('result.tapToCopy')}
                         theme={theme}
                         onPress={copyAddress}
                       />
@@ -632,7 +646,7 @@ export default function RandomResultScreen() {
                       <ContactRow
                         icon="call-outline"
                         value={phone}
-                        hint="Tap to call"
+                        hint={t('result.tapToCall')}
                         theme={theme}
                         onPress={() => Linking.openURL(`tel:${phone}`)}
                         accentColor={theme.tint}
@@ -645,7 +659,7 @@ export default function RandomResultScreen() {
                       <ContactRow
                         icon="globe-outline"
                         value={website}
-                        hint="Tap to open"
+                        hint={t('result.tapToOpen')}
                         theme={theme}
                         onPress={() => Linking.openURL(website)}
                         accentColor={theme.tint}
@@ -708,7 +722,7 @@ export default function RandomResultScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="shuffle" size={17} color={theme.subtext} />
-            <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>Pick Again</Text>
+            <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>{t('result.pickAgain')}</Text>
           </TouchableOpacity>
           {mapsReady ? (
             <TouchableOpacity
@@ -728,13 +742,13 @@ export default function RandomResultScreen() {
                   { color: theme.matchOrbTextColor ?? '#FFFFFF' },
                 ]}
               >
-                Go There
+                {t('result.goThere')}
               </Text>
             </TouchableOpacity>
           ) : (
             <View style={[styles.stickyPrimary, { backgroundColor: theme.subtext + '44' }]}>
               <Text style={[styles.stickyPrimaryText, { color: theme.subtext }]}>
-                No location
+                {t('result.noLocation')}
               </Text>
             </View>
           )}

@@ -10,6 +10,7 @@ import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { consumeMapFocusRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
 import { getNearbyRestaurants, isRestaurantFetchError, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
@@ -35,6 +36,7 @@ import {
   mapMarkerScoreColor,
   mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
+import { tScoreLabel, tSortLabel } from '@/core/i18nLabels';
 
 function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
   if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
@@ -68,6 +70,7 @@ function MapSheetAiScores({
   overallScore: number | null;
   overallPh: boolean;
 }) {
+  const { t } = useTranslation();
   const border = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
   const num = (x: number | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
   const scoreColor5 = (val: number | undefined) => {
@@ -118,21 +121,21 @@ function MapSheetAiScores({
   const groupText = ph
     ? AI_OVERVIEW_FIELD_PLACEHOLDER
     : ai?.groupSizeSweetSpot != null
-      ? `${ai.groupSizeSweetSpot} people`
-      : '—';
+      ? t('common.people', { count: ai.groupSizeSweetSpot })
+      : t('common.missingScore');
   return (
     <View style={[styles.infoSection, { borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
       <View style={styles.infoSectionHeader}>
         <Ionicons name="analytics-outline" size={15} color="#C9A0FF" />
-        <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI scores</Text>
+        <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>{t('map.aiScores')}</Text>
       </View>
       <View style={[styles.aiOverallRow, { borderColor: border }]}>
         <View style={styles.aiOverallLeft}>
           <Ionicons name="ribbon-outline" size={18} color="#C9A0FF" />
-          <Text style={[styles.aiOverallLabel, { color: theme.subtext }]}>Overall Platebound</Text>
+          <Text style={[styles.aiOverallLabel, { color: theme.subtext }]}>{t('map.overallScore')}</Text>
         </View>
         <Text style={[styles.aiOverallVal, { color: overallPh || overallScore == null ? theme.text : overallScore >= 7 ? '#4CD964' : overallScore < 5 ? '#FF6B6B' : '#FF9500' }]}>
-          {overallPh ? AI_OVERVIEW_FIELD_PLACEHOLDER : overallScore != null ? `${overallScore.toFixed(1)}/10` : '—'}
+          {overallPh ? AI_OVERVIEW_FIELD_PLACEHOLDER : overallScore != null ? `${overallScore.toFixed(1)}/10` : t('common.missingScore')}
         </Text>
       </View>
       <ScrollView
@@ -141,33 +144,33 @@ function MapSheetAiScores({
         nestedScrollEnabled
         contentContainerStyle={styles.aiStripRow}
       >
-        {sq('👅', 'Taste', ai?.tasteScore, 'taste')}
-        {sq('💵', 'Value', ai?.valueForMoneyScore, 'value')}
-        {bar10('Health', ai?.healthScore, 'health')}
-        {sq('⏱️', 'Speed', ai?.speedScore, 'speed')}
-        {bar10('Workout recovery', ai?.workoutRecoveryScore, 'workout')}
-        {bar10('Processed load', ai?.processedScore, 'processed')}
-        {sq('🌙', 'Munchy', ai?.munchyScore, 'munchy')}
-        {sq('🔄', 'Variety', ai?.varietyScore, 'variety')}
-        {sq('🔥', 'Calorie fit', ai?.calorieScore, 'calorie')}
-        {sq('🥩', 'Protein', ai?.proteinScore, 'protein')}
-        {sq('🌾', 'Carb balance', ai?.carbScore, 'carb')}
-        {sq('📊', 'Macro-friendly', ai?.macroFriendlyScore, 'macro')}
-        {sq('🥴', 'Hungover', ai?.hungoverRecoveryScore, 'hungover')}
-        {sq('💕', 'Date', ai?.dateWorthiness, 'date')}
-        {sq('🔊', 'Noise', ai?.noiseLevelEstimate, 'noise')}
+        {sq('👅', tScoreLabel('taste'), ai?.tasteScore, 'taste')}
+        {sq('💵', tScoreLabel('value'), ai?.valueForMoneyScore, 'value')}
+        {bar10(tScoreLabel('health'), ai?.healthScore, 'health')}
+        {sq('⏱️', tScoreLabel('speed'), ai?.speedScore, 'speed')}
+        {bar10(tScoreLabel('workoutRecovery'), ai?.workoutRecoveryScore, 'workout')}
+        {bar10(tScoreLabel('processedLoad'), ai?.processedScore, 'processed')}
+        {sq('🌙', tScoreLabel('munchy'), ai?.munchyScore, 'munchy')}
+        {sq('🔄', tScoreLabel('variety'), ai?.varietyScore, 'variety')}
+        {sq('🔥', tScoreLabel('calorieFit'), ai?.calorieScore, 'calorie')}
+        {sq('🥩', tScoreLabel('protein'), ai?.proteinScore, 'protein')}
+        {sq('🌾', tScoreLabel('carbBalance'), ai?.carbScore, 'carb')}
+        {sq('📊', tScoreLabel('macroFriendly'), ai?.macroFriendlyScore, 'macro')}
+        {sq('🥴', tScoreLabel('hungover'), ai?.hungoverRecoveryScore, 'hungover')}
+        {sq('💕', tScoreLabel('dateWorthiness'), ai?.dateWorthiness, 'date')}
+        {sq('🔊', tScoreLabel('noiseLevel'), ai?.noiseLevelEstimate, 'noise')}
         <View key="group" style={[styles.aiSquare, { borderColor: border, minWidth: 88 }]}>
           <Text style={styles.aiSquareEmoji}>👥</Text>
           <Text style={[styles.aiSquareLabel, { color: theme.subtext }]} numberOfLines={2}>
-            Group fit
+            {tScoreLabel('groupSweetSpot')}
           </Text>
           <Text style={[styles.aiSquareVal, { color: theme.text }]} numberOfLines={1}>
             {groupText}
           </Text>
         </View>
-        {sq('🪑', 'Solo diner', ai?.soloDinerScore, 'solo')}
-        {sq('🔋', 'Energy', ai?.energySustainScore, 'energy')}
-        {sq('💻', 'Work friendly', ai?.workFriendlyScore, 'work')}
+        {sq('🪑', tScoreLabel('soloDinerFriendly'), ai?.soloDinerScore, 'solo')}
+        {sq('🔋', tScoreLabel('energySustain'), ai?.energySustainScore, 'energy')}
+        {sq('💻', tScoreLabel('workFriendly'), ai?.workFriendlyScore, 'work')}
       </ScrollView>
       {ph ? (
         <Text style={[styles.infoSectionBody, { color: theme.subtext, marginTop: 10 }]}>
@@ -234,6 +237,7 @@ function openMaps(name: string, lat: number, lng: number) {
 }
 
 export default function MapScreen() {
+  const { t } = useTranslation();
   const { theme, themeName } = useAppTheme();
   const { formatDistance, formatLabel } = useDistanceFormatter();
   const insets = useSafeAreaInsets();
@@ -604,7 +608,7 @@ export default function MapScreen() {
 
       <SafeAreaView style={styles.overlayUI} pointerEvents="box-none">
         <View style={styles.headerRow}>
-          <Text style={[styles.pageTitle, { color: theme.text, textShadowColor: isDarkTheme ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>Explore</Text>
+          <Text style={[styles.pageTitle, { color: theme.text, textShadowColor: isDarkTheme ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>{t('map.title')}</Text>
         </View>
 
         {/* Radius Picker - compact top-left */}
@@ -658,7 +662,7 @@ export default function MapScreen() {
           >
             <Ionicons name="swap-vertical" size={14} color={theme.accent} />
             <Text style={[styles.radiusText, { color: theme.text }]}>
-              {SORT_OPTIONS.find((o) => o.key === mapSortBy)?.label ?? 'Sort'}
+              {tSortLabel(mapSortBy)}
             </Text>
             <Ionicons name={showSortPicker ? 'chevron-up' : 'chevron-down'} size={12} color={theme.subtext} />
           </TouchableOpacity>
@@ -675,7 +679,7 @@ export default function MapScreen() {
                 nestedScrollEnabled
                 keyboardShouldPersistTaps="handled"
               >
-                {SORT_OPTIONS.map(({ key, label }) => (
+                {SORT_OPTIONS.map(({ key }) => (
                   <TouchableOpacity
                     key={key}
                     style={[
@@ -689,7 +693,7 @@ export default function MapScreen() {
                     }}
                   >
                     <Text style={[styles.pickerOptionText, { color: theme.text }, mapSortBy === key && { color: '#FFF' }]}>
-                      {label}
+                      {tSortLabel(key)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -712,8 +716,8 @@ export default function MapScreen() {
       {isLocating && (
         <View style={[styles.loadingOverlay, { backgroundColor: isDarkTheme ? '#1E0F1E' : '#FDF8F5' }]}>
           <View style={styles.loadingContent}>
-            <Text style={[styles.loadingTitle, { color: theme.text }]}>Acquiring GPS Lock</Text>
-            <Text style={[styles.loadingSubtitle, { color: theme.subtext }]}>Finding your culinary coordinates...</Text>
+            <Text style={[styles.loadingTitle, { color: theme.text }]}>{t('map.acquiringGps')}</Text>
+            <Text style={[styles.loadingSubtitle, { color: theme.subtext }]}>{t('map.acquiringGpsSubtitle')}</Text>
             <View style={[styles.progressBarContainer, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
               <Animated.View 
                 style={[
@@ -782,7 +786,7 @@ export default function MapScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
                   <Ionicons name={markerIconForPlace(selectedRestaurant)} size={12} color={theme.subtext} />
                   <Text style={[styles.restaurantType, { color: theme.subtext }]}>
-                    {selectedRestaurant.primaryType?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Restaurant'}
+                    {selectedRestaurant.primaryType?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || t('common.restaurant')}
                   </Text>
                 </View>
               </View>
@@ -795,16 +799,16 @@ export default function MapScreen() {
               <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
                 <Ionicons name="ribbon-outline" size={14} color="#C9A0FF" />
                 <Text style={[styles.metaText, { color: theme.text }]}>
-                  {sheetOverallScore != null ? `${sheetOverallScore.toFixed(1)} overall` : '—'}
+                  {sheetOverallScore != null ? t('map.overallShort', { score: sheetOverallScore.toFixed(1) }) : t('common.missingScore')}
                 </Text>
               </View>
               <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
                 <Ionicons name="star" size={14} color="#FFD700" />
-                <Text style={[styles.metaText, { color: theme.text }]}>{selectedRestaurant.rating?.toFixed(1) || 'N/A'}</Text>
+                <Text style={[styles.metaText, { color: theme.text }]}>{selectedRestaurant.rating?.toFixed(1) || t('common.notAvailable')}</Text>
               </View>
               <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
                 <Ionicons name="navigate-outline" size={14} color="#F9A06F" />
-                <Text style={[styles.metaText, { color: theme.text }]}>{formatDistance(selectedRestaurant.distanceMeters ?? 0)} away</Text>
+                <Text style={[styles.metaText, { color: theme.text }]}>{t('map.distanceAway', { distance: formatDistance(selectedRestaurant.distanceMeters ?? 0) })}</Text>
               </View>
               {sheetPriceLabel ? (
                 <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
@@ -813,14 +817,14 @@ export default function MapScreen() {
               ) : null}
               <View style={[styles.metaPill, { borderColor: sheetOpenNow ? 'rgba(76,217,100,0.3)' : 'rgba(255,107,107,0.3)', backgroundColor: 'transparent' }]}>
                 <Ionicons name={sheetOpenNow ? 'checkmark-circle-outline' : 'close-circle-outline'} size={14} color={sheetOpenNow ? '#4CD964' : '#FF6B6B'} />
-                <Text style={[styles.metaText, { color: sheetOpenNow ? '#4CD964' : '#FF6B6B' }]}>{sheetOpenNow ? 'Open' : 'Closed'}</Text>
+                <Text style={[styles.metaText, { color: sheetOpenNow ? '#4CD964' : '#FF6B6B' }]}>{sheetOpenNow ? t('map.openStatus') : t('map.closedStatus')}</Text>
               </View>
             </View>
 
             <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
               <View style={styles.infoSectionHeader}>
                 <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
-                <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>AI overview</Text>
+                <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>{t('map.aiOverview')}</Text>
               </View>
               {selectedRestaurant.aiOverview ? (
                 <AiOverviewSummaryBody
@@ -835,7 +839,7 @@ export default function MapScreen() {
             <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
               <View style={styles.infoSectionHeader}>
                 <Ionicons name="person-outline" size={15} color="#B8E0FF" />
-                <Text style={[styles.infoSectionTitle, { color: '#B8E0FF' }]}>Who is it for?</Text>
+                <Text style={[styles.infoSectionTitle, { color: '#B8E0FF' }]}>{t('map.whoIsItFor')}</Text>
               </View>
               <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>
                 {selectedRestaurant.aiOverview?.whoThisPlaceIsFor || AI_OVERVIEW_FIELD_PLACEHOLDER}
@@ -855,7 +859,7 @@ export default function MapScreen() {
               <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(`tel:${selectedRestaurant.nationalPhoneNumber}`)}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="call-outline" size={15} color="#F9A06F" />
-                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>Phone</Text>
+                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.phone')}</Text>
                   <Ionicons name="open-outline" size={12} color={theme.subtext} />
                 </View>
                 <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]}>{selectedRestaurant.nationalPhoneNumber}</Text>
@@ -870,7 +874,7 @@ export default function MapScreen() {
               >
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="location-outline" size={15} color="#F9A06F" />
-                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>Address</Text>
+                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.address')}</Text>
                   <Ionicons name="copy-outline" size={12} color={theme.subtext} />
                 </View>
                 <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{selectedRestaurant.formattedAddress}</Text>
@@ -883,7 +887,7 @@ export default function MapScreen() {
               <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="time-outline" size={15} color="#F9A06F" />
-                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>Hours</Text>
+                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.hours')}</Text>
                 </View>
                 {(selectedRestaurant.currentOpeningHours?.weekdayDescriptions?.length
                   ? selectedRestaurant.currentOpeningHours.weekdayDescriptions
@@ -919,7 +923,7 @@ export default function MapScreen() {
           )}
         >
           <Ionicons name={Platform.OS === 'ios' ? 'map' : 'logo-google'} size={14} color="#000" />
-          <Text style={styles.mapsFabText}>Maps</Text>
+          <Text style={styles.mapsFabText}>{t('map.maps')}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
