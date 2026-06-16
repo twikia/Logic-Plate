@@ -10,7 +10,6 @@ import { playTap } from '@/core/audioService';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  withSequence,
   withTiming,
   withSpring,
   Easing,
@@ -25,26 +24,40 @@ const PRESS_DOWN_MS = 70;
 type SoundPressProps = {
   silent?: boolean;
   animated?: boolean;
+  throttleMs?: number;
 };
 
-function wrapPressHandler<T extends (...args: never[]) => void>(
-  onPress: T | null | undefined,
-  silent?: boolean
-): T | undefined {
-  if (!onPress) return undefined;
-  return ((...args: Parameters<T>) => {
-    if (!silent) playTap();
-    onPress(...args);
-  }) as T;
+let globalLastPressTime = 0;
+
+export function registerGlobalPress(throttleMs: number): boolean {
+  if (throttleMs === 0) return true;
+  const now = Date.now();
+  if (now - globalLastPressTime < throttleMs) {
+    return false;
+  }
+  globalLastPressTime = now;
+  return true;
 }
 
 export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps>(
-  ({ onPress, silent, animated = true, onPressIn, onPressOut, style, ...props }, ref) => {
+  ({ onPress, silent, animated = true, throttleMs = 500, onPressIn, onPressOut, style, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
       transform: [{ scale: scale.value }],
     }));
+
+    const handlePress = React.useCallback(
+      (...args: Parameters<Exclude<PressableProps['onPress'], null | undefined>>) => {
+        if (!onPress) return;
+        if (!registerGlobalPress(throttleMs)) {
+          return;
+        }
+        if (!silent) playTap();
+        onPress(...args);
+      },
+      [onPress, silent, throttleMs]
+    );
 
     if (!animated) {
       return (
@@ -52,7 +65,7 @@ export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps
           {...props}
           ref={ref}
           style={style}
-          onPress={wrapPressHandler(onPress, silent)}
+          onPress={handlePress}
           onPressIn={onPressIn}
           onPressOut={onPressOut}
         />
@@ -64,7 +77,7 @@ export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps
         {...props}
         ref={ref}
         style={[style, animatedStyle]}
-        onPress={wrapPressHandler(onPress, silent)}
+        onPress={handlePress}
         onPressIn={(e) => {
           scale.value = withTiming(PRESS_DOWN_SCALE, { duration: PRESS_DOWN_MS, easing: Easing.out(Easing.quad) });
           onPressIn?.(e);
@@ -80,12 +93,24 @@ export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps
 Pressable.displayName = 'SoundPressable';
 
 export const TouchableOpacity = React.forwardRef<View, TouchableOpacityProps & SoundPressProps>(
-  ({ onPress, silent, animated = true, onPressIn, onPressOut, style, ...props }, ref) => {
+  ({ onPress, silent, animated = true, throttleMs = 500, onPressIn, onPressOut, style, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
       transform: [{ scale: scale.value }],
     }));
+
+    const handlePress = React.useCallback(
+      (...args: Parameters<Exclude<TouchableOpacityProps['onPress'], null | undefined>>) => {
+        if (!onPress) return;
+        if (!registerGlobalPress(throttleMs)) {
+          return;
+        }
+        if (!silent) playTap();
+        onPress(...args);
+      },
+      [onPress, silent, throttleMs]
+    );
 
     if (!animated) {
       return (
@@ -93,7 +118,7 @@ export const TouchableOpacity = React.forwardRef<View, TouchableOpacityProps & S
           {...props}
           ref={ref}
           style={style}
-          onPress={wrapPressHandler(onPress, silent)}
+          onPress={handlePress}
           onPressIn={onPressIn}
           onPressOut={onPressOut}
         />
@@ -105,7 +130,7 @@ export const TouchableOpacity = React.forwardRef<View, TouchableOpacityProps & S
         {...props}
         ref={ref}
         style={[style, animatedStyle]}
-        onPress={wrapPressHandler(onPress, silent)}
+        onPress={handlePress}
         onPressIn={(e) => {
           scale.value = withTiming(PRESS_DOWN_SCALE, { duration: PRESS_DOWN_MS, easing: Easing.out(Easing.quad) });
           onPressIn?.(e);

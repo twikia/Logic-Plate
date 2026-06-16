@@ -31,7 +31,6 @@ import ReAnimated, {
   useAnimatedStyle,
   withSpring,
   withSequence,
-  runOnJS,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -42,6 +41,7 @@ import { calculatePlateboundScore } from '../../../core/ratingCalculator';
 import { getLocation } from '../../../core/locationCache';
 import {
   getNearbyRestaurants,
+  isRestaurantFetchError,
   isRestaurantLoadSupersededError,
 } from '../../../core/restaurantOrchestrator';
 import {
@@ -604,6 +604,11 @@ export default function RandomScreen() {
       if (isRestaurantLoadSupersededError(e)) {
         return;
       }
+      if (isRestaurantFetchError(e)) {
+        if (__DEV__) console.warn('[restaurants]', e.message, e.cause);
+        setErrorMsg(e.message);
+        return;
+      }
       console.error(e);
       const message = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
       setErrorMsg(message);
@@ -623,12 +628,13 @@ export default function RandomScreen() {
     useCallback(() => {
       setRadius(DEFAULT_SEARCH_RADIUS_METERS);
       radiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
+      pickBtnScale.value = 1;
       if (!hasFocusedOnceRef.current) {
         hasFocusedOnceRef.current = true;
         return;
       }
       void loadResults(DEFAULT_SEARCH_RADIUS_METERS);
-    }, [loadResults])
+    }, [loadResults, pickBtnScale])
   );
 
   useEffect(() => {
@@ -727,10 +733,14 @@ export default function RandomScreen() {
     if (pool.length === 0) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     setCurrentRestaurant(pick);
+    pickBtnScale.value = 1;
     pickBtnScale.value = withSequence(
       withSpring(1.2, { damping: 6, stiffness: 350 }),
-      withSpring(0.9, { damping: 10, stiffness: 300 }, runOnJS(navigateToResult))
+      withSpring(1.0, { damping: 10, stiffness: 300 })
     );
+    setTimeout(() => {
+      navigateToResult();
+    }, 150);
   };
 
   const selectedCount = filtered.filter(r => selected.has(r.id)).length;
@@ -1185,26 +1195,27 @@ export default function RandomScreen() {
                 shadowOpacity: 0.55,
                 shadowRadius: 14,
               },
-              pickBtnAnimStyle,
             ]}
           >
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={pickOne}
-              animated={false}
-            >
-              <LinearGradient
-                colors={tc.pickGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.pickBtnGradient}
+            <ReAnimated.View style={pickBtnAnimStyle}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={pickOne}
+                animated={false}
               >
-                <Ionicons name="shuffle" size={20} color={neonUi ? '#000000' : tc.accentOn} />
-                <Text style={[styles.pickBtnText, { color: neonUi ? '#000000' : tc.accentOn }]}>
-                  Pick One  ({selectedCount})
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={tc.pickGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.pickBtnGradient}
+                >
+                  <Ionicons name="shuffle" size={20} color={neonUi ? '#000000' : tc.accentOn} />
+                  <Text style={[styles.pickBtnText, { color: neonUi ? '#000000' : tc.accentOn }]}>
+                    Pick One  ({selectedCount})
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </ReAnimated.View>
           </ReAnimated.View>
         )}
       </SafeAreaView>

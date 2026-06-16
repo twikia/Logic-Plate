@@ -60,7 +60,10 @@ export const readCacheBulk = async (
         .in('id', l1MissCells);
 
       if (error) {
-        console.error('Supabase bulk read error:', error);
+        console.warn(
+          'Supabase bulk read error:',
+          error.message ?? error.code ?? JSON.stringify(error)
+        );
       }
 
       if (data && data.length > 0) {
@@ -86,7 +89,10 @@ export const readCacheBulk = async (
         }
       }
     } catch (err) {
-      console.error('Supabase bulk fetch error:', err);
+      console.warn(
+        'Supabase bulk fetch error:',
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 

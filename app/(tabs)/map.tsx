@@ -12,7 +12,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { consumeMapFocusRestaurant } from '@/core/currentSelection';
 import { getLocation } from '@/core/locationCache';
-import { getNearbyRestaurants, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
+import { getNearbyRestaurants, isRestaurantFetchError, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import {
   DEFAULT_SEARCH_RADIUS_METERS,
@@ -324,6 +324,10 @@ export default function MapScreen() {
       commitAllRestaurants(results);
     } catch (error) {
       if (isRestaurantLoadSupersededError(error)) {
+        return;
+      }
+      if (isRestaurantFetchError(error)) {
+        if (__DEV__) console.warn('[restaurants]', error.message, error.cause);
         return;
       }
       console.error('Error loading restaurants for map:', error);

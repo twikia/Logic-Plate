@@ -26,6 +26,7 @@ import { DEFAULT_SEARCH_RADIUS_METERS } from '@/core/searchRadiusOptions';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
   getNearbyRestaurants,
+  isRestaurantFetchError,
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
 import { RestaurantImage } from '@/core/images';
@@ -43,7 +44,7 @@ import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { TouchableOpacity } from '@/components/ui/soundPressable';
+import { registerGlobalPress, TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Dimensions,
   Linking,
@@ -83,6 +84,7 @@ import Svg, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
+import { playSuccess } from '@/core/audioService';
 import { hapticMedium, hapticSuccess } from '@/core/haptics';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
@@ -664,6 +666,8 @@ function SpotlightCard({
   const pressRef = useRef(onPress);
   pressRef.current = onPress;
   const firePress = useCallback(() => {
+    if (!registerGlobalPress(500)) return;
+    playSuccess();
     pressRef.current();
   }, []);
 
@@ -1114,6 +1118,11 @@ export default function HomeScreen() {
     } catch (e) {
       if (isRestaurantLoadSupersededError(e)) {
         return;
+      }
+      if (isRestaurantFetchError(e)) {
+        if (__DEV__) console.warn('[restaurants]', e.message, e.cause);
+      } else {
+        console.error(e);
       }
       if (!hadCachedPlaces) {
         setErrorMsg(i18n.t('home.loadError'));

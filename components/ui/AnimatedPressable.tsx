@@ -9,6 +9,8 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
+import { registerGlobalPress } from './soundPressable';
+
 const AnimatedPressableComponent = Animated.createAnimatedComponent(Pressable);
 
 const DOWN_MS  = 60;   // snap press-in
@@ -17,10 +19,11 @@ const SETTLE_MS = 70;  // settle back to 1.0
 
 type AnimatedPressableProps = PressableProps & {
   silent?: boolean;
+  throttleMs?: number;
 };
 
 export const AnimatedPressable = React.forwardRef<View, AnimatedPressableProps>(
-  ({ children, style, onPress, onPressIn, onPressOut, silent, ...props }, ref) => {
+  ({ children, style, onPress, onPressIn, onPressOut, silent, throttleMs = 500, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -33,6 +36,9 @@ export const AnimatedPressable = React.forwardRef<View, AnimatedPressableProps>(
         ref={ref}
         style={[style, animatedStyle]}
         onPress={(e) => {
+          if (!registerGlobalPress(throttleMs)) {
+            return;
+          }
           if (!silent) playTap();
           onPress?.(e);
         }}

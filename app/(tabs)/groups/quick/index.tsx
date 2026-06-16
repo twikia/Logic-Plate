@@ -101,6 +101,7 @@ export default function QuickVoteSetupScreen() {
                   style={[styles.pickerBtn, { backgroundColor: theme.cardBackground }]}
                   onPress={() => bumpVoters(-1)}
                   disabled={voterCount <= MIN_VOTERS}
+                  throttleMs={0}
                   hitSlop={8}>
                   <Text style={[styles.pickerBtnText, { color: theme.text }]}>−</Text>
                 </TouchableOpacity>
@@ -109,6 +110,7 @@ export default function QuickVoteSetupScreen() {
                   style={[styles.pickerBtn, { backgroundColor: theme.cardBackground }]}
                   onPress={() => bumpVoters(1)}
                   disabled={voterCount >= MAX_VOTERS}
+                  throttleMs={0}
                   hitSlop={8}>
                   <Text style={[styles.pickerBtnText, { color: theme.text }]}>+</Text>
                 </TouchableOpacity>

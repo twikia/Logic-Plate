@@ -129,7 +129,8 @@ async function _loadRemoteAmbientPlaylist(): Promise<void> {
         contentVersion: asset.content_version,
       }));
     } catch (error) {
-      if (__DEV__) console.warn('[audio] Ambient catalog fetch failed:', error);
+      const detail = error instanceof Error ? error.message : String(error);
+      if (__DEV__) console.warn('[audio] Ambient catalog fetch failed:', detail || error);
       if (!tracks?.length) return;
     }
 
@@ -190,11 +191,16 @@ async function _startAmbient(): Promise<void> {
   await _playNextAmbient();
 }
 
+let ambientPlaySession = 0;
+
 async function _playNextAmbient(): Promise<void> {
   if (ambientPlaylist.length === 0 || musicVolume === 0) return;
+  const mySession = ++ambientPlaySession;
   try {
     if (ambientSound) {
-      ambientSound.remove();
+      try {
+        ambientSound.remove();
+      } catch {}
       ambientSound = null;
     }
 
@@ -202,6 +208,9 @@ async function _playNextAmbient(): Promise<void> {
     ambientIndex = (ambientIndex + 1) % ambientPlaylist.length;
 
     const trackUri = await _resolveTrackUri(track);
+    if (mySession !== ambientPlaySession || musicVolume === 0) {
+      return;
+    }
     if (!trackUri) {
       if (__DEV__) console.warn('[audio] No URI for track:', track.slug, track.storagePath);
       return;
@@ -215,11 +224,21 @@ async function _playNextAmbient(): Promise<void> {
       isRemote ? { downloadFirst: true } : undefined
     );
     player.volume = musicUiLevelToPlayback(musicVolume);
+
+    if (mySession !== ambientPlaySession || musicVolume === 0) {
+      try {
+        player.remove();
+      } catch {}
+      return;
+    }
+
     ambientSound = player;
 
     player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish) {
-        void _playNextAmbient();
+        if (mySession === ambientPlaySession) {
+          void _playNextAmbient();
+        }
       }
     });
 

@@ -250,7 +250,7 @@ function ContactRow({
   );
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.72}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.72} animated={false}>
         {row}
       </TouchableOpacity>
     );
@@ -417,7 +417,8 @@ export default function RandomResultScreen() {
             />
           }
         >
-          <ReAnimated.View entering={FadeIn.duration(350)} style={styles.heroWrap}>
+          <ReAnimated.View entering={FadeIn.duration(350)}>
+            <View style={styles.heroWrap}>
             <RestaurantImage
               restaurantId={place.id ?? 'unknown'}
               photos={heroPhotos}
@@ -477,9 +478,11 @@ export default function RandomResultScreen() {
                 </View>
               </View>
             </View>
+            </View>
           </ReAnimated.View>
 
           <ReAnimated.View entering={FadeInUp.delay(160).springify()}>
+            <View>
             {plateboundScore != null ? (
               <View
                 style={[
@@ -680,21 +683,23 @@ export default function RandomResultScreen() {
             ) : null}
 
             <View style={{ height: 16 }} />
+            </View>
           </ReAnimated.View>
         </ScrollView>
 
-        <ReAnimated.View
-          entering={FadeInUp.delay(280).springify()}
-          style={[
-            styles.stickyBar,
-            {
-              paddingBottom: stickyBottom,
-              backgroundColor: theme.cardBackground + 'F2',
-              borderTopColor: theme.cardBorderColor,
-            },
-          ]}
-        >
+        <ReAnimated.View entering={FadeInUp.delay(280).springify()}>
+          <View
+            style={[
+              styles.stickyBar,
+              {
+                paddingBottom: stickyBottom,
+                backgroundColor: theme.cardBackground + 'F2',
+                borderTopColor: theme.cardBorderColor,
+              },
+            ]}
+          >
           <TouchableOpacity
+            animated={false}
             style={[
               styles.stickyGhost,
               { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
@@ -707,6 +712,7 @@ export default function RandomResultScreen() {
           </TouchableOpacity>
           {mapsReady ? (
             <TouchableOpacity
+              animated={false}
               style={[styles.stickyPrimary, { backgroundColor: theme.accent }]}
               onPress={() => openGoogleMaps(name, lat!, lng!)}
               activeOpacity={0.88}
@@ -732,6 +738,7 @@ export default function RandomResultScreen() {
               </Text>
             </View>
           )}
+          </View>
         </ReAnimated.View>
       </View>
     </LinearGradient>
