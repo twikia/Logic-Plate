@@ -2,7 +2,7 @@
   "expo": {
     "name": "Logic Plate",
     "slug": "platebound",
-    "version": "2.0",
+    "version": "2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "restaurantapp",
@@ -12,7 +12,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#161640",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
