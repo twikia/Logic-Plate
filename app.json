@@ -21,7 +21,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.twikiasorganization.platebound"
+      "package": "com.twikiastudios.logicplate"
     },
     "web": {
       "output": "static",

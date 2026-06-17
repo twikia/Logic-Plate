@@ -46,3 +46,4 @@ logs/
 # local env files
 .env.local
 .env*.local
+platebound-2.0-v3.aab
