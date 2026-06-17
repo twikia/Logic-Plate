@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { useAppTheme } from '@/context/ThemeContext';
 import {
@@ -59,6 +61,7 @@ export function QuickVoteHandoffScreen({
   params: Params;
 }) {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const progress = useRef(new Animated.Value(1)).current;
   const didAdvance = useRef(false);
@@ -119,13 +122,13 @@ export function QuickVoteHandoffScreen({
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
       <Pressable style={styles.pressFlex} onPress={advance}>
         <View style={styles.inner}>
-          <Text style={[styles.voteCasted, { color: theme.text }]}>Vote casted!</Text>
+          <Text style={[styles.voteCasted, { color: theme.text }]}>{t('quickVote.voteCasted')}</Text>
           <Text style={[styles.pass, { color: theme.subtext }]}>
             {params.nextVoter <= params.voterCount
-              ? `Pass to Voter ${params.nextVoter}`
-              : 'Tallying results…'}
+              ? t('quickVote.passToVoter', { n: params.nextVoter })
+              : t('quickVote.tallying')}
           </Text>
-          <Text style={[styles.tapHint, { color: theme.subtext }]}>Tap anywhere to continue</Text>
+          <Text style={[styles.tapHint, { color: theme.subtext }]}>{t('quickVote.tapToContinue')}</Text>
           <View style={[styles.barTrack, { backgroundColor: theme.subtext + '22' }]}>
             <Animated.View style={[styles.barFill, { width: barWidth, backgroundColor: theme.accent }]} />
           </View>

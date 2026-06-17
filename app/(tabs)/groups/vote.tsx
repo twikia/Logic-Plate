@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
   Alert,
@@ -7,10 +8,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
@@ -26,6 +27,7 @@ type PickRow = QuickVoteRestaurant & { groupScore?: number };
 
 export default function GroupVoteScreen() {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -69,13 +71,13 @@ export default function GroupVoteScreen() {
       .eq('id', sessionId);
     if (error) {
       Alert.alert(
-        'Could not end voting',
+        t('groups.vote.alerts.endVotingTitle'),
         `${error.message}${error.code ? ` (${error.code})` : ''}`
       );
       return;
     }
     goWinner();
-  }, [goWinner, sessionId]);
+  }, [goWinner, sessionId, t]);
 
   const loadSessionAndVotes = useCallback(async () => {
     if (!sessionId) return;
@@ -176,7 +178,7 @@ export default function GroupVoteScreen() {
     });
     if (error) {
       Alert.alert(
-        'Vote could not be saved',
+        t('groups.vote.alerts.saveVoteTitle'),
         `${error.message}${error.code ? ` (${error.code})` : ''}\n\nIf the session is not in the voting phase yet, wait until the host starts voting.`
       );
       return;
@@ -189,34 +191,39 @@ export default function GroupVoteScreen() {
 
   if (sessionEnded) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <View style={styles.center}>
-          <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
-          <Text style={[styles.endedTitle, { color: theme.text }]}>Session Ended</Text>
-          <Text style={[styles.endedSub, { color: theme.subtext }]}>The host ended this session.</Text>
-          <TouchableOpacity
-            style={[styles.endedBtn, { backgroundColor: theme.accent }]}
-            onPress={() => router.replace('/groups')}>
-            <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>Back to Groups</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            <Text style={[styles.endedIcon, { color: theme.subtext }]}>🔒</Text>
+            <Text style={[styles.endedTitle, { color: theme.text }]}>{t('vibe.sessionEnded')}</Text>
+            <Text style={[styles.endedSub, { color: theme.subtext }]}>{t('vibe.hostEndedSession')}</Text>
+            <TouchableOpacity
+              style={[styles.endedBtn, { backgroundColor: theme.accent }]}
+              onPress={() => router.replace('/groups')}>
+              <Text style={[styles.endedBtnText, { color: theme.gradient[0] }]}>{t('groups.backToGroups')}</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} size="large" />
-          <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading restaurants…</Text>
-        </View>
-      </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            <ActivityIndicator color={theme.accent} size="large" />
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>{t('groups.vote.loading')}</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         {isHost ? (
           <View style={styles.topSpacer} />
@@ -224,16 +231,16 @@ export default function GroupVoteScreen() {
           <BackButton variant="circle" onPress={() => router.replace('/groups')} />
         )}
         <View style={styles.topTitles}>
-          <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
+          <Text style={[styles.header, { color: theme.text }]}>{t('groups.vote.pickFavorite')}</Text>
           <Text style={[styles.subHeader, { color: theme.subtext }]}>
-            {hasVoted ? 'Your vote is in ✓' : 'Tap a card to expand, then vote →'}
+            {hasVoted ? t('groups.vote.voteIn') : t('groups.vote.hint')}
           </Text>
         </View>
         {isHost ? (
           <TouchableOpacity
             style={[styles.endBtn, { backgroundColor: theme.cardBackground, borderColor: theme.subtext + '44' }]}
             onPress={() => void endVoting()}>
-            <Text style={[styles.endBtnText, { color: theme.subtext }]}>End</Text>
+            <Text style={[styles.endBtnText, { color: theme.subtext }]}>{t('groups.vote.end')}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.topSpacer} />
@@ -256,7 +263,7 @@ export default function GroupVoteScreen() {
                 <View style={styles.voteMeta}>
                   {typeof r.groupScore === 'number' ? (
                     <Text style={[styles.match, { color: theme.accent }]}>
-                      Group match {r.groupScore}
+                      {t('groups.vote.groupMatch', { score: r.groupScore })}
                     </Text>
                   ) : null}
                   <View style={[styles.barOuter, { backgroundColor: theme.gradient[0] }]}>
@@ -265,7 +272,7 @@ export default function GroupVoteScreen() {
                     />
                   </View>
                   <Text style={[styles.votesMeta, { color: theme.subtext }]}>
-                    {votes} {votes === 1 ? 'vote' : 'votes'}
+                    {votes === 1 ? t('common.vote', { count: votes }) : t('common.votes', { count: votes })}
                   </Text>
                 </View>
               }
@@ -275,6 +282,7 @@ export default function GroupVoteScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 

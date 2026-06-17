@@ -1,35 +1,49 @@
 import type { AiOverview } from '@/core/aiOverviewCache';
 import type { ThemeColors } from '@/themes/types';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, G, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 
 export type PerformanceMetric = {
   key: keyof AiOverview;
-  label: string;
+  labelKey: string;
   emoji: string;
   max: 5 | 10;
 };
 
 export const NUTRITION_METRICS: PerformanceMetric[] = [
-  { key: 'calorieScore', label: 'Calories', emoji: '🔥', max: 5 },
-  { key: 'proteinScore', label: 'Protein', emoji: '🥩', max: 5 },
-  { key: 'carbScore', label: 'Carb balance', emoji: '🌾', max: 5 },
-  { key: 'macroFriendlyScore', label: 'Macro-friendly', emoji: '📊', max: 5 },
+  { key: 'calorieScore', labelKey: 'calorie', emoji: '🔥', max: 5 },
+  { key: 'proteinScore', labelKey: 'protein', emoji: '🥩', max: 5 },
+  { key: 'carbScore', labelKey: 'carbBalance', emoji: '🌾', max: 5 },
+  { key: 'macroFriendlyScore', labelKey: 'macroFriendly', emoji: '📊', max: 5 },
+  { key: 'workoutRecoveryScore', labelKey: 'workout', emoji: '💪', max: 10 },
+  { key: 'energySustainScore', labelKey: 'energySustain', emoji: '🔋', max: 5 },
 ];
 
 export const PERFORMANCE_METRICS: PerformanceMetric[] = [
-  { key: 'tasteScore', label: 'Taste', emoji: '👅', max: 5 },
-  { key: 'valueForMoneyScore', label: 'Value', emoji: '💵', max: 5 },
-  { key: 'speedScore', label: 'Speed', emoji: '⚡', max: 5 },
-  { key: 'workoutRecoveryScore', label: 'Workout', emoji: '💪', max: 10 },
-  { key: 'munchyScore', label: 'Munchy', emoji: '🌙', max: 5 },
-  { key: 'dateWorthiness', label: 'Date', emoji: '💕', max: 5 },
-  { key: 'soloDinerScore', label: 'Solo', emoji: '🪑', max: 5 },
-  { key: 'energySustainScore', label: 'Energy', emoji: '🔋', max: 5 },
-  { key: 'workFriendlyScore', label: 'Work', emoji: '💻', max: 5 },
-  { key: 'varietyScore', label: 'Variety', emoji: '🔄', max: 5 },
+  { key: 'tasteScore', labelKey: 'taste', emoji: '👅', max: 5 },
+  { key: 'valueForMoneyScore', labelKey: 'value', emoji: '💵', max: 5 },
+  { key: 'speedScore', labelKey: 'speed', emoji: '⚡', max: 5 },
+  { key: 'munchyScore', labelKey: 'munchy', emoji: '🌙', max: 5 },
+  { key: 'dateWorthiness', labelKey: 'dateWorthiness', emoji: '💕', max: 5 },
+  { key: 'soloDinerScore', labelKey: 'soloDinerFriendly', emoji: '🪑', max: 5 },
+  { key: 'workFriendlyScore', labelKey: 'workFriendly', emoji: '💻', max: 5 },
+  { key: 'varietyScore', labelKey: 'variety', emoji: '🔄', max: 5 },
 ];
+
+export function sortMetricsByScore(
+  ai: AiOverview | null | undefined,
+  metrics: PerformanceMetric[]
+): PerformanceMetric[] {
+  return [...metrics].sort((a, b) => {
+    const av = ai?.[a.key];
+    const bv = ai?.[b.key];
+    const an = typeof av === 'number' && Number.isFinite(av) ? av / a.max : -1;
+    const bn = typeof bv === 'number' && Number.isFinite(bv) ? bv / b.max : -1;
+    return bn - an;
+  });
+}
 
 export function getTopPerformanceMetrics(
   ai: AiOverview | null | undefined,
@@ -49,8 +63,10 @@ export function getTopPerformanceMetrics(
 
 type PodiumSlot = 'gold' | 'silver' | 'bronze';
 
-const SLOT_HEIGHTS = { gold: 88, silver: 64, bronze: 46 };
-const SLOT_X = { silver: 28, gold: 100, bronze: 172 };
+const SLOT_HEIGHTS_DEFAULT = { gold: 88, silver: 64, bronze: 46 };
+const SLOT_X_DEFAULT = { silver: 28, gold: 100, bronze: 172 };
+const SLOT_HEIGHTS_COMPACT = { gold: 54, silver: 40, bronze: 28 };
+const SLOT_X_COMPACT = { silver: 34, gold: 100, bronze: 166 };
 const SLOT_COLORS = {
   gold: { top: '#FFE566', left: '#D4A800', right: '#B8860B', glow: '#FFD700' },
   silver: { top: '#E8E8E8', left: '#B0B0B0', right: '#909090', glow: '#C0C0C0' },
@@ -77,16 +93,20 @@ function Pillar({
   label,
   emoji,
   displayValue,
+  compact,
 }: {
   slot: PodiumSlot;
   label: string;
   emoji: string;
   displayValue: string;
+  compact?: boolean;
 }) {
-  const cx = SLOT_X[slot];
-  const h = SLOT_HEIGHTS[slot];
-  const baseY = 118;
-  const w = slot === 'gold' ? 52 : 44;
+  const heights = compact ? SLOT_HEIGHTS_COMPACT : SLOT_HEIGHTS_DEFAULT;
+  const xs = compact ? SLOT_X_COMPACT : SLOT_X_DEFAULT;
+  const cx = xs[slot];
+  const h = heights[slot];
+  const baseY = compact ? 92 : 118;
+  const w = compact ? (slot === 'gold' ? 38 : 32) : slot === 'gold' ? 52 : 44;
   const colors = SLOT_COLORS[slot];
   const faces = isoPillar(cx, baseY, h, w, colors);
 
@@ -95,14 +115,19 @@ function Pillar({
       <Path d={`M ${faces.left}`} fill={colors.left} />
       <Path d={`M ${faces.right}`} fill={colors.right} />
       <Path d={`M ${faces.top}`} fill={colors.top} />
-      <SvgText x={cx} y={baseY - h - 10} fontSize={16} textAnchor="middle">
+      <SvgText
+        x={cx}
+        y={baseY - h - (compact ? 7 : 10)}
+        fontSize={compact ? 13 : 16}
+        textAnchor="middle"
+      >
         {emoji}
       </SvgText>
       <SvgText
         x={cx}
-        y={baseY - h / 2 + 4}
+        y={baseY - h / 2 + (compact ? 2 : 4)}
         fill="#FFFFFF"
-        fontSize={7}
+        fontSize={compact ? 5.5 : 7}
         fontWeight="700"
         textAnchor="middle"
       >
@@ -110,9 +135,9 @@ function Pillar({
       </SvgText>
       <SvgText
         x={cx}
-        y={baseY - h / 2 + 16}
+        y={baseY - h / 2 + (compact ? 12 : 16)}
         fill="#FFFFFF"
-        fontSize={11}
+        fontSize={compact ? 9 : 11}
         fontWeight="800"
         textAnchor="middle"
       >
@@ -125,9 +150,21 @@ function Pillar({
 type Props = {
   ai: AiOverview | null | undefined;
   theme: ThemeColors;
+  compact?: boolean;
+  embedded?: boolean;
+  title?: string | null;
 };
 
-export function VibeStatsPodium({ ai, theme }: Props) {
+export function VibeStatsPodium({
+  ai,
+  theme,
+  compact = false,
+  embedded = false,
+  title,
+}: Props) {
+  const { t } = useTranslation();
+  const resolvedTitle = title === undefined ? t('scores.topVibeStats') : title;
+  const metricLabel = (metric: PerformanceMetric) => t(`scores.${metric.labelKey}`);
   const top3 = useMemo(() => getTopPerformanceMetrics(ai, 3), [ai]);
 
   if (top3.length === 0) return null;
@@ -152,6 +189,74 @@ export function VibeStatsPodium({ ai, theme }: Props) {
     display: string;
   }[];
 
+  const baseY = compact ? 92 : 118;
+  const baseFoot = compact ? 102 : 128;
+  const svgHeight = compact ? 108 : 140;
+  const viewBoxH = compact ? 108 : 130;
+
+  const podium = (
+    <>
+      <Svg
+        width="100%"
+        height={svgHeight}
+        viewBox={`0 0 200 ${viewBoxH}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <Defs>
+          <LinearGradient id="podiumBase" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={theme.tint} stopOpacity="0.35" />
+            <Stop offset="1" stopColor={theme.tint} stopOpacity="0.08" />
+          </LinearGradient>
+        </Defs>
+        <Path
+          d={`M 12 ${baseY} L 188 ${baseY} L 178 ${baseFoot} L 22 ${baseFoot} Z`}
+          fill="url(#podiumBase)"
+          stroke={theme.tint}
+          strokeOpacity={0.4}
+          strokeWidth={0.8}
+        />
+        <Path
+          d={`M 12 ${baseY} L 22 ${baseFoot} L 22 ${baseY - 10} L 12 ${baseY} Z`}
+          fill={theme.tint}
+          fillOpacity={0.15}
+        />
+        <Path
+          d={`M 188 ${baseY} L 178 ${baseFoot} L 178 ${baseY - 10} L 188 ${baseY} Z`}
+          fill={theme.tint}
+          fillOpacity={0.08}
+        />
+        {ordered.map(({ slot, metric, display }) => (
+          <Pillar
+            key={slot}
+            slot={slot}
+            label={metricLabel(metric)}
+            emoji={metric.emoji}
+            displayValue={display}
+            compact={compact}
+          />
+        ))}
+      </Svg>
+      {!embedded ? (
+        <View style={styles.legend}>
+          {ordered.map(({ slot, metric }) => (
+            <View key={slot} style={styles.legendItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: SLOT_COLORS[slot].glow }]}
+              />
+              <Text style={[styles.legendText, { color: theme.subtext }]}>
+                {metric.emoji} {metricLabel(metric)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return <View style={styles.embedded}>{podium}</View>;
+  }
+
   return (
     <View
       style={[
@@ -162,58 +267,19 @@ export function VibeStatsPodium({ ai, theme }: Props) {
         },
       ]}
     >
-      <Text style={[styles.title, { color: theme.text }]}>Top Vibe Stats</Text>
-      <Svg width="100%" height={140} viewBox="0 0 200 130" preserveAspectRatio="xMidYMid meet">
-        <Defs>
-          <LinearGradient id="podiumBase" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={theme.tint} stopOpacity="0.35" />
-            <Stop offset="1" stopColor={theme.tint} stopOpacity="0.08" />
-          </LinearGradient>
-        </Defs>
-        <Path
-          d="M 12 118 L 188 118 L 178 128 L 22 128 Z"
-          fill="url(#podiumBase)"
-          stroke={theme.tint}
-          strokeOpacity={0.4}
-          strokeWidth={0.8}
-        />
-        <Path
-          d="M 12 118 L 22 128 L 22 108 L 12 118 Z"
-          fill={theme.tint}
-          fillOpacity={0.15}
-        />
-        <Path
-          d="M 188 118 L 178 128 L 178 108 L 188 118 Z"
-          fill={theme.tint}
-          fillOpacity={0.08}
-        />
-        {ordered.map(({ slot, metric, display }) => (
-          <Pillar
-            key={slot}
-            slot={slot}
-            label={metric.label}
-            emoji={metric.emoji}
-            displayValue={display}
-          />
-        ))}
-      </Svg>
-      <View style={styles.legend}>
-        {ordered.map(({ slot, metric }) => (
-          <View key={slot} style={styles.legendItem}>
-            <View
-              style={[styles.legendDot, { backgroundColor: SLOT_COLORS[slot].glow }]}
-            />
-            <Text style={[styles.legendText, { color: theme.subtext }]}>
-              {metric.emoji} {metric.label}
-            </Text>
-          </View>
-        ))}
-      </View>
+      {resolvedTitle ? (
+        <Text style={[styles.title, { color: theme.text }]}>{resolvedTitle}</Text>
+      ) : null}
+      {podium}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  embedded: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   wrap: {
     marginHorizontal: 16,
     marginBottom: 10,

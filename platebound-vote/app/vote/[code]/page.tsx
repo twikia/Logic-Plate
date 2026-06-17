@@ -414,12 +414,12 @@ export default function VoteByCodePage() {
                   onClick={() => toggleDiet('none')}
                   className={`flex items-center gap-3 w-full min-h-[60px] rounded-2xl border-2 px-4 mb-3 transition-all ${
                     dietary.length === 0
-                      ? 'bg-sky-500/15 border-sky-500 text-white'
+                      ? 'bg-sky-500/20 border-sky-500 text-violet-300'
                       : 'bg-zinc-900/60 border-zinc-700/60 text-zinc-300'
                   }`}>
                   <span className="text-2xl">✅</span>
                   <span className="font-semibold text-lg flex-1 text-left">None — I eat anything</span>
-                  {dietary.length === 0 ? <span className="text-sky-400 font-bold">✓</span> : null}
+                  {dietary.length === 0 ? <span className="text-violet-300 font-bold">✓</span> : null}
                 </button>
                 {DIETARY.map((d) => (
                   <button
@@ -428,12 +428,12 @@ export default function VoteByCodePage() {
                     onClick={() => toggleDiet(d.id)}
                     className={`flex items-center gap-3 w-full min-h-[60px] rounded-2xl border-2 px-4 mb-3 transition-all ${
                       dietary.includes(d.id)
-                        ? 'bg-sky-500/15 border-sky-500 text-white'
+                        ? 'bg-sky-500/20 border-sky-500 text-violet-300'
                         : 'bg-zinc-900/60 border-zinc-700/60 text-zinc-300'
                     }`}>
                     <span className="text-2xl">{d.emoji}</span>
                     <span className="font-semibold text-lg flex-1 text-left">{d.label}</span>
-                    {dietary.includes(d.id) ? <span className="text-sky-400 font-bold">✓</span> : null}
+                    {dietary.includes(d.id) ? <span className="text-violet-300 font-bold">✓</span> : null}
                   </button>
                 ))}
               </>

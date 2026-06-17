@@ -1,17 +1,18 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Redirect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   BackHandler,
   Linking,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
@@ -21,11 +22,14 @@ import {
   determineWinner,
   type QuickVoteRestaurant,
 } from '@/utils/quickVote';
+import { hapticSuccess, hapticMedium } from '@/core/haptics';
+import { playSuccess } from '@/core/audioService';
 
 export default function QuickVoteWinnerScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
   const navigation = useNavigation();
+  const { t } = useTranslation();
   const raw = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const imgW = Math.min(width - 40, 400);
@@ -50,6 +54,13 @@ export default function QuickVoteWinnerScreen() {
         : determineWinner(votesObj, restaurantsList);
     return { winner: w, restaurants: restaurantsList, votes: votesObj };
   }, [restaurantsJson, votesJson, winnerJson]);
+
+  useEffect(() => {
+    if (winner) {
+      hapticSuccess();
+      playSuccess();
+    }
+  }, [winner]);
 
   const exitToGroups = useCallback(() => {
     router.replace('/groups');
@@ -84,6 +95,7 @@ export default function QuickVoteWinnerScreen() {
   const lng = winner?.location?.longitude;
   const openMaps = () => {
     if (typeof lat === 'number' && typeof lng === 'number') {
+      hapticSuccess();
       Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
     }
   };
@@ -96,19 +108,20 @@ export default function QuickVoteWinnerScreen() {
   const maxVotes = Math.max(...breakdown.map((x) => x.c), 1);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         <BackButton onPress={exitToGroups} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         {winner ? (
           <>
-            <Text style={[styles.celebrate, { color: theme.text }]}>{"You're going here 🎉"}</Text>
+            <Text style={[styles.celebrate, { color: theme.text }]}>{t('quickVote.youreGoingHere')}</Text>
             <RestaurantImage
               restaurantId={winner.id}
               photos={(winner as { photos?: unknown[] }).photos ?? []}
               photoUrl={winner.photo_url}
-              name={winner.displayName?.text ?? 'Restaurant'}
+              name={winner.displayName?.text ?? t('common.unknown')}
               latitude={winner.location?.latitude}
               longitude={winner.location?.longitude}
               websiteUrl={(winner as { websiteUri?: string }).websiteUri}
@@ -119,7 +132,7 @@ export default function QuickVoteWinnerScreen() {
               borderRadius={16}
             />
             <Text style={[styles.title, { color: theme.text }]}>
-              {winner.displayName?.text ?? 'Restaurant'}
+              {winner.displayName?.text ?? t('common.unknown')}
             </Text>
             <View style={{ marginTop: 12 }}>
               <QuickVoteRestaurantCard
@@ -131,20 +144,20 @@ export default function QuickVoteWinnerScreen() {
             </View>
           </>
         ) : (
-          <Text style={[styles.celebrate, { color: theme.text }]}>Voting ended</Text>
+          <Text style={[styles.celebrate, { color: theme.text }]}>{t('quickVote.votingEnded')}</Text>
         )}
         {!winner ? (
           <Text style={[styles.summary, { color: theme.subtext, textAlign: 'center' }]}>
-            No votes were recorded. Try another quick vote round.
+            {t('quickVote.noVotesRecorded')}
           </Text>
         ) : null}
 
-        <Text style={[styles.section, { color: theme.text }]}>Vote breakdown</Text>
+        <Text style={[styles.section, { color: theme.text }]}>{t('quickVote.voteBreakdown')}</Text>
         {breakdown.length === 0 ? (
-          <Text style={[styles.summary, { color: theme.subtext }]}>No votes yet.</Text>
+          <Text style={[styles.summary, { color: theme.subtext }]}>{t('quickVote.noVotesYet')}</Text>
         ) : (
           breakdown.map((row, i) => {
-            const label = row.r.displayName?.text ?? 'Restaurant';
+            const label = row.r.displayName?.text ?? t('common.unknown');
             const w = Math.round((row.c / maxVotes) * 100);
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
             return (
@@ -155,7 +168,7 @@ export default function QuickVoteWinnerScreen() {
                 <View style={[styles.barOuter, { backgroundColor: theme.cardBackground }]}>
                   <View style={[styles.barInner, { width: `${w}%`, backgroundColor: theme.accent }]} />
                 </View>
-                <Text style={[styles.rowCount, { color: theme.subtext }]}>{row.c} votes</Text>
+                <Text style={[styles.rowCount, { color: theme.subtext }]}>{t('common.votes', { count: row.c })}</Text>
               </View>
             );
           })
@@ -165,16 +178,19 @@ export default function QuickVoteWinnerScreen() {
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: theme.accent }]}
             onPress={openMaps}>
-            <Text style={[styles.btnText, { color: theme.text }]}>Open in Maps</Text>
+            <Text style={[styles.btnText, { color: theme.accentOnColor ?? theme.gradient[0] }]}>
+              {t('common.openInMaps')}
+            </Text>
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => router.replace('/groups/quick')}>
-          <Text style={[styles.btnText, { color: theme.text }]}>Start Over</Text>
+          onPress={() => { hapticMedium(); router.replace('/groups/quick'); }}>
+          <Text style={[styles.btnText, { color: theme.text }]}>{t('quickVote.startOver')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 

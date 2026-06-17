@@ -3,6 +3,8 @@ export interface ThemeColors {
   gradient: [string, string, ...string[]];
   cardBackground: string;
   accent: string;
+  /** Text/icon color on solid accent-filled buttons and chips. Defaults to '#FFFFFF'. */
+  accentOnColor?: string;
   text: string;
   subtext: string;
   tint: string;
@@ -38,10 +40,17 @@ export interface ThemeColors {
   /** Text color on the match orb. Defaults to '#FFFFFF'. */
   matchOrbTextColor?: string;
   /** How the radar pentagon is rendered.
-   *  'solid'    → flat tinted fill (default).
-   *  'gradient' → multi-stop SVG gradient fill.
-   *  'sketch'   → lighter fill, thin rings, dark labels (paper/hand-drawn look). */
-  radarVariant?: 'solid' | 'gradient' | 'sketch';
+   *  'solid'      → flat tinted fill (default).
+   *  'gradient'   → multi-stop SVG gradient fill.
+   *  'sketch'     → lighter fill, thin rings, dark labels (paper/hand-drawn look).
+   *  'watercolor' → five-section multi-color watercolor bleed (sketch paper theme). */
+  radarVariant?: 'solid' | 'gradient' | 'sketch' | 'watercolor';
+  /** When true, renders hand-drawn food illustrations in the screen background. */
+  paperIllustrations?: boolean;
+  /** Override background color for the home tab circular button. Defaults to accent. */
+  tabHomeBackground?: string;
+  /** Override background color for the tab bar. Defaults to cardBackground. */
+  tabBarBackground?: string;
   /** How the value-match stat indicators are rendered.
    *  'bars' → gradient progress bar with track background (default).
    *  'dots' → solid-colour spark bar with no track, cleaner for light themes. */
@@ -50,4 +59,6 @@ export interface ThemeColors {
    *  'primary-ghost'     → first button accent-filled, second ghost (default).
    *  'outline-outline'   → both buttons outlined, no fill. */
   buttonVariant?: 'primary-ghost' | 'outline-outline';
+  /** Optional font family override for titles and key text elements. */
+  fontFamily?: string;
 }

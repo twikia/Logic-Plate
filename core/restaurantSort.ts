@@ -6,23 +6,26 @@ import {
   type RandomSortBy,
 } from './randomPickerState';
 
-export const SORT_OPTIONS: { key: RandomSortBy; label: string }[] = [
-  { key: 'distance', label: 'Distance' },
-  { key: 'price', label: 'Price' },
-  { key: 'rating', label: 'Rating' },
-  { key: 'overall', label: 'Overall' },
-  { key: 'health', label: 'Health' },
-  { key: 'taste', label: 'Taste' },
-  { key: 'valueForMoney', label: 'Value' },
-  { key: 'speed', label: 'Speed' },
-  { key: 'workoutRecovery', label: 'Recovery' },
-  { key: 'munchy', label: 'Munchy' },
-  { key: 'protein', label: 'Protein' },
-  { key: 'calorie', label: 'Calories' },
-  { key: 'dateWorthiness', label: 'Date' },
-  { key: 'soloDiner', label: 'Solo diner' },
-  { key: 'energySustain', label: 'Energy' },
+export const SORT_OPTION_KEYS: RandomSortBy[] = [
+  'distance',
+  'price',
+  'rating',
+  'overall',
+  'health',
+  'taste',
+  'valueForMoney',
+  'speed',
+  'workoutRecovery',
+  'munchy',
+  'protein',
+  'calorie',
+  'dateWorthiness',
+  'soloDiner',
+  'energySustain',
 ];
+
+/** @deprecated Use SORT_OPTION_KEYS with tSortLabel */
+export const SORT_OPTIONS: { key: RandomSortBy }[] = SORT_OPTION_KEYS.map((key) => ({ key }));
 
 export function getOverviewMetric(
   ai: AiOverview | undefined | null,

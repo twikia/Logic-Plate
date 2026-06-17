@@ -1,18 +1,25 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Alert,
+  Dimensions,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
+import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
+import { hapticMedium, hapticError, hapticSuccess } from '@/core/haptics';
+
+const { width: SCREEN_W } = Dimensions.get('window');
 
 function normalizeJoinCode(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
@@ -21,18 +28,22 @@ function normalizeJoinCode(raw: string): string {
 export default function GroupsScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const [joinCode, setJoinCode] = useState('');
 
   const goLobby = (mode: 'passphone' | 'qr') => {
+    hapticMedium();
     router.push({ pathname: '/groups/lobby', params: { mode } });
   };
 
   const onJoin = async () => {
     const code = normalizeJoinCode(joinCode);
     if (code.length !== 6) {
-      Alert.alert('Enter code', 'Please enter the 6-character session code.');
+      hapticError();
+      Alert.alert(t('groups.alertEnterCodeTitle'), t('groups.alertEnterCodeMsg'));
       return;
     }
+    hapticMedium();
     const { data, error } = await supabase
       .from('group_sessions')
       .select('id, status, expires_at')
@@ -40,18 +51,22 @@ export default function GroupsScreen() {
       .maybeSingle();
 
     if (error || !data) {
-      Alert.alert('Not found', 'No active session matches that code.');
+      hapticError();
+      Alert.alert(t('groups.alertNotFoundTitle'), t('groups.alertNotFoundMsg'));
       return;
     }
     if (data.status === 'expired') {
-      Alert.alert('Expired', 'This session has expired.');
+      hapticError();
+      Alert.alert(t('groups.alertExpiredTitle'), t('groups.alertExpiredMsg'));
       return;
     }
     const exp = new Date(data.expires_at).getTime();
     if (exp <= Date.now()) {
-      Alert.alert('Expired', 'This session has expired.');
+      hapticError();
+      Alert.alert(t('groups.alertExpiredTitle'), t('groups.alertExpiredMsg'));
       return;
     }
+    hapticSuccess();
     router.push({
       pathname: '/groups/vibe',
       params: { sessionId: data.id, flow: 'join' },
@@ -59,22 +74,29 @@ export default function GroupsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-      <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Vote together!</Text>
-        <TopProfileButton />
-      </View>
-
-      <View style={styles.centerContent}>
-        <View style={styles.joinSection}>
-          <Text style={[styles.joinLabel, { color: theme.subtext }]}>Have a code?</Text>
-          <View style={styles.joinRow}>
+    <View style={styles.screen}>
+      <TopProfileButton />
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.centerContent}>
+          <Animated.View entering={FadeInDown.delay(0).springify()} style={styles.joinSection}>
+            {theme.neonColors ? (
+              <NeonGradientTitle
+                text={t('groups.title')}
+                width={SCREEN_W - 48}
+                fontSize={26}
+                style={{ marginBottom: 10 }}
+              />
+            ) : (
+              <Text style={[styles.headerTitle, { color: theme.text }]}>{t('groups.title')}</Text>
+            )}
+            <Text style={[styles.joinLabel, { color: theme.subtext }]}>{t('groups.haveCode')}</Text>
+            <View style={styles.joinRow}>
             <TextInput
               style={[
                 styles.input,
                 { color: theme.text, borderColor: theme.accent + '66', backgroundColor: theme.cardBackground },
               ]}
-              placeholder="Enter code"
+              placeholder={t('groups.enterCodePlaceholder')}
               placeholderTextColor={theme.subtext}
               autoCapitalize="characters"
               maxLength={8}
@@ -84,51 +106,50 @@ export default function GroupsScreen() {
             <TouchableOpacity
               style={[styles.joinBtn, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
               onPress={onJoin}>
-              <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>Join</Text>
+              <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>{t('groups.join')}</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+            </View>
+          </Animated.View>
 
-        <View style={styles.dividerRow}>
+        <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
-          <Text style={[styles.dividerText, { color: theme.subtext }]}>or start one</Text>
+          <Text style={[styles.dividerText, { color: theme.subtext }]}>{t('groups.orStartOne')}</Text>
           <View style={[styles.dividerLine, { backgroundColor: theme.subtext + '33' }]} />
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.delay(160).springify()}>
+          <TouchableOpacity
+            style={[
+              styles.glowBtn,
+              { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent },
+            ]}
+            onPress={() => goLobby('qr')}>
+            <Text style={styles.glowBtnEmoji}>📷</Text>
+            <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.createSession')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.delay(240).springify()}>
+          <TouchableOpacity
+            style={[
+              styles.glowBtn,
+              { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
+            ]}
+            onPress={() => { hapticMedium(); router.push('/groups/quick'); }}>
+            <Text style={styles.glowBtnEmoji}>⚡</Text>
+            <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.quickVote')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
         </View>
-
-        <TouchableOpacity
-          style={[
-            styles.glowBtn,
-            { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent },
-          ]}
-          onPress={() => goLobby('qr')}>
-          <Text style={styles.glowBtnEmoji}>📷</Text>
-          <Text style={[styles.glowBtnText, { color: theme.text }]}>Create session</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.glowBtn,
-            { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
-          ]}
-          onPress={() => router.push('/groups/quick')}>
-          <Text style={styles.glowBtnEmoji}>⚡</Text>
-          <Text style={[styles.glowBtnText, { color: theme.text }]}>Quick Vote</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#000000' },
   safe: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 4,
-  },
-  headerTitle: { fontSize: 22, fontWeight: '800' },
+  headerTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
@@ -137,6 +158,8 @@ const styles = StyleSheet.create({
   },
   joinSection: {
     marginBottom: 4,
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   joinLabel: {
     fontSize: 13,
@@ -145,8 +168,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+    alignSelf: 'stretch',
   },
-  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center', alignSelf: 'stretch' },
   input: {
     flex: 1,
     borderWidth: 1.5,

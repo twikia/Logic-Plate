@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, ScrollView, Pressable, Alert } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, Text, View, ScrollView, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { useAppTheme } from '@/context/ThemeContext';
 import { Themes } from '@/constants/Themes';
@@ -19,19 +20,21 @@ import { resetRecommendationPrefsToOnboarding } from '../core/recommendationPref
 import { clearResultCache } from '../core/resultCache';
 import { clearLocationCache } from '../core/locationCache';
 import { clearImageCache } from '../core/images';
-import { supabase } from '@/core/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { hapticLight, hapticMedium, hapticSuccess } from '@/core/haptics';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, profile, signOut, isGuest } = useAuth();
   const [isClosing, setIsClosing] = useState(false);
   const [isSelectingIcon, setIsSelectingIcon] = useState(false);
-  const [isTestingAi, setIsTestingAi] = useState(false);
   const { icon, changeIcon, icons } = useProfileIcon();
   const { theme, themeName, setTheme } = useAppTheme();
 
-
+  const greetingName =
+    profile?.username ?? (isGuest ? t('profile.guest') : user?.email?.split('@')[0] ?? 'there');
 
   const handleClose = () => {
     if (isClosing) return;
@@ -41,92 +44,8 @@ export default function ProfileScreen() {
     }, 125);
   };
 
-  const runAiEdgeTest = async () => {
-    if (isTestingAi) return;
-    setIsTestingAi(true);
-    const nonce = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-    const testPlaces = [
-      {
-        id: `test_place_${nonce}_a`,
-        name: 'Fuel Kitchen Test',
-        formattedAddress: '123 Demo Ave, Austin, TX',
-        primaryType: 'health_food_restaurant',
-        primaryTypeDisplayName: 'Health Food Restaurant',
-        types: ['restaurant', 'health_food_restaurant', 'meal_takeaway'],
-        priceLevel: 'PRICE_LEVEL_MODERATE',
-        rating: 4.5,
-        userRatingCount: 182,
-        location: { latitude: 30.2672, longitude: -97.7431 },
-        googleMapsUri: 'https://maps.google.com/?q=30.2672,-97.7431',
-        websiteUri: 'https://example.com/fuel-kitchen',
-        nationalPhoneNumber: '+1 512-555-0111',
-        businessStatus: 'OPERATIONAL',
-        currentOpeningHours: { openNow: true, weekdayDescriptions: ['Mon-Fri: 7:00 AM-9:00 PM'] },
-        servesBreakfast: true,
-        servesLunch: true,
-        servesDinner: true,
-        servesVegetarianFood: true,
-        servesWine: false,
-        servesBeer: false,
-        servesCocktails: false,
-        servesDessert: true,
-        servesCoffee: true,
-        goodForChildren: true,
-        takeout: true,
-        delivery: true,
-        dineIn: true,
-        curbsidePickup: true,
-        paymentOptions: { acceptsCreditCards: true, acceptsDebitCards: true, acceptsNfc: true },
-        parkingOptions: { freeParkingLot: true, freeStreetParking: true },
-        editorialSummary: 'Fast-casual bowls and protein-forward menu.',
-        allowsDogs: true,
-      },
-      {
-        id: `test_place_${nonce}_b`,
-        name: 'Late Night Grill Test',
-        formattedAddress: '456 Sample St, Austin, TX',
-        primaryType: 'hamburger_restaurant',
-        primaryTypeDisplayName: 'Hamburger Restaurant',
-        types: ['restaurant', 'hamburger_restaurant', 'fast_food_restaurant'],
-        priceLevel: 'PRICE_LEVEL_INEXPENSIVE',
-        rating: 4.1,
-        userRatingCount: 640,
-        location: { latitude: 30.272, longitude: -97.735 },
-        googleMapsUri: 'https://maps.google.com/?q=30.272,-97.735',
-        businessStatus: 'OPERATIONAL',
-        currentOpeningHours: { openNow: true, weekdayDescriptions: ['Daily: 10:00 AM-1:00 AM'] },
-        servesLunch: true,
-        servesDinner: true,
-        servesBeer: true,
-        servesCoffee: false,
-        goodForChildren: false,
-        takeout: true,
-        delivery: true,
-        dineIn: true,
-        paymentOptions: { acceptsCreditCards: true, acceptsDebitCards: true },
-        parkingOptions: { paidStreetParking: true },
-        editorialSummary: 'Popular for quick burgers and shakes.',
-        allowsDogs: false,
-      },
-    ];
-
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-ai-overviews', {
-        body: { places: testPlaces },
-        headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
-      });
-      if (error) throw error;
-      const count = Array.isArray(data?.generatedOverviews) ? data.generatedOverviews.length : 0;
-      Alert.alert('AI Edge Test Complete', `Function returned ${count} generated overview(s).`);
-    } catch (e: any) {
-      Alert.alert('AI Edge Test Failed', e?.message || 'Unknown error');
-    } finally {
-      setIsTestingAi(false);
-    }
-  };
-
   return (
-    <View style={styles.overlayContainer}>
+    <View style={[styles.overlayContainer, { backgroundColor: 'transparent' }]}>
       {!isClosing && (
         <Animated.View 
           style={[StyleSheet.absoluteFill, styles.backdrop]} 
@@ -146,141 +65,83 @@ export default function ProfileScreen() {
           <SafeAreaView style={[styles.card, { backgroundColor: theme.cardBackground }]} edges={['top', 'bottom']}>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-              <View style={[styles.section, { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }]}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Account</Text>
-                  {user ? (
-                    isGuest ? (
-                      <>
-                        <Text style={[styles.subtitle, { color: theme.subtext }]}>
-                          Guest — your data uses the user ID below. Link an account anytime to keep the same ID on
-                          other devices.
-                        </Text>
-                        <Text style={[styles.userIdLabel, { color: theme.subtext }]}>
-                          User ID{' '}
-                          <Text style={{ fontSize: 11, color: theme.subtext }} selectable>
-                            {user.id}
-                          </Text>
-                        </Text>
-                        <AnimatedPressable
-                          style={[styles.button, { backgroundColor: theme.accent, marginTop: 12 }]}
-                          onPress={() => router.push('/(auth)/login' as any)}
-                        >
-                          <Text style={styles.buttonText}>Save or link account</Text>
-                        </AnimatedPressable>
-                        <AnimatedPressable
-                          style={[styles.button, { backgroundColor: theme.buttonBackground, marginTop: 10 }]}
-                          onPress={() => router.push('/edit-username' as any)}
-                        >
-                          <Text style={[styles.buttonText, { color: theme.text }]}>Username (optional)</Text>
-                        </AnimatedPressable>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={[styles.subtitle, { color: theme.subtext }]} numberOfLines={2}>
-                          {user.email ?? 'Signed in'}
-                        </Text>
-                        <Text style={[styles.userIdLabel, { color: theme.subtext }]}>
-                          User ID{' '}
-                          <Text style={{ fontSize: 11, color: theme.subtext }} selectable>
-                            {user.id}
-                          </Text>
-                        </Text>
-                        <AnimatedPressable
-                          style={[styles.button, { backgroundColor: theme.accent, marginTop: 12 }]}
-                          onPress={() => router.push('/edit-username')}
-                        >
-                          <Text style={styles.buttonText}>Edit username</Text>
-                        </AnimatedPressable>
-                        <AnimatedPressable
-                          style={[styles.button, { backgroundColor: theme.buttonBackground, marginTop: 10 }]}
-                          onPress={() => signOut()}
-                        >
-                          <Text style={[styles.buttonText, { color: theme.text }]}>Sign out</Text>
-                        </AnimatedPressable>
-                      </>
-                    )
-                  ) : (
-                    <>
-                      <Text style={[styles.subtitle, { color: theme.subtext }]}>
-                        Could not start a session. Check your connection and Supabase anonymous sign-in.
-                      </Text>
-                    </>
-                  )}
-                </View>
-
-                <AnimatedPressable onPress={() => setIsSelectingIcon(true)} style={styles.profileIconWrapper}>
-                  <View style={styles.profileIconContainer}>
-                    <Text style={{ fontSize: 40 }}>{icon}</Text>
+              <View style={[styles.section, styles.profileHeaderSection]}>
+                <AnimatedPressable onPress={() => { hapticLight(); setIsSelectingIcon(true); }} style={styles.profileIconWrapper}>
+                  <View style={styles.avatarOuter}>
+                    <View style={styles.profileIconContainer}>
+                      <Text style={styles.profileIconEmoji}>{icon}</Text>
+                    </View>
+                    <View style={[styles.editBadge, { borderColor: theme.cardBackground, backgroundColor: theme.accent }]}>
+                      <Ionicons name="pencil" size={14} color="#FFFFFF" />
+                    </View>
                   </View>
-                  <View style={styles.editBadge}>
-                    <Ionicons name="pencil" size={14} color="#FFFFFF" />
-                  </View>
-                  {profile?.username ? (
-                    <Text style={[styles.usernameUnderAvatar, { color: theme.text }]} numberOfLines={1}>
-                      {profile.username}
-                    </Text>
-                  ) : isGuest ? (
-                    <Text style={[styles.usernameUnderAvatar, { color: theme.subtext }]} numberOfLines={1}>
-                      Guest
-                    </Text>
-                  ) : null}
-                  <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
+                  <Text style={[styles.changeText, { color: theme.accent }]}>{t('profile.change')}</Text>
+                  <Text style={[styles.greetingText, { color: theme.text }]}>{t('profile.greeting', { name: greetingName })}</Text>
                 </AnimatedPressable>
 
+                {user ? (
+                  !isGuest ? (
+                    <AnimatedPressable
+                      style={[styles.button, styles.signOutButton, { backgroundColor: theme.buttonBackground }]}
+                      onPress={() => { hapticMedium(); signOut(); }}
+                    >
+                      <Text style={[styles.buttonText, { color: theme.text }]}>{t('profile.signOut')}</Text>
+                    </AnimatedPressable>
+                  ) : null
+                ) : (
+                  <Text style={[styles.subtitle, styles.sessionError, { color: theme.subtext }]}>
+                    {t('profile.sessionError')}
+                  </Text>
+                )}
               </View>
 
               <View style={styles.section}>
-                <View style={[styles.subscriptionMiniCard, { backgroundColor: 'rgba(249, 115, 82, 0.1)', borderColor: theme.accent }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('profile.settingsSection')}</Text>
+                <AnimatedPressable 
+                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
+                  onPress={() => { hapticLight(); router.push('/recommendation-settings' as any); }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.recommendations')}</Text>
+                    <Ionicons name="sparkles-outline" size={18} color={theme.accent} />
+                  </View>
+                </AnimatedPressable>
+                <AnimatedPressable 
+                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
+                  onPress={() => { hapticLight(); router.push('/general-settings'); }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.generalSettings')}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
+                  </View>
+                </AnimatedPressable>
+                <AnimatedPressable
+                  style={[
+                    styles.subscriptionMiniCard,
+                    {
+                      backgroundColor: `${theme.accent}1A`,
+                      borderColor: theme.accent,
+                      marginBottom: 10,
+                      marginTop: 0,
+                    },
+                  ]}
+                  onPress={() => { hapticLight(); router.push('/subscription'); }}
+                >
                   <View style={styles.subInfo}>
                     <Ionicons name="star" size={20} color={theme.accent} />
                     <View style={{ marginLeft: 10 }}>
-                      <Text style={[styles.subPlanText, { color: theme.text }]}>Free Tier</Text>
-                      <Text style={[styles.subStatusText, { color: theme.subtext }]}>Standard features</Text>
+                      <Text style={[styles.subPlanText, { color: theme.text }]}>{t('profile.freeTier')}</Text>
+                      <Text style={[styles.subStatusText, { color: theme.subtext }]}>{t('profile.standardFeatures')}</Text>
                     </View>
                   </View>
-                  <AnimatedPressable 
-                    style={[styles.upgradeBtn, { backgroundColor: theme.accent }]}
-                    onPress={() => router.push('/subscription')}
-                  >
-                    <Text style={styles.upgradeBtnText}>Upgrade</Text>
-                  </AnimatedPressable>
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
-                <AnimatedPressable 
-                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
-                  onPress={() => router.push('/recommendation-settings' as any)}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={styles.menuItemText}>Recommendations</Text>
-                    <Ionicons name="sparkles-outline" size={18} color="#F97352" />
-                  </View>
-                </AnimatedPressable>
-                <AnimatedPressable 
-                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
-                  onPress={() => router.push('/general-settings')}
-                >
-
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={styles.menuItemText}>General Settings</Text>
-                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
-                  </View>
-                </AnimatedPressable>
-                <AnimatedPressable 
-                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
-                  onPress={() => router.push('/subscription')}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={styles.menuItemText}>Subscription</Text>
-                    <Ionicons name="star" size={18} color="#F97352" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.upgradeLabel, { color: theme.accent }]}>{t('profile.upgrade')}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={theme.accent} style={{ marginLeft: 4 }} />
                   </View>
                 </AnimatedPressable>
                 <View style={[styles.menuItem, { paddingVertical: 12, backgroundColor: theme.buttonBackground }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={[styles.menuItemText, { color: theme.text }]}>Theme Preferences</Text>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.themePreferences')}</Text>
                   </View>
 
                   <ScrollView 
@@ -288,19 +149,19 @@ export default function ProfileScreen() {
                     showsHorizontalScrollIndicator={false} 
                     contentContainerStyle={styles.themeSelector}
                   >
-                    {Object.entries(Themes).map(([id, t]: [string, any]) => (
+                    {Object.entries(Themes).map(([id, t2]: [string, any]) => (
                       <Pressable 
                         key={id}
-                        onPress={() => setTheme(id)}
+                        onPress={() => { hapticLight(); setTheme(id); }}
                         style={[
                           styles.themeBtn, 
                           themeName === id && styles.themeBtnActive,
-                          { borderColor: t.accent }
+                          { borderColor: t2.accent }
                         ]}
                       >
-                        <View style={[styles.themePreview, { backgroundColor: t.gradient[0] }]}>
+                        <View style={[styles.themePreview, { backgroundColor: t2.gradient[0] }]}>
                           <LinearGradient 
-                            colors={t.gradient} 
+                            colors={t2.gradient} 
                             style={StyleSheet.absoluteFill}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
@@ -308,24 +169,24 @@ export default function ProfileScreen() {
                         </View>
                         <Text style={[
                           styles.themeText, 
-                          themeName === id && { color: t.accent, fontWeight: 'bold' }
+                          { color: theme.subtext },
+                          themeName === id && { color: t2.accent, fontWeight: 'bold' }
                         ]}>
-                          {t.name}
+                          {t2.name}
                         </Text>
                       </Pressable>
                     ))}
                   </ScrollView>
-
                 </View>
               </View>
 
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Developer</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('profile.developer')}</Text>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.accent }]} 
                   onPress={() => runCacheTests()}
                 >
-                  <Text style={[styles.menuItemText, { color: theme.text }]}>Run All Tests</Text>
+                  <Text style={[styles.menuItemText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>{t('profile.runAllTests')}</Text>
                 </AnimatedPressable>
 
                 <AnimatedPressable 
@@ -341,20 +202,12 @@ export default function ProfileScreen() {
                       clearRandomPickerState(),
                       resetRecommendationPrefsToOnboarding(),
                     ]);
-                    Alert.alert('System Purged', 'All local caches (H3 cells, Results, Location, and Images) have been wiped. Recommendation preferences were reset.');
+                    hapticSuccess();
+                    Alert.alert(t('profile.cachePurgedTitle'), t('profile.cachePurgedMsg'));
                     router.replace('/welcome-onboarding' as any);
                   }}
                 >
-                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>Clear All Caches</Text>
-                </AnimatedPressable>
-
-                <AnimatedPressable
-                  style={[styles.menuItem, { backgroundColor: '#8AAAE5', marginTop: 10, opacity: isTestingAi ? 0.6 : 1 }]}
-                  onPress={runAiEdgeTest}
-                >
-                  <Text style={[styles.menuItemText, { color: '#14213D' }]}>
-                    {isTestingAi ? 'Testing AI Edge Call...' : 'Test AI Edge Call'}
-                  </Text>
+                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>{t('profile.clearAllCaches')}</Text>
                 </AnimatedPressable>
               </View>
             </ScrollView>
@@ -362,19 +215,19 @@ export default function ProfileScreen() {
         </Animated.View>
       )}
 
-      {/* Icon Selection Modal */}
       {isSelectingIcon && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 100, justifyContent: 'center', alignItems: 'center' }]}>
           <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} onPress={() => setIsSelectingIcon(false)} />
           <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(100)} style={[styles.iconSelectionBox, { backgroundColor: theme.cardBackground }]}>
 
-            <Text style={styles.iconSelectionTitle}>Choose an Avatar</Text>
+            <Text style={[styles.iconSelectionTitle, { color: theme.text }]}>{t('profile.chooseAvatar')}</Text>
             <View style={styles.iconGrid}>
               {icons.map((item) => (
                 <AnimatedPressable 
                   key={item} 
                   style={[styles.iconOption, icon === item && styles.iconOptionSelected]}
                   onPress={async () => {
+                    hapticLight();
                     await changeIcon(item);
                     setIsSelectingIcon(false);
                   }}
@@ -400,6 +253,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
   },
   backdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -428,7 +282,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-
   scrollContent: {
     padding: 24,
     paddingTop: 30,
@@ -476,7 +329,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 5,
   },
-
   themeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -491,63 +343,69 @@ const styles = StyleSheet.create({
   themeBtnActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
-
   themeText: {
     color: '#B59EAA',
     fontSize: 11,
     fontWeight: '600',
   },
-  themeTextActive: {
-    color: '#F97352',
+  profileHeaderSection: {
+    alignItems: 'center',
   },
   profileIconWrapper: {
     alignItems: 'center',
+    width: '100%',
+  },
+  avatarOuter: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.3)',
   },
+  profileIconEmoji: {
+    fontSize: 48,
+  },
   editBadge: {
     position: 'absolute',
-    bottom: 20,
-    right: -5,
-    backgroundColor: '#F97352',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+    bottom: 0,
+    right: -4,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#3D2B3D',
   },
   changeText: {
-    color: '#F9A06F',
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 6,
-  },
-  usernameUnderAvatar: {
-    fontSize: 13,
-    fontWeight: '700',
-    maxWidth: 96,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  userIdLabel: {
-    fontSize: 11,
     marginTop: 8,
-    lineHeight: 16,
+  },
+  greetingText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  signOutButton: {
+    marginTop: 16,
+    alignSelf: 'center',
+  },
+  sessionError: {
+    marginTop: 16,
+    textAlign: 'center',
   },
   iconSelectionBox: {
     backgroundColor: '#3D2B3D',
     borderRadius: 25,
-
     padding: 25,
     width: '80%',
     maxWidth: 340,
@@ -604,7 +462,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 20,
     borderWidth: 1,
-    marginTop: -20,
   },
   subInfo: {
     flexDirection: 'row',
@@ -618,14 +475,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  upgradeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  upgradeBtnText: {
-    color: '#FFFFFF',
+  upgradeLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-  }
+  },
 });

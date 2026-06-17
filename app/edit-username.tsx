@@ -1,11 +1,14 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { SetUsernameForm } from '@/components/auth/SetUsernameForm';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 export default function EditUsernameModal() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { theme } = useAppTheme();
 
@@ -19,8 +22,8 @@ export default function EditUsernameModal() {
       <SafeAreaView style={[styles.card, { backgroundColor: theme.cardBackground }]} edges={['top', 'bottom']}>
         <View style={styles.pad}>
           <SetUsernameForm
-            title="Edit username"
-            subtitle="Letters, numbers, and underscores only. Offensive names are blocked."
+            title={t('auth.editUsername')}
+            subtitle={t('auth.editUsernameSubtitle')}
             onSuccess={close}
           />
         </View>

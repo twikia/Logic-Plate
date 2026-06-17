@@ -2,6 +2,7 @@ import { getCellsInRadius, getCellCenter } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
 import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
+import { logEdgeFunctionFailure } from './supabaseFunctionErrors';
 import {
   getCachedAiOverviewsForPlaces,
   invokeGenerateAiOverviewsForPlaces,
@@ -40,8 +41,21 @@ export class RestaurantLoadSupersededError extends Error {
   }
 }
 
+export const RESTAURANT_FETCH_USER_MESSAGE =
+  "Couldn't load nearby restaurants. Check your connection and try again.";
+
+export class RestaurantFetchError extends Error {
+  readonly name = 'RestaurantFetchError';
+  constructor(message: string = RESTAURANT_FETCH_USER_MESSAGE, readonly cause?: unknown) {
+    super(message);
+  }
+}
+
 export const isRestaurantLoadSupersededError = (e: unknown): boolean =>
   e instanceof RestaurantLoadSupersededError;
+
+export const isRestaurantFetchError = (e: unknown): e is RestaurantFetchError =>
+  e instanceof RestaurantFetchError;
 
 export type GetNearbyRestaurantsOptions = {
   onAiReady?: (places: any[]) => void;
@@ -106,30 +120,51 @@ async function loadNearbyRestaurantsInternal(
     console.log(
       `Database cache misses remain for ${uncachedCells.length} cells. Sending ${cellsToFetch.length} (cap: ${apiCallCap}) to fetch-missing-cells...`
     );
-    const { data, error } = await supabase.functions.invoke('fetch-missing-cells', {
-      body: { missingCells: missingCellsPayload },
-      headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
-    });
+
+    let data: unknown;
+    let error: { message?: string; name?: string; context?: unknown } | null = null;
+    try {
+      const invokeResult = await supabase.functions.invoke('fetch-missing-cells', {
+        body: { missingCells: missingCellsPayload },
+        headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
+      });
+      data = invokeResult.data;
+      error = invokeResult.error;
+    } catch (err) {
+      logEdgeFunctionFailure('fetch-missing-cells', {
+        data: null,
+        error: err instanceof Error ? { message: err.message, name: err.name } : { message: String(err) },
+      });
+      if (allRestaurants.length === 0) {
+        throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, err);
+      }
+      data = null;
+      error = null;
+    }
 
     if (error) {
-      console.error('Edge Function returned an error:', error);
+      logEdgeFunctionFailure('fetch-missing-cells', { data, error });
       if (allRestaurants.length === 0) {
-        throw new Error(`Restaurant fetch failed: ${error.message || 'edge function invocation failed'}`);
+        throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, error);
       }
-    } else if (data && Array.isArray(data.newlyFetchedRestaurants)) {
-      console.log(`Edge function returned data for ${data.newlyFetchedRestaurants.length} cells.`);
-      if (Array.isArray(data.failedCells) && data.failedCells.length > 0) {
-        console.error('Edge function reported failed cells:', data.failedCells);
+    } else if (data && Array.isArray((data as { newlyFetchedRestaurants?: unknown }).newlyFetchedRestaurants)) {
+      const payload = data as {
+        newlyFetchedRestaurants: { cellId: string; places: any[] }[];
+        failedCells?: string[];
+      };
+      console.log(`Edge function returned data for ${payload.newlyFetchedRestaurants.length} cells.`);
+      if (Array.isArray(payload.failedCells) && payload.failedCells.length > 0) {
+        console.warn('[restaurants] Edge function reported failed cells:', payload.failedCells);
       }
-      for (const result of data.newlyFetchedRestaurants as { cellId: string; places: any[] }[]) {
+      for (const result of payload.newlyFetchedRestaurants) {
         await writeCache(result.cellId, result.places);
         allRestaurants = allRestaurants.concat(result.places);
       }
       if (allRestaurants.length === 0) {
-        throw new Error('Restaurant fetch failed: edge function returned zero restaurants.');
+        throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned zero restaurants');
       }
     } else if (allRestaurants.length === 0) {
-      throw new Error('Restaurant fetch failed: edge function returned no data.');
+      throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned no data');
     }
   }
 

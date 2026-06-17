@@ -35,13 +35,17 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchProfile(userId: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('id', userId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return { id: data.id, username: data.username };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return { id: data.id, username: data.username };
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -63,21 +67,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     (async () => {
-      const { data: existing } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (existing.session) {
-        setSession(existing.session);
-        setLoading(false);
-        return;
+      try {
+        const { data: existing, error: sessionError } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (!sessionError && existing.session) {
+          setSession(existing.session);
+          return;
+        }
+        if (sessionError) {
+          await supabase.auth.signOut().catch(() => undefined);
+        }
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (cancelled) return;
+        if (error) {
+          console.warn('[Auth] anonymous sign-in failed:', error.message);
+          return;
+        }
+        setSession(data.session);
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[Auth] initialization failed:', e);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-      const { data, error } = await supabase.auth.signInAnonymously();
-      if (cancelled) return;
-      if (error) {
-        setLoading(false);
-        return;
-      }
-      setSession(data.session);
-      setLoading(false);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {

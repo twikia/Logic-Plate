@@ -3,8 +3,9 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -12,12 +13,16 @@ import Animated, {
   useSharedValue,
   withSequence,
   withTiming,
+  withRepeat,
+  interpolateColor,
 } from 'react-native-reanimated';
 
 import { endHostSession } from '@/core/groupSessionState';
 import { requestHomeTitleReroll } from '@/core/homeTitle';
 import { requestRandomPickerReset } from '@/core/randomPickerState';
 import { useAppTheme } from '@/context/ThemeContext';
+
+const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 
 
 interface AnimatedTabIconProps {
@@ -98,13 +103,15 @@ export default function TabLayout() {
 
   const tabBarStyle = useMemo(
     () => ({
-      backgroundColor: theme.neonColors ? '#000000' : theme.cardBackground,
+      backgroundColor: theme.neonColors
+        ? '#000000'
+        : (theme.tabBarBackground ?? theme.cardBackground),
       borderTopWidth: 0,
       height: 52 + insets.bottom,
       paddingBottom: insets.bottom,
       paddingTop: 4,
     }),
-    [theme.cardBackground, theme.neonColors, insets.bottom]
+    [theme.cardBackground, theme.neonColors, theme.tabBarBackground, insets.bottom]
   );
 
   const isMap = pathname.startsWith('/map');
@@ -113,9 +120,67 @@ export default function TabLayout() {
   const neon = Boolean(theme.neonColors);
   const neonColors = theme.neonColors;
 
+  // Rotation animation for the home bubble neon outline (counter-clockwise)
+  const homeRotate = useSharedValue(0);
+  useEffect(() => {
+    if (neon) {
+      homeRotate.value = withRepeat(
+        withTiming(-360, { duration: 8000, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      homeRotate.value = 0;
+    }
+  }, [neon, homeRotate]);
+
+  const homeSpinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${homeRotate.value}deg` }],
+  }));
+
+  // Color pulse animation for the non-neon home bubble background
+  const colorPulse = useSharedValue(0);
+  useEffect(() => {
+    if (!neon) {
+      colorPulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      colorPulse.value = 0;
+    }
+  }, [neon, colorPulse]);
+
+  const animatedHomeBgStyle = useAnimatedStyle(() => {
+    const startColor = theme.tabHomeBackground ?? theme.accent;
+    const endColor = theme.accent;
+    const backgroundColor = interpolateColor(
+      colorPulse.value,
+      [0, 1],
+      [startColor, endColor]
+    );
+    return { backgroundColor };
+  });
+
+  const animatedHomeIconStyle = useAnimatedStyle(() => {
+    const startIconColor = theme.text;
+    const endIconColor = theme.accentOnColor ?? '#FFFFFF';
+    const color = interpolateColor(
+      colorPulse.value,
+      [0, 1],
+      [startIconColor, endIconColor]
+    );
+    return { color };
+  });
+
   return (
     <Tabs
       initialRouteName="(home)"
+      sceneContainerStyle={{ backgroundColor: '#000000' }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
@@ -186,20 +251,42 @@ export default function TabLayout() {
                 }}
               >
                 {neon && neonColors ? (
-                  <LinearGradient
-                    colors={neonColors}
-                    start={{ x: 0, y: 1 }}
-                    end={{ x: 1, y: 0 }}
+                  <View
                     style={{
                       width: 56,
                       height: 56,
                       borderRadius: 28,
-                      padding: 2.5,
+                      overflow: 'hidden',
+                      justifyContent: 'center',
+                      alignItems: 'center',
                     }}
                   >
+                    <Animated.View
+                      style={[
+                        {
+                          position: 'absolute',
+                          width: 80,
+                          height: 80,
+                          left: -12,
+                          top: -12,
+                        },
+                        homeSpinStyle,
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={neonColors}
+                        style={{ flex: 1 }}
+                        start={{ x: 0, y: 1 }}
+                        end={{ x: 1, y: 0 }}
+                      />
+                    </Animated.View>
                     <View
                       style={{
-                        flex: 1,
+                        position: 'absolute',
+                        top: 2.5,
+                        left: 2.5,
+                        right: 2.5,
+                        bottom: 2.5,
                         borderRadius: 25.5,
                         backgroundColor: '#000000',
                         justifyContent: 'center',
@@ -208,20 +295,22 @@ export default function TabLayout() {
                     >
                       <Ionicons size={28} name="home" color="#FFFFFF" />
                     </View>
-                  </LinearGradient>
-                ) : (
-                  <View
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 28,
-                      backgroundColor: theme.accent,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Ionicons size={28} name="home" color={theme.text} />
                   </View>
+                ) : (
+                  <Animated.View
+                    style={[
+                      {
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      },
+                      animatedHomeBgStyle,
+                    ]}
+                  >
+                    <AnimatedIonicons size={28} name="home" style={animatedHomeIconStyle} />
+                  </Animated.View>
                 )}
               </AnimatedPressable>
             </View>

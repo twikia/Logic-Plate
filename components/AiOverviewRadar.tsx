@@ -1,6 +1,7 @@
 import type { AiOverview } from '@/core/aiOverviewCache';
 import type { ThemeColors } from '@/themes/types';
 import React, { useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import Svg, {
   Defs,
@@ -28,8 +29,8 @@ function scoreAxis(ai: AiOverview | null | undefined, key: keyof AiOverview): nu
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function formatAxisReading(max: 5 | 10, s: number | null): string {
-  if (s == null) return '—';
+function formatAxisReading(max: 5 | 10, s: number | null, missing: string): string {
+  if (s == null) return missing;
   if (max === 10) return `${clampScore(s, max).toFixed(1)}/${max}`;
   return `${Math.round(clampScore(s, max))}/${max}`;
 }
@@ -42,14 +43,15 @@ type Props = {
 };
 
 export function AiOverviewRadar({ ai, theme, height = 200, neon }: Props) {
+  const { t } = useTranslation();
   const gid = useId().replace(/:/g, '');
   const n = 5;
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
-    { key: 'healthScore', corner: 'Health', max: 10 },
-    { key: 'tasteScore', corner: 'Taste', max: 5 },
-    { key: 'valueForMoneyScore', corner: 'Value', max: 5 },
-    { key: 'dateWorthiness', corner: 'Date', max: 5 },
-    { key: 'speedScore', corner: 'Speed', max: 5 },
+    { key: 'healthScore', corner: t('home.radarHealth'), max: 10 },
+    { key: 'tasteScore', corner: t('home.radarTaste'), max: 5 },
+    { key: 'valueForMoneyScore', corner: t('home.radarValue'), max: 5 },
+    { key: 'dateWorthiness', corner: t('home.radarDate'), max: 5 },
+    { key: 'speedScore', corner: t('home.radarSpeed'), max: 5 },
   ];
   const norms = axes.map(({ key, max }) => {
     const s = scoreAxis(ai, key);
@@ -98,11 +100,11 @@ export function AiOverviewRadar({ ai, theme, height = 200, neon }: Props) {
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={0.45} />
         <Polygon points={fillPts} fill={fillValue} stroke={ringStroke} strokeWidth={1.25} strokeLinejoin="round" />
         {axes.map(({ key, corner, max }, i) => {
-          const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
-          const lx = cx + labelR * Math.cos(t);
-          const ly = cy + labelR * Math.sin(t);
+          const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
+          const lx = cx + labelR * Math.cos(angle);
+          const ly = cy + labelR * Math.sin(angle);
           const s = scoreAxis(ai, key);
-          const reading = formatAxisReading(max, s);
+          const reading = formatAxisReading(max, s, t('common.missingScore'));
           return (
             <G key={corner}>
               <SvgText x={lx} y={ly - 2.4} fill={ringLabel} fontSize={5} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">

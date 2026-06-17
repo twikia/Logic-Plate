@@ -1,5 +1,6 @@
 import type { AiOverview } from '@/core/aiOverviewCache';
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -8,9 +9,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-const FILLED_BEST = '#00E5FF';
-const FILLED_WORST = '#FF007F';
-const FILLED_OTHER = '#90A4AE';
+const FILLED_GOOD = '#4CD964';
+const FILLED_MID = '#FF9500';
+const FILLED_BAD = '#FF4444';
+const FILLED_UNKNOWN = '#90A4AE';
 const SEG_UNFILLED = 'rgba(255,255,255,0.08)';
 const SEG_COUNT = 5;
 const SEG_GAP = 3;
@@ -27,8 +29,8 @@ function scoreAxis(ai: AiOverview | null | undefined, key: keyof AiOverview): nu
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function formatScore(max: 5 | 10, s: number | null): string {
-  if (s == null) return '—';
+function formatScore(max: 5 | 10, s: number | null, missing: string): string {
+  if (s == null) return missing;
   if (max === 10) return `${clampScore(s, max).toFixed(1)}/${max}`;
   return `${Math.round(clampScore(s, max))}/${max}`;
 }
@@ -64,46 +66,44 @@ function AnimatedSegment({
   );
 }
 
-const METRICS: { key: keyof AiOverview; label: string; max: 5 | 10 }[] = [
-  { key: 'tasteScore', label: 'Taste', max: 5 },
-  { key: 'valueForMoneyScore', label: 'Value', max: 5 },
-  { key: 'dateWorthiness', label: 'Date', max: 5 },
-  { key: 'healthScore', label: 'Health', max: 10 },
-  { key: 'speedScore', label: 'Speed', max: 5 },
+const METRICS: { key: keyof AiOverview; labelKey: string; max: 5 | 10 }[] = [
+  { key: 'tasteScore', labelKey: 'taste', max: 5 },
+  { key: 'valueForMoneyScore', labelKey: 'value', max: 5 },
+  { key: 'dateWorthiness', labelKey: 'dateWorthiness', max: 5 },
+  { key: 'healthScore', labelKey: 'health', max: 10 },
+  { key: 'speedScore', labelKey: 'speed', max: 5 },
 ];
 
 type Props = {
   ai: AiOverview | null | undefined;
 };
 
+function absoluteScoreColor(score: number | null, max: 5 | 10): string {
+  if (score == null) return FILLED_UNKNOWN;
+  const norm10 = (clampScore(score, max) / max) * 10;
+  if (norm10 >= 7) return FILLED_GOOD;
+  if (norm10 >= 4.5) return FILLED_MID;
+  return FILLED_BAD;
+}
+
 export function SegmentedScoreBar({ ai }: Props) {
-  const normalizedScores = METRICS.map(({ key, max }) => {
-    const s = scoreAxis(ai, key);
-    if (s == null) return 0;
-    return Math.round((clampScore(s, max) / max) * SEG_COUNT);
-  });
-
-  const maxNorm = Math.max(...normalizedScores);
-  const minNorm = Math.min(...normalizedScores);
-
-  const getColor = (norm: number): string => {
-    if (maxNorm === minNorm) return FILLED_OTHER;
-    if (norm === maxNorm) return FILLED_BEST;
-    if (norm === minNorm) return FILLED_WORST;
-    return FILLED_OTHER;
-  };
+  const { t } = useTranslation();
+  const missing = t('common.missingScore');
 
   return (
     <View style={styles.container}>
-      {METRICS.map(({ key, label, max }, rowIdx) => {
+      {METRICS.map(({ key, labelKey, max }, rowIdx) => {
         const s = scoreAxis(ai, key);
-        const norm = normalizedScores[rowIdx];
-        const color = getColor(norm);
-        const reading = formatScore(max, s);
+        const norm = (() => {
+          if (s == null) return 0;
+          return Math.round((clampScore(s, max) / max) * SEG_COUNT);
+        })();
+        const color = absoluteScoreColor(s, max);
+        const reading = formatScore(max, s, missing);
 
         return (
           <View key={key} style={styles.row}>
-            <Text style={styles.label}>{label}</Text>
+            <Text style={styles.label}>{t(`scores.${labelKey}`)}</Text>
             <View style={styles.barContainer}>
               {Array.from({ length: SEG_COUNT }, (_, segIdx) => (
                 <AnimatedSegment
@@ -114,7 +114,7 @@ export function SegmentedScoreBar({ ai }: Props) {
                 />
               ))}
             </View>
-            <Text style={styles.score}>{reading}</Text>
+            <Text style={[styles.score, { color: color }]}>{reading}</Text>
           </View>
         );
       })}
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     width: 44,
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.92)',
   },
   barContainer: {
     flex: 1,
@@ -154,8 +154,7 @@ const styles = StyleSheet.create({
   score: {
     width: 38,
     fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '700',
     textAlign: 'right',
   },
 });

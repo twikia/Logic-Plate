@@ -2,6 +2,7 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
@@ -30,6 +31,7 @@ function parseVoteParams(raw: Record<string, string | string[] | undefined>) {
 
 export default function QuickVoteVoteScreen() {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const raw = useLocalSearchParams();
   const parsed = parseVoteParams(raw as Record<string, string | string[] | undefined>);
@@ -39,7 +41,7 @@ export default function QuickVoteVoteScreen() {
     (restaurant: QuickVoteRestaurant) => {
       if (!parsed || votedForId) return;
       setVotedForId(restaurant.id);
-      const name = restaurant.displayName?.text ?? 'Restaurant';
+      const name = restaurant.displayName?.text ?? t('common.restaurant');
       const newVotes = {
         ...parsed.votes,
         [restaurant.id]: (parsed.votes[restaurant.id] ?? 0) + 1,
@@ -59,7 +61,7 @@ export default function QuickVoteVoteScreen() {
         });
       }, 400);
     },
-    [parsed, router, votedForId]
+    [parsed, router, t, votedForId]
   );
 
   const endVoting = useCallback(() => {
@@ -101,20 +103,21 @@ export default function QuickVoteVoteScreen() {
   const { restaurants, voterCount, currentVoter } = parsed;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topRow}>
         <BackButton variant="circle" onPress={handleBack} />
         <View style={styles.voterBadge}>
           <Text style={[styles.voterText, { color: theme.accent }]}>
-            Voter {currentVoter} / {voterCount}
+            {t('quickVote.voterBadge', { current: currentVoter, total: voterCount })}
           </Text>
         </View>
         <View style={styles.topSpacer} />
       </View>
 
-      <Text style={[styles.header, { color: theme.text }]}>Pick your favorite</Text>
+      <Text style={[styles.header, { color: theme.text }]}>{t('groups.vote.pickFavorite')}</Text>
       <Text style={[styles.hint, { color: theme.subtext }]}>
-        Tap a card to expand, tap the box to vote
+        {t('quickVote.voteHint')}
       </Text>
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
@@ -130,6 +133,7 @@ export default function QuickVoteVoteScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 

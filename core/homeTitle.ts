@@ -1,17 +1,17 @@
-const FUN_HOME_TITLES = [
-  'Hungry? Start here',
-  'Your top picks nearby',
-  'Ready when you are',
-  'Made for you boss!',
-  "What's good today?",
-  "Todays's best bets",
-  'Picks just for you',
-  "Let's find something good",
-];
+import i18n from '@/i18n';
 
 export function pickFunHomeTitle(): string {
-  const idx = Math.floor(Math.random() * FUN_HOME_TITLES.length);
-  return FUN_HOME_TITLES[idx] ?? FUN_HOME_TITLES[0];
+  const titles = i18n.t('home.titles', { returnObjects: true }) as string[];
+  const arr = Array.isArray(titles) && titles.length > 0 ? titles : ['Your top picks nearby'];
+  const idx = Math.floor(Math.random() * arr.length);
+  return arr[idx] ?? arr[0];
+}
+
+export function pickFunSelectTitle(): string {
+  const titles = i18n.t('home.selectTitles', { returnObjects: true }) as string[];
+  const arr = Array.isArray(titles) && titles.length > 0 ? titles : ['Pick your poison'];
+  const idx = Math.floor(Math.random() * arr.length);
+  return arr[idx] ?? arr[0];
 }
 
 type RerollListener = () => void;

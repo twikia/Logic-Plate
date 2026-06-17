@@ -16,18 +16,20 @@ import { BackButton } from '@/components/ui/BackButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable } from '@/components/ui/soundPressable';
 import {
   Dimensions,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { hapticMedium, hapticSuccess } from '@/core/haptics';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -39,6 +41,7 @@ const STEPS = CUISINE_PAGE + 1;
 export default function WelcomeOnboardingScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const listRef = useRef<FlatList>(null);
   const [page, setPage] = useState(0);
 
@@ -73,6 +76,7 @@ export default function WelcomeOnboardingScreen() {
   }, [router]);
 
   const finish = useCallback(async () => {
+    hapticSuccess();
     await markOnboardingComplete({
       v: 1,
       weights,
@@ -87,6 +91,7 @@ export default function WelcomeOnboardingScreen() {
   };
 
   const goNext = () => {
+    hapticMedium();
     if (page < STEPS - 1) {
       listRef.current?.scrollToIndex({ index: page + 1, animated: true });
     } else {
@@ -134,10 +139,9 @@ export default function WelcomeOnboardingScreen() {
           value={weights.cuisine}
           onChange={level => setWeight('cuisine', level)}
         />
-        <Text style={[styles.title, styles.cuisineSectionTitle, { color: theme.text }]}>Rank your top cuisines</Text>
+        <Text style={[styles.title, styles.cuisineSectionTitle, { color: theme.text }]}>{t('onboarding.cuisineTitle')}</Text>
         <Text style={[styles.sub, { color: theme.subtext }]}>
-          Optional: tap up to 5 favorites in order — #1 is your top pick. Skip any you are not sure about; we still
-          surface great matches either way.
+          {t('onboarding.cuisineSubtitle')}
         </Text>
         <CuisineRankGrid
           ranked={favoriteCuisines}
@@ -183,8 +187,10 @@ export default function WelcomeOnboardingScreen() {
 
         <View style={styles.footer}>
           <Pressable onPress={goNext} style={[styles.primaryBtn, { backgroundColor: theme.accent }]}>
-            <Text style={styles.primaryBtnText}>{page === STEPS - 1 ? 'Start exploring' : 'Continue'}</Text>
-            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+            <Text style={[styles.primaryBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
+              {page === STEPS - 1 ? t('onboarding.startExploring') : t('onboarding.continue')}
+            </Text>
+            <Ionicons name="arrow-forward" size={20} color={theme.accentOnColor ?? '#FFFFFF'} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -217,5 +223,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
+  primaryBtnText: { fontSize: 17, fontWeight: '800' },
 });

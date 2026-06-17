@@ -9,16 +9,17 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 export default function MapScreenWeb() {
+  const { t } = useTranslation();
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.icon}>🗺️</Text>
-        <Text style={styles.title}>Map View</Text>
-        <Text style={styles.subtitle}>
-          The interactive map is available on the iOS and Android apps.
-        </Text>
+        <Text style={styles.title}>{t('map.webTitle')}</Text>
+        <Text style={styles.subtitle}>{t('map.webSubtitle')}</Text>
       </View>
     </SafeAreaView>
   );

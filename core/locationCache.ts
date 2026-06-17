@@ -1,8 +1,5 @@
 import * as Location from 'expo-location';
 
-const USE_HARDCODED_DENVER_LOCATION = true;
-const HARDCODED_DENVER_COORDS = { latitude: 39.7392, longitude: -104.9903 };
-
 /**
  * In-memory location cache.
  *
@@ -20,19 +17,13 @@ const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
 let cachedCoords: { latitude: number; longitude: number } | null = null;
 let cachedAt = 0;
-let refreshInterval: NodeJS.Timeout | null = null;
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 let pendingLocationPromise: Promise<{ latitude: number; longitude: number } | null> | null = null;
 
 export const getLocation = async (
   force = false
 ): Promise<{ latitude: number; longitude: number } | null> => {
-  if (USE_HARDCODED_DENVER_LOCATION) {
-    cachedCoords = HARDCODED_DENVER_COORDS;
-    cachedAt = Date.now();
-    return HARDCODED_DENVER_COORDS;
-  }
-
   // 1. If a request is already in progress, wait for it instead of starting a new one
   if (pendingLocationPromise) {
     console.log('GPS request already in progress, waiting for it...');

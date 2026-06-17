@@ -1,8 +1,9 @@
-﻿import {
+import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
 } from '@/components/RestaurantLoadingProgress';
 import { NeonBorderCard } from '@/components/NeonBorderCard';
+import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -11,7 +12,7 @@ import { getLocation } from '@/core/locationCache';
 import type { AiOverview } from '@/core/aiOverviewCache';
 import { fetchIsLikelyRainNow } from '@/core/openMeteoWeather';
 import { scoreRestaurantPool } from '@/core/recommendationEngine';
-import { getRecommendationPrefs } from '@/core/recommendationPrefs';
+import { getRecommendationPrefs, getRecommendationPrefsRevision } from '@/core/recommendationPrefs';
 import {
   inferMealTypeFromClock,
   type RecommendationPrefsV1,
@@ -25,9 +26,10 @@ import { DEFAULT_SEARCH_RADIUS_METERS } from '@/core/searchRadiusOptions';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
   getNearbyRestaurants,
+  isRestaurantFetchError,
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
-import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
+import { RestaurantImage } from '@/core/images';
 import {
   consumeHomeReturnFromDetails,
   getHomeCarouselIndex,
@@ -40,9 +42,9 @@ import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { registerGlobalPress, TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Dimensions,
   Linking,
@@ -51,39 +53,49 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { FlatList, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
+  Circle as SvgCircle,
   Defs,
+  Ellipse as SvgEllipse,
   FeGaussianBlur,
   Filter,
   G,
   Line as SvgLine,
   LinearGradient as SvgLinearGradient,
+  Path as SvgPath,
   Pattern,
   Polygon,
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { playSuccess } from '@/core/audioService';
+import { hapticMedium, hapticSuccess } from '@/core/haptics';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const SPOTLIGHT_RADAR_HEIGHT = Math.round(
   Math.min(WINDOW_HEIGHT * 0.52, WINDOW_WIDTH * 0.94, 540)
 );
-const SPOTLIGHT_RADAR_CARD_HEIGHT = Math.round(
-  Math.min(WINDOW_WIDTH * 0.52, WINDOW_HEIGHT * 0.28, 240)
-);
+const SPOTLIGHT_RADAR_CARD_HEIGHT =
+  Math.round(Math.min(WINDOW_WIDTH * 0.62, WINDOW_HEIGHT * 0.32, 290)) - 3;
+const SPOTLIGHT_THUMB_SIZE = 72;
+const SPOTLIGHT_CARD_INSET = 18;
 
 function formatReviewCount(count: number): string {
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
@@ -91,85 +103,126 @@ function formatReviewCount(count: number): string {
 }
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
-const FILM_STRIP_FRAC = 0.66;
-const FILM_GAP = 2;
-const FILM_STRIP_WIDTH = WINDOW_WIDTH * FILM_STRIP_FRAC;
-const FILM_CARD_W = (FILM_STRIP_WIDTH - 9 * FILM_GAP) / 10;
-const FILM_CARD_H = FILM_CARD_W * 1.55;
-
-const FILMSTRIP_ICONS: React.ComponentProps<typeof Ionicons>['name'][] = [
-  'restaurant-outline',
-  'fast-food-outline',
-  'wine-outline',
-  'cafe-outline',
-  'pizza-outline',
-  'ice-cream-outline',
-  'nutrition-outline',
-  'fish-outline',
-];
-
-function stripIconForPlaceId(id: string): React.ComponentProps<typeof Ionicons>['name'] {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) | 0;
-  }
-  return FILMSTRIP_ICONS[Math.abs(h) % FILMSTRIP_ICONS.length] ?? 'restaurant-outline';
-}
-
-const FILMSTRIP_PALETTE: { bg: string; border: string; mark: string }[] = [
-  { bg: 'rgba(249,115,82,0.62)', border: '#FFD4CC', mark: '#3F0D00' },
-  { bg: 'rgba(250,204,21,0.55)', border: '#FFF7C2', mark: '#3A2800' },
-  { bg: 'rgba(74,222,128,0.52)', border: '#DCFCE7', mark: '#0F2918' },
-  { bg: 'rgba(56,189,248,0.55)', border: '#CFFAFE', mark: '#082F49' },
-  { bg: 'rgba(167,139,250,0.58)', border: '#EDE9FE', mark: '#2E1065' },
-  { bg: 'rgba(244,114,182,0.55)', border: '#FCE7F3', mark: '#4A051E' },
-  { bg: 'rgba(45,212,191,0.52)', border: '#CCFBF1', mark: '#042F2E' },
-  { bg: 'rgba(251,146,60,0.58)', border: '#FFEDD5', mark: '#431407' },
-  { bg: 'rgba(129,140,248,0.55)', border: '#E0E7FF', mark: '#1E1B4B' },
-  { bg: 'rgba(250,112,154,0.55)', border: '#FFE4E9', mark: '#4A0D24' },
-];
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
-const SCORE_BEST_COLOR = '#00E5FF';
-const SCORE_WORST_COLOR = '#FF4444';
+const SCORE_GOOD_COLOR = '#4CD964';
+const SCORE_MID_COLOR = '#FF9500';
+const SCORE_BAD_COLOR = '#FF4444';
 
-const FILMSTRIP_PALETTE_NEON: { bg: string; mark: string }[] = [
-  { bg: 'rgba(0,35,48,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(40,0,48,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,28,32,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(32,0,40,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,24,36,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(36,0,28,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,32,40,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(28,0,36,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(0,30,44,0.92)', mark: '#FFFFFF' },
-  { bg: 'rgba(44,0,32,0.92)', mark: '#FFFFFF' },
-];
+function absoluteScoreColor(score: number | null, max: 5 | 10, fallback: string): string {
+  if (score == null) return fallback;
+  const norm10 = (clampScore(score, max) / max) * 10;
+  if (norm10 >= 7) return SCORE_GOOD_COLOR;
+  if (norm10 >= 4.5) return SCORE_MID_COLOR;
+  return SCORE_BAD_COLOR;
+}
 
-function HomeNeonTitle({ text, width }: { text: string; width: number }) {
-  const gid = useId().replace(/:/g, '');
-  const h = 42;
+const WATERCOLOR_FILLS = [
+  '#F0A8B8',
+  '#9ABCD8',
+  '#B4CC58',
+  '#B0A0D8',
+  '#ECA888',
+] as const;
+
+function PaperFoodIllustrations({ tabBarHeight }: { tabBarHeight: number }) {
+  const STROKE = 'rgba(115,85,50,0.22)';
+  const FILL_S = 'rgba(200,170,130,0.07)';
   return (
-    <View style={{ height: h, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-      <Svg width={width} height={h}>
-        <Defs>
-          <SvgLinearGradient id={`htl-${gid}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={NEON_CYAN} />
-            <Stop offset="1" stopColor={NEON_MAGENTA} />
-          </SvgLinearGradient>
-        </Defs>
-        <SvgText
-          fill={`url(#htl-${gid})`}
-          fontSize={29}
-          fontWeight="800"
-          x={width / 2}
-          y={31}
-          textAnchor="middle"
-        >
-          {text}
-        </SvgText>
-      </Svg>
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* Donut — upper left */}
+      <View style={{ position: 'absolute', top: -35, left: -30 }}>
+        <Svg width={140} height={140} viewBox="0 0 120 120">
+          <SvgPath
+            d="M 60 12 C 36 12 12 35 12 60 C 12 85 35 108 60 108 C 85 108 108 85 108 60 C 108 35 85 12 60 12 Z M 60 42 C 49 42 42 49 42 60 C 42 71 49 78 60 78 C 71 78 78 71 78 60 C 78 49 71 42 60 42 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.5} fillRule="evenodd"
+          />
+          <SvgPath
+            d="M 24 54 Q 36 22 60 18 Q 84 22 96 54 Q 80 68 60 66 Q 40 68 24 54 Z"
+            fill="rgba(200,170,130,0.1)" stroke={STROKE} strokeWidth={0.9}
+          />
+          <SvgLine x1={42} y1={30} x2={48} y2={24} stroke={STROKE} strokeWidth={2.6} strokeLinecap="round" />
+          <SvgLine x1={56} y1={23} x2={61} y2={17} stroke={STROKE} strokeWidth={2.6} strokeLinecap="round" />
+          <SvgLine x1={70} y1={26} x2={76} y2={21} stroke={STROKE} strokeWidth={2.3} strokeLinecap="round" />
+          <SvgLine x1={84} y1={36} x2={89} y2={31} stroke={STROKE} strokeWidth={2.1} strokeLinecap="round" />
+          <SvgLine x1={33} y1={41} x2={38} y2={36} stroke={STROKE} strokeWidth={2.1} strokeLinecap="round" />
+          <SvgLine x1={24} y1={53} x2={29} y2={48} stroke={STROKE} strokeWidth={1.9} strokeLinecap="round" />
+        </Svg>
+      </View>
+
+      {/* Pizza slice — upper right */}
+      <View style={{ position: 'absolute', top: -28, right: -30 }}>
+        <Svg width={120} height={120} viewBox="0 0 100 100">
+          <SvgPath
+            d="M 50 95 L 8 20 Q 28 5 50 3 Q 72 5 92 20 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.5} strokeLinejoin="round"
+          />
+          <SvgPath
+            d="M 8 20 Q 28 5 50 3 Q 72 5 92 20"
+            fill="none" stroke={STROKE} strokeWidth={5.5} strokeLinecap="round" strokeOpacity={0.35}
+          />
+          <SvgPath
+            d="M 22 38 Q 50 33 78 38"
+            fill="none" stroke={STROKE} strokeWidth={0.7} strokeDasharray="3 2.5"
+          />
+          <SvgEllipse cx={38} cy={46} rx={6} ry={6} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={1} />
+          <SvgEllipse cx={64} cy={46} rx={5} ry={5} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={1} />
+          <SvgEllipse cx={50} cy={62} rx={6} ry={6} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={1} />
+          <SvgEllipse cx={35} cy={64} rx={4} ry={4} fill="rgba(180,130,80,0.13)" stroke={STROKE} strokeWidth={0.9} />
+        </Svg>
+      </View>
+
+      {/* Coffee cup — lower left */}
+      <View style={{ position: 'absolute', bottom: tabBarHeight + 95, left: -20 }}>
+        <Svg width={115} height={125} viewBox="0 0 100 110">
+          <SvgPath
+            d="M 22 30 L 28 88 L 72 88 L 78 30 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.4} strokeLinejoin="round"
+          />
+          <SvgEllipse cx={50} cy={30} rx={28} ry={8} fill={FILL_S} stroke={STROKE} strokeWidth={1.2} />
+          <SvgEllipse cx={50} cy={90} rx={34} ry={7} fill={FILL_S} stroke={STROKE} strokeWidth={1} />
+          <SvgPath d="M 78 42 Q 100 56 78 72" fill="none" stroke={STROKE} strokeWidth={1.5} strokeLinecap="round" />
+          <SvgPath d="M 37 22 Q 41 13 37 5" fill="none" stroke={STROKE} strokeWidth={1.0} strokeLinecap="round" />
+          <SvgPath d="M 50 20 Q 54 11 50 3" fill="none" stroke={STROKE} strokeWidth={1.0} strokeLinecap="round" />
+          <SvgPath d="M 63 22 Q 67 13 63 5" fill="none" stroke={STROKE} strokeWidth={1.0} strokeLinecap="round" />
+        </Svg>
+      </View>
+
+      {/* Compass — lower right */}
+      <View style={{ position: 'absolute', bottom: tabBarHeight + 65, right: -18 }}>
+        <Svg width={108} height={108} viewBox="0 0 100 100">
+          <SvgCircle cx={50} cy={50} r={44} fill="none" stroke={STROKE} strokeWidth={1.4} />
+          <SvgCircle cx={50} cy={50} r={39} fill="none" stroke={STROKE} strokeWidth={0.5} strokeDasharray="2.5 2" />
+          <SvgPath d="M 50 10 L 43 36 L 50 29 L 57 36 Z" fill={STROKE} fillOpacity={0.6} />
+          <SvgPath d="M 50 90 L 43 64 L 50 71 L 57 64 Z" fill={STROKE} fillOpacity={0.25} />
+          <SvgPath d="M 90 50 L 64 43 L 71 50 L 64 57 Z" fill={STROKE} fillOpacity={0.25} />
+          <SvgPath d="M 10 50 L 36 43 L 29 50 L 36 57 Z" fill={STROKE} fillOpacity={0.25} />
+          <SvgCircle cx={50} cy={50} r={7} fill={FILL_S} stroke={STROKE} strokeWidth={1} />
+          <SvgCircle cx={50} cy={50} r={2.5} fill={STROKE} fillOpacity={0.55} />
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+            const angle = (i * Math.PI * 2) / 8;
+            const x1 = 50 + 36 * Math.cos(angle);
+            const y1 = 50 + 36 * Math.sin(angle);
+            const x2 = 50 + 41 * Math.cos(angle);
+            const y2 = 50 + 41 * Math.sin(angle);
+            return <SvgLine key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={STROKE} strokeWidth={1.1} strokeLinecap="round" />;
+          })}
+        </Svg>
+      </View>
+
+      {/* Small bread roll — right side mid-screen */}
+      <View style={{ position: 'absolute', top: WINDOW_HEIGHT * 0.33, right: -14 }}>
+        <Svg width={75} height={65} viewBox="0 0 80 70">
+          <SvgPath
+            d="M 6 52 Q 5 10 40 6 Q 75 10 74 52 Z"
+            fill={FILL_S} stroke={STROKE} strokeWidth={1.3} strokeLinejoin="round"
+          />
+          <SvgPath d="M 6 52 Q 40 58 74 52" fill="none" stroke={STROKE} strokeWidth={1.0} />
+          <SvgLine x1={20} y1={27} x2={60} y2={26} stroke={STROKE} strokeWidth={0.7} strokeDasharray="3 2" />
+          <SvgLine x1={22} y1={36} x2={58} y2={35} stroke={STROKE} strokeWidth={0.6} strokeDasharray="2.5 2" />
+        </Svg>
+      </View>
     </View>
   );
 }
@@ -227,17 +280,18 @@ function RestaurantScorePentagon({
   labelColor?: string;
   svgHeight?: number;
   neon?: boolean;
-  variant?: 'solid' | 'gradient' | 'sketch';
+  variant?: 'solid' | 'gradient' | 'sketch' | 'watercolor';
   gradientColors?: [string, string];
 }) {
   const gid = useId().replace(/:/g, '');
   const n = 5;
+  const { t: radarT } = useTranslation();
   const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
-    { key: 'healthScore', corner: 'Health', max: 10 },
-    { key: 'tasteScore', corner: 'Taste', max: 5 },
-    { key: 'valueForMoneyScore', corner: 'Value', max: 5 },
-    { key: 'dateWorthiness', corner: 'Date', max: 5 },
-    { key: 'speedScore', corner: 'Speed', max: 5 },
+    { key: 'healthScore', corner: radarT('home.radarHealth'), max: 10 },
+    { key: 'tasteScore', corner: radarT('home.radarTaste'), max: 5 },
+    { key: 'valueForMoneyScore', corner: radarT('home.radarValue'), max: 5 },
+    { key: 'dateWorthiness', corner: radarT('home.radarDate'), max: 5 },
+    { key: 'speedScore', corner: radarT('home.radarSpeed'), max: 5 },
   ];
   const norms = axes.map(({ key, max }) => {
     const s = scoreAxis(ai, key);
@@ -258,6 +312,7 @@ function RestaurantScorePentagon({
 
   const useGradient = neon || variant === 'gradient';
   const useSketch = !neon && variant === 'sketch';
+  const useWatercolor = !neon && variant === 'watercolor';
 
   const ringStroke = neon ? NEON_CYAN : stroke;
   const ringGrid = useSketch
@@ -268,29 +323,13 @@ function RestaurantScorePentagon({
   const ringLabel = useSketch
     ? labelColor
     : neon
-    ? 'rgba(255,255,255,0.78)'
+    ? 'rgba(255,255,255,0.92)'
     : labelColor;
   const gridSW = useSketch ? 0.3 : neon ? 0.5 : 0.35;
   const outerGridSW = useSketch ? 0.35 : neon ? 0.55 : 0.45;
   const polygonSW = useSketch ? 1.5 : neon ? 1.45 : 1.25;
-  const cornerFontSize = 5.8;
-  const scoreFontSize = 5.4;
-  const bestColor = neon ? NEON_CYAN : SCORE_BEST_COLOR;
-  const worstColor = SCORE_WORST_COLOR;
-  const axisNorms = axes.map(({ key, max }) => {
-    const s = scoreAxis(ai, key);
-    if (s == null) return 0;
-    return clampScore(s, max) / max;
-  });
-  const maxNorm = Math.max(...axisNorms);
-  const minNorm = Math.min(...axisNorms);
-  const axisLabelColor = (i: number) => {
-    if (maxNorm === minNorm) return ringLabel;
-    const norm = axisNorms[i];
-    if (norm === maxNorm) return bestColor;
-    if (norm === minNorm) return worstColor;
-    return ringLabel;
-  };
+  const cornerFontSize = 6.4;
+  const scoreFontSize = 6.0;
 
   const gradFrom = neon ? NEON_CYAN : gradientColors?.[0] ?? stroke;
   const gradTo = neon ? NEON_MAGENTA : gradientColors?.[1] ?? stroke;
@@ -299,6 +338,83 @@ function RestaurantScorePentagon({
     : useSketch
     ? 'transparent'
     : `${stroke}55`;
+
+  if (useWatercolor) {
+    const WFILLS = WATERCOLOR_FILLS;
+    const fillPointsArr = norms.map((norm, i) => {
+      const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      return { x: cx + norm * R * Math.cos(t), y: cy + norm * R * Math.sin(t) };
+    });
+    const wcLabel = 'rgba(65,40,18,0.85)';
+    return (
+      <View style={styles.radarBlock}>
+        <Svg width="100%" height={svgHeight} viewBox="-4 -4 108 108" preserveAspectRatio="xMidYMid meet">
+          <Defs>
+            <Filter id={`wcf-${gid}`} x="-35%" y="-35%" width="170%" height="170%" filterUnits="objectBoundingBox">
+              <FeGaussianBlur stdDeviation="3.5" />
+            </Filter>
+            <Pattern id={`wcp-${gid}`} x="0" y="0" width="13" height="13" patternUnits="userSpaceOnUse" patternTransform="rotate(-32 50 50)">
+              <SvgLine x1="-4" y1="0" x2="17" y2="0" stroke="rgba(100,70,40,1)" strokeWidth="5" strokeLinecap="round" strokeOpacity="0.04" />
+              <SvgLine x1="-4" y1="6.5" x2="17" y2="6.5" stroke="rgba(100,70,40,1)" strokeWidth="3.5" strokeLinecap="round" strokeOpacity="0.03" />
+            </Pattern>
+          </Defs>
+
+          {/* Pencil-style grid rings */}
+          <Polygon points={polygonRing(cx, cy, R * 0.34, n)} fill="none" stroke="rgba(120,85,50,0.08)" strokeWidth={0.3} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 0.7 2.5 0.6 3.5 0.7" />
+          <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="none" stroke="rgba(120,85,50,0.08)" strokeWidth={0.3} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 0.8 3 0.6 4 0.7" />
+          <Polygon points={polygonRing(cx, cy, R, n)} fill="none" stroke="rgba(120,85,50,0.10)" strokeWidth={0.35} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5.5 0.8 3.5 0.7 4.5 0.8" />
+
+          {/* Blurred watercolor halo — extends to outer ring for bleeding effect */}
+          {Array.from({ length: n }, (_, i) => {
+            const next = (i + 1) % n;
+            const ti = -Math.PI / 2 + (2 * Math.PI * i) / n;
+            const tn = -Math.PI / 2 + (2 * Math.PI * next) / n;
+            const orPts = `${cx},${cy} ${(cx + (R + 10) * Math.cos(ti)).toFixed(2)},${(cy + (R + 10) * Math.sin(ti)).toFixed(2)} ${(cx + (R + 10) * Math.cos(tn)).toFixed(2)},${(cy + (R + 10) * Math.sin(tn)).toFixed(2)}`;
+            return <Polygon key={`wch-${i}`} points={orPts} fill={WFILLS[i]} fillOpacity={0.38} filter={`url(#wcf-${gid})`} />;
+          })}
+
+          {/* Crisp fill sections clipped to score polygon */}
+          {fillPointsArr.map((fp, i) => {
+            const next = fillPointsArr[(i + 1) % n];
+            return (
+              <Polygon
+                key={`wcfl-${i}`}
+                points={`${cx},${cy} ${fp.x.toFixed(2)},${fp.y.toFixed(2)} ${next.x.toFixed(2)},${next.y.toFixed(2)}`}
+                fill={WFILLS[i]}
+                fillOpacity={0.26}
+              />
+            );
+          })}
+
+          {/* Cross-hatch paper texture */}
+          <Polygon points={fillPts} fill={`url(#wcp-${gid})`} />
+
+          {/* Sketch brush stroke outline — three layers for depth */}
+          <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.11)" strokeWidth={5.5} strokeLinejoin="round" strokeLinecap="round" />
+          <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.5)" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="7.5 0.8 4.5 0.6 6.5 0.8 3 0.5 5 0.7" />
+          <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.72)" strokeWidth={0.9} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1" />
+
+          {axes.map(({ key, corner, max }, i) => {
+            const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+            const lx = cx + labelR * Math.cos(t);
+            const ly = cy + labelR * Math.sin(t);
+            const s = scoreAxis(ai, key);
+            const reading = formatAxisReading(max, s);
+            return (
+              <G key={corner}>
+                <SvgText x={lx} y={ly - 2.4} fill={wcLabel} fontSize={cornerFontSize} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">
+                  {corner}
+                </SvgText>
+                <SvgText x={lx} y={ly + 3.6} fill={absoluteScoreColor(s, max, wcLabel)} fontSize={scoreFontSize} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">
+                  {reading}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+      </View>
+    );
+  }
 
   if (useSketch) {
     return (
@@ -416,13 +532,14 @@ function RestaurantScorePentagon({
             const ly = cy + labelR * Math.sin(t);
             const s = scoreAxis(ai, key);
             const reading = formatAxisReading(max, s);
-            const labelFill = axisLabelColor(i);
+            const cornerFill = ringLabel;
+            const scoreFill = absoluteScoreColor(s, max, ringLabel);
             return (
               <G key={corner}>
                 <SvgText
                   x={lx}
                   y={ly - 2.4}
-                  fill={labelFill}
+                  fill={cornerFill}
                   fontSize={cornerFontSize}
                   fontWeight="700"
                   textAnchor="middle"
@@ -433,9 +550,9 @@ function RestaurantScorePentagon({
                 <SvgText
                   x={lx}
                   y={ly + 3.6}
-                  fill={labelFill}
+                  fill={scoreFill}
                   fontSize={scoreFontSize}
-                  fontWeight="600"
+                  fontWeight="700"
                   textAnchor="middle"
                   alignmentBaseline="middle"
                 >
@@ -471,13 +588,14 @@ function RestaurantScorePentagon({
           const ly = cy + labelR * Math.sin(t);
           const s = scoreAxis(ai, key);
           const reading = formatAxisReading(max, s);
-          const labelFill = axisLabelColor(i);
+          const cornerFill = ringLabel;
+          const scoreFill = absoluteScoreColor(s, max, ringLabel);
           return (
             <G key={corner}>
               <SvgText
                 x={lx}
                 y={ly - 2.4}
-                fill={labelFill}
+                fill={cornerFill}
                 fontSize={cornerFontSize}
                 fontWeight="700"
                 textAnchor="middle"
@@ -488,9 +606,9 @@ function RestaurantScorePentagon({
               <SvgText
                 x={lx}
                 y={ly + 3.6}
-                fill={labelFill}
+                fill={scoreFill}
                 fontSize={scoreFontSize}
-                fontWeight="600"
+                fontWeight="700"
                 textAnchor="middle"
                 alignmentBaseline="middle"
               >
@@ -506,18 +624,17 @@ function RestaurantScorePentagon({
 
 function SpotlightCard({
   scored,
-  canReject,
   onReject,
   onPress,
 }: {
   scored: ScoredRestaurant;
-  canReject: boolean;
   onReject: () => void;
   onPress: () => void;
 }) {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const place = scored.place;
-  const name = place.displayName?.text || 'Unknown';
+  const name = place.displayName?.text || t('common.unknown');
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
@@ -525,28 +642,6 @@ function SpotlightCard({
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
   const reviews = place.userRatingCount;
   const costLabel = formatRestaurantCostLabel(place);
-  const [photos, setPhotos] = useState<any[]>(place.photos || []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadPhotos = async () => {
-      if (!place?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
-      const urls = await fetchRestaurantPhotoUrls({
-        placeId: place.id,
-        name,
-        latitude: lat,
-        longitude: lng,
-        websiteUrl: place.websiteUri || undefined,
-        formattedAddress: place.formattedAddress || undefined,
-        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
-      });
-      if (cancelled) return;
-      setPhotos(urls.length > 0 ? urls : (place.photos || []));
-    };
-    loadPhotos();
-    return () => { cancelled = true; };
-  }, [place?.id, name, lat, lng]);
-
   const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
   const radarVar = theme.radarVariant ?? 'solid';
@@ -571,6 +666,8 @@ function SpotlightCard({
   const pressRef = useRef(onPress);
   pressRef.current = onPress;
   const firePress = useCallback(() => {
+    if (!registerGlobalPress(500)) return;
+    playSuccess();
     pressRef.current();
   }, []);
 
@@ -602,7 +699,7 @@ function SpotlightCard({
             opacity.value = withSpring(1, { damping: 20, stiffness: 260 });
           }
         }),
-    [canReject, fireReject, opacity, panStartY, ty]
+    [fireReject, opacity, panStartY, ty]
   );
 
   const tapGesture = useMemo(
@@ -627,87 +724,101 @@ function SpotlightCard({
 
   const cardBody = (
     <>
-      <View style={styles.spotlightHeroRow}>
-        <View style={styles.spotlightThumbWrap}>
-          <RestaurantImage
-            restaurantId={String(place?.id ?? '')}
-            photos={photos}
-            width={72}
-            height={72}
-            quality={200}
-            loadDelay={300}
-            borderRadius={14}
-          />
-        </View>
-        <View style={styles.spotlightTitleBlock}>
-          <Text style={[styles.spotlightTitle, { color: theme.text }]} numberOfLines={2}>
-            {name}
-          </Text>
-          <View style={styles.spotlightMetaRow}>
-            <View
+      <View style={styles.spotlightThumbPinned}>
+        <RestaurantImage
+          restaurantId={String(place?.id ?? '')}
+          photos={place.photos || []}
+          width={SPOTLIGHT_THUMB_SIZE}
+          height={SPOTLIGHT_THUMB_SIZE}
+          quality={200}
+          loadDelay={300}
+          borderRadius={14}
+          name={name}
+          latitude={lat}
+          longitude={lng}
+          websiteUrl={place.websiteUri || undefined}
+          formattedAddress={place.formattedAddress || undefined}
+          cuisineKey={place.primaryType?.replace(/_restaurant$/, '') || undefined}
+        />
+      </View>
+      <View style={styles.spotlightHeroText}>
+        <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
+          {name}
+        </Text>
+        <View style={styles.spotlightMetaRow}>
+          <View
+            style={[
+              styles.spotlightMetaPill,
+              neonUi
+                ? styles.spotlightMetaPillNeon
+                : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+            ]}
+          >
+            <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+            <Text
               style={[
-                styles.spotlightMetaPill,
-                neonUi
-                  ? styles.spotlightMetaPillNeon
-                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
+                styles.spotlightMetaText,
+                { color: neonUi ? 'rgba(255,255,255,0.92)' : theme.subtext },
               ]}
             >
-              <Ionicons name="navigate-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
-              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
-                {formatDistance(Math.round(place.distanceMeters ?? 0))}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.spotlightMetaPill,
-                neonUi
-                  ? styles.spotlightMetaPillNeon
-                  : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
-              ]}
-            >
-              <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
-              <Text style={[styles.spotlightMetaText, { color: theme.subtext }]}>
-                {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
-              </Text>
-            </View>
-            {rating ? (
-              <View
-                style={[
-                  styles.spotlightMetaPill,
-                  neonUi
-                    ? styles.spotlightMetaPillNeon
-                    : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' },
-                ]}
-              >
-                <Ionicons name="star" size={11} color="#FBBF24" />
-                <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
-                  {rating}
-                  {reviews ? ` (${formatReviewCount(reviews)})` : ''}
-                </Text>
-              </View>
-            ) : null}
-            {costLabel ? (
-              <View
-                style={[
-                  styles.spotlightMetaPill,
-                  neonUi
-                    ? styles.spotlightMetaPillNeon
-                    : { backgroundColor: 'rgba(249,160,111,0.14)', borderColor: 'rgba(249,160,111,0.28)' },
-                ]}
-              >
-                <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
-                <Text
-                  style={[
-                    styles.spotlightMetaText,
-                    styles.spotlightMetaPrice,
-                    { color: neonUi ? NEON_MAGENTA : '#F9A06F' },
-                  ]}
-                >
-                  {costLabel}
-                </Text>
-              </View>
-            ) : null}
+              {formatDistance(Math.round(place.distanceMeters ?? 0))}
+            </Text>
           </View>
+          <View
+            style={[
+              styles.spotlightMetaPill,
+              neonUi
+                ? styles.spotlightMetaPillNeon
+                : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+            ]}
+          >
+            <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+            <Text
+              style={[
+                styles.spotlightMetaText,
+                { color: neonUi ? 'rgba(255,255,255,0.92)' : theme.subtext },
+              ]}
+            >
+              {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
+            </Text>
+          </View>
+          {rating ? (
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              <Ionicons name="star" size={11} color="#FBBF24" />
+              <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
+                {rating}
+                {reviews ? ` (${formatReviewCount(reviews)})` : ''}
+              </Text>
+            </View>
+          ) : null}
+          {costLabel ? (
+            <View
+              style={[
+                styles.spotlightMetaPill,
+                neonUi
+                  ? styles.spotlightMetaPillNeon
+                  : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              <Ionicons name="cash-outline" size={11} color={neonUi ? NEON_MAGENTA : '#F9A06F'} />
+              <Text
+                style={[
+                  styles.spotlightMetaText,
+                  styles.spotlightMetaPrice,
+                  { color: neonUi ? NEON_MAGENTA : '#F9A06F' },
+                ]}
+              >
+                {costLabel}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
       <View style={styles.scorePentagonCol}>
@@ -737,26 +848,28 @@ function SpotlightCard({
               styles.spotlightMapsBtn,
               neonUi
                 ? { backgroundColor: 'rgba(0,255,255,0.14)', borderColor: NEON_CYAN }
-                : { backgroundColor: theme.accent, borderColor: theme.accent },
+                : theme.buttonVariant === 'outline-outline'
+                  ? { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }
+                  : { backgroundColor: theme.accent, borderColor: theme.accent },
               !mapsReady && styles.spotlightMapsBtnDisabled,
             ]}
-            onPress={() => { if (!mapsReady) return; openMaps(name, lat, lng); }}
+            onPress={() => { if (!mapsReady) return; hapticSuccess(); openMaps(name, lat, lng); }}
             disabled={!mapsReady}
             activeOpacity={0.85}
           >
             <Ionicons
               name={Platform.OS === 'ios' ? 'map' : 'logo-google'}
               size={22}
-              color={neonUi ? NEON_CYAN : '#FFFFFF'}
+              color={neonUi ? NEON_CYAN : (theme.buttonVariant === 'outline-outline' ? theme.text : '#FFFFFF')}
             />
             <Text
               style={[
                 styles.spotlightMapsBtnText,
-                { color: neonUi ? NEON_CYAN : '#FFFFFF' },
+                { color: neonUi ? NEON_CYAN : (theme.buttonVariant === 'outline-outline' ? theme.text : '#FFFFFF') },
               ]}
               numberOfLines={1}
             >
-              {Platform.OS === 'ios' ? 'Open in Apple Maps' : 'Open in Google Maps'}
+              {Platform.OS === 'ios' ? t('common.openInAppleMaps') : t('common.openInGoogleMaps')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -767,14 +880,83 @@ function SpotlightCard({
   return cardInner;
 }
 
+function AnimatedDot({ active, accentColor, inactiveColor }: { active: boolean; accentColor: string; inactiveColor: string }) {
+  const scale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (active) {
+      scale.value = withRepeat(
+        withSequence(
+          withTiming(1.35, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1.0, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      );
+      glowOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.7, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.25, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      scale.value = withTiming(1, { duration: 300 });
+      glowOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [active, scale, glowOpacity]);
+
+  const dotAnim = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const glowAnim = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
+  return (
+    <View style={{ width: 16, height: 16, justifyContent: 'center', alignItems: 'center' }}>
+      {active && (
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              width: 16,
+              height: 16,
+              borderRadius: 8,
+              backgroundColor: accentColor,
+            },
+            glowAnim,
+          ]}
+        />
+      )}
+      <Animated.View
+        style={[
+          {
+            width: active ? 9 : 6,
+            height: active ? 9 : 6,
+            borderRadius: active ? 4.5 : 3,
+            backgroundColor: active ? accentColor : inactiveColor,
+          },
+          dotAnim,
+        ]}
+      />
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
   const coordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const sessionRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_METERS);
   const hasFocusedOnceRef = useRef(false);
   const skipNextFocusReloadRef = useRef(false);
+  const lastPrefsRevisionRef = useRef<number | null>(null);
   const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
 
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
@@ -836,6 +1018,7 @@ export default function HomeScreen() {
   useEffect(() => {
     void getRecommendationPrefs().then(p => {
       setPrefs(p);
+      lastPrefsRevisionRef.current = getRecommendationPrefsRevision();
       setSession({
         mealType: inferMealTypeFromClock(),
         groupSize: DEFAULT_SESSION_GROUP,
@@ -885,7 +1068,12 @@ export default function HomeScreen() {
     }
   }, [visibleList.length, pickIndex]);
 
+  const spotlightLoadingRef = useRef(false);
+  const loadSpotlightRef = useRef<(opts?: { skipFullScreenLoader?: boolean }) => Promise<void>>(async () => {});
+
   const loadSpotlight = useCallback(async (opts?: { skipFullScreenLoader?: boolean }) => {
+    if (spotlightLoadingRef.current) return;
+    spotlightLoadingRef.current = true;
     const skipLoader = opts?.skipFullScreenLoader === true;
     if (!skipLoader) {
       setIsLoading(true);
@@ -896,7 +1084,7 @@ export default function HomeScreen() {
     try {
       const coords = await getLocation(false);
       if (!coords) {
-        setErrorMsg('Turn on location to get your daily pick.');
+        setErrorMsg(i18n.t('home.locationError'));
         setRawPlaces([]);
         return;
       }
@@ -931,23 +1119,31 @@ export default function HomeScreen() {
       if (isRestaurantLoadSupersededError(e)) {
         return;
       }
+      if (isRestaurantFetchError(e)) {
+        if (__DEV__) console.warn('[restaurants]', e.message, e.cause);
+      } else {
+        console.error(e);
+      }
       if (!hadCachedPlaces) {
-        setErrorMsg('Could not load restaurants nearby.');
+        setErrorMsg(i18n.t('home.loadError'));
         setRawPlaces([]);
       }
     } finally {
+      spotlightLoadingRef.current = false;
       snapProgressComplete();
       if (!skipLoader) {
         setIsLoading(false);
       }
     }
-  }, [onOrchestratorProgress, prefs, snapProgressComplete, startFetchPhase, startGpsPhase]);
+  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase]);
+
+  loadSpotlightRef.current = loadSpotlight;
 
   useEffect(() => {
     if (prefs && session) {
-      void loadSpotlight();
+      void loadSpotlightRef.current();
     }
-  }, [loadSpotlight, prefs, session]);
+  }, [prefs, session]);
 
   useFocusEffect(
     useCallback(() => {
@@ -966,10 +1162,16 @@ export default function HomeScreen() {
         hasFocusedOnceRef.current = true;
         return;
       }
-      if (prefs) {
-        void loadSpotlight();
+      const currentRevision = getRecommendationPrefsRevision();
+      if (lastPrefsRevisionRef.current === currentRevision) {
+        return;
       }
-    }, [loadSpotlight, prefs, restoreCarouselPosition])
+      lastPrefsRevisionRef.current = currentRevision;
+      void getRecommendationPrefs().then(nextPrefs => {
+        setPrefs(nextPrefs);
+        void loadSpotlightRef.current();
+      });
+    }, [restoreCarouselPosition])
   );
 
   const goToPick = useCallback((i: number) => {
@@ -1009,11 +1211,17 @@ export default function HomeScreen() {
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
-          {rootNeon ? (
-            <HomeNeonTitle text={funTitle} width={WINDOW_WIDTH - 32} />
-          ) : (
-            <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
-          )}
+          <View style={styles.homeTitleWrap}>
+            {rootNeon ? (
+              <NeonGradientTitle
+                text={funTitle}
+                width={WINDOW_WIDTH - 32}
+                style={styles.homeNeonTitle}
+              />
+            ) : (
+              <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
+            )}
+          </View>
 
           <ScenarioQuickBar />
 
@@ -1026,15 +1234,15 @@ export default function HomeScreen() {
           ) : errorMsg ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>{errorMsg}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
-                <Text style={styles.retryText}>Try again</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => { hapticMedium(); void loadSpotlight(); }}>
+                <Text style={styles.retryText}>{t('common.tryAgain')}</Text>
               </TouchableOpacity>
             </View>
           ) : noPlacesAtAll ? (
             <View style={styles.messageBox}>
-              <Text style={styles.messageText}>No restaurants matched your filters nearby.</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => void loadSpotlight()}>
-                <Text style={styles.retryText}>Refresh</Text>
+              <Text style={styles.messageText}>{t('home.noResults')}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => { hapticMedium(); void loadSpotlight(); }}>
+                <Text style={styles.retryText}>{t('common.refresh')}</Text>
               </TouchableOpacity>
             </View>
           ) : visibleList.length > 0 ? (
@@ -1059,7 +1267,6 @@ export default function HomeScreen() {
                   <View style={styles.carouselPage}>
                     <SpotlightCard
                       scored={item}
-                      canReject={visibleList.length > 1}
                       onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
                       onPress={() => void openDetails(item)}
                     />
@@ -1073,12 +1280,10 @@ export default function HomeScreen() {
                     onPress={() => goToPick(i)}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   >
-                    <View
-                      style={[
-                        styles.dot,
-                        i === pickIndex && styles.dotActive,
-                        { backgroundColor: i === pickIndex ? theme.accent : 'rgba(255,255,255,0.3)' },
-                      ]}
+                    <AnimatedDot
+                      active={i === pickIndex}
+                      accentColor={theme.accent}
+                      inactiveColor={rootNeon ? 'rgba(255,255,255,0.3)' : theme.cardBorderColor}
                     />
                   </TouchableOpacity>
                 ))}
@@ -1090,39 +1295,39 @@ export default function HomeScreen() {
     </>
   );
 
-  return rootNeon ? (
-    <View style={[styles.background, { backgroundColor: '#000000' }]}>{homeBody}</View>
-  ) : (
-    <LinearGradient
-      colors={theme.gradient}
-      start={{ x: 0, y: 1 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.background}
-    >
+  return (
+    <View style={[styles.background, { backgroundColor: '#000000' }]}>
       {homeBody}
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   background: { flex: 1 },
-  safeArea: { flex: 1, paddingTop: 56 },
+  safeArea: { flex: 1, paddingTop: 24 },
   homeContent: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 18,
-    gap: 18,
+    paddingTop: 8,
+  },
+  homeTitleWrap: {
+    marginTop: 20,
+    marginBottom: 2,
+  },
+  homeNeonTitle: {
+    marginBottom: 2,
   },
   pageTitle: {
     fontSize: 30,
     fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
   },
-  galleryBlock: { marginHorizontal: -20, flexGrow: 0 },
+  galleryBlock: { marginHorizontal: -20, flexGrow: 0, marginTop: 16, marginBottom: 5, overflow: 'visible' },
   carouselPage: {
     width: CAROUSEL_PAGE,
     paddingHorizontal: 10,
+    overflow: 'visible',
   },
   cardSwipeTooltip: {
     fontSize: 12,
@@ -1192,6 +1397,7 @@ const styles = StyleSheet.create({
   },
   loadingBox: { marginTop: 12 },
   messageBox: {
+    marginTop: 16,
     backgroundColor: 'rgba(30,15,30,0.55)',
     borderRadius: 18,
     padding: 20,
@@ -1214,24 +1420,23 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   spotlightPressLayer: {
-    padding: 18,
+    position: 'relative',
+    padding: SPOTLIGHT_CARD_INSET,
     gap: 12,
   },
-  spotlightHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  spotlightThumbWrap: {
-    width: 72,
-    height: 72,
+  spotlightThumbPinned: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SPOTLIGHT_THUMB_SIZE,
+    height: SPOTLIGHT_THUMB_SIZE,
     borderRadius: 14,
     overflow: 'hidden',
-    flexShrink: 0,
+    zIndex: 2,
   },
-  spotlightTitleBlock: {
-    flex: 1,
-    minWidth: 0,
+  spotlightHeroText: {
+    marginLeft: SPOTLIGHT_THUMB_SIZE + 12,
+    minHeight: SPOTLIGHT_THUMB_SIZE,
     gap: 6,
   },
   spotlightTitle: {
@@ -1259,7 +1464,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,255,255,0.22)',
   },
   spotlightMetaText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.1,
   },
@@ -1275,7 +1480,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
-    marginTop: 2,
+    marginTop: 8,
   },
   radarBlock: { width: '100%', marginTop: 0, overflow: 'visible' },
   spotlightMapsBtn: {
@@ -1303,7 +1508,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 14,
+    paddingTop: 6,
+    paddingBottom: 0,
+    marginTop: 1,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
   dotActive: { width: 9, height: 9, borderRadius: 4.5 },

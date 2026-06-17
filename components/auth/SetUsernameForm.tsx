@@ -6,10 +6,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useAuth } from '@/context/AuthContext';
-
-const USERNAME_HINT = '2–30 characters: letters, numbers, underscore.';
 
 type Props = {
   title: string;
@@ -18,6 +17,7 @@ type Props = {
 };
 
 export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
+  const { t } = useTranslation();
   const { setUsernameViaEdge } = useAuth();
   const [username, setUsername] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,12 +30,12 @@ export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
       const result = await setUsernameViaEdge(username.trim());
       if (!result.ok) {
         const map: Record<string, string> = {
-          profanity: 'That username is not allowed.',
-          taken: 'That username is already taken.',
-          invalid_username: USERNAME_HINT,
-          network: 'Could not reach the server. Try again.',
+          profanity: t('auth.errors.profanity'),
+          taken: t('auth.errors.taken'),
+          invalid_username: t('auth.errors.invalidUsername'),
+          network: t('auth.errors.network'),
         };
-        setMessage(map[result.code] || 'Something went wrong.');
+        setMessage(map[result.code] || t('auth.errors.network'));
         return;
       }
       onSuccess?.();
@@ -54,12 +54,12 @@ export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
         autoCapitalize="none"
         autoCorrect={false}
         maxLength={30}
-        placeholder="Username"
+        placeholder={t('auth.username')}
         placeholderTextColor="rgba(255,255,255,0.35)"
         style={styles.input}
         editable={!busy}
       />
-      <Text style={styles.hint}>{USERNAME_HINT}</Text>
+      <Text style={styles.hint}>{t('auth.usernameHint')}</Text>
       {message ? <Text style={styles.error}>{message}</Text> : null}
       <AnimatedPressable
         style={[styles.button, busy && styles.buttonDisabled]}
@@ -69,7 +69,7 @@ export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
         {busy ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Save</Text>
+          <Text style={styles.buttonText}>{t('common.save')}</Text>
         )}
       </AnimatedPressable>
     </View>

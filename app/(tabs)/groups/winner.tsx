@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
   Linking,
@@ -7,23 +8,26 @@ import {
   Share,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { RestaurantImage } from '@/core/images';
-import { formatPlacePriceLabel } from '@/core/placePriceLabel';
+import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { subscribeToSessionStatus } from '@/utils/groupRealtime';
 import { oneLineVibe, type QuickVoteRestaurant } from '@/utils/quickVote';
+import { hapticSuccess, hapticMedium } from '@/core/haptics';
+import { playSuccess } from '@/core/audioService';
 
 export default function GroupWinnerScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const { formatDistance } = useDistanceFormatter();
   const params = useLocalSearchParams<{ sessionId?: string }>();
@@ -67,10 +71,18 @@ export default function GroupWinnerScreen() {
     };
   }, [resolveWinner, sessionId]);
 
+  useEffect(() => {
+    if (winner) {
+      hapticSuccess();
+      playSuccess();
+    }
+  }, [winner]);
+
   const openMaps = () => {
     const lat = winner?.location?.latitude;
     const lng = winner?.location?.longitude;
     if (typeof lat === 'number' && typeof lng === 'number') {
+      hapticSuccess();
       Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
     }
   };
@@ -78,8 +90,9 @@ export default function GroupWinnerScreen() {
   const shareResult = async () => {
     if (!winner?.displayName?.text) return;
     const addr = winner.formattedAddress ?? '';
+    hapticMedium();
     await Share.share({
-      message: `We're going to ${winner.displayName.text}! ${addr}`,
+      message: t('groupWinner.shareMessage', { name: winner.displayName.text, address: addr }),
     });
   };
 
@@ -87,34 +100,37 @@ export default function GroupWinnerScreen() {
 
   if (loading || !winner) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} size="large" />
-          <Text style={[styles.loadingText, { color: theme.subtext }]}>Tallying votes…</Text>
-        </View>
-      </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            <ActivityIndicator color={theme.accent} size="large" />
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>{t('groupWinner.tallyingVotes')}</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   const vibe = oneLineVibe(winner);
-  const price = formatPlacePriceLabel(winner as never);
+  const price = formatRestaurantCostLabel(winner as never);
   const dist =
     typeof winner.distanceMeters === 'number'
       ? formatDistance(winner.distanceMeters)
       : null;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.gradient[0] }]}>
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={[styles.celebrate, { color: theme.accent }]}>🎉</Text>
-        <Text style={[styles.winTitle, { color: theme.text }]}>{"You're going here!"}</Text>
+        <Text style={[styles.winTitle, { color: theme.text }]}>{t('groupWinner.youreGoingHere')}</Text>
 
         <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
           <RestaurantImage
             restaurantId={winner.id}
             photos={(winner as { photos?: unknown[] }).photos ?? []}
             photoUrl={winner.photo_url}
-            name={winner.displayName?.text ?? 'Restaurant'}
+            name={winner.displayName?.text ?? t('common.unknown')}
             latitude={winner.location?.latitude}
             longitude={winner.location?.longitude}
             websiteUrl={(winner as { websiteUri?: string }).websiteUri}
@@ -125,7 +141,7 @@ export default function GroupWinnerScreen() {
             borderRadius={14}
           />
           <Text style={[styles.name, { color: theme.text }]}>
-            {winner.displayName?.text ?? 'Restaurant'}
+            {winner.displayName?.text ?? t('common.unknown')}
           </Text>
           {vibe ? (
             <Text style={[styles.summary, { color: theme.subtext }]}>{vibe}</Text>
@@ -153,20 +169,21 @@ export default function GroupWinnerScreen() {
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: theme.accent }]}
           onPress={openMaps}>
-          <Text style={[styles.btnText, { color: theme.gradient[0] }]}>Open in Maps</Text>
+          <Text style={[styles.btnText, { color: theme.gradient[0] }]}>{t('groupWinner.openInMaps')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: theme.cardBackground }]}
           onPress={shareResult}>
-          <Text style={[styles.btnText, { color: theme.text }]}>Share result</Text>
+          <Text style={[styles.btnText, { color: theme.text }]}>{t('groupWinner.shareResult')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.btnGhost]}
-          onPress={() => router.replace('/groups')}>
-          <Text style={[styles.btnGhostText, { color: theme.subtext }]}>Done</Text>
+          onPress={() => { hapticMedium(); router.replace('/groups'); }}>
+          <Text style={[styles.btnGhostText, { color: theme.subtext }]}>{t('groupWinner.done')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 

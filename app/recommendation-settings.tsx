@@ -1,4 +1,5 @@
 import { ImportanceLevelPicker, PriorityMetricsPanel } from '@/components/ImportanceLevelPicker';
+import { ThemedScreenBackground } from '@/components/ui/ThemedScreenBackground';
 import { useAppTheme } from '@/context/ThemeContext';
 import { CUISINE_FIT_METRIC, PRIORITY_METRIC_SCREENS } from '@/core/recommendationPriorityMetrics';
 import { CuisineRankGrid } from '@/components/CuisineRankGrid';
@@ -12,12 +13,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/ui/soundPressable';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { hapticLight, hapticMedium } from '@/core/haptics';
 
 export default function RecommendationSettingsScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { t } = useTranslation();
   const [prefs, setPrefs] = useState<RecommendationPrefsV1 | null>(null);
 
   const persist = useCallback(async (next: RecommendationPrefsV1) => {
@@ -32,7 +37,7 @@ export default function RecommendationSettingsScreen() {
   if (!prefs) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.cardBackground }]}>
-        <Text style={{ color: theme.text }}>Loading…</Text>
+        <Text style={{ color: theme.text }}>{t('recommendations.loading')}</Text>
       </View>
     );
   }
@@ -42,21 +47,20 @@ export default function RecommendationSettingsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.cardBackground }]}>
+    <ThemedScreenBackground>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.back}>
+          <Pressable onPress={() => { hapticLight(); router.back(); }} style={styles.back}>
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
-          <Text style={[styles.title, { color: theme.text }]}>Recommendations</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('recommendations.title')}</Text>
           <View style={{ width: 34 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.sectionLabel, { color: theme.accent }]}>What matters to you</Text>
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>{t('recommendations.whatMatters')}</Text>
           <Text style={[styles.sectionIntro, { color: theme.subtext }]}>
-            Tap an emoji level (1–5) for each factor. We only show open restaurants and weigh picks using your three
-            priority areas below.
+            {t('recommendations.whatMattersIntro')}
           </Text>
 
           {PRIORITY_METRIC_SCREENS.map((screen, screenIdx) => (
@@ -64,8 +68,12 @@ export default function RecommendationSettingsScreen() {
               key={screen.id}
               style={[styles.metricSection, { backgroundColor: theme.buttonBackground }]}
             >
-              <Text style={[styles.metricSectionTitle, { color: theme.text }]}>{screen.title}</Text>
-              <Text style={[styles.metricSectionSub, { color: theme.subtext }]}>{screen.subtitle}</Text>
+              <Text style={[styles.metricSectionTitle, { color: theme.text }]}>
+                {t(`priorities.${screen.id}Title`)}
+              </Text>
+              <Text style={[styles.metricSectionSub, { color: theme.subtext }]}>
+                {t(`priorities.${screen.id}Subtitle`)}
+              </Text>
               <PriorityMetricsPanel
                 weights={prefs.weights}
                 onWeightChange={setWeight}
@@ -77,14 +85,14 @@ export default function RecommendationSettingsScreen() {
 
           <Pressable
             style={[styles.resetBtn, { borderColor: theme.accent }]}
-            onPress={() => void persist({ ...prefs, weights: { ...DEFAULT_WEIGHTS } })}
+            onPress={() => { hapticMedium(); void persist({ ...prefs, weights: { ...DEFAULT_WEIGHTS } }); }}
           >
-            <Text style={[styles.resetText, { color: theme.accent }]}>Reset priorities to defaults</Text>
+            <Text style={[styles.resetText, { color: theme.accent }]}>{t('recommendations.resetPriorities')}</Text>
           </Pressable>
 
-          <Text style={[styles.sectionLabel, { color: theme.accent, marginTop: 24 }]}>Top cuisines</Text>
+          <Text style={[styles.sectionLabel, { color: theme.accent, marginTop: 24 }]}>{t('recommendations.topCuisines')}</Text>
           <Text style={[styles.cuisineHint, { color: theme.subtext }]}>
-            Rank up to 5 in order, then set how much we favor them when picking.
+            {t('recommendations.topCuisinesHint')}
           </Text>
           <ImportanceLevelPicker
             metric={CUISINE_FIT_METRIC}
@@ -102,17 +110,16 @@ export default function RecommendationSettingsScreen() {
 
           <View style={[styles.noteCard, { backgroundColor: theme.buttonBackground }]}>
             <Text style={[styles.noteText, { color: theme.subtext }]}>
-              Open now is always on — we filter to places that are open at the restaurant local time.
+              {t('recommendations.openNowNote')}
             </Text>
           </View>
         </ScrollView>
       </SafeAreaView>
-    </View>
+    </ThemedScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   safe: { flex: 1 },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {

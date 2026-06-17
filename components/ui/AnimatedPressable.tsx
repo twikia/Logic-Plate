@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, type PressableProps, View } from 'react-native';
+import { playTap } from '@/core/audioService';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -8,14 +9,21 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
+import { registerGlobalPress } from './soundPressable';
+
 const AnimatedPressableComponent = Animated.createAnimatedComponent(Pressable);
 
 const DOWN_MS  = 60;   // snap press-in
 const UP_MS    = 55;   // overshoot rise
 const SETTLE_MS = 70;  // settle back to 1.0
 
-export const AnimatedPressable = React.forwardRef<View, PressableProps>(
-  ({ children, style, onPressIn, onPressOut, ...props }, ref) => {
+type AnimatedPressableProps = PressableProps & {
+  silent?: boolean;
+  throttleMs?: number;
+};
+
+export const AnimatedPressable = React.forwardRef<View, AnimatedPressableProps>(
+  ({ children, style, onPress, onPressIn, onPressOut, silent, throttleMs = 500, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -27,6 +35,13 @@ export const AnimatedPressable = React.forwardRef<View, PressableProps>(
         {...props}
         ref={ref}
         style={[style, animatedStyle]}
+        onPress={(e) => {
+          if (!registerGlobalPress(throttleMs)) {
+            return;
+          }
+          if (!silent) playTap();
+          onPress?.(e);
+        }}
         onPressIn={(e) => {
           scale.value = withTiming(0.86, { duration: DOWN_MS, easing: Easing.out(Easing.quad) });
           if (onPressIn) onPressIn(e);
