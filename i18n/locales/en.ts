@@ -183,6 +183,7 @@ const en = {
     healthScore: 'Health Score',
     noSummary: 'No summary yet.',
     pickAgain: 'Pick Again',
+    mapPage: 'Map Page',
     goThere: 'Go There',
     noLocation: 'No location',
     tapToCopy: 'Tap to copy',

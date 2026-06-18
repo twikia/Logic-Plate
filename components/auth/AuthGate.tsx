@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useRouter, useRootNavigationState, useSegments } from 'expo-router';
+import { AppSplashOverlay } from '@/components/AppSplashOverlay';
 import { useAuth } from '@/context/AuthContext';
 import { isRecommendationOnboardingRequired } from '@/core/recommendationPrefs';
 
@@ -59,10 +60,12 @@ export function AuthGate() {
   const navState = useRootNavigationState();
   const pendingTarget = useRef<string | null>(null);
   const splashHidden = useRef(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   const hideSplash = useCallback(() => {
     if (splashHidden.current) return;
     splashHidden.current = true;
+    setShowSplash(false);
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
@@ -118,5 +121,6 @@ export function AuthGate() {
     return () => clearTimeout(timeout);
   }, [loading, hideSplash]);
 
-  return null;
+  if (!showSplash) return null;
+  return <AppSplashOverlay />;
 }

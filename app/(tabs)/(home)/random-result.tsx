@@ -12,7 +12,7 @@ import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -35,6 +35,7 @@ import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getCurrentRestaurant,
+  setMapFocusRestaurant,
   subscribeCurrentRestaurant,
 } from '../../../core/currentSelection';
 import { isOpenNow } from '../../../core/isOpenNow';
@@ -277,7 +278,6 @@ function parseMacroPills(text: string): MacroPill[] {
 
 export default function RandomResultScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
   const { t } = useTranslation();
@@ -718,11 +718,14 @@ export default function RandomResultScreen() {
               styles.stickyGhost,
               { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
             ]}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (place?.id) setMapFocusRestaurant(place);
+              router.push('/(tabs)/map');
+            }}
             activeOpacity={0.8}
           >
-            <Ionicons name="shuffle" size={17} color={theme.subtext} />
-            <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>{t('result.pickAgain')}</Text>
+            <Ionicons name="map-outline" size={17} color={theme.subtext} />
+            <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>{t('result.mapPage')}</Text>
           </TouchableOpacity>
           {mapsReady ? (
             <TouchableOpacity
@@ -731,17 +734,8 @@ export default function RandomResultScreen() {
               onPress={() => openGoogleMaps(name, lat!, lng!)}
               activeOpacity={0.88}
             >
-              <Ionicons
-                name="navigate"
-                size={18}
-                color={theme.matchOrbTextColor ?? '#FFFFFF'}
-              />
-              <Text
-                style={[
-                  styles.stickyPrimaryText,
-                  { color: theme.matchOrbTextColor ?? '#FFFFFF' },
-                ]}
-              >
+              <Ionicons name="navigate" size={18} color="#000000" />
+              <Text style={[styles.stickyPrimaryText, { color: '#000000' }]}>
                 {t('result.goThere')}
               </Text>
             </TouchableOpacity>

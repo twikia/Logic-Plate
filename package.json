@@ -13,7 +13,10 @@
     "generate-translation-seed": "node scripts/generate-translation-seed.mjs",
     "generate-all-language-seeds": "node scripts/generate-all-language-seeds.mjs",
     "sync-all-translations": "node scripts/sync-all-translations.mjs",
-    "deploy:supabase": "npx supabase db push && npx supabase functions deploy --no-verify-jwt"
+    "deploy:supabase": "npx supabase db push && npx supabase functions deploy --no-verify-jwt",
+    "android:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Action all",
+    "android:logcat": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Action logcat",
+    "android:build-apk": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Build -Action install"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -36,7 +39,7 @@
     "expo-image": "~3.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
-    "expo-localization": "^56.0.6",
+    "expo-localization": "~17.0.9",
     "expo-location": "~19.0.8",
     "expo-router": "~6.0.24",
     "expo-splash-screen": "~31.0.13",
