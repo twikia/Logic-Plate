@@ -181,6 +181,7 @@ const es: Translations = {
     healthScore: 'Puntuación de salud',
     noSummary: 'Aún no hay un resumen.',
     pickAgain: 'Volver a elegir',
+    mapPage: 'Mapa',
     goThere: 'IR',
     noLocation: 'No tiene ubicación',
     tapToCopy: 'Pulsa para copiar',

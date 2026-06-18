@@ -774,6 +774,13 @@ export default function MapScreen() {
                 <RestaurantImage
                   restaurantId={selectedRestaurant.id}
                   photos={selectedRestaurant.photos}
+                  photoUrl={selectedRestaurant.photo_url}
+                  name={selectedRestaurant.displayName?.text}
+                  latitude={selectedRestaurant.location?.latitude}
+                  longitude={selectedRestaurant.location?.longitude}
+                  websiteUrl={selectedRestaurant.websiteUri}
+                  formattedAddress={selectedRestaurant.formattedAddress}
+                  cuisineKey={selectedRestaurant.primaryType?.replace(/_restaurant$/, '')}
                   width={64}
                   height={64}
                   borderRadius={12}

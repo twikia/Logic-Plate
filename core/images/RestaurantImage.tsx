@@ -187,7 +187,7 @@ function RestaurantImageInner({
       if (urls.length === 0 && !cached) {
         if (mountedRef.current) {
           setActiveUri(null);
-          setState('waiting');
+          setState('failed');
         }
         return;
       }
