@@ -9,6 +9,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/context/ThemeContext';
 
 type Props = {
   title: string;
@@ -18,6 +19,7 @@ type Props = {
 
 export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
   const { t } = useTranslation();
+  const { theme } = useAppTheme();
   const { setUsernameViaEdge } = useAuth();
   const [username, setUsername] = useState('');
   const [busy, setBusy] = useState(false);
@@ -46,8 +48,8 @@ export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+      {subtitle ? <Text style={[styles.subtitle, { color: theme.subtext }]}>{subtitle}</Text> : null}
       <TextInput
         value={username}
         onChangeText={setUsername}
@@ -55,21 +57,30 @@ export function SetUsernameForm({ title, subtitle, onSuccess }: Props) {
         autoCorrect={false}
         maxLength={30}
         placeholder={t('auth.username')}
-        placeholderTextColor="rgba(255,255,255,0.35)"
-        style={styles.input}
+        placeholderTextColor={theme.subtext}
+        style={[
+          styles.input,
+          {
+            color: theme.text,
+            borderColor: theme.cardBorderColor,
+            backgroundColor: theme.buttonBackground,
+          },
+        ]}
         editable={!busy}
       />
-      <Text style={styles.hint}>{t('auth.usernameHint')}</Text>
+      <Text style={[styles.hint, { color: theme.subtext }]}>{t('auth.usernameHint')}</Text>
       {message ? <Text style={styles.error}>{message}</Text> : null}
       <AnimatedPressable
-        style={[styles.button, busy && styles.buttonDisabled]}
+        style={[styles.button, { backgroundColor: theme.accent }, busy && styles.buttonDisabled]}
         onPress={submit}
         disabled={busy}
       >
         {busy ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.accentOnColor ?? '#fff'} />
         ) : (
-          <Text style={styles.buttonText}>{t('common.save')}</Text>
+          <Text style={[styles.buttonText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
+            {t('common.save')}
+          </Text>
         )}
       </AnimatedPressable>
     </View>
@@ -83,29 +94,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#fff',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.65)',
     marginBottom: 20,
     lineHeight: 20,
   },
   input: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#fff',
-    backgroundColor: 'rgba(0,0,0,0.2)',
     marginBottom: 8,
   },
   hint: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
     marginBottom: 16,
   },
   error: {
@@ -114,7 +119,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: {
-    backgroundColor: '#F97352',
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
@@ -123,7 +127,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
     fontWeight: '700',
     fontSize: 15,
   },

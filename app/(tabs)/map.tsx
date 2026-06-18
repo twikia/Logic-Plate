@@ -12,7 +12,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { consumeMapFocusRestaurant } from '@/core/currentSelection';
-import { getLocation } from '@/core/locationCache';
+import { getLocation, subscribeLocationUpdates, distanceBetweenMeters } from '@/core/locationCache';
 import { getNearbyRestaurants, isRestaurantFetchError, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import {
@@ -191,6 +191,8 @@ let mapSessionFetchedRadius = DEFAULT_SEARCH_RADIUS_METERS;
 let mapSessionUserCoords: { latitude: number; longitude: number } | null = null;
 let mapSessionRegion: Region | null = null;
 
+const MAP_LOCATION_REFRESH_METERS = 120;
+
 function markerInRegion(lat: number, lng: number, reg: Region): boolean {
   const halfLat = reg.latitudeDelta / 2;
   const halfLng = reg.longitudeDelta / 2;
@@ -341,6 +343,33 @@ export default function MapScreen() {
     }
   }, [commitAllRestaurants]);
 
+  const applyMapLocationUpdate = useCallback(
+    (coords: { latitude: number; longitude: number }) => {
+      const previous = mapSessionUserCoords ?? userCoords;
+      if (previous && distanceBetweenMeters(previous, coords) < MAP_LOCATION_REFRESH_METERS) {
+        return;
+      }
+
+      mapSessionUserCoords = coords;
+      setUserCoords(coords);
+      setSearchCenter(coords);
+
+      const nextRegion = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        latitudeDelta: region?.latitudeDelta ?? 0.02,
+        longitudeDelta: region?.longitudeDelta ?? 0.02 * (width / height),
+      };
+      mapSessionRegion = nextRegion;
+      setRegion(nextRegion);
+      mapRef.current?.animateToRegion(nextRegion, 800);
+
+      const fetchRadius = Math.max(mapSessionFetchedRadius, radius);
+      void loadRestaurants(coords.latitude, coords.longitude, fetchRadius);
+    },
+    [loadRestaurants, radius, region, userCoords]
+  );
+
   const initMap = useCallback(async () => {
     if (mapSessionInitialized && mapSessionUserCoords) {
       setUserCoords(mapSessionUserCoords);
@@ -403,6 +432,18 @@ export default function MapScreen() {
   useEffect(() => {
     void initMap();
   }, [initMap]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void getLocation(true).then((coords) => {
+        if (coords) applyMapLocationUpdate(coords);
+      });
+
+      return subscribeLocationUpdates((coords) => {
+        applyMapLocationUpdate(coords);
+      });
+    }, [applyMapLocationUpdate])
+  );
 
   const onRegionChangeComplete = (newRegion: Region) => {
     mapSessionRegion = newRegion;
