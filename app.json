@@ -2,7 +2,7 @@
   "expo": {
     "name": "Logic Plate",
     "slug": "platebound",
-    "version": "2.3",
+    "version": "2.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "restaurantapp",
@@ -19,7 +19,11 @@
       }
     },
     "android": {
-      "versionCode": 6,
+      "versionCode": 7,
+      "blockedPermissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#161640",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
