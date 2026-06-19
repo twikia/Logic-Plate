@@ -21,6 +21,7 @@ import { endHostSession } from '@/core/groupSessionState';
 import { requestHomeTitleReroll } from '@/core/homeTitle';
 import { requestRandomPickerReset } from '@/core/randomPickerState';
 import { useAppTheme } from '@/context/ThemeContext';
+import { LocationGate } from '@/components/LocationGate';
 
 const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 
@@ -178,15 +179,16 @@ export default function TabLayout() {
   });
 
   return (
-    <Tabs
-      initialRouteName="(home)"
-      sceneContainerStyle={{ backgroundColor: '#000000' }}
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarButton: HapticTab,
-        tabBarStyle,
-      }}>
+    <LocationGate>
+      <Tabs
+        initialRouteName="(home)"
+        sceneContainerStyle={{ backgroundColor: '#000000' }}
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarButton: HapticTab,
+          tabBarStyle,
+        }}>
 
       <Tabs.Screen
         name="groups"
@@ -337,5 +339,6 @@ export default function TabLayout() {
       />
 
     </Tabs>
+    </LocationGate>
   );
 }
