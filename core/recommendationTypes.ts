@@ -90,15 +90,15 @@ export type ScoredRestaurant = {
 };
 
 export const DEFAULT_WEIGHTS: RecommendationWeights = {
-  speed: 3,
-  cost: 3,
-  distance: 3,
-  health: 3,
-  protein: 3,
+  speed: 1,
+  cost: 1,
+  distance: 1,
+  health: 1,
+  protein: 1,
   calories: 3,
-  cuisine: 3,
-  taste: 3,
-  ratingAdherence: 3,
+  cuisine: 1,
+  taste: 1,
+  ratingAdherence: 1,
 };
 
 export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {

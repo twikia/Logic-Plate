@@ -3,6 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useRouter, useRootNavigationState, useSegments } from 'expo-router';
 import { AppSplashOverlay } from '@/components/AppSplashOverlay';
 import { useAuth } from '@/context/AuthContext';
+import { isAppIntroRequired } from '@/core/appIntro';
 import { isRecommendationOnboardingRequired } from '@/core/recommendationPrefs';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -10,6 +11,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 function resolveAuthRoute(
   segments: string[],
   needsUsername: boolean,
+  needsIntro: boolean,
   needsOnboarding: boolean,
   isGuest: boolean
 ): string | null {
@@ -20,12 +22,21 @@ function resolveAuthRoute(
   const inAuth = seg0 === '(auth)';
   const onPickUsername = seg1 === 'pick-username';
   const onLogin = seg1 === 'login';
+  const onIntro = seg0 === 'welcome-intro';
   const onWelcome = seg0 === 'welcome-onboarding';
 
   if (inAuth && onLogin && isGuest) return null;
 
   if (needsUsername) {
     return inAuth && onPickUsername ? null : '/(auth)/pick-username';
+  }
+
+  if (needsIntro) {
+    return onIntro ? null : '/welcome-intro';
+  }
+
+  if (onIntro) {
+    return needsOnboarding ? '/welcome-onboarding' : '/(tabs)';
   }
 
   if (needsOnboarding) {
@@ -45,6 +56,7 @@ function resolveAuthRoute(
 
 function routeMatchesTarget(segments: string[], target: string): boolean {
   const normalized = target.replace(/^\//, '');
+  if (normalized === 'welcome-intro') return segments[0] === 'welcome-intro';
   if (normalized === 'welcome-onboarding') return segments[0] === 'welcome-onboarding';
   if (normalized.startsWith('(tabs)')) return segments[0] === '(tabs)';
   if (normalized.startsWith('(auth)/pick-username')) {
@@ -78,10 +90,13 @@ export function AuthGate() {
     let cancelled = false;
 
     void (async () => {
-      const needsOnboarding = await isRecommendationOnboardingRequired();
+      const [needsIntro, needsOnboarding] = await Promise.all([
+        isAppIntroRequired(),
+        isRecommendationOnboardingRequired(),
+      ]);
       if (cancelled) return;
 
-      const target = resolveAuthRoute(segs, needsUsername, needsOnboarding, isGuest);
+      const target = resolveAuthRoute(segs, needsUsername, needsIntro, needsOnboarding, isGuest);
       if (target) {
         if (routeMatchesTarget(segs, target)) {
           pendingTarget.current = null;

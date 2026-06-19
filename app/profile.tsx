@@ -1,5 +1,5 @@
 import { Pressable } from '@/components/ui/soundPressable';
-import { StyleSheet, Text, View, ScrollView, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Alert, Linking } from 'react-native';
 import { Image } from 'expo-image';
 import { useAppTheme } from '@/context/ThemeContext';
 import { Themes } from '@/constants/Themes';
@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
 import { runCacheTests } from '../tests/cacheTest';
 import { clearLocalCache } from '../core/cacheManager';
+import { resetAppIntro } from '../core/appIntro';
 import { clearRandomPickerState } from '../core/randomPickerState';
 import { resetRecommendationPrefsToOnboarding } from '../core/recommendationPrefs';
 import { clearResultCache } from '../core/resultCache';
@@ -181,6 +182,21 @@ export default function ProfileScreen() {
               </View>
 
               <View style={styles.section}>
+                <AnimatedPressable
+                  style={[styles.menuItem, { backgroundColor: theme.buttonBackground }]}
+                  onPress={() => {
+                    hapticLight();
+                    void Linking.openURL('https://forms.gle/F2e5pJ32pEGhMNYn9');
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.feedback')}</Text>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.accent} />
+                  </View>
+                </AnimatedPressable>
+              </View>
+
+              <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('profile.developer')}</Text>
                 <AnimatedPressable 
                   style={[styles.menuItem, { backgroundColor: theme.accent }]} 
@@ -201,10 +217,11 @@ export default function ProfileScreen() {
                       Image.clearDiskCache(),
                       clearRandomPickerState(),
                       resetRecommendationPrefsToOnboarding(),
+                      resetAppIntro(),
                     ]);
                     hapticSuccess();
                     Alert.alert(t('profile.cachePurgedTitle'), t('profile.cachePurgedMsg'));
-                    router.replace('/welcome-onboarding' as any);
+                    router.replace('/welcome-intro' as any);
                   }}
                 >
                   <Text style={[styles.menuItemText, { color: '#2B422A' }]}>{t('profile.clearAllCaches')}</Text>

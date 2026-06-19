@@ -19,7 +19,38 @@ let cachedCoords: { latitude: number; longitude: number } | null = null;
 let cachedAt = 0;
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
+type LocationListener = (coords: { latitude: number; longitude: number }) => void;
+const locationListeners = new Set<LocationListener>();
+
 let pendingLocationPromise: Promise<{ latitude: number; longitude: number } | null> | null = null;
+
+export function subscribeLocationUpdates(listener: LocationListener): () => void {
+  locationListeners.add(listener);
+  return () => {
+    locationListeners.delete(listener);
+  };
+}
+
+function notifyLocationListeners(coords: { latitude: number; longitude: number }) {
+  for (const listener of locationListeners) {
+    listener(coords);
+  }
+}
+
+export function distanceBetweenMeters(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number }
+): number {
+  const R = 6371000;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 export const getLocation = async (
   force = false
@@ -66,6 +97,7 @@ export const getLocation = async (
         longitude: loc.coords.longitude,
       };
       cachedAt = Date.now();
+      notifyLocationListeners(cachedCoords);
       return cachedCoords;
     } catch (err) {
       console.error('GPS acquisition failed:', err);

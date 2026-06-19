@@ -351,7 +351,8 @@ const es: Translations = {
     clearAllCaches: 'Limpiar todos los cachés',
     chooseAvatar: 'Elige un avatar',
     cachePurgedTitle: 'Sistema limpiado',
-    cachePurgedMsg: 'Se limpiaron todos los cachés locales (H3, Resultados, Ubicación e Imágenes). Las preferencias de recomendación fueron reiniciadas.'
+    cachePurgedMsg: 'Se limpiaron todos los cachés locales (H3, Resultados, Ubicación e Imágenes). Las preferencias de recomendación fueron reiniciadas.',
+    feedback: 'Comentarios',
   },
   settings: {
     title: 'Ajustes generales',
@@ -381,7 +382,23 @@ const es: Translations = {
     aboutSection: 'Acerca de',
     version: 'Versión 1.0.4 (Fase 2)',
     credits: 'Hecho con ❤️ para amantes de la comida',
-    userId: 'ID de usuario'
+    userId: 'ID de usuario',
+    deleteAccount: 'Eliminar cuenta',
+    deleteAccountDesc: 'Elimina permanentemente tu perfil y datos de inicio de sesión de nuestros servidores.',
+    deleteAccountTitle: '¿Eliminar tu cuenta?',
+    deleteAccountMsg:
+      'Esto elimina permanentemente tu cuenta y perfil. Los datos locales en este dispositivo se conservan hasta que borres el almacenamiento de la app. No se puede deshacer.',
+    deleteAccountConfirm: 'Eliminar',
+    deleteAccountFailedTitle: 'No se pudo eliminar la cuenta',
+    deleteAccountFailedMsg: 'Revisa tu conexión e inténtalo de nuevo.',
+    deleteAccountDoneTitle: 'Cuenta eliminada',
+    deleteAccountDoneMsg: 'Tu cuenta fue eliminada. Ahora usas una nueva sesión de invitado.',
+  },
+  intro: {
+    title: 'Come mejor, descubre más rápido',
+    body:
+      'Logic Plate te ayuda a tomar decisiones informadas y encontrar joyas cerca de ti — para que cuando preguntes “¿dónde debería comer?”, tengas una respuesta clara respaldada por datos reales.',
+    start: 'Empezar',
   },
   auth: {
     brand: 'Enlazado en placa',
@@ -482,7 +499,7 @@ const es: Translations = {
     speedLabel: 'Velocidad',
     speedHint: 'Servicio rápido y pocas esperas',
     costLabel: 'Costo',
-    costHint: 'Mantenerte dentro de tu presupuesto',
+    costHint: 'Favorecer restaurantes más baratos cuando te importe',
     distanceLabel: 'Distancia',
     distanceHint: 'Qué tan cerca está el lugar',
     ratingLabel: 'Importancia de las calificaciones',

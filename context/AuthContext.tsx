@@ -25,6 +25,7 @@ type AuthContextValue = {
   isGuest: boolean;
   needsUsername: boolean;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ ok: true } | { ok: false; code: string }>;
   refreshProfile: () => Promise<void>;
   setUsernameViaEdge: (username: string) => Promise<
     | { ok: true }
@@ -131,6 +132,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    const { data, error } = await supabase.functions.invoke('delete-account', {
+      body: {},
+    });
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const errBody = (await error.context.json()) as { error?: string };
+        const code = errBody?.error;
+        if (typeof code === 'string') return { ok: false as const, code };
+      } catch {
+        //
+      }
+      return { ok: false as const, code: 'network' };
+    }
+    if (error) {
+      return { ok: false as const, code: 'network' };
+    }
+    const body = data as { error?: string; ok?: boolean } | null;
+    if (body && typeof body === 'object' && body.error) {
+      return { ok: false as const, code: body.error };
+    }
+    await supabase.auth.signOut().catch(() => undefined);
+    const { error: anonErr } = await supabase.auth.signInAnonymously();
+    if (anonErr) {
+      setSession(null);
+      setProfile(null);
+      return { ok: true as const };
+    }
+    setProfile(null);
+    return { ok: true as const };
+  }, []);
+
   const setUsernameViaEdge = useCallback(
     async (username: string) => {
       const { data, error } = await supabase.functions.invoke('set-username', {
@@ -172,10 +205,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isGuest,
       needsUsername,
       signOut,
+      deleteAccount,
       refreshProfile,
       setUsernameViaEdge,
     }),
-    [session, user, profile, loading, isGuest, needsUsername, signOut, refreshProfile, setUsernameViaEdge]
+    [session, user, profile, loading, isGuest, needsUsername, signOut, deleteAccount, refreshProfile, setUsernameViaEdge]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
