@@ -116,22 +116,22 @@ function sanitizeWeights(w: Partial<RecommendationWeights> | Record<string, unkn
   const hasLegacy = LEGACY_WEIGHT_KEYS.some(k => typeof legacy[k] === 'number');
   if (hasLegacy) {
     if (out.distance === DEFAULT_WEIGHTS.distance && legacy.distance != null) {
-      out.distance = legacyLevelFromHundred(legacy.distance, 3);
+      out.distance = legacyLevelFromHundred(legacy.distance, 1);
     }
     if (out.health === DEFAULT_WEIGHTS.health && legacy.health != null) {
-      out.health = legacyLevelFromHundred(legacy.health, 3);
+      out.health = legacyLevelFromHundred(legacy.health, 1);
     }
     if (out.cost === DEFAULT_WEIGHTS.cost && legacy.price != null) {
-      out.cost = legacyLevelFromHundred(legacy.price, 3);
+      out.cost = legacyLevelFromHundred(legacy.price, 1);
     }
     if (out.taste === DEFAULT_WEIGHTS.taste && legacy.rating != null) {
-      out.taste = legacyLevelFromHundred(legacy.rating, 3);
+      out.taste = legacyLevelFromHundred(legacy.rating, 1);
     }
     if (out.ratingAdherence === DEFAULT_WEIGHTS.ratingAdherence && legacy.rating != null) {
-      out.ratingAdherence = legacyLevelFromHundred(legacy.rating, 3);
+      out.ratingAdherence = legacyLevelFromHundred(legacy.rating, 1);
     }
     if (legacy.novelty != null) {
-      const n = legacyLevelFromHundred(legacy.novelty, 3);
+      const n = legacyLevelFromHundred(legacy.novelty, 1);
       if (out.cuisine === DEFAULT_WEIGHTS.cuisine) out.cuisine = n;
     }
   }

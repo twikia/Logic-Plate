@@ -32,7 +32,7 @@ export default function GeneralSettingsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { theme } = useAppTheme();
-  const { user, profile } = useAuth();
+  const { user, profile, deleteAccount } = useAuth();
   const [unit, setUnit] = useState<DistanceUnit>('km');
   const [sfxVolume, setSfxVolumeState] = useState(0.5);
   const [musicVolume, setMusicVolumeState] = useState(0.5);
@@ -140,6 +140,44 @@ export default function GeneralSettingsScreen() {
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.settingCard, { backgroundColor: 'rgba(255,68,68,0.12)', borderColor: 'rgba(255,68,68,0.35)', marginTop: 10 }]}
+              onPress={() => {
+                hapticLight();
+                Alert.alert(
+                  t('settings.deleteAccountTitle'),
+                  t('settings.deleteAccountMsg'),
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('settings.deleteAccountConfirm'),
+                      style: 'destructive',
+                      onPress: async () => {
+                        const result = await deleteAccount();
+                        if (!result.ok) {
+                          Alert.alert(t('settings.deleteAccountFailedTitle'), t('settings.deleteAccountFailedMsg'));
+                          return;
+                        }
+                        hapticSuccess();
+                        Alert.alert(t('settings.deleteAccountDoneTitle'), t('settings.deleteAccountDoneMsg'));
+                        router.replace('/(tabs)' as any);
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <View style={styles.settingInfo}>
+                <Ionicons name="trash-outline" size={24} color="#FF4444" />
+                <View style={styles.textContainer}>
+                  <Text style={[styles.settingLabel, { color: '#FF6B6B' }]}>{t('settings.deleteAccount')}</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>
+                    {t('settings.deleteAccountDesc')}
+                  </Text>
+                </View>
+              </View>
             </Pressable>
           </View>
 

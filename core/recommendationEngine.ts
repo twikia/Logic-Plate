@@ -99,20 +99,31 @@ function mealModifierForPrimary(primary: string, meal: MealTypeContext): number 
   return 0;
 }
 
-function priceLevelToDollars(level?: string | null): number {
-  switch (level) {
+function rawCheapnessScore(place: any): number {
+  switch (place?.priceLevel) {
     case 'PRICE_LEVEL_FREE':
     case 'PRICE_LEVEL_INEXPENSIVE':
-      return 10;
+      return 93;
     case 'PRICE_LEVEL_MODERATE':
-      return 22;
+      return 58;
     case 'PRICE_LEVEL_EXPENSIVE':
-      return 45;
+      return 26;
     case 'PRICE_LEVEL_VERY_EXPENSIVE':
-      return 75;
+      return 7;
     default:
-      return 25;
+      return 52;
   }
+}
+
+function rawPriceScore(place: any, ratingRaw: number, costPreference: ImportanceLevel): number {
+  const cheap = rawCheapnessScore(place);
+  const expensiveness = Math.max(0, Math.min(1, (100 - cheap) / 93));
+  const ratingGate = cheap + expensiveness * (ratingRaw - cheap) * 0.72;
+  const gated = Math.max(0, Math.min(100, ratingGate));
+
+  const cheapBias = importanceToStrength(costPreference);
+  if (cheapBias <= 0) return gated;
+  return gated * (1 - cheapBias) + cheap * cheapBias;
 }
 
 const NORM_WEIGHT_KEYS = [
@@ -126,26 +137,72 @@ const NORM_WEIGHT_KEYS = [
   'ratingAdherence',
 ] as const satisfies readonly (keyof RecommendationWeights)[];
 
-function normWeights(w: RecommendationWeights) {
-  const keys = NORM_WEIGHT_KEYS;
-  const vals = keys.map(k => Math.max(0, w[k]));
-  const sum = vals.reduce((a, b) => a + b, 0);
-  if (sum <= 0) {
-    const eq = 1 / keys.length;
-    return Object.fromEntries(keys.map(k => [k, eq])) as Record<(typeof keys)[number], number>;
+const NEUTRAL_BLEND: Record<(typeof NORM_WEIGHT_KEYS)[number], number> = {
+  distance: 0.2,
+  speed: 0.08,
+  cost: 0.12,
+  health: 0.12,
+  protein: 0.06,
+  taste: 0.1,
+  ratingAdherence: 0.22,
+  cuisine: 0.1,
+};
+
+function importanceToStrength(level: ImportanceLevel): number {
+  switch (level) {
+    case 1:
+      return 0;
+    case 2:
+      return 0.18;
+    case 3:
+      return 0.42;
+    case 4:
+      return 0.62;
+    case 5:
+      return 1;
+    default:
+      return 0;
   }
-  return Object.fromEntries(keys.map((k, i) => [k, vals[i]! / sum])) as Record<(typeof keys)[number], number>;
+}
+
+function normalizedStrengths(w: RecommendationWeights): Record<(typeof NORM_WEIGHT_KEYS)[number], number> {
+  const keys = NORM_WEIGHT_KEYS;
+  const raw = keys.map(k => importanceToStrength(w[k]));
+  const sum = raw.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return { ...NEUTRAL_BLEND };
+  return Object.fromEntries(keys.map((k, i) => [k, raw[i]! / sum])) as Record<(typeof NORM_WEIGHT_KEYS)[number], number>;
 }
 
 function caloriePreferenceContribution(calorieDensity: number, level: ImportanceLevel): number {
   if (level === 3) return 0;
   const centered = (calorieDensity - 50) / 50;
   if (level < 3) {
-    const intensity = (3 - level) / 2;
-    return -centered * intensity * 28;
+    const intensity = level === 1 ? 0.12 : 0.4;
+    return -centered * intensity * 34;
   }
-  const intensity = (level - 3) / 2;
-  return centered * intensity * 28;
+  const intensity = level === 4 ? 0.38 : 1;
+  return centered * intensity * 34;
+}
+
+type MetricHit = { strength: number; rawScore: number };
+
+function calorieSynergyStrength(level: ImportanceLevel): number {
+  if (level === 3) return 0;
+  return importanceToStrength(level);
+}
+
+function calorieSynergyFit(calorieRaw: number, level: ImportanceLevel): number {
+  if (level === 3) return 50;
+  return level < 3 ? 100 - calorieRaw : calorieRaw;
+}
+
+function synergyBonus(hits: MetricHit[]): number {
+  const strong = hits.filter(h => h.strength >= 0.55 && h.rawScore >= 62);
+  if (strong.length < 2) return 0;
+  const avgExcess = strong.reduce((s, h) => s + (h.rawScore - 62), 0) / strong.length;
+  const avgStrength = strong.reduce((s, h) => s + h.strength, 0) / strong.length;
+  const stack = (strong.length - 1) * 4.2 + avgExcess * 0.14 * avgStrength;
+  return Math.min(16, stack);
 }
 
 function aiOf(place: any): AiOverview | undefined {
@@ -180,16 +237,6 @@ function rawHealthScore(place: any): number {
   if (LIGHT_MEAL_TYPES.has(pt)) score += 5;
   if (HEAVY_TYPES.has(pt)) score -= 15;
   return Math.max(0, Math.min(100, score));
-}
-
-function rawPriceScore(place: any, budgetCeiling: number): number {
-  const est = priceLevelToDollars(place?.priceLevel);
-  const ratio = est / Math.max(5, budgetCeiling);
-  if (ratio <= 0.85) return 95;
-  if (ratio <= 1) return 72;
-  if (ratio <= 1.35) return 42;
-  if (ratio <= 1.8) return 22;
-  return 10;
 }
 
 function rawRatingScore(place: any): number {
@@ -385,7 +432,8 @@ export type ScoreContextInput = {
 
 export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): ScoredRestaurant[] {
   const { prefs, session, rainyWeather } = ctx;
-  const nw = normWeights(prefs.weights);
+  const nw = normalizedStrengths(prefs.weights);
+  const w = prefs.weights;
   const radius = session.radiusMeters;
   const weekend = [0, 6].includes(new Date().getDay());
   const weekendDinner = weekend && (session.mealType === 'dinner' || session.mealType === 'late_night');
@@ -402,12 +450,12 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     const dm = place.distanceMeters as number;
     const dRaw = rawDistanceScore(dm, radius);
     const hRaw = rawHealthScore(place);
-    const pRaw = rawPriceScore(place, session.budgetCeiling);
+    const ratingRaw = rawRatingScore(place);
+    const pRaw = rawPriceScore(place, ratingRaw, w.cost);
     const speedRaw = rawSpeedScore(place);
     const proteinRaw = rawProteinScore(place);
     const calorieRaw = rawCalorieScore(place);
     const tasteRaw = rawTasteScore(place);
-    const ratingRaw = rawRatingScore(place);
     const cuisineFitRaw = rawCuisineFitScore(place, prefs.favoriteCuisines);
     const calorieContrib = caloriePreferenceContribution(calorieRaw, prefs.weights.calories);
 
@@ -439,6 +487,20 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       novelty: cuisineFitRaw * nw.cuisine,
     };
 
+    const synergy = synergyBonus([
+      { strength: importanceToStrength(w.distance), rawScore: dRaw },
+      { strength: importanceToStrength(w.speed), rawScore: speedRaw },
+      { strength: importanceToStrength(w.cost), rawScore: pRaw },
+      { strength: importanceToStrength(w.health), rawScore: hRaw },
+      { strength: importanceToStrength(w.protein), rawScore: proteinRaw },
+      { strength: importanceToStrength(w.taste), rawScore: tasteRaw },
+      { strength: importanceToStrength(w.ratingAdherence), rawScore: ratingRaw },
+      { strength: importanceToStrength(w.cuisine), rawScore: cuisineFitRaw },
+      ...(w.calories !== 3
+        ? [{ strength: calorieSynergyStrength(w.calories), rawScore: calorieSynergyFit(calorieRaw, w.calories) }]
+        : []),
+    ]);
+
     const base =
       weightedParts.distance +
       weightedParts.health +
@@ -446,7 +508,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       weightedParts.rating +
       weightedParts.novelty;
 
-    const plateboundScore = Math.max(0, Math.min(100, base + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time));
+    const plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time));
 
     const raw = {
       distance: dRaw,

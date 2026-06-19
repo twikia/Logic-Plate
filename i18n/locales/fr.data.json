@@ -348,7 +348,8 @@
     "clearAllCaches": "Vider tous les caches",
     "chooseAvatar": "Choisir un avatar",
     "cachePurgedTitle": "Système purgé",
-    "cachePurgedMsg": "Tous les caches locaux (cellules H3, Résultats, Localisation et Images) ont été effacés. Les préférences de recommandation ont été réinitialisées."
+    "cachePurgedMsg": "Tous les caches locaux (cellules H3, Résultats, Localisation et Images) ont été effacés. Les préférences de recommandation ont été réinitialisées.",
+    "feedback": "Commentaires"
   },
   "settings": {
     "title": "Paramètres généraux",
@@ -378,7 +379,21 @@
     "aboutSection": "À propos",
     "version": "Version 1.0.4 (Phase 2)",
     "credits": "Fait avec ❤️ pour les gourmets",
-    "userId": "ID utilisateur"
+    "userId": "ID utilisateur",
+    "deleteAccount": "Supprimer le compte",
+    "deleteAccountDesc": "Supprime définitivement votre profil et vos données de connexion de nos serveurs.",
+    "deleteAccountTitle": "Supprimer votre compte ?",
+    "deleteAccountMsg": "Cela supprime définitivement votre compte et votre profil. Les données locales sur cet appareil sont conservées jusqu'à ce que vous effaciez le stockage de l'app. Action irréversible.",
+    "deleteAccountConfirm": "Supprimer",
+    "deleteAccountFailedTitle": "Impossible de supprimer le compte",
+    "deleteAccountFailedMsg": "Vérifiez votre connexion et réessayez.",
+    "deleteAccountDoneTitle": "Compte supprimé",
+    "deleteAccountDoneMsg": "Votre compte a été supprimé. Vous utilisez maintenant une nouvelle session invité."
+  },
+  "intro": {
+    "title": "Mangez mieux, découvrez plus vite",
+    "body": "Logic Plate vous aide à prendre des décisions éclairées et à trouver des pépites près de chez vous — pour que lorsque vous demandez « où manger ? », vous obteniez une réponse claire basée sur de vraies données.",
+    "start": "Commencer"
   },
   "auth": {
     "brand": "Platebound",

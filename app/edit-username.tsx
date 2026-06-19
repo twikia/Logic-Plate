@@ -19,14 +19,18 @@ export default function EditUsernameModal() {
       <Animated.View entering={FadeIn.duration(125)} exiting={FadeOut.duration(100)} style={StyleSheet.absoluteFill}>
         <Pressable style={[StyleSheet.absoluteFill, styles.backdrop]} onPress={close} />
       </Animated.View>
-      <SafeAreaView style={[styles.card, { backgroundColor: theme.cardBackground }]} edges={['top', 'bottom']}>
-        <View style={styles.pad}>
+      <SafeAreaView style={styles.centerWrap} edges={['top', 'bottom']} pointerEvents="box-none">
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          exiting={FadeOut.duration(100)}
+          style={[styles.card, { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor }]}
+        >
           <SetUsernameForm
             title={t('auth.editUsername')}
             subtitle={t('auth.editUsernameSubtitle')}
             onSuccess={close}
           />
-        </View>
+        </Animated.View>
       </SafeAreaView>
     </View>
   );
@@ -35,17 +39,29 @@ export default function EditUsernameModal() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   backdrop: {
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  card: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '88%',
+  centerWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    width: '100%',
   },
-  pad: {
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
     padding: 24,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
 });

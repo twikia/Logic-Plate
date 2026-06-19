@@ -365,6 +365,7 @@ const en = {
     cachePurgedTitle: 'System Purged',
     cachePurgedMsg:
       'All local caches (H3 cells, Results, Location, and Images) have been wiped. Recommendation preferences were reset.',
+    feedback: 'Feedback',
   },
 
   settings: {
@@ -396,6 +397,23 @@ const en = {
     version: 'Version 1.0.4 (Phase 2)',
     credits: 'Made with \u2764\uFE0F for foodies',
     userId: 'User ID',
+    deleteAccount: 'Delete account',
+    deleteAccountDesc: 'Permanently remove your profile and sign-in data from our servers.',
+    deleteAccountTitle: 'Delete your account?',
+    deleteAccountMsg:
+      'This permanently deletes your account and profile. Local data on this device is kept until you clear app storage. This cannot be undone.',
+    deleteAccountConfirm: 'Delete',
+    deleteAccountFailedTitle: 'Could not delete account',
+    deleteAccountFailedMsg: 'Check your connection and try again.',
+    deleteAccountDoneTitle: 'Account deleted',
+    deleteAccountDoneMsg: 'Your account was removed. You are now using a new guest session.',
+  },
+
+  intro: {
+    title: 'Eat smarter, discover faster',
+    body:
+      '"Where should I eat?" Logic Plate gives you that clear answer based on your own preferences and more metrics than you probably care about!',
+    start: 'Get started',
   },
 
   auth: {
@@ -505,7 +523,7 @@ const en = {
     speedLabel: 'Speed',
     speedHint: 'Quick service and short waits',
     costLabel: 'Cost',
-    costHint: 'Staying within your budget',
+    costHint: 'Favor cheaper restaurants when this matters to you',
     distanceLabel: 'Distance',
     distanceHint: 'How close the spot is',
     ratingLabel: 'Top rating importance',

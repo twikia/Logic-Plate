@@ -264,6 +264,71 @@ function formatAxisReading(max: 5 | 10, s: number | null): string {
   return `${Math.round(clampScore(s, max))}/${max}`;
 }
 
+type RadarAxisDef = {
+  key: keyof AiOverview;
+  corner: string;
+  max: 5 | 10;
+  icon: string;
+};
+
+const RADAR_LABEL_OFFSETS: Partial<
+  Record<keyof AiOverview, { dx?: number; dy?: number; dr?: number }>
+> = {
+  healthScore: { dr: -1.4 },
+  tasteScore: { dx: 1.3 },
+  speedScore: { dx: -1.3 },
+};
+
+function renderRadarAxisLabels(
+  axes: RadarAxisDef[],
+  ai: AiOverview | null | undefined,
+  n: number,
+  cx: number,
+  cy: number,
+  labelR: number,
+  cornerFontSize: number,
+  scoreFontSize: number,
+  ringLabel: string
+) {
+  return axes.map(({ key, corner, max, icon }, i) => {
+    const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    const offset = RADAR_LABEL_OFFSETS[key] ?? {};
+    const r = labelR + (offset.dr ?? 0);
+    const lx = cx + r * Math.cos(t) + (offset.dx ?? 0);
+    const ly = cy + r * Math.sin(t) + (offset.dy ?? 0);
+    const s = scoreAxis(ai, key);
+    const reading = formatAxisReading(max, s);
+    const labelFill = absoluteScoreColor(s, max, ringLabel);
+    const scoreFill = absoluteScoreColor(s, max, ringLabel);
+    return (
+      <G key={corner}>
+        <SvgText
+          x={lx}
+          y={ly - 2.4}
+          fill={labelFill}
+          fontSize={cornerFontSize}
+          fontWeight="700"
+          textAnchor="middle"
+          alignmentBaseline="middle"
+        >
+          {corner}
+        </SvgText>
+        <SvgText
+          x={lx}
+          y={ly + 3.6}
+          fill={scoreFill}
+          fontSize={scoreFontSize}
+          fontWeight="700"
+          textAnchor="middle"
+          alignmentBaseline="middle"
+        >
+          {`${icon} ${reading}`}
+        </SvgText>
+      </G>
+    );
+  });
+}
+
 function RestaurantScorePentagon({
   ai,
   stroke,
@@ -286,12 +351,12 @@ function RestaurantScorePentagon({
   const gid = useId().replace(/:/g, '');
   const n = 5;
   const { t: radarT } = useTranslation();
-  const axes: { key: keyof AiOverview; corner: string; max: 5 | 10 }[] = [
-    { key: 'healthScore', corner: radarT('home.radarHealth'), max: 10 },
-    { key: 'tasteScore', corner: radarT('home.radarTaste'), max: 5 },
-    { key: 'valueForMoneyScore', corner: radarT('home.radarValue'), max: 5 },
-    { key: 'dateWorthiness', corner: radarT('home.radarDate'), max: 5 },
-    { key: 'speedScore', corner: radarT('home.radarSpeed'), max: 5 },
+  const axes: RadarAxisDef[] = [
+    { key: 'healthScore', corner: radarT('home.radarHealth'), max: 10, icon: '🥗' },
+    { key: 'tasteScore', corner: radarT('home.radarTaste'), max: 5, icon: '👅' },
+    { key: 'valueForMoneyScore', corner: radarT('home.radarValue'), max: 5, icon: '💵' },
+    { key: 'dateWorthiness', corner: radarT('home.radarDate'), max: 5, icon: '💕' },
+    { key: 'speedScore', corner: radarT('home.radarSpeed'), max: 5, icon: '⏱️' },
   ];
   const norms = axes.map(({ key, max }) => {
     const s = scoreAxis(ai, key);
@@ -301,7 +366,7 @@ function RestaurantScorePentagon({
   const cx = 50;
   const cy = 50;
   const R = 40;
-  const labelR = 47;
+  const labelR = 49;
   const fillPts = norms
     .map((norm, i) => {
       const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
@@ -394,23 +459,7 @@ function RestaurantScorePentagon({
           <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.5)" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="7.5 0.8 4.5 0.6 6.5 0.8 3 0.5 5 0.7" />
           <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.72)" strokeWidth={0.9} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1" />
 
-          {axes.map(({ key, corner, max }, i) => {
-            const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
-            const lx = cx + labelR * Math.cos(t);
-            const ly = cy + labelR * Math.sin(t);
-            const s = scoreAxis(ai, key);
-            const reading = formatAxisReading(max, s);
-            return (
-              <G key={corner}>
-                <SvgText x={lx} y={ly - 2.4} fill={wcLabel} fontSize={cornerFontSize} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">
-                  {corner}
-                </SvgText>
-                <SvgText x={lx} y={ly + 3.6} fill={absoluteScoreColor(s, max, wcLabel)} fontSize={scoreFontSize} fontWeight="700" textAnchor="middle" alignmentBaseline="middle">
-                  {reading}
-                </SvgText>
-              </G>
-            );
-          })}
+          {renderRadarAxisLabels(axes, ai, n, cx, cy, labelR, cornerFontSize, scoreFontSize, wcLabel)}
         </Svg>
       </View>
     );
@@ -526,41 +575,7 @@ function RestaurantScorePentagon({
             strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1"
           />
 
-          {axes.map(({ key, corner, max }, i) => {
-            const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
-            const lx = cx + labelR * Math.cos(t);
-            const ly = cy + labelR * Math.sin(t);
-            const s = scoreAxis(ai, key);
-            const reading = formatAxisReading(max, s);
-            const cornerFill = ringLabel;
-            const scoreFill = absoluteScoreColor(s, max, ringLabel);
-            return (
-              <G key={corner}>
-                <SvgText
-                  x={lx}
-                  y={ly - 2.4}
-                  fill={cornerFill}
-                  fontSize={cornerFontSize}
-                  fontWeight="700"
-                  textAnchor="middle"
-                  alignmentBaseline="middle"
-                >
-                  {corner}
-                </SvgText>
-                <SvgText
-                  x={lx}
-                  y={ly + 3.6}
-                  fill={scoreFill}
-                  fontSize={scoreFontSize}
-                  fontWeight="700"
-                  textAnchor="middle"
-                  alignmentBaseline="middle"
-                >
-                  {reading}
-                </SvgText>
-              </G>
-            );
-          })}
+          {renderRadarAxisLabels(axes, ai, n, cx, cy, labelR, cornerFontSize, scoreFontSize, ringLabel)}
         </Svg>
       </View>
     );
@@ -582,41 +597,7 @@ function RestaurantScorePentagon({
         <Polygon points={polygonRing(cx, cy, R * 0.67, n)} fill="rgba(128,128,128,0.04)" stroke={ringGrid} strokeWidth={gridSW} />
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={outerGridSW} />
         <Polygon points={fillPts} fill={fillValue} stroke={ringStroke} strokeWidth={polygonSW} strokeLinejoin="round" />
-        {axes.map(({ key, corner, max }, i) => {
-          const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
-          const lx = cx + labelR * Math.cos(t);
-          const ly = cy + labelR * Math.sin(t);
-          const s = scoreAxis(ai, key);
-          const reading = formatAxisReading(max, s);
-          const cornerFill = ringLabel;
-          const scoreFill = absoluteScoreColor(s, max, ringLabel);
-          return (
-            <G key={corner}>
-              <SvgText
-                x={lx}
-                y={ly - 2.4}
-                fill={cornerFill}
-                fontSize={cornerFontSize}
-                fontWeight="700"
-                textAnchor="middle"
-                alignmentBaseline="middle"
-              >
-                {corner}
-              </SvgText>
-              <SvgText
-                x={lx}
-                y={ly + 3.6}
-                fill={scoreFill}
-                fontSize={scoreFontSize}
-                fontWeight="700"
-                textAnchor="middle"
-                alignmentBaseline="middle"
-              >
-                {reading}
-              </SvgText>
-            </G>
-          );
-        })}
+        {renderRadarAxisLabels(axes, ai, n, cx, cy, labelR, cornerFontSize, scoreFontSize, ringLabel)}
       </Svg>
     </View>
   );

@@ -27,11 +27,11 @@ export const IMPORTANCE_LEVEL_EMOJIS: Record<ImportanceLevel, string> = {
 };
 
 export const IMPORTANCE_LEVEL_LABELS: Record<ImportanceLevel, string> = {
-  1: 'Barely',
+  1: 'Default',
   2: 'A little',
   3: 'Moderate',
-  4: 'Important',
-  5: 'Essential',
+  4: 'Nice to have',
+  5: 'Top priority',
 };
 
 export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
@@ -41,7 +41,7 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
     subtitle: 'How much travel, cost, and speed matter when we pick.',
     metrics: [
       { key: 'speed', label: 'Speed', hint: 'Quick service and short waits', icon: '⚡' },
-      { key: 'cost', label: 'Cost', hint: 'Staying within your budget', icon: '💰' },
+      { key: 'cost', label: 'Cost', hint: 'Favor cheaper restaurants when this matters to you', icon: '💰' },
       { key: 'distance', label: 'Distance', hint: 'How close the spot is', icon: '📍' },
       {
         key: 'ratingAdherence',
