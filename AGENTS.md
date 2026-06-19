@@ -39,6 +39,19 @@ Platebound is a React Native Expo (SDK 54) mobile app for restaurant discovery. 
 
 ### Android builds (local Windows)
 
+#### MANDATORY before any Android export (agents must follow)
+
+**Always run these checks before `prebuild`, `assembleRelease`, or `bundleRelease`.** Skipping them produces a ~120 MB universal APK instead of ~60 MB.
+
+1. **Read [README.md](./README.md) → "Android release — required gradle.properties overrides"** and confirm the four custom properties are documented there.
+2. **After `npx expo prebuild --platform android`**, open `android/gradle.properties` in both the repo and `C:\platebound` (if syncing) and verify or re-apply:
+   - `reactNativeArchitectures=arm64-v8a` — **must not** be the prebuild default `armeabi-v7a,arm64-v8a,x86,x86_64`
+   - `org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError`
+   - `newArchEnabled=true`
+   - `android.packagingOptions.pickFirsts=**/libworklets.so`
+3. **Gradle command must include** `-PreactNativeArchitectures=arm64-v8a` even if step 2 was done.
+4. **After the build**, verify output size: release APK should be ~55–65 MB. If ~120 MB, inspect the APK — it likely contains `lib/x86`, `lib/x86_64`, and `lib/armeabi-v7a`. Do not deliver that artifact; fix properties and rebuild.
+
 This project uses **Expo SDK 54** with `expo-dev-client` installed. Builds are **standalone apps** (not Expo Go). Daily dev can use Expo Go for quick checks, but native features (maps, audio, etc.) are best tested with a development build.
 
 #### Build types
@@ -110,15 +123,18 @@ $env:JAVA_HOME = "C:\Program Files\Java\jdk-17"
 cd C:\Users\fpola\Documents\Code-Local\Platebound-wrkspc2
 npx expo prebuild --platform android --no-install
 
+# 2b. Re-apply custom gradle.properties (prebuild resets them — see README.md)
+#     reactNativeArchitectures=arm64-v8a, jvmargs, pickFirsts=**/libworklets.so
+
 # 3. Sync repo → short-path copy (exclude build caches)
 robocopy "C:\Users\fpola\Documents\Code-Local\Platebound-wrkspc2" "C:\platebound" /E /XD "android\app\build" "android\app\.cxx" "android\build" "android\.gradle" ".expo" ".git" /NFL /NDL /NJH /NJS
 
 # 4. After package-name change: ensure Kotlin sources match (mirror android/app/src)
 robocopy "C:\Users\fpola\Documents\Code-Local\Platebound-wrkspc2\android\app\src" "C:\platebound\android\app\src" /MIR /NFL /NDL /NJH /NJS
 
-# 5. Build signed release AAB
+# 5. Build signed release AAB (arm64-only — see README.md)
 cd C:\platebound\android
-.\gradlew.bat bundleRelease --no-daemon
+.\gradlew.bat bundleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 ```
 
 **Output:** `C:\platebound\android\app\build\outputs\bundle\release\app-release.aab`
