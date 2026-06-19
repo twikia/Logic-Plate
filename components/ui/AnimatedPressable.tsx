@@ -13,9 +13,9 @@ import { registerGlobalPress } from './soundPressable';
 
 const AnimatedPressableComponent = Animated.createAnimatedComponent(Pressable);
 
-const DOWN_MS  = 60;   // snap press-in
-const UP_MS    = 55;   // overshoot rise
-const SETTLE_MS = 70;  // settle back to 1.0
+const DOWN_MS  = 30;   // snap press-in
+const UP_MS    = 30;   // overshoot rise
+const SETTLE_MS = 40;  // settle back to 1.0
 
 type AnimatedPressableProps = PressableProps & {
   silent?: boolean;
@@ -23,7 +23,7 @@ type AnimatedPressableProps = PressableProps & {
 };
 
 export const AnimatedPressable = React.forwardRef<View, AnimatedPressableProps>(
-  ({ children, style, onPress, onPressIn, onPressOut, silent, throttleMs = 500, ...props }, ref) => {
+  ({ children, style, onPress, onPressIn, onPressOut, silent, throttleMs = 300, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({

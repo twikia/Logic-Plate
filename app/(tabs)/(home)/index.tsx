@@ -1196,7 +1196,9 @@ export default function HomeScreen() {
     markHomeOpeningDetails(pickIndexRef.current);
     await appendVisit(String(item.place?.id || ''), String(item.place?.primaryType || ''));
     setCurrentRestaurant(item.place);
-    router.push('/random-result');
+    setTimeout(() => {
+      router.push('/random-result');
+    }, 0);
   };
 
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;

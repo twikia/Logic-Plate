@@ -19,7 +19,7 @@ const AnimatedRNPressable = Animated.createAnimatedComponent(RNPressable);
 const AnimatedRNTouchable = Animated.createAnimatedComponent(RNTouchableOpacity);
 
 const PRESS_DOWN_SCALE = 0.95;
-const PRESS_DOWN_MS = 70;
+const PRESS_DOWN_MS = 30;
 
 type SoundPressProps = {
   silent?: boolean;
@@ -40,7 +40,7 @@ export function registerGlobalPress(throttleMs: number): boolean {
 }
 
 export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps>(
-  ({ onPress, silent, animated = true, throttleMs = 500, onPressIn, onPressOut, style, ...props }, ref) => {
+  ({ onPress, silent, animated = true, throttleMs = 300, onPressIn, onPressOut, style, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -83,7 +83,7 @@ export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps
           onPressIn?.(e);
         }}
         onPressOut={(e) => {
-          scale.value = withSpring(1.0, { damping: 12, stiffness: 200 });
+          scale.value = withSpring(1.0, { damping: 10, stiffness: 400 });
           onPressOut?.(e);
         }}
       />
@@ -93,7 +93,7 @@ export const Pressable = React.forwardRef<View, PressableProps & SoundPressProps
 Pressable.displayName = 'SoundPressable';
 
 export const TouchableOpacity = React.forwardRef<View, TouchableOpacityProps & SoundPressProps>(
-  ({ onPress, silent, animated = true, throttleMs = 500, onPressIn, onPressOut, style, ...props }, ref) => {
+  ({ onPress, silent, animated = true, throttleMs = 300, onPressIn, onPressOut, style, ...props }, ref) => {
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -136,7 +136,7 @@ export const TouchableOpacity = React.forwardRef<View, TouchableOpacityProps & S
           onPressIn?.(e);
         }}
         onPressOut={(e) => {
-          scale.value = withSpring(1.0, { damping: 12, stiffness: 200 });
+          scale.value = withSpring(1.0, { damping: 10, stiffness: 400 });
           onPressOut?.(e);
         }}
       />

@@ -440,9 +440,9 @@ export default function MapScreen() {
           setSheetSnap('full');
           Animated.spring(sheetAnim, {
             toValue: height * 0.15,
-            useNativeDriver: false,
-            tension: 50,
-            friction: 8,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 10,
           }).start();
         } else if (gestureState.dy > 100) {
           closeSheet();
@@ -450,9 +450,9 @@ export default function MapScreen() {
           setSheetSnap('peek');
           Animated.spring(sheetAnim, {
             toValue: height * 0.45,
-            useNativeDriver: false,
-            tension: 50,
-            friction: 8,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 10,
           }).start();
         }
       },
@@ -479,9 +479,9 @@ export default function MapScreen() {
 
     Animated.spring(sheetAnim, {
       toValue: height * 0.45,
-      useNativeDriver: false,
-      tension: 65,
-      friction: 11,
+      useNativeDriver: true,
+      tension: 120,
+      friction: 10,
     }).start();
   }, [region, sheetAnim]);
 
@@ -518,8 +518,8 @@ export default function MapScreen() {
     setSheetSnap('peek');
     Animated.timing(sheetAnim, {
       toValue: height,
-      duration: 300,
-      useNativeDriver: false,
+      duration: 180,
+      useNativeDriver: true,
     }).start(() => setSelectedRestaurant(null));
   };
 

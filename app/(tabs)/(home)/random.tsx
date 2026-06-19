@@ -239,7 +239,7 @@ function passesAiCutoffs(r: { aiOverview?: AiOverview | null }, cutoffs: RandomA
 
 // ─── Selectable Restaurant Row ────────────────────────────────────────────────
 
-function RestaurantRow({
+const RestaurantRow = React.memo(function RestaurantRow({
   item,
   selected,
   onOpenDetail,
@@ -247,8 +247,8 @@ function RestaurantRow({
 }: {
   item: any;
   selected: boolean;
-  onOpenDetail: () => void;
-  onToggleSelect: () => void;
+  onOpenDetail: (item: any) => void;
+  onToggleSelect: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const { theme } = useAppTheme();
@@ -309,7 +309,7 @@ function RestaurantRow({
     >
       <TouchableOpacity
         activeOpacity={0.75}
-        onPress={onOpenDetail}
+        onPress={() => onOpenDetail(item)}
         style={styles.rowMainTap}
       >
         <View style={[styles.thumbWrap, { backgroundColor: theme.imageBackdrop }]}>
@@ -361,7 +361,7 @@ function RestaurantRow({
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={onToggleSelect}
+        onPress={() => onToggleSelect(item.id)}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         style={[
           styles.checkbox,
@@ -373,7 +373,7 @@ function RestaurantRow({
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -493,10 +493,11 @@ export default function RandomScreen() {
   }, [allResults, applyDefaultFilters]);
 
   const handleBack = useCallback(() => {
-    void resetFilters().finally(() => {
-      if (router.canGoBack()) router.back();
-      else router.replace('/(tabs)/(home)');
-    });
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/(home)');
+    setTimeout(() => {
+      void resetFilters();
+    }, 0);
   }, [resetFilters, router]);
 
   useFocusEffect(
@@ -708,12 +709,24 @@ export default function RandomScreen() {
     }
   };
 
-  const toggleOne = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelected(next);
-  };
+  const toggleOne = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleOpenDetail = useCallback(
+    (item: any) => {
+      setCurrentRestaurant(item);
+      setTimeout(() => {
+        router.push('/random-result');
+      }, 0);
+    },
+    [router]
+  );
 
   const navigateToResult = useCallback(() => {
     router.push('/random-result');
@@ -1154,17 +1167,18 @@ export default function RandomScreen() {
         ) : (
           <FlatList
             data={filtered}
-            extraData={openCheckEpoch}
+            extraData={{ openCheckEpoch, selected }}
             keyExtractor={item => item.id}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
             renderItem={({ item }) => (
               <RestaurantRow
                 item={item}
                 selected={selected.has(item.id)}
-                onOpenDetail={() => {
-                  setCurrentRestaurant(item);
-                  router.push('/random-result');
-                }}
-                onToggleSelect={() => toggleOne(item.id)}
+                onOpenDetail={handleOpenDetail}
+                onToggleSelect={toggleOne}
               />
             )}
             refreshControl={

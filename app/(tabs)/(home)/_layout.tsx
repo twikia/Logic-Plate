@@ -1,8 +1,6 @@
 import { Stack } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
 
 export default function IndexLayout() {
-  const { theme } = useAppTheme();
   return (
     <Stack screenOptions={{
       headerShown: false,

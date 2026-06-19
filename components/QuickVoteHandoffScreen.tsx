@@ -75,30 +75,34 @@ export function QuickVoteHandoffScreen({
       restaurants = JSON.parse(params.restaurantsJson) as QuickVoteRestaurant[];
       votes = JSON.parse(params.votesJson) as Record<string, number>;
     } catch {
-      router.replace('/groups/quick');
+      setTimeout(() => router.replace('/groups/quick'), 0);
       return;
     }
 
     if (params.nextVoter > params.voterCount) {
       const winner = determineWinner(votes, restaurants);
-      router.replace({
-        pathname: '/groups/quick/winner',
-        params: {
-          winnerJson: winner ? JSON.stringify(winner) : '',
-          votesJson: params.votesJson,
-          restaurantsJson: params.restaurantsJson,
-        },
-      });
+      setTimeout(() => {
+        router.replace({
+          pathname: '/groups/quick/winner',
+          params: {
+            winnerJson: winner ? JSON.stringify(winner) : '',
+            votesJson: params.votesJson,
+            restaurantsJson: params.restaurantsJson,
+          },
+        });
+      }, 0);
     } else {
-      router.replace({
-        pathname: '/groups/quick/vote',
-        params: {
-          restaurantsJson: params.restaurantsJson,
-          voterCount: String(params.voterCount),
-          currentVoter: String(params.nextVoter),
-          votesJson: params.votesJson,
-        },
-      });
+      setTimeout(() => {
+        router.replace({
+          pathname: '/groups/quick/vote',
+          params: {
+            restaurantsJson: params.restaurantsJson,
+            voterCount: String(params.voterCount),
+            currentVoter: String(params.nextVoter),
+            votesJson: params.votesJson,
+          },
+        });
+      }, 0);
     }
   }, [params, router]);
 
