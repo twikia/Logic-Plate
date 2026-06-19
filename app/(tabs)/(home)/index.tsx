@@ -271,6 +271,14 @@ type RadarAxisDef = {
   icon: string;
 };
 
+const RADAR_LABEL_OFFSETS: Partial<
+  Record<keyof AiOverview, { dx?: number; dy?: number; dr?: number }>
+> = {
+  healthScore: { dr: -1.4 },
+  tasteScore: { dx: 1.3 },
+  speedScore: { dx: -1.3 },
+};
+
 function renderRadarAxisLabels(
   axes: RadarAxisDef[],
   ai: AiOverview | null | undefined,
@@ -284,8 +292,10 @@ function renderRadarAxisLabels(
 ) {
   return axes.map(({ key, corner, max, icon }, i) => {
     const t = -Math.PI / 2 + (2 * Math.PI * i) / n;
-    const lx = cx + labelR * Math.cos(t);
-    const ly = cy + labelR * Math.sin(t);
+    const offset = RADAR_LABEL_OFFSETS[key] ?? {};
+    const r = labelR + (offset.dr ?? 0);
+    const lx = cx + r * Math.cos(t) + (offset.dx ?? 0);
+    const ly = cy + r * Math.sin(t) + (offset.dy ?? 0);
     const s = scoreAxis(ai, key);
     const reading = formatAxisReading(max, s);
     const labelFill = absoluteScoreColor(s, max, ringLabel);
@@ -356,7 +366,7 @@ function RestaurantScorePentagon({
   const cx = 50;
   const cy = 50;
   const R = 40;
-  const labelR = 47;
+  const labelR = 49;
   const fillPts = norms
     .map((norm, i) => {
       const t = -Math.PI / 2 + (2 * Math.PI * i) / n;

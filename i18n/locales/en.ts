@@ -412,7 +412,7 @@ const en = {
   intro: {
     title: 'Eat smarter, discover faster',
     body:
-      'Logic Plate helps you make informed dining decisions and uncover great spots nearby — so when you ask “where should I eat?”, you get a clear answer backed by real insight.',
+      '"Where should I eat?" Logic Plate gives you that clear answer based on your own preferences and more metrics than you probably care about!',
     start: 'Get started',
   },
 

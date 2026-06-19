@@ -189,6 +189,7 @@ let mapSessionAllRestaurants: any[] = [];
 let mapSessionRadius = DEFAULT_SEARCH_RADIUS_METERS;
 let mapSessionFetchedRadius = DEFAULT_SEARCH_RADIUS_METERS;
 let mapSessionUserCoords: { latitude: number; longitude: number } | null = null;
+let mapSessionInitialCoords: { latitude: number; longitude: number } | null = null;
 let mapSessionRegion: Region | null = null;
 
 const MAP_LOCATION_REFRESH_METERS = 120;
@@ -246,6 +247,7 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const selectedRestaurantRef = useRef<any | null>(null);
   const sheetSnapRef = useRef<'peek' | 'full'>('peek');
+  const regionRef = useRef<Region | null>(mapSessionRegion);
 
   const [allRestaurants, setAllRestaurants] = useState<any[]>(mapSessionAllRestaurants);
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
@@ -345,8 +347,11 @@ export default function MapScreen() {
 
   const applyMapLocationUpdate = useCallback(
     (coords: { latitude: number; longitude: number }) => {
-      const previous = mapSessionUserCoords ?? userCoords;
-      if (previous && distanceBetweenMeters(previous, coords) < MAP_LOCATION_REFRESH_METERS) {
+      const baseline = mapSessionInitialCoords;
+      if (!baseline) {
+        return;
+      }
+      if (distanceBetweenMeters(baseline, coords) < MAP_LOCATION_REFRESH_METERS) {
         return;
       }
 
@@ -354,24 +359,29 @@ export default function MapScreen() {
       setUserCoords(coords);
       setSearchCenter(coords);
 
+      const currentRegion = regionRef.current;
       const nextRegion = {
         latitude: coords.latitude,
         longitude: coords.longitude,
-        latitudeDelta: region?.latitudeDelta ?? 0.02,
-        longitudeDelta: region?.longitudeDelta ?? 0.02 * (width / height),
+        latitudeDelta: currentRegion?.latitudeDelta ?? 0.02,
+        longitudeDelta: currentRegion?.longitudeDelta ?? 0.02 * (width / height),
       };
       mapSessionRegion = nextRegion;
+      regionRef.current = nextRegion;
       setRegion(nextRegion);
       mapRef.current?.animateToRegion(nextRegion, 800);
 
       const fetchRadius = Math.max(mapSessionFetchedRadius, radius);
       void loadRestaurants(coords.latitude, coords.longitude, fetchRadius);
     },
-    [loadRestaurants, radius, region, userCoords]
+    [loadRestaurants, radius]
   );
 
   const initMap = useCallback(async () => {
     if (mapSessionInitialized && mapSessionUserCoords) {
+      if (!mapSessionInitialCoords) {
+        mapSessionInitialCoords = mapSessionUserCoords;
+      }
       setUserCoords(mapSessionUserCoords);
       setSearchCenter(mapSessionUserCoords);
       setRadius(mapSessionRadius);
@@ -408,6 +418,7 @@ export default function MapScreen() {
       });
 
       mapSessionUserCoords = coords;
+      mapSessionInitialCoords = coords;
       setUserCoords(coords);
       setSearchCenter(coords);
 
@@ -418,6 +429,7 @@ export default function MapScreen() {
         longitudeDelta: 0.02 * (width / height),
       };
       mapSessionRegion = initialRegion;
+      regionRef.current = initialRegion;
       setRegion(initialRegion);
 
       mapRef.current?.animateToRegion(initialRegion, 1000);
@@ -433,20 +445,20 @@ export default function MapScreen() {
     void initMap();
   }, [initMap]);
 
+  const applyMapLocationUpdateRef = useRef(applyMapLocationUpdate);
+  applyMapLocationUpdateRef.current = applyMapLocationUpdate;
+
   useFocusEffect(
     useCallback(() => {
-      void getLocation(true).then((coords) => {
-        if (coords) applyMapLocationUpdate(coords);
-      });
-
       return subscribeLocationUpdates((coords) => {
-        applyMapLocationUpdate(coords);
+        applyMapLocationUpdateRef.current(coords);
       });
-    }, [applyMapLocationUpdate])
+    }, [])
   );
 
   const onRegionChangeComplete = (newRegion: Region) => {
     mapSessionRegion = newRegion;
+    regionRef.current = newRegion;
     setRegion(newRegion);
   };
 
