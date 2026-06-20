@@ -501,6 +501,21 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
         : []),
     ]);
 
+    let mismatchPenalty = 0;
+    const checkMismatch = (strength: number, rawScore: number) => {
+      if (strength > 0.4 && rawScore < 45) {
+        mismatchPenalty += (45 - rawScore) * strength * 1.5;
+      }
+    };
+    checkMismatch(importanceToStrength(w.distance), dRaw);
+    checkMismatch(importanceToStrength(w.speed), speedRaw);
+    checkMismatch(importanceToStrength(w.cost), pRaw);
+    checkMismatch(importanceToStrength(w.health), hRaw);
+    checkMismatch(importanceToStrength(w.protein), proteinRaw);
+    checkMismatch(importanceToStrength(w.taste), tasteRaw);
+    checkMismatch(importanceToStrength(w.ratingAdherence), ratingRaw);
+    checkMismatch(importanceToStrength(w.cuisine), cuisineFitRaw);
+
     const base =
       weightedParts.distance +
       weightedParts.health +
@@ -508,7 +523,13 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       weightedParts.rating +
       weightedParts.novelty;
 
-    const plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time));
+    let plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time - mismatchPenalty));
+    
+    // Curving function: boost lower scores to make them feel more exciting
+    // Maps ~60-70 to ~85-92
+    const t = plateboundScore / 100;
+    plateboundScore = Math.pow(t, 0.28) * 100;
+    plateboundScore = Math.max(0, Math.min(100, plateboundScore));
 
     const raw = {
       distance: dRaw,

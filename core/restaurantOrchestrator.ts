@@ -1,4 +1,4 @@
-import { getCellsInRadius, getCellCenter } from './h3Utils';
+import { getCellsInRadiusDynamic, getCellCenter } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
 import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
@@ -93,13 +93,13 @@ async function loadNearbyRestaurantsInternal(
     ? SEARCH_CONFIG.SMALL_RADIUS_API_CAP
     : SEARCH_CONFIG.LARGE_RADIUS_API_CAP;
 
-  const cellIds = getCellsInRadius(userLat, userLng, safeRadius);
+  const { cellIds, resolution } = getCellsInRadiusDynamic(userLat, userLng, safeRadius);
   if (cellIds.length === 0) {
     throw new Error('No search cells generated for current location.');
   }
 
   onProgress?.({ stage: 'reading-cache', progress: 0.2 });
-  const { hits, misses: uncachedCells } = await readCacheBulk(cellIds);
+  const { hits, misses: uncachedCells } = await readCacheBulk(cellIds, resolution);
   console.log(
     `Restaurant cache check complete: ${hits.size}/${cellIds.length} cells found in cache (local+db), ${uncachedCells.length} cells still missing.`
   );
@@ -124,14 +124,19 @@ async function loadNearbyRestaurantsInternal(
     let data: unknown;
     let error: { message?: string; name?: string; context?: unknown } | null = null;
     try {
-      const invokeResult = await supabase.functions.invoke('fetch-missing-cells', {
-        body: { missingCells: missingCellsPayload },
+      const functionName = resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro';
+      const body = resolution === 8 
+        ? { missingCells: missingCellsPayload } 
+        : { missingCells: missingCellsPayload, resolution };
+
+      const invokeResult = await supabase.functions.invoke(functionName, {
+        body,
         headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
       });
       data = invokeResult.data;
       error = invokeResult.error;
     } catch (err) {
-      logEdgeFunctionFailure('fetch-missing-cells', {
+      logEdgeFunctionFailure(resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro', {
         data: null,
         error: err instanceof Error ? { message: err.message, name: err.name } : { message: String(err) },
       });
@@ -143,7 +148,7 @@ async function loadNearbyRestaurantsInternal(
     }
 
     if (error) {
-      logEdgeFunctionFailure('fetch-missing-cells', { data, error });
+      logEdgeFunctionFailure(resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro', { data, error });
       if (allRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, error);
       }

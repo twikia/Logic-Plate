@@ -17,7 +17,8 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * Cell IDs with no valid/fresh cache entry appear in `misses`.
  */
 export const readCacheBulk = async (
-  cellIds: string[]
+  cellIds: string[],
+  resolution: number = 8
 ): Promise<{ hits: Map<string, any[]>; misses: string[] }> => {
   const now = Date.now();
   const hits = new Map<string, any[]>();
@@ -54,8 +55,12 @@ export const readCacheBulk = async (
   // ── L2: Single Supabase .in() query for all L1 misses ────────────────────
   if (l1MissCells.length > 0) {
     try {
+      let tableName = 'restaurant_cache';
+      if (resolution === 7) tableName = 'restaurant_cache_res7';
+      if (resolution === 6) tableName = 'restaurant_cache_res6';
+
       const { data, error } = await supabase
-        .from('restaurant_cache')
+        .from(tableName)
         .select('id, restaurants, fetched_at')
         .in('id', l1MissCells);
 
@@ -103,8 +108,8 @@ export const readCacheBulk = async (
 /**
  * Single-cell read (kept for legacy/edge use — prefer readCacheBulk for batches).
  */
-export const readCache = async (cellId: string): Promise<any[] | null> => {
-  const { hits } = await readCacheBulk([cellId]);
+export const readCache = async (cellId: string, resolution: number = 8): Promise<any[] | null> => {
+  const { hits } = await readCacheBulk([cellId], resolution);
   return hits.get(cellId) ?? null;
 };
 

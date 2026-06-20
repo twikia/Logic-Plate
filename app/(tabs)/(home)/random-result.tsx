@@ -9,8 +9,10 @@ import {
 } from '@/components/VibeStatsPodium';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
+import { fetchAiMenu } from '@/core/menuCache';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
+import { usePersistedAccordion } from '@/hooks/usePersistedAccordion';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
@@ -42,7 +44,7 @@ import { isOpenNow } from '../../../core/isOpenNow';
 import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
 
 const SCREEN_W = Dimensions.get('window').width;
-const HERO_H = 260;
+const HERO_H = 340;
 
 function openGoogleMaps(name: string, lat: number, lng: number) {
   const encoded = encodeURIComponent(name);
@@ -190,12 +192,18 @@ function SectionCard({
   icon,
   theme,
   children,
+  accordionKey,
+  defaultExpanded = true,
 }: {
   title: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   theme: ThemeRef;
   children: React.ReactNode;
+  accordionKey?: string;
+  defaultExpanded?: boolean;
 }) {
+  const { isExpanded, toggle } = usePersistedAccordion(accordionKey || title, defaultExpanded);
+
   return (
     <View
       style={[
@@ -203,15 +211,24 @@ function SectionCard({
         { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor },
       ]}
     >
-      <View style={styles.drawerHeader}>
+      <TouchableOpacity onPress={accordionKey ? toggle : undefined} style={styles.drawerHeader} activeOpacity={0.7} animated={false} disabled={!accordionKey}>
         <View style={[styles.drawerIconBg, { backgroundColor: theme.tint + '22' }]}>
           <Ionicons name={icon} size={15} color={theme.tint} />
         </View>
         <View style={styles.drawerHeaderText}>
           <Text style={[styles.drawerTitle, { color: theme.text }]}>{title}</Text>
         </View>
-      </View>
-      <View style={styles.drawerBody}>{children}</View>
+        {accordionKey ? (
+          <Ionicons 
+            name={isExpanded ? 'chevron-up' : 'chevron-down'} 
+            size={18} 
+            color={theme.subtext} 
+          />
+        ) : null}
+      </TouchableOpacity>
+      {(!accordionKey || isExpanded) ? (
+        <View style={styles.drawerBody}>{children}</View>
+      ) : null}
     </View>
   );
 }
@@ -289,6 +306,7 @@ export default function RandomResultScreen() {
   const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [heroPhotos, setHeroPhotos] = useState<any[]>(place.photos || []);
+  const [menuItems, setMenuItems] = useState<string[]>([]);
 
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
 
@@ -343,7 +361,22 @@ export default function RandomResultScreen() {
     };
     loadPhotos();
     return () => { cancelled = true; };
-  }, [place.id, name, lat, lng, place.websiteUri, place.formattedAddress, place.primaryType, place.photos]);
+  }, [place]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMenu = async () => {
+      if (!place || !place.id) return;
+      await new Promise(r => setTimeout(r, 600));
+      if (cancelled) return;
+      const items = await fetchAiMenu(place.id, place.websiteUri || undefined);
+      if (!cancelled && items.length > 0) {
+        setMenuItems(items);
+      }
+    };
+    loadMenu();
+    return () => { cancelled = true; };
+  }, [place]);
 
   const handleShare = async () => {
     try {
@@ -431,15 +464,33 @@ export default function RandomResultScreen() {
         >
           <ReAnimated.View entering={FadeIn.duration(350)}>
             <View style={styles.heroWrap}>
-            <RestaurantImage
-              restaurantId={place.id ?? 'unknown'}
-              photos={heroPhotos}
-              width={SCREEN_W}
-              height={HERO_H}
-              quality={800}
-              loadDelay={0}
-              borderRadius={0}
-            />
+              <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+                {heroPhotos.length > 0 ? heroPhotos.slice(0, 3).map((photo, i) => (
+                  <View key={i} style={{ width: SCREEN_W, height: HERO_H }}>
+                    <RestaurantImage
+                      restaurantId={`${place.id ?? 'unknown'}_${i}`}
+                      photos={[photo]}
+                      width={SCREEN_W}
+                      height={HERO_H}
+                      quality={800}
+                      loadDelay={0}
+                      borderRadius={0}
+                    />
+                  </View>
+                )) : (
+                  <View style={{ width: SCREEN_W, height: HERO_H }}>
+                    <RestaurantImage
+                      restaurantId={place.id ?? 'unknown'}
+                      photos={[]}
+                      width={SCREEN_W}
+                      height={HERO_H}
+                      quality={800}
+                      loadDelay={0}
+                      borderRadius={0}
+                    />
+                  </View>
+                )}
+              </ScrollView>
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.88)']}
               style={StyleSheet.absoluteFillObject}
@@ -521,6 +572,17 @@ export default function RandomResultScreen() {
               </View>
             ) : null}
 
+            {website ? (
+              <TouchableOpacity
+                style={[styles.primaryCtaBtn, { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                onPress={() => Linking.openURL(website)}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="globe-outline" size={20} color="#000" />
+                <Text style={styles.primaryCtaText}>{t('result.viewWebsite')}</Text>
+              </TouchableOpacity>
+            ) : null}
+
             {!ph ? (
               <View
                 style={[
@@ -558,8 +620,21 @@ export default function RandomResultScreen() {
               </View>
             ) : null}
 
+            {menuItems && menuItems.length > 0 ? (
+              <SectionCard title={t('result.topItems', 'Top 3 Items')} icon="restaurant-outline" theme={theme} accordionKey="menu">
+                <View style={{ gap: 8 }}>
+                  {menuItems.map((item, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
+                      <Text style={{ fontSize: 16, color: theme.accent, marginTop: 2 }}>•</Text>
+                      <Text style={[styles.bodyText, { color: theme.subtext, flex: 1 }]}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              </SectionCard>
+            ) : null}
+
             {!ph ? (
-              <SectionCard title={t('scores.performance')} icon="analytics-outline" theme={theme}>
+              <SectionCard title={t('scores.performance')} icon="analytics-outline" theme={theme} accordionKey="performance">
                 <VibeStatsPodium
                   ai={aiOverview}
                   theme={theme}
@@ -583,7 +658,7 @@ export default function RandomResultScreen() {
             ) : null}
 
             {!ph ? (
-              <SectionCard title={t('scores.nutrition')} icon="nutrition-outline" theme={theme}>
+              <SectionCard title={t('scores.nutrition')} icon="nutrition-outline" theme={theme} accordionKey="nutrition">
                 <View style={styles.chipsGrid}>
                   {sortedNutritionMetrics.map(m => (
                     <MetricChip
@@ -627,7 +702,7 @@ export default function RandomResultScreen() {
             ) : null}
 
             {hasContact || weekdays.length > 0 ? (
-              <SectionCard title={t('scores.contactHours')} icon="time-outline" theme={theme}>
+              <SectionCard title={t('scores.contactHours')} icon="time-outline" theme={theme} accordionKey="contact" defaultExpanded={false}>
                 {hasContact ? (
                   <>
                     {address ? (
@@ -754,6 +829,28 @@ export default function RandomResultScreen() {
 }
 
 const styles = StyleSheet.create({
+  primaryCtaBtn: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderWidth: 1,
+    shadowColor: '#F9A06F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    gap: 8,
+  },
+  primaryCtaText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '800',
+  },
   bg: { flex: 1 },
   root: { flex: 1 },
 

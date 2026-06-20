@@ -282,8 +282,16 @@ function RestaurantImageInner({
       )}
       <Image
         source={{ uri: activeUri! }}
-        style={{ width, height }}
+        style={[StyleSheet.absoluteFillObject, { width, height }]}
         contentFit="cover"
+        blurRadius={18}
+        transition={250}
+        cachePolicy="memory-disk"
+      />
+      <Image
+        source={{ uri: activeUri! }}
+        style={{ width, height }}
+        contentFit="contain"
         transition={250}
         onLoad={onLoad}
         onError={onError}

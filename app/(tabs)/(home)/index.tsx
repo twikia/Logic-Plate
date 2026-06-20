@@ -4,6 +4,7 @@ import {
 } from '@/components/RestaurantLoadingProgress';
 import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { NeonGradientTitle } from '@/components/NeonGradientTitle';
+import { RestaurantCarousel } from '@/components/RestaurantCarousel';
 import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -22,7 +23,10 @@ import {
   type SessionOverrides,
 } from '@/core/recommendationTypes';
 import { useFocusEffect } from '@react-navigation/native';
-import { DEFAULT_SEARCH_RADIUS_METERS } from '@/core/searchRadiusOptions';
+import {
+  DEFAULT_SEARCH_RADIUS_METERS,
+  MAX_SEARCH_RADIUS_METERS,
+} from '@/core/searchRadiusOptions';
 import { getCachedResults, setCachedResults } from '@/core/resultCache';
 import {
   getNearbyRestaurants,
@@ -703,26 +707,19 @@ function SpotlightCard({
     opacity: opacity.value,
   }));
 
+  const CARD_INNER_WIDTH = WINDOW_WIDTH - 40 - (SPOTLIGHT_CARD_INSET * 2);
+
   const cardBody = (
     <>
-      <View style={styles.spotlightThumbPinned}>
-        <RestaurantImage
-          restaurantId={String(place?.id ?? '')}
-          photos={place.photos || []}
-          width={SPOTLIGHT_THUMB_SIZE}
-          height={SPOTLIGHT_THUMB_SIZE}
-          quality={200}
-          loadDelay={300}
+      <View style={{ width: '100%', marginBottom: 12 }}>
+        <RestaurantCarousel
+          place={place}
+          width={CARD_INNER_WIDTH}
+          height={180}
           borderRadius={14}
-          name={name}
-          latitude={lat}
-          longitude={lng}
-          websiteUrl={place.websiteUri || undefined}
-          formattedAddress={place.formattedAddress || undefined}
-          cuisineKey={place.primaryType?.replace(/_restaurant$/, '') || undefined}
         />
       </View>
-      <View style={styles.spotlightHeroText}>
+      <View style={{ gap: 6, minHeight: 48 }}>
         <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
           {name}
         </Text>
@@ -1025,6 +1022,13 @@ export default function HomeScreen() {
       userLng: coords.longitude,
       rainyWeather: rainy === true ? true : undefined,
     });
+    
+    if (scored.length < 5 && sessionRadiusRef.current < MAX_SEARCH_RADIUS_METERS) {
+      sessionRadiusRef.current = Math.min(MAX_SEARCH_RADIUS_METERS, sessionRadiusRef.current * 1.5);
+      void loadSpotlightRef.current({ skipFullScreenLoader: true });
+      return;
+    }
+
     setRanked(scored);
     setRejectedIds(new Set());
     const nextVisibleLen = Math.max(0, scored.slice(0, 5).length - 1);
@@ -1070,7 +1074,7 @@ export default function HomeScreen() {
         return;
       }
       coordsRef.current = coords;
-      const rad = DEFAULT_SEARCH_RADIUS_METERS;
+      const rad = sessionRadiusRef.current;
       const cacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(rad)}`;
       const cached = await getCachedResults(cacheKey);
       if (cached && cached.length > 0) {

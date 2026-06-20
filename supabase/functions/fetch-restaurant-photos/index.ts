@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const MAX_OG_PHOTOS = 2;
+const MAX_OG_PHOTOS = 3;
 const MAX_WIKIMEDIA_PHOTOS = 3;
 const MAX_UNSPLASH_PHOTOS = 2;
 const MAX_TOTAL_PHOTOS = 6;
@@ -133,11 +133,42 @@ async function filterValidImageUrls(urls: string[]): Promise<string[]> {
 }
 
 /**
- * Extracts the OG image from a restaurant's website by fetching its HTML.
- * Returns up to `limit` OG/twitter image URLs.
+ * Scrapes a restaurant's website for images.
+ * Looks for OG images first, then standard <img> tags.
+ * If < limit images found, it attempts to find a /menu link and scrape that too.
  */
-async function fetchOgImages(websiteUrl: string, limit = 1): Promise<string[]> {
+async function scrapeWebsiteImages(websiteUrl: string, limit = 3): Promise<string[]> {
   if (!websiteUrl) return [];
+  const urls: string[] = [];
+
+  const extractImagesFromHtml = (html: string, baseUrl: string) => {
+    // 1. OG Images
+    const metaRegexes = [
+      /<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*>/gi
+    ];
+    for (const regex of metaRegexes) {
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(html)) !== null && urls.length < limit) {
+        const raw = match[1].trim();
+        const url = raw.startsWith('http') ? raw : resolveAbsoluteUrl(baseUrl, raw);
+        if (url.startsWith('http') && !urls.includes(url)) urls.push(url);
+      }
+    }
+
+    // 2. Standard <img> tags
+    const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    let imgMatch: RegExpExecArray | null;
+    while ((imgMatch = imgRegex.exec(html)) !== null && urls.length < limit) {
+      const raw = imgMatch[1].trim();
+      // Ignore tiny icons, svgs, or obvious UI elements
+      if (raw.endsWith('.svg') || raw.endsWith('.gif') || raw.includes('logo') || raw.includes('icon') || raw.includes('spinner')) continue;
+      
+      const url = raw.startsWith('http') ? raw : resolveAbsoluteUrl(baseUrl, raw);
+      if (url.startsWith('http') && !urls.includes(url)) urls.push(url);
+    }
+  };
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
@@ -150,32 +181,41 @@ async function fetchOgImages(websiteUrl: string, limit = 1): Promise<string[]> {
     });
     clearTimeout(timeout);
 
-    if (!res.ok) return [];
+    if (!res.ok) return urls;
     const html = await res.text();
+    extractImagesFromHtml(html, websiteUrl);
 
-    const urls: string[] = [];
-    const metaRegex = /<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["'][^>]*>/gi;
-    const metaRegex2 = /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*>/gi;
-
-    for (const regex of [metaRegex, metaRegex2]) {
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(html)) !== null && urls.length < limit) {
-        const raw = match[1].trim();
-        const url = raw.startsWith('http')
-          ? raw
-          : resolveAbsoluteUrl(websiteUrl, raw);
-        if (url.startsWith('http') && !urls.includes(url)) {
-          urls.push(url);
+    // If we don't have enough images, search for a menu/gallery endpoint
+    if (urls.length < limit) {
+      const menuLinkRegex = /<a[^>]+href=["']([^"']*(?:menu|gallery|photos|food)[^"']*)["'][^>]*>/i;
+      const menuMatch = menuLinkRegex.exec(html);
+      if (menuMatch) {
+        let menuUrl = menuMatch[1].trim();
+        if (!menuUrl.startsWith('http')) menuUrl = resolveAbsoluteUrl(websiteUrl, menuUrl);
+        
+        try {
+          const mController = new AbortController();
+          const mTimeout = setTimeout(() => mController.abort(), 5000);
+          const mRes = await fetch(menuUrl, {
+            signal: mController.signal,
+            headers: { 'User-Agent': FETCH_USER_AGENT, 'Accept': 'text/html' },
+          });
+          clearTimeout(mTimeout);
+          if (mRes.ok) {
+            const mHtml = await mRes.text();
+            extractImagesFromHtml(mHtml, menuUrl);
+          }
+        } catch (e) {
+          // ignore sub-scrape errors
         }
       }
-      if (urls.length >= limit) break;
     }
 
-    console.log(`[OG] Found ${urls.length} OG images from ${websiteUrl}`);
+    console.log(`[Scrape] Found ${urls.length} images from ${websiteUrl}`);
     return urls;
   } catch (err) {
-    console.log(`[OG] Failed to fetch OG image from ${websiteUrl}:`, (err as Error).message);
-    return [];
+    console.log(`[Scrape] Failed to scrape ${websiteUrl}:`, (err as Error).message);
+    return urls;
   }
 }
 
@@ -188,7 +228,6 @@ function buildWikimediaSearchQueries(
   const trimmedName = name.trim();
   if (!trimmedName) return queries;
 
-  const normalizedName = trimmedName.replace(/[''`]/g, '');
   const brandName = trimmedName.split(/\s[-–—|@]\s/)[0]?.trim() || trimmedName;
 
   let cityHint = '';
@@ -201,18 +240,18 @@ function buildWikimediaSearchQueries(
     }
   }
 
+  // Force generic queries to include restaurant or dining to avoid landscapes
   if (cityHint) {
-    queries.push(`${trimmedName} ${cityHint}`);
-    queries.push(`${brandName} ${cityHint}`);
+    queries.push(`${trimmedName} ${cityHint} restaurant`);
+    queries.push(`${brandName} ${cityHint} restaurant`);
   }
 
-  queries.push(trimmedName);
-  if (normalizedName !== trimmedName) queries.push(normalizedName);
   queries.push(`${trimmedName} restaurant`);
   queries.push(`${brandName} restaurant`);
+  queries.push(`${trimmedName} dining`);
 
   if (cuisineKey && cuisineKey !== 'default') {
-    queries.push(`${trimmedName} ${cuisineKey}`);
+    queries.push(`${trimmedName} ${cuisineKey} restaurant`);
   }
 
   return [...new Set(queries)];
@@ -396,25 +435,31 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase           = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('[Fetch] Running all photo tiers in parallel...');
-    const [rawOgUrls, rawWikimediaUrls, rawUnsplashUrls] = await Promise.all([
-      website_url
-        ? fetchOgImages(website_url, MAX_OG_PHOTOS)
-        : Promise.resolve([] as string[]),
-      fetchWikimediaImages(name, {
-        formattedAddress: formatted_address || undefined,
-        cuisineKey: cuisine_key || undefined,
-      }, MAX_WIKIMEDIA_PHOTOS),
-      fetchUnsplashImages(cuisine_key || 'default', unsplashKey, MAX_UNSPLASH_PHOTOS),
-    ]);
+    console.log('[Fetch] Trying website scrape first...');
+    const rawOgUrls = website_url
+      ? await scrapeWebsiteImages(website_url, MAX_OG_PHOTOS)
+      : [];
 
-    console.log(`[Fetch] Raw counts — OG: ${rawOgUrls.length}, Wikimedia: ${rawWikimediaUrls.length}, Unsplash: ${rawUnsplashUrls.length}`);
+    const ogUrls = await filterValidImageUrls(rawOgUrls);
 
-    const [ogUrls, wikimediaUrls, unsplashUrls] = await Promise.all([
-      filterValidImageUrls(rawOgUrls),
-      filterValidImageUrls(rawWikimediaUrls),
-      filterValidImageUrls(rawUnsplashUrls),
-    ]);
+    let wikimediaUrls: string[] = [];
+    let unsplashUrls: string[] = [];
+
+    // Fallback strictly ONLY if we have 0 photos
+    if (ogUrls.length === 0) {
+      console.log('[Fetch] No website images found. Falling back to Wikimedia and Unsplash.');
+      const [rawWikimediaUrls, rawUnsplashUrls] = await Promise.all([
+        fetchWikimediaImages(name, {
+          formattedAddress: formatted_address || undefined,
+          cuisineKey: cuisine_key || undefined,
+        }, MAX_WIKIMEDIA_PHOTOS),
+        fetchUnsplashImages(cuisine_key || 'default', unsplashKey, MAX_UNSPLASH_PHOTOS),
+      ]);
+      wikimediaUrls = await filterValidImageUrls(rawWikimediaUrls);
+      unsplashUrls = await filterValidImageUrls(rawUnsplashUrls);
+    } else {
+      console.log(`[Fetch] Found ${ogUrls.length} website images. Skipping fallbacks.`);
+    }
 
     const photoUrls = dedupeUrls([
       ...ogUrls,
@@ -422,7 +467,7 @@ serve(async (req) => {
       ...unsplashUrls,
     ]).slice(0, MAX_TOTAL_PHOTOS);
 
-    console.log(`[Done] Validated photos: ${photoUrls.length} (OG: ${ogUrls.length}, Wikimedia: ${wikimediaUrls.length}, Unsplash: ${unsplashUrls.length})`);
+    console.log(`[Done] Validated photos: ${photoUrls.length} (OG/Web: ${ogUrls.length}, Wikimedia: ${wikimediaUrls.length}, Unsplash: ${unsplashUrls.length})`);
 
     const upsertError = await upsertPhotoCache(supabase, {
       google_place_id: place_id,

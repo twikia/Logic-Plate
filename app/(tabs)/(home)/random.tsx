@@ -47,8 +47,9 @@ import {
 } from '../../../core/restaurantOrchestrator';
 import {
   DEFAULT_SEARCH_RADIUS_METERS,
-  SEARCH_RADIUS_OPTIONS_METERS,
-} from '../../../core/searchRadiusOptions';
+  MAX_SEARCH_RADIUS_METERS,
+  MIN_SEARCH_RADIUS_METERS,
+} from '@/core/searchRadiusOptions';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import {
   getScenarioPreferredSort,
@@ -667,7 +668,6 @@ export default function RandomScreen() {
 
   const changeRadius = (val: number) => {
     setRadius(val);
-    setShowRadius(false);
     loadResults(val);
   };
 
@@ -832,28 +832,22 @@ export default function RandomScreen() {
         </View>
 
         {showRadius && (
-          <View style={[styles.radiusPicker, { backgroundColor: tc.panelBg, borderColor: tc.panelBorder, borderWidth: 1 }]}>
-            {SEARCH_RADIUS_OPTIONS_METERS.map(s => (
-              <TouchableOpacity
-                key={s}
-                style={[
-                  styles.radiusOption,
-                  { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
-                  radius === s && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
-                ]}
-                onPress={() => changeRadius(s)}
-              >
-                <Text
-                  style={[
-                    styles.radiusOptionText,
-                    { color: theme.subtext },
-                    radius === s && { color: tc.chipActiveText },
-                  ]}
-                >
-                  {formatLabel(s)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={[styles.radiusPicker, { backgroundColor: tc.panelBg, borderColor: tc.panelBorder, borderWidth: 1, padding: 16, alignItems: 'stretch' }]}>
+            <Text style={{ color: theme.text, textAlign: 'center', marginBottom: 16, fontSize: 16, fontWeight: '700' }}>
+              {formatLabel(radius)}
+            </Text>
+            <Slider
+              style={{ width: '100%', height: 40 }}
+              minimumValue={MIN_SEARCH_RADIUS_METERS}
+              maximumValue={MAX_SEARCH_RADIUS_METERS}
+              step={100}
+              value={radius}
+              onValueChange={setRadius}
+              onSlidingComplete={changeRadius}
+              minimumTrackTintColor={theme.accent}
+              maximumTrackTintColor={tc.chipBorder}
+              thumbTintColor={theme.accent}
+            />
           </View>
         )}
 

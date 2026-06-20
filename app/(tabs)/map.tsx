@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, View, Text, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
-import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
+import { FlatList, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
+import Slider from '@react-native-community/slider';
 import MapView, { Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +19,7 @@ import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOvervie
 import {
   DEFAULT_SEARCH_RADIUS_METERS,
   MAX_SEARCH_RADIUS_METERS,
-  SEARCH_RADIUS_OPTIONS_METERS,
+  MIN_SEARCH_RADIUS_METERS,
 } from '@/core/searchRadiusOptions';
 import { RestaurantImage } from '@/core/images';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -580,7 +581,6 @@ export default function MapScreen() {
     const clamped = Math.min(newRadius, MAX_SEARCH_RADIUS_METERS);
     mapSessionRadius = clamped;
     setRadius(clamped);
-    setShowRadiusPicker(false);
     setShowSortPicker(false);
     if (clamped > mapSessionFetchedRadius) {
       const coords = mapSessionUserCoords ?? userCoords;
@@ -680,22 +680,22 @@ export default function MapScreen() {
           </TouchableOpacity>
 
           {showRadiusPicker && (
-            <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              {SEARCH_RADIUS_OPTIONS_METERS.map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  style={[
-                    styles.pickerOption,
-                    { borderColor: isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' },
-                    radius === r && { backgroundColor: theme.accent, borderColor: theme.accent }
-                  ]}
-                  onPress={() => handleRadiusChange(r)}
-                >
-                  <Text style={[styles.pickerOptionText, { color: theme.text }, radius === r && { color: '#FFF' }]}>
-                    {formatLabel(r)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={[styles.pickerContainer, { padding: 16, width: 220, alignItems: 'stretch', backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+              <Text style={{ color: theme.text, textAlign: 'center', marginBottom: 12, fontSize: 16, fontWeight: '700' }}>
+                {formatLabel(radius)}
+              </Text>
+              <Slider
+                style={{ width: '100%', height: 40 }}
+                minimumValue={MIN_SEARCH_RADIUS_METERS}
+                maximumValue={MAX_SEARCH_RADIUS_METERS}
+                step={100}
+                value={radius}
+                onValueChange={setRadius}
+                onSlidingComplete={handleRadiusChange}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}
+                thumbTintColor={theme.accent}
+              />
             </View>
           )}
 

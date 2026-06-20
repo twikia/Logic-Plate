@@ -61,7 +61,10 @@ export function CuisineImageStrip({ sources, isActive }: Props) {
         contentContainerStyle={styles.scrollContent}
       >
         {loopSources.map((src, index) => (
-          <Image key={index} source={src} style={styles.slide} contentFit="cover" transition={0} />
+          <View key={index} style={styles.slide}>
+            <Image source={src} style={[StyleSheet.absoluteFillObject, { borderRadius: 14 }]} contentFit="cover" blurRadius={12} transition={0} />
+            <Image source={src} style={[StyleSheet.absoluteFillObject, { borderRadius: 14 }]} contentFit="contain" transition={0} />
+          </View>
         ))}
       </ScrollView>
     </View>
