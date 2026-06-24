@@ -63,7 +63,12 @@
       "router": {},
       "eas": {
         "projectId": "f6bde16f-dbb7-4c67-ab87-3f5ebd101b6f"
-      }
+      },
+      "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",
+      "supabaseKey": "$EXPO_PUBLIC_SUPABASE_KEY",
+      "appSecret": "$EXPO_PUBLIC_APP_SECRET",
+      "voteBaseUrl": "$EXPO_PUBLIC_VOTE_BASE_URL",
+      "googleMapsApiKeyAndroid": "$GOOGLE_MAPS_API_KEY_ANDROID"
     },
     "owner": "twikias-organization",
     "runtimeVersion": {
