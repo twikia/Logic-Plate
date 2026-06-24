@@ -1086,19 +1086,34 @@ export default function HomeScreen() {
         snapProgressComplete();
       }
       startFetchPhase();
-      const all = await getNearbyRestaurants(
-        coords.latitude,
-        coords.longitude,
-        rad,
-        hadCachedPlaces ? undefined : onOrchestratorProgress,
-        {
-          onAiReady: enriched => {
-            void setCachedResults(cacheKey, enriched);
-            setRawPlaces(enriched);
-          },
-        }
-      );
-      await setCachedResults(cacheKey, all);
+      
+      let all: any[] = [];
+      let currentRad = rad;
+      let finalCacheKey = cacheKey;
+      
+      while (currentRad <= MAX_SEARCH_RADIUS_METERS) {
+        all = await getNearbyRestaurants(
+          coords.latitude,
+          coords.longitude,
+          currentRad,
+          hadCachedPlaces ? undefined : onOrchestratorProgress,
+          {
+            onAiReady: enriched => {
+              void setCachedResults(finalCacheKey, enriched);
+              setRawPlaces(enriched);
+            },
+          }
+        );
+        if (all.length > 0 || currentRad >= MAX_SEARCH_RADIUS_METERS) break;
+        
+        currentRad = Math.min(currentRad * 2, MAX_SEARCH_RADIUS_METERS);
+        finalCacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(currentRad)}`;
+        console.log(`[Auto-fallback] No restaurants found, stepping up radius to ${currentRad}m...`);
+        // Force hadCachedPlaces false so progress bar runs for next pass
+        hadCachedPlaces = false;
+      }
+
+      await setCachedResults(finalCacheKey, all);
       setRawPlaces(all);
     } catch (e) {
       if (isRestaurantLoadSupersededError(e)) {
@@ -1117,7 +1132,8 @@ export default function HomeScreen() {
       spotlightLoadingRef.current = false;
       snapProgressComplete();
       if (!skipLoader) {
-        setIsLoading(false);
+        // Small delay to allow state to flush to UI before hiding loader
+        setTimeout(() => setIsLoading(false), 50);
       }
     }
   }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase]);

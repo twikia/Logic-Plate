@@ -57,7 +57,7 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
     subtitle: 'What you want from meals for your body and goals.',
     metrics: [
       { key: 'health', label: 'Health', hint: 'Wholesome, less processed picks', icon: '💚' },
-      { key: 'protein', label: 'Protein', hint: 'Protein-forward menus', icon: '🥩' },
+      { key: 'valueForMoney', label: 'Value for money', hint: 'Great bang for your buck', icon: '🤑' },
       { key: 'taste', label: 'Taste', hint: 'AI flavor and menu quality', icon: '👅' },
       {
         key: 'calories',

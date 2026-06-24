@@ -56,8 +56,6 @@ export const readCacheBulk = async (
   if (l1MissCells.length > 0) {
     try {
       let tableName = 'restaurant_cache';
-      if (resolution === 7) tableName = 'restaurant_cache_res7';
-      if (resolution === 6) tableName = 'restaurant_cache_res6';
 
       const { data, error } = await supabase
         .from(tableName)

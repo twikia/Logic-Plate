@@ -10,8 +10,8 @@ const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/1.0 (menu-fetcher; contact: support@platebound.app)';
 
 const SYSTEM_INSTRUCTION = `You are an expert culinary AI extracting menu items from restaurant website text.
-Return JSON ONLY at the root: an object with a single key "items" whose value is an array of strings.
-Each string must be a signature menu item or popular dish found in the text, ideally including a short description.
+Return JSON ONLY at the root: an object with a single key "items" whose value is an array of objects.
+Each object must represent a signature menu item or popular dish found in the text.
 Limit to the top 3 best items.
 If no food menu items can be confidently found, return an empty array [].`;
 
@@ -20,7 +20,15 @@ const responseSchema = {
   properties: {
     items: {
       type: 'ARRAY',
-      items: { type: 'STRING' },
+      items: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' },
+          price: { type: 'STRING', description: 'The price if found, e.g. $12.00. Empty string if not found.' },
+          overview: { type: 'STRING', description: 'A 1-sentence description or overview of the dish.' },
+        },
+        required: ['name', 'price', 'overview'],
+      },
     },
   },
   required: ['items'],
@@ -128,14 +136,14 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (!geminiApiKey) throw new Error('GEMINI_API_KEY missing');
 
-    const geminiUrl = \`https://generativelanguage.googleapis.com/v1beta/models/\${GEMINI_MODEL}:generateContent?key=\${encodeURIComponent(geminiApiKey)}\`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
 
     const response = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-        contents: [{ role: 'user', parts: [{ text: \`Extract from this text:\\n\${text}\` }] }],
+        contents: [{ role: 'user', parts: [{ text: `Extract from this text:\n${text}` }] }],
         generationConfig: {
           temperature: 0.1,
           responseMimeType: 'application/json',
@@ -155,7 +163,13 @@ serve(async (req) => {
       try {
         const parsed = JSON.parse(rawText);
         if (Array.isArray(parsed.items)) {
-          items = parsed.items.slice(0, 3);
+          const rawItems = parsed.items.slice(0, 3);
+          items = rawItems.map((item: any) => {
+            if (typeof item === 'string') return item;
+            const price = item.price ? ` - ${item.price}` : '';
+            const desc = item.overview ? `: ${item.overview}` : '';
+            return `${item.name}${price}${desc}`;
+          });
         }
       } catch {}
     }

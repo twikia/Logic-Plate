@@ -181,6 +181,7 @@ const en = {
   result: {
     matchScore: 'Match Score',
     healthScore: 'Health Score',
+    viewWebsite: 'Website',
     noSummary: 'No summary yet.',
     pickAgain: 'Pick Again',
     mapPage: 'Map Page',

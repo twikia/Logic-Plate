@@ -100,10 +100,13 @@ const FALLBACK_ICONS: IonName[] = [
 export function markerIconForPlace(place: any): IonName {
   const pt = String(place?.primaryType || '').toLowerCase();
   if (pt && PRIMARY_TYPE_ICONS[pt]) return PRIMARY_TYPE_ICONS[pt]!;
-  const id = String(place?.id || pt || '');
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) | 0;
+  
+  if (Array.isArray(place?.types)) {
+    for (const t of place.types) {
+      const typeStr = String(t).toLowerCase();
+      if (PRIMARY_TYPE_ICONS[typeStr]) return PRIMARY_TYPE_ICONS[typeStr]!;
+    }
   }
-  return FALLBACK_ICONS[Math.abs(h) % FALLBACK_ICONS.length] ?? 'restaurant';
+  
+  return 'restaurant';
 }

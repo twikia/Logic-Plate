@@ -61,10 +61,8 @@ serve(async (req) => {
         let searchRadius = 600.0;
 
         if (resolution === 7) {
-          tableName = 'restaurant_cache_res7';
           searchRadius = 1500.0;
         } else if (resolution === 6) {
-          tableName = 'restaurant_cache_res6';
           searchRadius = 4000.0;
         }
 

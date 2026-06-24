@@ -1,4 +1,4 @@
-import { getCellsInRadiusDynamic, getCellCenter } from './h3Utils';
+import { getCellsInRadiusDynamic, getCellCenter, getChildCells } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
 import { readCacheBulk, writeCache } from './cacheManager';
 import { supabase } from './supabaseClient';
@@ -108,6 +108,18 @@ async function loadNearbyRestaurantsInternal(
   hits.forEach(restaurants => {
     allRestaurants = allRestaurants.concat(restaurants);
   });
+
+  if (resolution < 8) {
+    const childCellIds: string[] = [];
+    for (const id of cellIds) {
+      childCellIds.push(...getChildCells(id, 8));
+    }
+    const { hits: childHits } = await readCacheBulk(childCellIds, 8);
+    childHits.forEach(restaurants => {
+      allRestaurants = allRestaurants.concat(restaurants);
+    });
+    console.log(`Merged child (res 8) cache data: found ${childHits.size} child cells cached.`);
+  }
 
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });

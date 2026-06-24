@@ -66,3 +66,7 @@ export const getCellsInRadiusDynamic = (lat: number, lng: number, radiusMeters: 
   const cellIds = h3.kRing(centerCell, ringSize);
   return { cellIds, resolution };
 };
+
+export const getChildCells = (cellId: string, childRes: number): string[] => {
+  return h3.h3ToChildren(cellId, childRes);
+};

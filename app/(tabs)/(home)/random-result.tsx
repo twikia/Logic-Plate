@@ -498,6 +498,11 @@ export default function RandomResultScreen() {
             />
             <View style={[styles.heroOverlay, { paddingTop: insets.top + 52 }]}>
               <View style={styles.badgeRow}>
+                {plateboundScore != null ? (
+                  <View style={[styles.typeBadge, { borderColor: accentHex + '66', backgroundColor: accentHex + '22' }]}>
+                    <Text style={[styles.typeBadgeText, { color: accentHex }]}>{plateboundScore.toFixed(1)} Match</Text>
+                  </View>
+                ) : null}
                 {type ? (
                   <View style={[styles.typeBadge, { borderColor: theme.tint + '66' }]}>
                     <Text style={[styles.typeBadgeText, { color: '#FFFFFF' }]}>{type}</Text>

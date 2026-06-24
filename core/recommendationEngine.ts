@@ -131,7 +131,7 @@ const NORM_WEIGHT_KEYS = [
   'cost',
   'distance',
   'health',
-  'protein',
+  'valueForMoney',
   'cuisine',
   'taste',
   'ratingAdherence',
@@ -142,7 +142,7 @@ const NEUTRAL_BLEND: Record<(typeof NORM_WEIGHT_KEYS)[number], number> = {
   speed: 0.08,
   cost: 0.12,
   health: 0.12,
-  protein: 0.06,
+  valueForMoney: 0.06,
   taste: 0.1,
   ratingAdherence: 0.22,
   cuisine: 0.1,
@@ -256,15 +256,14 @@ function rawSpeedScore(place: any): number {
   return Math.max(0, Math.min(100, score));
 }
 
-function rawProteinScore(place: any): number {
+function rawValueForMoneyScore(place: any, ratingRaw: number): number {
   const ai = aiOf(place);
-  const fromAi = aiScore0to5(ai, 'proteinScore', NaN);
+  const fromAi = aiScore0to5(ai, 'valueScore', NaN);
   if (Number.isFinite(fromAi)) return fromAi;
-  const pt = String(place?.primaryType || '').toLowerCase();
-  if (pt.includes('steak') || pt.includes('seafood') || pt === 'poke_restaurant') return 78;
-  if (pt.includes('salad') || pt === 'juice_shop') return 55;
-  if (HEAVY_TYPES.has(pt)) return 35;
-  return 50;
+  const cheap = rawCheapnessScore(place);
+  const expensiveness = Math.max(0, Math.min(1, (100 - cheap) / 93));
+  const value = cheap + expensiveness * (ratingRaw - cheap) * 0.9; // Better rating increases value of expensive places
+  return Math.max(0, Math.min(100, value));
 }
 
 function rawCalorieScore(place: any): number {
@@ -453,13 +452,13 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     const ratingRaw = rawRatingScore(place);
     const pRaw = rawPriceScore(place, ratingRaw, w.cost);
     const speedRaw = rawSpeedScore(place);
-    const proteinRaw = rawProteinScore(place);
+    const valueRaw = rawValueForMoneyScore(place, ratingRaw);
     const calorieRaw = rawCalorieScore(place);
     const tasteRaw = rawTasteScore(place);
     const cuisineFitRaw = rawCuisineFitScore(place, prefs.favoriteCuisines);
     const calorieContrib = caloriePreferenceContribution(calorieRaw, prefs.weights.calories);
 
-    const healthBlend = hRaw * 0.55 + proteinRaw * 0.45;
+    const healthBlend = hRaw * 0.7 + calorieRaw * 0.3;
 
     const mealM = mealModifierForPrimary(String(place?.primaryType || 'restaurant').toLowerCase(), session.mealType);
     const groupM = groupModifier(place, session.groupSize);
@@ -481,8 +480,8 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
 
     const weightedParts = {
       distance: dRaw * nw.distance + speedRaw * nw.speed,
-      health: hRaw * nw.health + proteinRaw * nw.protein + calorieContrib,
-      price: pRaw * nw.cost,
+      health: hRaw * nw.health + calorieContrib,
+      price: pRaw * nw.cost + valueRaw * nw.valueForMoney,
       rating: tasteRaw * nw.taste + ratingRaw * nw.ratingAdherence,
       novelty: cuisineFitRaw * nw.cuisine,
     };
@@ -492,7 +491,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       { strength: importanceToStrength(w.speed), rawScore: speedRaw },
       { strength: importanceToStrength(w.cost), rawScore: pRaw },
       { strength: importanceToStrength(w.health), rawScore: hRaw },
-      { strength: importanceToStrength(w.protein), rawScore: proteinRaw },
+      { strength: importanceToStrength(w.valueForMoney), rawScore: valueRaw },
       { strength: importanceToStrength(w.taste), rawScore: tasteRaw },
       { strength: importanceToStrength(w.ratingAdherence), rawScore: ratingRaw },
       { strength: importanceToStrength(w.cuisine), rawScore: cuisineFitRaw },
@@ -511,7 +510,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     checkMismatch(importanceToStrength(w.speed), speedRaw);
     checkMismatch(importanceToStrength(w.cost), pRaw);
     checkMismatch(importanceToStrength(w.health), hRaw);
-    checkMismatch(importanceToStrength(w.protein), proteinRaw);
+    checkMismatch(importanceToStrength(w.valueForMoney), valueRaw);
     checkMismatch(importanceToStrength(w.taste), tasteRaw);
     checkMismatch(importanceToStrength(w.ratingAdherence), ratingRaw);
     checkMismatch(importanceToStrength(w.cuisine), cuisineFitRaw);
