@@ -32,11 +32,11 @@ export function useDistanceFormatter() {
     }
   };
 
-  /** Brisk walk (~6.2 km/h) — slightly faster than typical map walking ETA. */
+  /** Typical walk (~4.8 km/h) — more honest mapping ETA. */
   const formatWalkingTime = (meters: number): string => {
     const m = Math.max(0, Math.round(meters));
     if (m < 80) return '< 1 min walk';
-    const mins = Math.floor(m / (6200 / 60));
+    const mins = Math.floor(m / (4800 / 60));
     if (mins < 1) return '< 1 min walk';
     return `${mins} min walk`;
   };

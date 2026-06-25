@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY = 'random_picker_state_v1';
 
 export const RANDOM_SORT_KEYS = [
+  'matchScore',
   'distance',
   'price',
   'health',

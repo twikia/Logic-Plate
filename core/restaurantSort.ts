@@ -7,6 +7,7 @@ import {
 } from './randomPickerState';
 
 export const SORT_OPTION_KEYS: RandomSortBy[] = [
+  'matchScore',
   'distance',
   'price',
   'rating',
@@ -65,9 +66,13 @@ export type RestaurantSortInput = {
   rating?: number;
   priceLevel?: string;
   distanceMeters?: number;
+  matchScore?: number;
 };
 
 export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): number {
+  if (sortBy === 'matchScore') {
+    return r.matchScore ?? -1;
+  }
   const ai = r.aiOverview ?? null;
   if (sortBy === 'overall') {
     return calculatePlateboundScore(ai, r.rating, r.priceLevel);
@@ -110,6 +115,11 @@ export function mapSortRawHigherIsGreener(
   r: RestaurantSortInput,
   sortBy: RandomSortBy
 ): number {
+  if (sortBy === 'matchScore') {
+    const v = r.matchScore;
+    if (typeof v !== 'number' || !Number.isFinite(v)) return NaN;
+    return v;
+  }
   if (sortBy === 'distance') {
     const d = r.distanceMeters;
     if (typeof d !== 'number' || !Number.isFinite(d)) return NaN;
@@ -139,6 +149,10 @@ export function sortGoodness01(
   sortBy: RandomSortBy,
   radiusMeters: number
 ): number {
+  if (sortBy === 'matchScore') {
+    const v = r.matchScore ?? 0;
+    return Math.max(0, Math.min(1, v / 100));
+  }
   if (sortBy === 'distance') {
     const d = r.distanceMeters ?? 0;
     const rad = Math.max(radiusMeters, 1);

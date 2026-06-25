@@ -6,6 +6,7 @@ import {
   placeMatchesFavoriteCuisine,
 } from './recommendationCuisines';
 import { getRecommendationPrefs } from './recommendationPrefs';
+import { getLaunchIntent, type LaunchIntentCategory } from './launchIntent';
 import type { RecommendationWeights } from './recommendationTypes';
 import type {
   ImportanceLevel,
@@ -226,7 +227,7 @@ function hardExcludeClosed(place: any): boolean {
 function rawDistanceScore(distanceMeters: number, radiusMeters: number): number {
   if (!Number.isFinite(distanceMeters) || radiusMeters <= 0) return 0;
   const t = Math.min(1, Math.max(0, distanceMeters / radiusMeters));
-  return 100 * (1 - t);
+  return 100 * Math.pow(1 - t, 1.4);
 }
 
 function rawHealthScore(place: any): number {
@@ -258,7 +259,7 @@ function rawSpeedScore(place: any): number {
 
 function rawValueForMoneyScore(place: any, ratingRaw: number): number {
   const ai = aiOf(place);
-  const fromAi = aiScore0to5(ai, 'valueScore', NaN);
+  const fromAi = aiScore0to5(ai, 'valueForMoneyScore', NaN);
   if (Number.isFinite(fromAi)) return fromAi;
   const cheap = rawCheapnessScore(place);
   const expensiveness = Math.max(0, Math.min(1, (100 - cheap) / 93));
@@ -363,6 +364,39 @@ function timeFreshnessModifier(place: any, meal: MealTypeContext, weekendDinnerL
   return m;
 }
 
+function intentModifier(place: any, intent: LaunchIntentCategory | null): number {
+  if (!intent) return 0;
+  const pt = String(place?.primaryType || '').toLowerCase();
+  
+  if (intent === 'cafe_drinks') {
+    if (['cafe', 'coffee_shop', 'bakery', 'bar', 'night_club'].includes(pt)) return 30;
+    return -15;
+  }
+  if (intent === 'nice_meal') {
+    const pl = place?.priceLevel;
+    if (['fine_dining_restaurant', 'steak_house', 'seafood_restaurant'].includes(pt)) return 30;
+    if (pl === 'PRICE_LEVEL_EXPENSIVE' || pl === 'PRICE_LEVEL_VERY_EXPENSIVE') return 25;
+    if (['fast_food_restaurant', 'hamburger_restaurant'].includes(pt)) return -25;
+    return 0;
+  }
+  if (intent === 'quick_casual') {
+    if (['fast_food_restaurant', 'sandwich_shop', 'hamburger_restaurant', 'pizza_restaurant'].includes(pt)) return 30;
+    if (place?.takeout === true) return 15;
+    const pl = place?.priceLevel;
+    if (pl === 'PRICE_LEVEL_EXPENSIVE' || pl === 'PRICE_LEVEL_VERY_EXPENSIVE') return -25;
+    return 0;
+  }
+  if (intent === 'health_macros') {
+    const ai = place?.aiOverview;
+    const fromAi = typeof ai?.healthScore === 'number' ? ai.healthScore : 0;
+    if (fromAi >= 8) return 30;
+    if (['salad_shop', 'vegetarian_restaurant', 'vegan_restaurant', 'juice_shop'].includes(pt)) return 25;
+    if (['fast_food_restaurant', 'bar', 'dessert_restaurant'].includes(pt)) return -25;
+    return 0;
+  }
+  return 0;
+}
+
 function buildMatchPills(sr: Omit<ScoredRestaurant, 'matchPills'>): ScoredRestaurant['matchPills'] {
   const cands: { kind: MatchPillKind; emoji: string; label: string; score: number }[] = [
     { kind: 'distance', emoji: '📍', label: 'Close by', score: sr.weightedParts.distance },
@@ -464,6 +498,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     const groupM = groupModifier(place, session.groupSize);
     const moodM = moodModifier(place, session.sessionMood, prefs.favoriteCuisines);
     const timeM = timeFreshnessModifier(place, session.mealType, weekendDinner);
+    const intentM = intentModifier(place, getLaunchIntent());
 
     let rainM = 0;
     if (rainyWeather && place?.dineIn === true) {
@@ -476,6 +511,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       group: groupM,
       mood: moodM,
       time: timeM + rainM,
+      intent: intentM,
     };
 
     const weightedParts = {
@@ -522,13 +558,12 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       weightedParts.rating +
       weightedParts.novelty;
 
-    let plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time - mismatchPenalty));
+    let plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time + (modifiers as any).intent - mismatchPenalty));
     
-    // Curving function: boost lower scores to make them feel more exciting
-    // Maps ~60-70 to ~85-92
+    // Curving function: boost lower scores to make them feel like an actual match
     const t = plateboundScore / 100;
-    plateboundScore = Math.pow(t, 0.28) * 100;
-    plateboundScore = Math.max(0, Math.min(100, plateboundScore));
+    plateboundScore = Math.pow(t, 0.15) * 100;
+    plateboundScore = Math.max(0, Math.min(99, plateboundScore));
 
     const raw = {
       distance: dRaw,

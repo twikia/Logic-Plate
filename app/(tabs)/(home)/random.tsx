@@ -645,19 +645,22 @@ export default function RandomScreen() {
 
   useEffect(() => {
     if (!hydratedRef.current || isLoading || errorMsg) return;
-    saveRandomPickerState({
-      v: 1,
-      filter,
-      openOnly,
-      selectedPrices: Array.from(selectedPrices),
-      minRating,
-      selectedCuisines: Array.from(selectedCuisines),
-      sortBy,
-      minAiCutoffs: minAiCutoffs,
-      selectedIds: Array.from(selected),
-      scenarioKey,
-      scenarioFilterEnabled,
-    });
+    const timeoutId = setTimeout(() => {
+      saveRandomPickerState({
+        v: 1,
+        filter,
+        openOnly,
+        selectedPrices: Array.from(selectedPrices),
+        minRating,
+        selectedCuisines: Array.from(selectedCuisines),
+        sortBy,
+        minAiCutoffs: minAiCutoffs,
+        selectedIds: Array.from(selected),
+        scenarioKey,
+        scenarioFilterEnabled,
+      });
+    }, 500);
+    return () => clearTimeout(timeoutId);
   }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, minAiCutoffs, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
 
   const onRefresh = async () => {

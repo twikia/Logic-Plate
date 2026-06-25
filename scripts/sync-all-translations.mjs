@@ -146,7 +146,7 @@ for (const lang of ALL_LANGS) {
   const flat = await buildLang(enFlat, lang);
   const data = unflatten(flat);
   fs.writeFileSync(path.join(seedDir, `${lang}.json`), JSON.stringify(data, null, 2));
-  if (lang === 'es' || lang === 'fr') writeLocaleTs(lang, data);
+  if (lang === 'es' || lang === 'fr' || lang === 'pl') writeLocaleTs(lang, data);
   sqlStatements.push(
     `update public.app_languages\n` +
       `set strings = '${sqlEscapeJson(data)}'::jsonb,\n` +

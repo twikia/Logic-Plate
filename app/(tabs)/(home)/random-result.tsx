@@ -416,6 +416,8 @@ export default function RandomResultScreen() {
         : pScore >= 4.5
           ? t('result.matchTier.good')
           : t('result.matchTier.fair');
+  const matchPct = place._matchScore;
+  const matchAccentHex = matchPct != null ? scoreColor(matchPct / 10) : accentHex;
   const macroPills = aiOverview?.absoluteMacros
     ? parseMacroPills(aiOverview.absoluteMacros)
     : [];
@@ -498,11 +500,6 @@ export default function RandomResultScreen() {
             />
             <View style={[styles.heroOverlay, { paddingTop: insets.top + 52 }]}>
               <View style={styles.badgeRow}>
-                {plateboundScore != null ? (
-                  <View style={[styles.typeBadge, { borderColor: accentHex + '66', backgroundColor: accentHex + '22' }]}>
-                    <Text style={[styles.typeBadgeText, { color: accentHex }]}>{plateboundScore.toFixed(1)} Match</Text>
-                  </View>
-                ) : null}
                 {type ? (
                   <View style={[styles.typeBadge, { borderColor: theme.tint + '66' }]}>
                     <Text style={[styles.typeBadgeText, { color: '#FFFFFF' }]}>{type}</Text>
@@ -558,13 +555,24 @@ export default function RandomResultScreen() {
                   { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor },
                 ]}
               >
+                {matchPct != null ? (
+                  <OrbitalGauge
+                    score={matchPct}
+                    max={100}
+                    ringColor={matchAccentHex}
+                    theme={theme}
+                    centerText={`${Math.round(matchPct)}%`}
+                    centerSub={t('result.matchScore')}
+                    label={t('result.matchScore')}
+                  />
+                ) : null}
                 <OrbitalGauge
                   score={plateboundScore}
                   ringColor={accentHex}
                   theme={theme}
                   centerText={plateboundScore.toFixed(1)}
                   centerSub={plateboundWord}
-                  label={t('result.matchScore')}
+                  label="Platebound"
                 />
                 <OrbitalGauge
                   score={healthScore}

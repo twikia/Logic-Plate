@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, View, Text, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
 import { FlatList, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
@@ -38,6 +39,7 @@ import {
   mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
 import { tScoreLabel, tSortLabel } from '@/core/i18nLabels';
+import { scoreWithLoadedPrefs } from '@/core/recommendationEngine';
 
 function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
   if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
@@ -261,9 +263,18 @@ export default function MapScreen() {
   const [radius, setRadius] = useState(mapSessionRadius);
   const restaurantsRef = useRef<any[]>([]);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
-  const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('overall');
+  const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('matchScore');
   const [showSortPicker, setShowSortPicker] = useState(false);
+  const [hideClosed, setHideClosed] = useState(false);
   const [openStatusEpoch, setOpenStatusEpoch] = useState(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem('map_hide_closed').then(val => {
+      if (val != null) {
+        setHideClosed(JSON.parse(val));
+      }
+    });
+  }, []);
   const [sheetSnap, setSheetSnap] = useState<'peek' | 'full'>('peek');
 
   selectedRestaurantRef.current = selectedRestaurant;
@@ -286,9 +297,12 @@ export default function MapScreen() {
 
   const restaurants = useMemo(() => {
     const source = allRestaurants ?? [];
-    const filtered = source.filter((r) => (r.distanceMeters ?? Infinity) <= radius);
+    let filtered = source.filter((r) => (r.distanceMeters ?? Infinity) <= radius);
+    if (hideClosed) {
+      filtered = filtered.filter(r => isOpenNow(r));
+    }
     return withSelectedRestaurant(filtered);
-  }, [allRestaurants, radius, withSelectedRestaurant]);
+  }, [allRestaurants, radius, hideClosed, withSelectedRestaurant]);
 
   restaurantsRef.current = restaurants;
 
@@ -319,18 +333,22 @@ export default function MapScreen() {
     try {
       commitAllRestaurants([]);
       const results = await getNearbyRestaurants(lat, lng, fetchRadius, undefined, {
-        onAiReady: (enriched) => {
+        onAiReady: async (enriched) => {
           mapSessionFetchedRadius = fetchRadius;
-          commitAllRestaurants(enriched);
+          const scored = await scoreWithLoadedPrefs(enriched, { radiusMeters: fetchRadius } as any, lat, lng);
+          const placesWithMatchScore = scored.map(s => ({ ...s.place, matchScore: s.plateboundScore }));
+          commitAllRestaurants(placesWithMatchScore);
           setSelectedRestaurant((prev: any) => {
             if (!prev) return null;
-            const next = enriched.find((x: any) => x.id === prev.id);
+            const next = placesWithMatchScore.find((x: any) => x.id === prev.id);
             return next ?? prev;
           });
         },
       });
       mapSessionFetchedRadius = fetchRadius;
-      commitAllRestaurants(results);
+      const finalScored = await scoreWithLoadedPrefs(results, { radiusMeters: fetchRadius } as any, lat, lng);
+      const finalWithMatchScore = finalScored.map(s => ({ ...s.place, matchScore: s.plateboundScore }));
+      commitAllRestaurants(finalWithMatchScore);
     } catch (error) {
       if (isRestaurantLoadSupersededError(error)) {
         return;
@@ -718,6 +736,27 @@ export default function MapScreen() {
               {tSortLabel(mapSortBy)}
             </Text>
             <Ionicons name={showSortPicker ? 'chevron-up' : 'chevron-down'} size={12} color={theme.subtext} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[
+              styles.sortBtn,
+              {
+                backgroundColor: hideClosed ? theme.accent : theme.cardBackground,
+                borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              },
+            ]}
+            onPress={() => {
+              const next = !hideClosed;
+              setHideClosed(next);
+              AsyncStorage.setItem('map_hide_closed', JSON.stringify(next));
+            }}
+          >
+            <Ionicons name="time-outline" size={14} color={hideClosed ? '#FFF' : theme.accent} />
+            <Text style={[styles.radiusText, { color: hideClosed ? '#FFF' : theme.text }]}>
+              {hideClosed ? 'Closed hidden' : 'Hide closed'}
+            </Text>
           </TouchableOpacity>
 
           {showSortPicker && (

@@ -5,7 +5,8 @@ import {
 import { NeonBorderCard } from '@/components/NeonBorderCard';
 import { NeonGradientTitle } from '@/components/NeonGradientTitle';
 import { RestaurantCarousel } from '@/components/RestaurantCarousel';
-import { ScenarioQuickBar } from '@/components/ScenarioQuickBar';
+import { LaunchIntentSurvey } from '@/components/LaunchIntentSurvey';
+import { subscribeLaunchIntent } from '@/core/launchIntent';
 import { TopProfileButton } from '@/components/ui/TopProfileButton';
 import { useAppTheme } from '@/context/ThemeContext';
 import { setCurrentRestaurant } from '@/core/currentSelection';
@@ -342,6 +343,7 @@ function RestaurantScorePentagon({
   neon,
   variant = 'solid',
   gradientColors,
+  overallScore,
 }: {
   ai: AiOverview | null | undefined;
   stroke: string;
@@ -351,6 +353,7 @@ function RestaurantScorePentagon({
   neon?: boolean;
   variant?: 'solid' | 'gradient' | 'sketch' | 'watercolor';
   gradientColors?: [string, string];
+  overallScore?: number;
 }) {
   const gid = useId().replace(/:/g, '');
   const n = 5;
@@ -408,6 +411,29 @@ function RestaurantScorePentagon({
     ? 'transparent'
     : `${stroke}55`;
 
+  const centerScoreFill = overallScore != null
+    ? overallScore >= 80 ? '#4ADE80' : overallScore >= 50 ? '#FBBF24' : '#F87171'
+    : 'transparent';
+
+  const centerScoreText = overallScore != null ? Math.round(overallScore).toString() : '';
+
+  const renderCenter = () => {
+    if (overallScore == null) return null;
+    return (
+      <SvgText
+        x={cx}
+        y={cy + 3}
+        fill={centerScoreFill}
+        fontSize={20}
+        fontWeight="900"
+        textAnchor="middle"
+        alignmentBaseline="middle"
+      >
+        {centerScoreText}
+      </SvgText>
+    );
+  };
+
   if (useWatercolor) {
     const WFILLS = WATERCOLOR_FILLS;
     const fillPointsArr = norms.map((norm, i) => {
@@ -464,6 +490,7 @@ function RestaurantScorePentagon({
           <Polygon points={fillPts} fill="none" stroke="rgba(110,75,40,0.72)" strokeWidth={0.9} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="5.5 1.2 3.5 0.9 4.5 1 2.5 0.8 4 1.1" />
 
           {renderRadarAxisLabels(axes, ai, n, cx, cy, labelR, cornerFontSize, scoreFontSize, wcLabel)}
+          {renderCenter()}
         </Svg>
       </View>
     );
@@ -580,6 +607,7 @@ function RestaurantScorePentagon({
           />
 
           {renderRadarAxisLabels(axes, ai, n, cx, cy, labelR, cornerFontSize, scoreFontSize, ringLabel)}
+          {renderCenter()}
         </Svg>
       </View>
     );
@@ -602,6 +630,7 @@ function RestaurantScorePentagon({
         <Polygon points={polygonRing(cx, cy, R, n)} fill="rgba(128,128,128,0.05)" stroke={ringGrid} strokeWidth={outerGridSW} />
         <Polygon points={fillPts} fill={fillValue} stroke={ringStroke} strokeWidth={polygonSW} strokeLinejoin="round" />
         {renderRadarAxisLabels(axes, ai, n, cx, cy, labelR, cornerFontSize, scoreFontSize, ringLabel)}
+        {renderCenter()}
       </Svg>
     </View>
   );
@@ -711,15 +740,17 @@ function SpotlightCard({
 
   const cardBody = (
     <>
-      <View style={{ width: '100%', marginBottom: 12 }}>
+      <View style={styles.spotlightThumbPinned}>
         <RestaurantCarousel
           place={place}
-          width={CARD_INNER_WIDTH}
-          height={180}
+          width={SPOTLIGHT_THUMB_SIZE}
+          height={SPOTLIGHT_THUMB_SIZE}
           borderRadius={14}
+          startIndex={1}
+          autoRotate={true}
         />
       </View>
-      <View style={{ gap: 6, minHeight: 48 }}>
+      <View style={styles.spotlightHeroText}>
         <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
           {name}
         </Text>
@@ -809,6 +840,7 @@ function SpotlightCard({
           neon={neonUi}
           variant={radarVar}
           gradientColors={neonUi ? undefined : theme.matchOrbColors}
+          overallScore={scored.plateboundScore}
         />
       </View>
     </>
@@ -1038,6 +1070,12 @@ export default function HomeScreen() {
   }, [prefs, session, rawPlaces]);
 
   useEffect(() => {
+    return subscribeLaunchIntent(() => {
+      void recompute();
+    });
+  }, [recompute]);
+
+  useEffect(() => {
     void recompute();
   }, [recompute]);
 
@@ -1196,13 +1234,15 @@ export default function HomeScreen() {
     skipNextFocusReloadRef.current = true;
     markHomeOpeningDetails(pickIndexRef.current);
     await appendVisit(String(item.place?.id || ''), String(item.place?.primaryType || ''));
-    setCurrentRestaurant(item.place);
+    const enrichedPlace = { ...item.place, _matchScore: item.plateboundScore };
+    setCurrentRestaurant(enrichedPlace);
     setTimeout(() => {
       router.push('/random-result');
     }, 0);
   };
 
-  const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0;
+  // Fix loading flash: don't consider it noPlacesAtAll if we are still fetching or have a radius pending
+  const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0 && !spotlightLoadingRef.current;
   const homeBottomPad = tabBarHeight + 12;
   const rootNeon = Boolean(theme.neonColors);
   const [funTitle, setFunTitle] = useState(pickFunHomeTitle);
@@ -1226,8 +1266,33 @@ export default function HomeScreen() {
             )}
           </View>
 
-          <ScenarioQuickBar />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 8 }}>
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
+              onPress={() => {
+                hapticMedium();
+                const nextRad = sessionRadiusRef.current <= 805 ? 8046 : 804; // 0.5m ~ 804m, 5m ~ 8046m
+                sessionRadiusRef.current = nextRad;
+                setSession(s => (s ? { ...s, radiusMeters: nextRad } : s));
+              }}
+            >
+              <Ionicons name={sessionRadiusRef.current <= 805 ? "walk" : "car"} size={16} color={theme.accent} />
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>
+                {sessionRadiusRef.current <= 805 ? 'Walk (0.5 mi)' : 'Drive (5 mi)'}
+              </Text>
+            </TouchableOpacity>
 
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}
+              onPress={() => {
+                hapticMedium();
+                router.push('/scenarios' as any);
+              }}
+            >
+              <Text style={{ color: theme.subtext, fontWeight: '700', fontSize: 14 }}>More restaurants</Text>
+              <Ionicons name="chevron-forward" size={14} color={theme.subtext} />
+            </TouchableOpacity>
+          </View>
           {isLoading ? (
             <RestaurantLoadingProgressBar
               stageLabel={loadingStage}
@@ -1301,6 +1366,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.background, { backgroundColor: '#000000' }]}>
       {homeBody}
+      <LaunchIntentSurvey />
     </View>
   );
 }
