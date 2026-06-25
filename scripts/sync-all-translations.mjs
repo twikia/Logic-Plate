@@ -150,7 +150,6 @@ for (const lang of ALL_LANGS) {
   sqlStatements.push(
     `update public.app_languages\n` +
       `set strings = '${sqlEscapeJson(data)}'::jsonb,\n` +
-      `    translation_version = 2,\n` +
       `    updated_at = timezone('utc', now())\n` +
       `where code = '${lang}';`,
     ''

@@ -53,7 +53,7 @@ export const FALLBACK_LANGUAGES: AppLanguage[] = [
 ];
 
 let languageCatalog: AppLanguage[] | null = null;
-const loadedLanguages = new Set<string>([BUNDLED_LANGUAGE, 'es', 'fr', 'pl']);
+const loadedLanguages = new Set<string>([BUNDLED_LANGUAGE, 'es', 'fr']);
 
 export async function getLanguageCatalog(): Promise<AppLanguage[]> {
   if (languageCatalog) return languageCatalog;

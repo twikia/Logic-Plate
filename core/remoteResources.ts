@@ -54,13 +54,13 @@ export async function fetchAppLanguages(): Promise<AppLanguage[]> {
 export async function fetchTranslationVersion(langCode: string): Promise<number | null> {
   const { data, error } = await supabase
     .from('app_languages')
-    .select('translation_version, strings')
+    .select('updated_at')
     .eq('code', langCode)
     .maybeSingle();
 
   if (error) throw error;
-  if (!data?.strings) return null;
-  return data.translation_version ?? 1;
+  if (!data?.updated_at) return null;
+  return new Date(data.updated_at).getTime();
 }
 
 export async function fetchTranslation(
@@ -68,7 +68,7 @@ export async function fetchTranslation(
 ): Promise<{ strings: Record<string, unknown>; version: number } | null> {
   const { data, error } = await supabase
     .from('app_languages')
-    .select('strings, translation_version')
+    .select('strings, updated_at')
     .eq('code', langCode)
     .maybeSingle();
 
@@ -76,7 +76,7 @@ export async function fetchTranslation(
   if (!data?.strings) return null;
   return {
     strings: data.strings as Record<string, unknown>,
-    version: data.translation_version ?? 1,
+    version: data.updated_at ? new Date(data.updated_at).getTime() : 1,
   };
 }
 
