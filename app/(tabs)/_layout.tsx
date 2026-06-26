@@ -182,8 +182,9 @@ export default function TabLayout() {
     <LocationGate>
       <Tabs
         initialRouteName="(home)"
-        sceneContainerStyle={{ backgroundColor: '#000000' }}
+        backBehavior="history"
         screenOptions={{
+          sceneStyle: { backgroundColor: '#000000' },
           headerShown: false,
           tabBarShowLabel: false,
           tabBarButton: HapticTab,

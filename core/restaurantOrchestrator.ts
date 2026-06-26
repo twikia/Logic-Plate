@@ -59,6 +59,7 @@ export const isRestaurantFetchError = (e: unknown): e is RestaurantFetchError =>
 
 export type GetNearbyRestaurantsOptions = {
   onAiReady?: (places: any[]) => void;
+  onPlacesUpdated?: (places: any[]) => void;
   waitForAi?: boolean;
 };
 
@@ -79,6 +80,32 @@ let restaurantFetchPending: QueuedRestaurantTask | null = null;
 
 const mergeAiOntoPlaces = (finalList: any[], aiById: Map<string, AiOverview>) =>
   mergeAiOverviewsOntoPlaces(finalList, aiById);
+
+const formatAndSortPlaces = (rawPlaces: any[], userLat: number, userLng: number, safeRadius: number) => {
+  const uniqueRestaurantsMap = new Map<string, any>();
+  for (const place of rawPlaces) {
+    if (place.id && !uniqueRestaurantsMap.has(place.id)) {
+      uniqueRestaurantsMap.set(place.id, place);
+    }
+  }
+  return Array.from(uniqueRestaurantsMap.values())
+    .map(place => {
+      if (!place.location?.latitude || !place.location?.longitude) {
+        return { ...place, distanceMeters: Infinity };
+      }
+      return {
+        ...place,
+        distanceMeters: haversineDistance(
+          userLat,
+          userLng,
+          place.location.latitude,
+          place.location.longitude
+        ),
+      };
+    })
+    .filter(place => place.distanceMeters <= safeRadius)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+};
 
 async function loadNearbyRestaurantsInternal(
   userLat: number,
@@ -121,16 +148,21 @@ async function loadNearbyRestaurantsInternal(
     console.log(`Merged child (res 8) cache data: found ${childHits.size} child cells cached.`);
   }
 
+  // Page 1 (Synchronous immediate load)
+  let page1NewPlacesCount = 0;
+  let page1FetchedCellsCount = 0;
+
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
     const cellsToFetch = uncachedCells.slice(0, apiCallCap);
+    page1FetchedCellsCount = cellsToFetch.length;
     const missingCellsPayload = cellsToFetch.map(cellId => {
       const [lat, lng] = getCellCenter(cellId);
       return { cellId, lat, lng };
     });
 
     console.log(
-      `Database cache misses remain for ${uncachedCells.length} cells. Sending ${cellsToFetch.length} (cap: ${apiCallCap}) to fetch-missing-cells...`
+      `Database cache misses remain for ${uncachedCells.length} cells. Sending Page 1 (${cellsToFetch.length} cells) to fetch-missing-cells...`
     );
 
     let data: unknown;
@@ -176,6 +208,7 @@ async function loadNearbyRestaurantsInternal(
       for (const result of payload.newlyFetchedRestaurants) {
         await writeCache(result.cellId, result.places);
         allRestaurants = allRestaurants.concat(result.places);
+        page1NewPlacesCount += result.places?.length ?? 0;
       }
       if (allRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned zero restaurants');
@@ -186,51 +219,99 @@ async function loadNearbyRestaurantsInternal(
   }
 
   onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
-  const uniqueRestaurantsMap = new Map<string, any>();
-  for (const place of allRestaurants) {
-    if (place.id && !uniqueRestaurantsMap.has(place.id)) {
-      uniqueRestaurantsMap.set(place.id, place);
-    }
-  }
-
-  const finalList = Array.from(uniqueRestaurantsMap.values())
-    .map(place => {
-      if (!place.location?.latitude || !place.location?.longitude) {
-        return { ...place, distanceMeters: Infinity };
-      }
-      return {
-        ...place,
-        distanceMeters: haversineDistance(
-          userLat,
-          userLng,
-          place.location.latitude,
-          place.location.longitude
-        ),
-      };
-    })
-    .filter(place => place.distanceMeters <= safeRadius)
-    .sort((a, b) => a.distanceMeters - b.distanceMeters);
-
+  const finalList = formatAndSortPlaces(allRestaurants, userLat, userLng, safeRadius);
   const cachedAi = await getCachedAiOverviewsForPlaces(finalList);
   const baseList = mergeAiOntoPlaces(finalList, cachedAi);
 
-  const missingIds = finalList.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
+  const triggerUpdates = (placesWithAi: any[]) => {
+    options?.onPlacesUpdated?.(placesWithAi);
+    options?.onAiReady?.(placesWithAi);
+  };
 
-  const runAiMerge = async () => {
-    if (missingIds.length === 0) {
-      onProgress?.({ stage: 'done', progress: 1 });
+  const runAsyncNextPagesAndAi = async () => {
+    let currentRestaurants = [...allRestaurants];
+
+    // Page 2 Async
+    // Only call Page 2 if Page 1 maxed out its cell cap AND Page 1 actually found restaurants (not blank)
+    const shouldFetchPage2 = page1FetchedCellsCount === apiCallCap && page1NewPlacesCount > 0;
+    let page2NewPlacesCount = 0;
+
+    const page2Cells = uncachedCells.slice(apiCallCap, apiCallCap * 2);
+    if (shouldFetchPage2 && page2Cells.length > 0) {
+      const page2Payload = page2Cells.map(cellId => {
+        const [lat, lng] = getCellCenter(cellId);
+        return { cellId, lat, lng };
+      });
+      console.log(`[Async Page 2] Fetching ${page2Cells.length} missing cells via fetch-missing-cells-async...`);
+      try {
+        const res2 = await supabase.functions.invoke('fetch-missing-cells-async', {
+          body: { missingCells: page2Payload, resolution },
+          headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
+        });
+        if (jobSeq !== latestRestaurantJobSeq) return;
+        if (res2.data && Array.isArray(res2.data.newlyFetchedRestaurants)) {
+          for (const item of res2.data.newlyFetchedRestaurants) {
+            await writeCache(item.cellId, item.places);
+            currentRestaurants = currentRestaurants.concat(item.places);
+            page2NewPlacesCount += item.places?.length ?? 0;
+          }
+          const sorted2 = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
+          triggerUpdates(mergeAiOntoPlaces(sorted2, cachedAi));
+        }
+      } catch (err) {
+        console.error('[Async Page 2] Error:', err);
+      }
+    }
+
+    // Page 3 Async (Sequential check after Page 2)
+    // Only call Page 3 if Page 2 maxed out its cell cap AND Page 2 actually found restaurants (not blank)
+    const shouldFetchPage3 = shouldFetchPage2 && page2Cells.length === apiCallCap && page2NewPlacesCount > 0;
+    if (shouldFetchPage3) {
+      const page3Cells = uncachedCells.slice(apiCallCap * 2, apiCallCap * 3);
+      if (page3Cells.length > 0) {
+        const page3Payload = page3Cells.map(cellId => {
+          const [lat, lng] = getCellCenter(cellId);
+          return { cellId, lat, lng };
+        });
+        console.log(`[Async Page 3] Fetching ${page3Cells.length} missing cells via fetch-missing-cells-async...`);
+        try {
+          const res3 = await supabase.functions.invoke('fetch-missing-cells-async', {
+            body: { missingCells: page3Payload, resolution },
+            headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
+          });
+          if (jobSeq !== latestRestaurantJobSeq) return;
+          if (res3.data && Array.isArray(res3.data.newlyFetchedRestaurants)) {
+            for (const item of res3.data.newlyFetchedRestaurants) {
+              await writeCache(item.cellId, item.places);
+              currentRestaurants = currentRestaurants.concat(item.places);
+            }
+            const sorted3 = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
+            triggerUpdates(mergeAiOntoPlaces(sorted3, cachedAi));
+          }
+        } catch (err) {
+          console.error('[Async Page 3] Error:', err);
+        }
+      }
+    }
+
+    // Background AI Overviews Enrichment
+    const finalSorted = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
+    const missingAiIds = finalSorted.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
+    if (missingAiIds.length === 0) {
+      if (jobSeq === latestRestaurantJobSeq) {
+        onProgress?.({ stage: 'done', progress: 1 });
+      }
       return;
     }
     onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
     try {
-      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingIds);
+      const generated = await invokeGenerateAiOverviewsForPlaces(finalSorted, missingAiIds);
       if (jobSeq !== latestRestaurantJobSeq) return;
       for (const [k, v] of generated) {
         cachedAi.set(k, v);
       }
       if (generated.size > 0) {
-        const enriched = mergeAiOntoPlaces(finalList, cachedAi);
-        options?.onAiReady?.(enriched);
+        triggerUpdates(mergeAiOntoPlaces(finalSorted, cachedAi));
       }
     } catch (err) {
       console.error('Background AI overviews failed:', err);
@@ -241,22 +322,22 @@ async function loadNearbyRestaurantsInternal(
     }
   };
 
-  if (missingIds.length > 0) {
-    if (options?.waitForAi) {
+  if (options?.waitForAi) {
+    const missingAiIds = finalList.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
+    if (missingAiIds.length > 0) {
       onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
-      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingIds);
+      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingAiIds);
       for (const [k, v] of generated) {
         cachedAi.set(k, v);
       }
-      const enriched = mergeAiOntoPlaces(finalList, cachedAi);
-      onProgress?.({ stage: 'done', progress: 1 });
-      return enriched;
     }
-    void runAiMerge();
-  } else {
+    const enriched = mergeAiOntoPlaces(finalList, cachedAi);
     onProgress?.({ stage: 'done', progress: 1 });
+    void runAsyncNextPagesAndAi();
+    return enriched;
   }
 
+  void runAsyncNextPagesAndAi();
   return baseList;
 }
 

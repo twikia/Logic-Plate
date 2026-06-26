@@ -23,8 +23,10 @@ serve(async (req) => {
   }
 
   try {
-    const { missingCells, resolution: rawRes } = await req.json();
-    const resolution = Number(rawRes ?? 8);
+    const body = await req.json();
+    const missingCells = body.missingCells;
+    const rawRes = body.resolution ?? 8;
+    const resolution = Number(rawRes);
 
     if (!missingCells || !Array.isArray(missingCells)) {
       return new Response(JSON.stringify({ error: 'missingCells array is required' }), {
@@ -61,20 +63,15 @@ serve(async (req) => {
     const newlyFetchedRestaurants: { cellId: string; places: any[] }[] = [];
     const failedCells: { cellId: string; reason: string }[] = [];
 
-    // Fetch all cells in parallel. The orchestrator enforces the API call cap
-    // (7 cells for 0.8-mile search, 15 for 1.5-mile search) before invoking
-    // this function, so the incoming array is already within safe bounds.
+    let searchRadius = 600.0;
+    if (resolution === 7) {
+      searchRadius = 1500.0;
+    } else if (resolution === 6) {
+      searchRadius = 4000.0;
+    }
+
     const fetchTasks = missingCells.map((cell: {cellId: string, lat: number, lng: number}) => async () => {
       try {
-        let tableName = 'restaurant_cache';
-        let searchRadius = 600.0;
-
-        if (resolution === 7) {
-          searchRadius = 1500.0;
-        } else if (resolution === 6) {
-          searchRadius = 4000.0;
-        }
-
         const url = 'https://places.googleapis.com/v1/places:searchNearby';
         const requestBody = {
           includedTypes: [
@@ -87,7 +84,6 @@ serve(async (req) => {
             'mexican_restaurant', 'thai_restaurant', 'vegetarian_restaurant', 'vegan_restaurant',
             'meal_takeaway', 'meal_delivery',
           ],
-          // Mirrored from core/searchConfig.ts → PLACES_MAX_RESULTS_PER_CELL
           maxResultCount: 20,
           locationRestriction: {
             circle: {
@@ -95,7 +91,6 @@ serve(async (req) => {
                 latitude: cell.lat,
                 longitude: cell.lng,
               },
-              // Mirrored from core/searchConfig.ts dynamically
               radius: searchRadius,
             },
           },
@@ -175,7 +170,7 @@ serve(async (req) => {
 
         // Upsert to Supabase using service role key (bypasses RLS)
         const { error: dbError } = await supabase
-          .from(tableName)
+          .from('restaurant_cache')
           .upsert({
             id: cell.cellId,
             restaurants: places,

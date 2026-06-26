@@ -9,11 +9,14 @@ const corsHeaders = {
 const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/1.0 (menu-fetcher; contact: support@platebound.app)';
 
-const SYSTEM_INSTRUCTION = `You are an expert culinary AI extracting menu items from restaurant website text.
-Return JSON ONLY at the root: an object with a single key "items" whose value is an array of objects.
-Each object must represent a signature menu item or popular dish found in the text.
-Limit to the top 3 best items.
-If no food menu items can be confidently found, return an empty array [].`;
+const SYSTEM_INSTRUCTION = `You are an expert culinary AI extracting signature menu items from restaurant website text.
+Return JSON ONLY at the root: an object with a single key "items" whose value is an array of exactly 3 objects.
+Each object must represent a signature dish or top menu item.
+For each dish, you MUST include:
+1) "name": the exact name of the dish.
+2) "price": the exact price if found (e.g. "$18.00"), otherwise estimate a realistic local price.
+3) "overview": a concise 1-sentence overview describing the flavor profile and ingredients.
+If no food menu items can be found in the text, estimate 3 classic signature dishes based on the restaurant's cuisine.`;
 
 const responseSchema = {
   type: 'OBJECT',
@@ -24,8 +27,8 @@ const responseSchema = {
         type: 'OBJECT',
         properties: {
           name: { type: 'STRING' },
-          price: { type: 'STRING', description: 'The price if found, e.g. $12.00. Empty string if not found.' },
-          overview: { type: 'STRING', description: 'A 1-sentence description or overview of the dish.' },
+          price: { type: 'STRING', description: 'The price if found or estimated local price, e.g. $16.00.' },
+          overview: { type: 'STRING', description: 'A concise 1-sentence description or overview of the dish.' },
         },
         required: ['name', 'price', 'overview'],
       },

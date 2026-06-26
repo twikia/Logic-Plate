@@ -367,16 +367,14 @@ export default function RandomResultScreen() {
     let cancelled = false;
     const loadMenu = async () => {
       if (!place || !place.id) return;
-      await new Promise(r => setTimeout(r, 600));
-      if (cancelled) return;
-      const items = await fetchAiMenu(place.id, place.websiteUri || undefined);
+      const items = await fetchAiMenu(place.id, place.websiteUri || undefined, name, place.primaryType || undefined);
       if (!cancelled && items.length > 0) {
         setMenuItems(items);
       }
     };
     loadMenu();
     return () => { cancelled = true; };
-  }, [place]);
+  }, [place, name]);
 
   const handleShare = async () => {
     try {
@@ -585,6 +583,27 @@ export default function RandomResultScreen() {
               </View>
             ) : null}
 
+            {menuItems && menuItems.length > 0 ? (
+              <View style={{ marginTop: 12, marginBottom: 4 }}>
+                <SectionCard
+                  title="Top 3 Signature Items"
+                  icon="restaurant-outline"
+                  theme={theme}
+                  accordionKey="menu"
+                  defaultExpanded={true}
+                >
+                  <View style={{ gap: 10 }}>
+                    {menuItems.map((item, idx) => (
+                      <View key={idx} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                        <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>🍽️</Text>
+                        <Text style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </SectionCard>
+              </View>
+            ) : null}
+
             {website ? (
               <TouchableOpacity
                 style={[styles.primaryCtaBtn, { backgroundColor: theme.accent, borderColor: theme.accent }]}
@@ -631,19 +650,6 @@ export default function RandomResultScreen() {
                   </>
                 ) : null}
               </View>
-            ) : null}
-
-            {menuItems && menuItems.length > 0 ? (
-              <SectionCard title={t('result.topItems', 'Top 3 Items')} icon="restaurant-outline" theme={theme} accordionKey="menu">
-                <View style={{ gap: 8 }}>
-                  {menuItems.map((item, idx) => (
-                    <View key={idx} style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
-                      <Text style={{ fontSize: 16, color: theme.accent, marginTop: 2 }}>•</Text>
-                      <Text style={[styles.bodyText, { color: theme.subtext, flex: 1 }]}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-              </SectionCard>
             ) : null}
 
             {!ph ? (

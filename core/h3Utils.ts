@@ -70,3 +70,13 @@ export const getCellsInRadiusDynamic = (lat: number, lng: number, radiusMeters: 
 export const getChildCells = (cellId: string, childRes: number): string[] => {
   return h3.h3ToChildren(cellId, childRes);
 };
+
+/**
+ * Clamps any requested resolution strictly to supported cache sizes (8, 7, 6).
+ */
+export const clampResolution = (res: number): number => {
+  if (res >= 8) return 8;
+  if (res <= 6) return 6;
+  return 7;
+};
+

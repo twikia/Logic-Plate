@@ -22,7 +22,7 @@ export default function ScenariosScreen() {
       <SafeAreaView edges={['top']} style={styles.safe}>
         <View style={styles.header}>
           <BackButton onPress={() => router.back()} size={28} />
-          <Text style={[styles.title, { color: theme.text }]}>More Filters</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('scenarios.moreFilters', { defaultValue: 'More Filters' })}</Text>
           <View style={{ width: 40 }} />
         </View>
 

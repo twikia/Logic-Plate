@@ -335,7 +335,7 @@ export default function MapScreen() {
       const results = await getNearbyRestaurants(lat, lng, fetchRadius, undefined, {
         onAiReady: async (enriched) => {
           mapSessionFetchedRadius = fetchRadius;
-          const scored = await scoreWithLoadedPrefs(enriched, { radiusMeters: fetchRadius } as any, lat, lng);
+          const scored = await scoreWithLoadedPrefs(enriched, { radiusMeters: fetchRadius } as any, lat, lng, undefined, true);
           const placesWithMatchScore = scored.map(s => ({ ...s.place, matchScore: s.plateboundScore }));
           commitAllRestaurants(placesWithMatchScore);
           setSelectedRestaurant((prev: any) => {
@@ -346,7 +346,7 @@ export default function MapScreen() {
         },
       });
       mapSessionFetchedRadius = fetchRadius;
-      const finalScored = await scoreWithLoadedPrefs(results, { radiusMeters: fetchRadius } as any, lat, lng);
+      const finalScored = await scoreWithLoadedPrefs(results, { radiusMeters: fetchRadius } as any, lat, lng, undefined, true);
       const finalWithMatchScore = finalScored.map(s => ({ ...s.place, matchScore: s.plateboundScore }));
       commitAllRestaurants(finalWithMatchScore);
     } catch (error) {

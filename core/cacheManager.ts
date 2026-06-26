@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
+import { clampResolution } from './h3Utils';
 
 /**
  * Phase 3: Cache Read/Write Module
@@ -20,7 +21,9 @@ export const readCacheBulk = async (
   cellIds: string[],
   resolution: number = 8
 ): Promise<{ hits: Map<string, any[]>; misses: string[] }> => {
+  const validResolution = clampResolution(resolution);
   const now = Date.now();
+
   const hits = new Map<string, any[]>();
   const l1MissCells: string[] = [];
 
@@ -107,7 +110,7 @@ export const readCacheBulk = async (
  * Single-cell read (kept for legacy/edge use — prefer readCacheBulk for batches).
  */
 export const readCache = async (cellId: string, resolution: number = 8): Promise<any[] | null> => {
-  const { hits } = await readCacheBulk([cellId], resolution);
+  const { hits } = await readCacheBulk([cellId], clampResolution(resolution));
   return hits.get(cellId) ?? null;
 };
 

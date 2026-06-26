@@ -461,6 +461,7 @@ export type ScoreContextInput = {
   userLat: number;
   userLng: number;
   rainyWeather?: boolean;
+  includeClosed?: boolean;
 };
 
 export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): ScoredRestaurant[] {
@@ -473,7 +474,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
 
   const filtered = places.filter(place => {
     if (String(place?.businessStatus || 'OPERATIONAL') !== 'OPERATIONAL') return false;
-    if (hardExcludeClosed(place)) return false;
+    if (!ctx.includeClosed && hardExcludeClosed(place)) return false;
     const dm = typeof place?.distanceMeters === 'number' ? place.distanceMeters : Infinity;
     if (!Number.isFinite(dm) || dm > radius) return false;
     return true;
@@ -591,8 +592,9 @@ export async function scoreWithLoadedPrefs(
   session: SessionOverrides,
   userLat: number,
   userLng: number,
-  rainyWeather?: boolean
+  rainyWeather?: boolean,
+  includeClosed?: boolean
 ): Promise<ScoredRestaurant[]> {
   const prefs = await getRecommendationPrefs();
-  return scoreRestaurantPool(places, { prefs, session, userLat, userLng, rainyWeather });
+  return scoreRestaurantPool(places, { prefs, session, userLat, userLng, rainyWeather, includeClosed });
 }

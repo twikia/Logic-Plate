@@ -77,7 +77,7 @@ import {
   getOverviewMetric,
   lerpRedGreen,
 } from '../../../core/restaurantSort';
-import { RestaurantImage, fetchRestaurantPhotoUrls } from '../../../core/images';
+import { RestaurantImage } from '../../../core/images';
 import { placeOffersSweets } from '../../../core/placeSweets';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import type { ThemeColors } from '@/themes/types';
@@ -272,31 +272,6 @@ const RestaurantRow = React.memo(function RestaurantRow({
     healthNum != null ? lerpRedGreen(Math.max(0, Math.min(1, healthNum / 10))) : theme.subtext;
   const lat = item.location?.latitude;
   const lng = item.location?.longitude;
-  const [photos, setPhotos] = useState<any[]>(item.photos || []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadPhotos = async () => {
-      if (!item?.id || !name || typeof lat !== 'number' || typeof lng !== 'number') return;
-
-      const urls = await fetchRestaurantPhotoUrls({
-        placeId:          item.id,
-        name,
-        latitude:         lat,
-        longitude:        lng,
-        websiteUrl:       item.websiteUri || undefined,
-        formattedAddress: item.formattedAddress || undefined,
-        cuisineKey:       item.primaryType?.replace(/_restaurant$/, '') || undefined,
-      });
-
-      if (cancelled) return;
-      setPhotos(urls.length > 0 ? urls : (item.photos || []));
-    };
-
-    loadPhotos();
-    return () => { cancelled = true; };
-  }, [item?.id, name, lat, lng, item?.photos, item.primaryType, item.websiteUri, item.formattedAddress]);
 
   return (
     <View
@@ -316,12 +291,18 @@ const RestaurantRow = React.memo(function RestaurantRow({
         <View style={[styles.thumbWrap, { backgroundColor: theme.imageBackdrop }]}>
           <RestaurantImage
             restaurantId={item.id}
-            photos={photos}
+            photos={item.photos || []}
             width={52}
             height={52}
             quality={200}
             loadDelay={400}
             borderRadius={11}
+            name={name}
+            latitude={lat}
+            longitude={lng}
+            websiteUrl={item.websiteUri}
+            formattedAddress={item.formattedAddress}
+            cuisineKey={item.primaryType?.replace(/_restaurant$/, '')}
           />
         </View>
 
@@ -379,8 +360,10 @@ const RestaurantRow = React.memo(function RestaurantRow({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RandomScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const navigation = useNavigation();
   const { theme } = useAppTheme();
   const neonUi = Boolean(theme.neonColors);
@@ -425,6 +408,9 @@ export default function RandomScreen() {
       setPageTitle(pickFunSelectTitle());
     }, [])
   );
+  useEffect(() => {
+    setPageTitle(pickFunSelectTitle());
+  }, [i18n.language]);
 
   const pickBtnScale = useSharedValue(1);
   const pickBtnAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: pickBtnScale.value }] }));
@@ -494,12 +480,10 @@ export default function RandomScreen() {
   }, [allResults, applyDefaultFilters]);
 
   const handleBack = useCallback(() => {
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/(home)');
-    setTimeout(() => {
-      void resetFilters();
-    }, 0);
-  }, [resetFilters, router]);
+    hydratedRef.current = false;
+    void clearRandomPickerState();
+    router.navigate('/(tabs)/(home)');
+  }, [router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -513,8 +497,9 @@ export default function RandomScreen() {
 
   useEffect(() => {
     const unsub = navigation.addListener('beforeRemove', (e) => {
-      const type = e.data.action.type;
-      if (type === 'GO_BACK' || type === 'POP') {
+      const type = e?.data?.action?.type;
+      if (type === 'GO_BACK' || type === 'POP' || type === 'NAVIGATE' || type === 'REPLACE') {
+        hydratedRef.current = false;
         void clearRandomPickerState();
       }
     });
@@ -674,29 +659,31 @@ export default function RandomScreen() {
     loadResults(val);
   };
 
-  const filtered = allResults.filter(r => {
-    if (!((r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
-    if (openOnly) {
-      if (!isOpenNow(r)) return false;
-    }
-    if (selectedPrices.size > 0 && r.priceLevel && !selectedPrices.has(r.priceLevel)) return false;
-    if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
-    if (selectedCuisines.size > 0) {
-      const pType = r.primaryType;
-      const tTypes = r.types || [];
+  const filtered = useMemo(() => {
+    return allResults.filter(r => {
+      if (!((r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
+      if (openOnly) {
+        if (!isOpenNow(r)) return false;
+      }
+      if (selectedPrices.size > 0 && r.priceLevel && !selectedPrices.has(r.priceLevel)) return false;
+      if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
+      if (selectedCuisines.size > 0) {
+        const pType = r.primaryType;
+        const tTypes = r.types || [];
         const hasMatch = Array.from(selectedCuisines).some(cuisineKey => {
-        if (cuisineKey === 'dessert') return placeOffersSweets(r);
-        const mappedTypes = CUISINE_TYPE_MAP[cuisineKey] || [];
-        return mappedTypes.some(t => pType === t || tTypes.includes(t));
-      });
-      if (!hasMatch) return false;
-    }
-    if (scenarioFilterEnabled && scenarioKey && !restaurantMatchesScenario(r, scenarioKey)) {
-      return false;
-    }
-    if (!passesAiCutoffs(r, minAiCutoffs)) return false;
-    return true;
-  }).sort((a, b) => compareRestaurantsBySort(a, b, sortBy));
+          if (cuisineKey === 'dessert') return placeOffersSweets(r);
+          const mappedTypes = CUISINE_TYPE_MAP[cuisineKey] || [];
+          return mappedTypes.some(t => pType === t || tTypes.includes(t));
+        });
+        if (!hasMatch) return false;
+      }
+      if (scenarioFilterEnabled && scenarioKey && !restaurantMatchesScenario(r, scenarioKey)) {
+        return false;
+      }
+      if (!passesAiCutoffs(r, minAiCutoffs)) return false;
+      return true;
+    }).sort((a, b) => compareRestaurantsBySort(a, b, sortBy));
+  }, [allResults, filter, openOnly, selectedPrices, minRating, selectedCuisines, scenarioFilterEnabled, scenarioKey, minAiCutoffs, sortBy]);
 
   const allSelectedInView = filtered.length > 0 && filtered.every(r => selected.has(r.id));
 
@@ -725,15 +712,15 @@ export default function RandomScreen() {
     (item: any) => {
       setCurrentRestaurant(item);
       setTimeout(() => {
-        router.push('/random-result');
+        routerRef.current.push('/random-result');
       }, 0);
     },
-    [router]
+    []
   );
 
   const navigateToResult = useCallback(() => {
-    router.push('/random-result');
-  }, [router]);
+    routerRef.current.push('/random-result');
+  }, []);
 
   const pickOne = () => {
     const pool = filtered.filter(r => selected.has(r.id));

@@ -103,10 +103,54 @@ function addBundle(lang: string, strings: Record<string, unknown>): void {
   loadedLanguages.add(lang);
 }
 
+function getLocalSeed(lang: string): Record<string, unknown> | null {
+  try {
+    switch (lang) {
+      case 'zh': return require('../supabase/seed/translations/zh.json');
+      case 'hi': return require('../supabase/seed/translations/hi.json');
+      case 'es': return require('../supabase/seed/translations/es.json');
+      case 'fr': return require('../supabase/seed/translations/fr.json');
+      case 'ar': return require('../supabase/seed/translations/ar.json');
+      case 'bn': return require('../supabase/seed/translations/bn.json');
+      case 'pt': return require('../supabase/seed/translations/pt.json');
+      case 'ru': return require('../supabase/seed/translations/ru.json');
+      case 'ur': return require('../supabase/seed/translations/ur.json');
+      case 'id': return require('../supabase/seed/translations/id.json');
+      case 'de': return require('../supabase/seed/translations/de.json');
+      case 'ja': return require('../supabase/seed/translations/ja.json');
+      case 'sw': return require('../supabase/seed/translations/sw.json');
+      case 'mr': return require('../supabase/seed/translations/mr.json');
+      case 'te': return require('../supabase/seed/translations/te.json');
+      case 'tr': return require('../supabase/seed/translations/tr.json');
+      case 'ta': return require('../supabase/seed/translations/ta.json');
+      case 'vi': return require('../supabase/seed/translations/vi.json');
+      case 'ko': return require('../supabase/seed/translations/ko.json');
+      case 'it': return require('../supabase/seed/translations/it.json');
+      case 'th': return require('../supabase/seed/translations/th.json');
+      case 'gu': return require('../supabase/seed/translations/gu.json');
+      case 'pl': return require('../supabase/seed/translations/pl.json');
+      case 'uk': return require('../supabase/seed/translations/uk.json');
+      case 'ml': return require('../supabase/seed/translations/ml.json');
+      case 'kn': return require('../supabase/seed/translations/kn.json');
+      case 'pa': return require('../supabase/seed/translations/pa.json');
+      case 'nl': return require('../supabase/seed/translations/nl.json');
+      case 'ro': return require('../supabase/seed/translations/ro.json');
+      default: return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 export async function ensureLanguageLoaded(lang: string): Promise<boolean> {
   if (lang === BUNDLED_LANGUAGE) return true;
   if (loadedLanguages.has(lang) && i18n.hasResourceBundle(lang, 'translation')) {
     return true;
+  }
+
+  const localSeed = getLocalSeed(lang);
+  if (localSeed) {
+    addBundle(lang, localSeed);
   }
 
   const cached = await readTranslationCache(lang);
