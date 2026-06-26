@@ -2,7 +2,7 @@
   "expo": {
     "name": "Logic Plate",
     "slug": "platebound",
-    "version": "2.5",
+    "version": "2.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "restaurantapp",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.twikiastudios.logicplate",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "deploymentTarget": "15.1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Location access is needed to find nearby restaurants.",
@@ -19,7 +19,7 @@
       }
     },
     "android": {
-      "versionCode": 8,
+      "versionCode": 9,
       "blockedPermissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"

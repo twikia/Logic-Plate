@@ -50,3 +50,114 @@ Also pass the architecture flag on the Gradle command (belt-and-suspenders):
 | AAB on disk | ~45–50 MB (Play Store serves one ABI per device) |
 
 If the APK contains `x86`, `x86_64`, or `armeabi-v7a` under `lib/`, the build included extra architectures — fix `gradle.properties` and rebuild.
+
+## Version numbers (required before every store build)
+
+All version fields live in `app.json`. **Before starting an iOS or Android release build**, bump them so both platforms stay in sync — even if you are only building one platform this time.
+
+| Field | `app.json` path | Example | Rule |
+|-------|-----------------|--------|------|
+| User-facing version | `expo.version` | `2.6` | Increment for each release build (e.g. `2.5` → `2.6`). |
+| iOS build number | `expo.ios.buildNumber` | `"2"` | Increment by 1 every build (string). Required for TestFlight / App Store. |
+| Android version code | `expo.android.versionCode` | `9` | Increment by 1 every build (integer). Required for Play Store. |
+
+Example before a release:
+
+```json
+"version": "2.6",
+"ios": { "buildNumber": "2", ... },
+"android": { "versionCode": 9, ... }
+```
+
+`eas.json` uses `"appVersionSource": "local"`, so EAS reads these values from `app.json` — not from the Expo dashboard.
+
+Package / bundle ID (do not change unless intentionally rebranding):
+
+- **iOS:** `com.twikiastudios.logicplate`
+- **Android:** `com.twikiastudios.logicplate`
+
+## EAS cloud builds (iOS TestFlight + Android)
+
+Install EAS CLI and log in once:
+
+```bash
+npm install -g eas-cli
+eas login
+```
+
+Set **production** environment variables on [expo.dev](https://expo.dev/accounts/twikias-organization/projects/platebound/environment-variables) (or `eas env:create`). Required at minimum:
+
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_KEY`
+- `EXPO_PUBLIC_APP_SECRET`
+- `EXPO_PUBLIC_VOTE_BASE_URL`
+- `GOOGLE_MAPS_API_KEY` (and `GOOGLE_MAPS_API_KEY_ANDROID` / `GOOGLE_MAPS_API_KEY_IOS` if split)
+
+### iOS — TestFlight (recommended)
+
+Uses the `production` profile in `eas.json` (App Store distribution). No device UDID registration.
+
+**One-time setup**
+
+1. Enroll in the [Apple Developer Program](https://developer.apple.com/programs/).
+2. Create the app in [App Store Connect](https://appstoreconnect.apple.com) with bundle ID `com.twikiastudios.logicplate`.
+3. Configure signing on EAS:
+   ```bash
+   eas credentials:configure-build -p ios -e production
+   ```
+   Or use [Expo → Credentials → iOS](https://expo.dev/accounts/twikias-organization/projects/platebound/credentials).
+4. Set up submit credentials (App Store Connect API key recommended):
+   ```bash
+   eas credentials
+   ```
+
+**Each release**
+
+1. Bump version fields in `app.json` (see table above).
+2. Start a remote build (does not wait for completion):
+   ```bash
+   eas build --platform ios --profile production --no-wait
+   ```
+3. Submit to TestFlight when the build finishes:
+   ```bash
+   eas submit --platform ios --profile production --latest
+   ```
+   Or combine build + submit:
+   ```bash
+   eas build --platform ios --profile production --auto-submit --no-wait
+   ```
+   Or click **Submit** on the build page at [expo.dev](https://expo.dev/accounts/twikias-organization/projects/platebound/builds).
+
+4. In App Store Connect → **TestFlight**, add internal testers (team) or external testers (short review first time).
+
+Track builds: [expo.dev/accounts/twikias-organization/projects/platebound/builds](https://expo.dev/accounts/twikias-organization/projects/platebound/builds)
+
+### Android — Play Store (EAS cloud)
+
+**Each release**
+
+1. Bump version fields in `app.json` (see table above).
+2. Start a remote build:
+   ```bash
+   eas build --platform android --profile production --no-wait
+   ```
+   Outputs an **AAB** for Play Console upload.
+
+3. Submit (optional):
+   ```bash
+   eas submit --platform android --profile production --latest
+   ```
+
+For a sideload **APK** instead, use the `preview` profile (`buildType: apk` in `eas.json`).
+
+### Android — local release AAB (Windows)
+
+For a local Gradle AAB without EAS credits, see [AGENTS.md](./AGENTS.md) → **Local production AAB build (Windows)**. Still bump `app.json` versions first, then run `npx expo prebuild` and the `gradle.properties` overrides documented above.
+
+### Build profiles
+
+| Profile | iOS | Android | Use |
+|---------|-----|---------|-----|
+| `production` | TestFlight / App Store | Play Store AAB | Store releases |
+| `preview` | Ad Hoc (device UDIDs) | APK sideload | Internal testing |
+| `development` | Ad Hoc + dev client | Dev client | Local `expo start --dev-client` (avoid for TestFlight) |
