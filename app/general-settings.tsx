@@ -209,6 +209,29 @@ export default function GeneralSettingsScreen() {
             </View>
           </View>
 
+          {/* Language */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.languageSection')}</Text>
+            <Pressable
+              style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}
+              onPress={() => { hapticLight(); setShowLangPicker(true); }}
+            >
+              <View style={styles.settingInfo}>
+                <Ionicons name="language-outline" size={24} color={theme.accent} />
+                <View style={styles.textContainer}>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>{t('settings.language')}</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>{t('settings.languageDesc')}</Text>
+                </View>
+              </View>
+              <View style={styles.langCurrent}>
+                <Text style={[styles.langCurrentText, { color: theme.accent }]}>
+                  {getLanguageName(language, languages)}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
+              </View>
+            </Pressable>
+          </View>
+
           {/* Audio & Feedback */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.audioSection')}</Text>
@@ -273,29 +296,6 @@ export default function GeneralSettingsScreen() {
                 thumbColor={haptics ? (theme.accentOnColor ?? '#FFFFFF') : theme.subtext}
               />
             </View>
-          </View>
-
-          {/* Language */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.languageSection')}</Text>
-            <Pressable
-              style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}
-              onPress={() => { hapticLight(); setShowLangPicker(true); }}
-            >
-              <View style={styles.settingInfo}>
-                <Ionicons name="language-outline" size={24} color={theme.accent} />
-                <View style={styles.textContainer}>
-                  <Text style={[styles.settingLabel, { color: theme.text }]}>{t('settings.language')}</Text>
-                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>{t('settings.languageDesc')}</Text>
-                </View>
-              </View>
-              <View style={styles.langCurrent}>
-                <Text style={[styles.langCurrentText, { color: theme.accent }]}>
-                  {getLanguageName(language, languages)}
-                </Text>
-                <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
-              </View>
-            </Pressable>
           </View>
 
           {/* Notifications */}

@@ -57,6 +57,8 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -800,7 +802,7 @@ function SpotlightCard({
             >
               <Ionicons name="ribbon-outline" size={11} color="#4ADE80" />
               <Text style={[styles.spotlightMetaText, { color: '#4ADE80', fontWeight: '800' }]}>
-                {scored.plateboundScore.toFixed(1)}
+                {Math.round(scored.plateboundScore)}%
               </Text>
             </View>
           ) : null}
@@ -1279,7 +1281,21 @@ export default function HomeScreen() {
     <>
       <TopProfileButton />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <View style={[styles.homeContent, { paddingBottom: homeBottomPad }]}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.homeContent, { paddingBottom: homeBottomPad }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={false}
+              onRefresh={() => {
+                hapticMedium();
+                void loadSpotlight({ skipFullScreenLoader: true });
+              }}
+              tintColor={theme.tint}
+            />
+          }
+        >
           <View style={styles.homeTitleWrap}>
             {rootNeon ? (
               <NeonGradientTitle
@@ -1290,6 +1306,36 @@ export default function HomeScreen() {
             ) : (
               <Text style={[styles.pageTitle, { color: theme.pageTitleColor }]}>{funTitle}</Text>
             )}
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4, marginBottom: 12 }}>
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
+              onPress={() => {
+                hapticMedium();
+                const isWalk = sessionRadiusRef.current <= 1000;
+                const nextRad = isWalk ? 8046 : DEFAULT_SEARCH_RADIUS_METERS;
+                sessionRadiusRef.current = nextRad;
+                setSession(s => (s ? { ...s, radiusMeters: nextRad } : s));
+              }}
+            >
+              <Ionicons name={sessionRadiusRef.current <= 1000 ? "walk" : "car"} size={16} color={theme.accent} />
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
+                {sessionRadiusRef.current <= 1000 ? 'Walk' : 'Drive'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
+              onPress={() => {
+                hapticMedium();
+                router.push('/scenarios' as any);
+              }}
+            >
+              <Ionicons name="restaurant-outline" size={15} color={theme.accent} />
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>More</Text>
+              <Ionicons name="chevron-forward" size={14} color={theme.subtext} />
+            </TouchableOpacity>
           </View>
           {isLoading ? (
             <RestaurantLoadingProgressBar
@@ -1356,37 +1402,7 @@ export default function HomeScreen() {
               </View>
             </View>
           ) : null}
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, marginTop: 14, marginBottom: 12 }}>
-            <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
-              onPress={() => {
-                hapticMedium();
-                const isWalk = sessionRadiusRef.current <= 1000;
-                const nextRad = isWalk ? 8046 : DEFAULT_SEARCH_RADIUS_METERS;
-                sessionRadiusRef.current = nextRad;
-                setSession(s => (s ? { ...s, radiusMeters: nextRad } : s));
-              }}
-            >
-              <Ionicons name={sessionRadiusRef.current <= 1000 ? "walk" : "car"} size={16} color={theme.accent} />
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
-                {sessionRadiusRef.current <= 1000 ? 'Walk (0.6 mi)' : 'Drive (5 mi)'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
-              onPress={() => {
-                hapticMedium();
-                router.push('/scenarios' as any);
-              }}
-            >
-              <Ionicons name="restaurant-outline" size={15} color={theme.accent} />
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>{t('home.moreRestaurants', { defaultValue: 'More restaurants' })}</Text>
-              <Ionicons name="chevron-forward" size={14} color={theme.subtext} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </>
   );

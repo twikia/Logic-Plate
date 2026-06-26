@@ -546,18 +546,20 @@ export default function RandomScreen() {
           setSelectedPrices(new Set(saved.selectedPrices));
           setMinRating(saved.minRating);
           setSelectedCuisines(new Set(saved.selectedCuisines));
-          if (paramScenario) {
-            setSortBy(getScenarioPreferredSort(paramScenario));
-          } else {
-            setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
-          }
           const [s1, s2] = cutoffsToSlots(mergeRandomAiCutoffs(saved.minAiCutoffs));
           setAiSlot1(s1);
           setAiSlot2(s2);
           if (paramScenario) {
             setScenarioKey(paramScenario);
-            setScenarioFilterEnabled(true);
+            if (saved.scenarioKey === paramScenario && saved.scenarioFilterEnabled !== undefined) {
+              setScenarioFilterEnabled(saved.scenarioFilterEnabled);
+              if (saved.sortBy && isRandomSortBy(saved.sortBy)) setSortBy(saved.sortBy);
+            } else {
+              setSortBy(getScenarioPreferredSort(paramScenario));
+              setScenarioFilterEnabled(true);
+            }
           } else {
+            setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
             const sk = normalizeScenarioKey(saved.scenarioKey);
             if (sk) {
               setScenarioKey(sk);
@@ -617,9 +619,16 @@ export default function RandomScreen() {
 
   useEffect(() => {
     if (!paramScenario) return;
-    setScenarioKey(paramScenario);
-    setScenarioFilterEnabled(true);
-    setSortBy(getScenarioPreferredSort(paramScenario));
+    void getRandomPickerState().then(saved => {
+      setScenarioKey(paramScenario);
+      if (saved && saved.scenarioKey === paramScenario && saved.scenarioFilterEnabled !== undefined) {
+        setScenarioFilterEnabled(saved.scenarioFilterEnabled);
+        if (saved.sortBy && isRandomSortBy(saved.sortBy)) setSortBy(saved.sortBy);
+      } else {
+        setScenarioFilterEnabled(true);
+        setSortBy(getScenarioPreferredSort(paramScenario));
+      }
+    });
   }, [paramScenario]);
 
   useEffect(() => {
@@ -1165,9 +1174,6 @@ export default function RandomScreen() {
                 onToggleSelect={toggleOne}
               />
             )}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />
-            }
             ListFooterComponent={<View style={{ height: 120 }} />}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}

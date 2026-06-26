@@ -616,23 +616,7 @@ export default function RandomResultScreen() {
             ) : null}
 
             {!ph ? (
-              <View
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor },
-                ]}
-              >
-                <LinearGradient
-                  colors={[theme.tint + '18', 'transparent']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFillObject}
-                  pointerEvents="none"
-                />
-                <View style={styles.cardHeader}>
-                  <Ionicons name="sparkles" size={15} color="#C9A0FF" />
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>{t('map.aiOverview')}</Text>
-                </View>
+              <SectionCard title={t('map.aiOverview')} icon="sparkles" theme={theme} accordionKey="aiOverview">
                 <AiOverviewSummaryBody
                   text={aiOverview!.summaryGoodBad || t('result.noSummary')}
                   style={[styles.bodyText, { color: theme.subtext }]}
@@ -649,7 +633,7 @@ export default function RandomResultScreen() {
                     </Text>
                   </>
                 ) : null}
-              </View>
+              </SectionCard>
             ) : null}
 
             {!ph ? (

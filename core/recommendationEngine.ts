@@ -561,10 +561,10 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
 
     let plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time + (modifiers as any).intent - mismatchPenalty));
     
-    // Curving function: boost lower scores to make them feel like an actual match
-    const t = plateboundScore / 100;
-    plateboundScore = Math.pow(t, 0.15) * 100;
-    plateboundScore = Math.max(0, Math.min(99, plateboundScore));
+    // Curving function: range from 75 to 98
+    const t = Math.max(0, Math.min(1, plateboundScore / 100));
+    plateboundScore = 75 + Math.pow(t, 0.65) * 23;
+    plateboundScore = Math.max(75, Math.min(98, plateboundScore));
 
     const raw = {
       distance: dRaw,
