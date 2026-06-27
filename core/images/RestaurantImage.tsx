@@ -197,9 +197,18 @@ function RestaurantImageInner({
         : urls;
       indexRef.current = 0;
 
+      const maxPx = width <= 100 ? Math.min(quality ?? width, 250) : (quality ?? width);
+
+      if (cached) {
+        if (mountedRef.current) {
+          setActiveUri(adjustQuality(cached, maxPx));
+          setState('loading');
+        }
+        return;
+      }
+
       timer = setTimeout(() => {
         if (!mountedRef.current) return;
-        const maxPx = quality ?? width;
         const uri = adjustQuality(candidatesRef.current[0], maxPx);
         setActiveUri(uri);
         setState('loading');
@@ -231,7 +240,7 @@ function RestaurantImageInner({
     const nextIdx = indexRef.current + 1;
     if (nextIdx < candidatesRef.current.length) {
       indexRef.current = nextIdx;
-      const maxPx = quality ?? width;
+      const maxPx = width <= 100 ? Math.min(quality ?? width, 250) : (quality ?? width);
       const nextUri = adjustQuality(candidatesRef.current[nextIdx], maxPx);
       setActiveUri(nextUri);
     } else {
@@ -282,16 +291,8 @@ function RestaurantImageInner({
       )}
       <Image
         source={{ uri: activeUri! }}
-        style={[StyleSheet.absoluteFillObject, { width, height }]}
-        contentFit="cover"
-        blurRadius={18}
-        transition={250}
-        cachePolicy="memory-disk"
-      />
-      <Image
-        source={{ uri: activeUri! }}
         style={{ width, height }}
-        contentFit="contain"
+        contentFit="cover"
         transition={250}
         onLoad={onLoad}
         onError={onError}

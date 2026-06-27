@@ -8,6 +8,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -501,6 +502,7 @@ export default function RandomScreen() {
       if (type === 'GO_BACK' || type === 'POP' || type === 'NAVIGATE' || type === 'REPLACE') {
         hydratedRef.current = false;
         void clearRandomPickerState();
+        Image.clearMemoryCache();
       }
     });
     return unsub;

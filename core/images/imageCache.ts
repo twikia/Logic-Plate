@@ -79,7 +79,18 @@ export const adjustQuality = (uri: string, maxPx: number): string => {
   if (uri.includes('maxwidth='))   return uri.replace(/maxwidth=\d+/,   `maxwidth=${maxPx}`);
   if (uri.includes('maxHeightPx=')) return uri.replace(/maxHeightPx=\d+/, `maxHeightPx=${maxPx}`);
   if (uri.includes('maxheight='))  return uri.replace(/maxheight=\d+/,  `maxheight=${maxPx}`);
-  // Non-Google URLs: no param to adjust — return as-is
+
+  if (uri.includes('googleapis.com')) {
+    const sep = uri.includes('?') ? '&' : '?';
+    return `${uri}${sep}maxWidthPx=${maxPx}`;
+  }
+
+  if (uri.includes('images.unsplash.com')) {
+    if (uri.includes('w=')) return uri.replace(/w=\d+/, `w=${maxPx}`);
+    const sep = uri.includes('?') ? '&' : '?';
+    return `${uri}${sep}w=${maxPx}&q=80`;
+  }
+
   return uri;
 };
 

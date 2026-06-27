@@ -42,8 +42,8 @@ export function AiOverviewSummaryBody({
   style: StyleProp<TextStyle>;
 }) {
   const lines = splitAiOverviewSummarySegments(text || '');
+  const translatedFull = useLiveTranslation(text || '');
   if (lines.length === 0) {
-    const translatedFull = useLiveTranslation(text || '');
     return <Text style={style}>{translatedFull}</Text>;
   }
   return (
