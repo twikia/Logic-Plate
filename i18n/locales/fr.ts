@@ -58,7 +58,21 @@ const fr: Translations = {
     "radarSpeed": "Rapidité",
     "walk": "Marcher",
     "drive": "Conduire",
+    "walkLess1Min": "< 1 min à pied",
+    "walkMin": "{{count}} min à pied",
+    "driveShort": "en voiture",
     "more": "Plus"
+  },
+  "days": {
+    "monday": "Lundi",
+    "tuesday": "Mardi",
+    "wednesday": "Mercredi",
+    "thursday": "Jeudi",
+    "friday": "Vendredi",
+    "saturday": "Samedi",
+    "sunday": "Dimanche",
+    "closed": "Fermé",
+    "open24Hours": "Ouvert 24h/24"
   },
   "loading": {
     "preparing": "Préparation…",
@@ -131,8 +145,8 @@ const fr: Translations = {
     "processed": "Transformé",
     "hungover": "Gueule de bois",
     "hungoverRecovery": "Récupération",
-    "atAGlance": "En un coup d’œil",
-    "plateboundOverall": "Platebound global",
+    "atAGlance": "En un coup d'œil",
+    "plateboundOverall": "Logic Plate global",
     "flavorValue": "Saveur & valeur",
     "convenience": "Commodité",
     "recovery": "Récupération",
@@ -183,6 +197,7 @@ const fr: Translations = {
   },
   "result": {
     "matchScore": "Score de correspondance",
+    "top3SignatureItems": "Top 3 Spécialités",
     "healthScore": "Score santé",
     "viewWebsite": "Site web",
     "noSummary": "Pas encore de résumé.",
@@ -236,7 +251,7 @@ const fr: Translations = {
       "needMore": "Encore {{count}} pour démarrer",
       "ready": "Prêt !",
       "waitingFirst": "En attente de la première réponse…",
-      "shareMessage": "Rejoignez notre vote Platebound ! Code : {{code}}",
+      "shareMessage": "Rejoignez notre vote Logic Plate ! Code : {{code}}",
       "errors": {
         "locationRequired": "La localisation est requise.",
         "appSecret": "EXPO_PUBLIC_APP_SECRET non configuré.",
@@ -570,7 +585,7 @@ const fr: Translations = {
     "aiOverview": "Aperçu IA",
     "whoIsItFor": "Pour qui ?",
     "aiScores": "Scores IA",
-    "overallScore": "Platebound global",
+    "overallScore": "Logic Plate global",
     "overallShort": "{{score}} global",
     "distanceAway": "à {{distance}}",
     "openStatus": "Ouvert",

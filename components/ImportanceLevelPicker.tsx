@@ -11,8 +11,82 @@ import { Pressable } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { hapticLight } from '@/core/haptics';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 const LEVELS: ImportanceLevel[] = [1, 2, 3, 4, 5];
+
+function AnimatedOption({
+  level,
+  active,
+  displayLabel,
+  emoji,
+  theme,
+  compact,
+  onSelect,
+  t,
+}: {
+  level: ImportanceLevel;
+  active: boolean;
+  displayLabel: string;
+  emoji: string;
+  theme: any;
+  compact?: boolean;
+  onSelect: () => void;
+  t: any;
+}) {
+  const scale = useSharedValue(1);
+  const rot = useSharedValue(0);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { rotate: `${rot.value}deg` }],
+  }));
+
+  const handlePress = () => {
+    hapticLight();
+    scale.value = withSequence(
+      withTiming(1.22, { duration: 180 }),
+      withSpring(0.92, { damping: 4, stiffness: 150 }),
+      withSpring(1.05, { damping: 5, stiffness: 180 }),
+      withSpring(1, { damping: 8 })
+    );
+    rot.value = withSequence(
+      withTiming(-8, { duration: 90 }),
+      withTiming(8, { duration: 90 }),
+      withTiming(-4, { duration: 90 }),
+      withTiming(0, { duration: 90 })
+    );
+    onSelect();
+  };
+
+  return (
+    <Animated.View style={[{ flex: 1 }, animStyle]}>
+      <Pressable
+        animated={false}
+        onPress={handlePress}
+        style={[
+          styles.levelBtn,
+          compact && styles.levelBtnCompact,
+          { borderColor: active ? theme.accent : 'rgba(255,255,255,0.14)' },
+          active && { backgroundColor: 'rgba(249,115,82,0.16)' },
+        ]}
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={`${displayLabel} importance ${t(`priorities.importance_${level}`, { defaultValue: IMPORTANCE_LEVEL_LABELS[level] })}`}
+      >
+        <Text style={[styles.levelEmoji, compact && styles.levelEmojiCompact]}>
+          {emoji}
+        </Text>
+        <Text style={[styles.levelNum, { color: active ? theme.accent : theme.subtext }]}>{level}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 type Props = {
   metric: PriorityMetricDef;
@@ -35,6 +109,9 @@ export function ImportanceLevelPicker({ metric, value, onChange, compact }: Prop
   const displayRangeLow = rangeLowKey ? t(rangeLowKey) : (metric.rangeLowLabel ?? null);
   const displayRangeHigh = rangeHighKey ? t(rangeHighKey) : (metric.rangeHighLabel ?? null);
 
+  const emojiMap = metric.customLevelEmojis || IMPORTANCE_LEVEL_EMOJIS;
+  const activeEmoji = emojiMap[value] || IMPORTANCE_LEVEL_EMOJIS[value];
+
   return (
     <View style={[styles.block, compact && styles.blockCompact]}>
       <View style={styles.head}>
@@ -44,31 +121,25 @@ export function ImportanceLevelPicker({ metric, value, onChange, compact }: Prop
           {!compact && <Text style={[styles.hint, { color: theme.subtext }]}>{displayHint}</Text>}
         </View>
         <Text style={[styles.levelBadge, { color: theme.accent }]}>
-          {IMPORTANCE_LEVEL_EMOJIS[value]} {t(`priorities.importance_${value}`, { defaultValue: IMPORTANCE_LEVEL_LABELS[value] })}
+          {activeEmoji} {t(`priorities.importance_${value}`, { defaultValue: IMPORTANCE_LEVEL_LABELS[value] })}
         </Text>
       </View>
       <View style={styles.levelRow}>
         {LEVELS.map(level => {
           const active = value === level;
+          const emoji = emojiMap[level] || IMPORTANCE_LEVEL_EMOJIS[level];
           return (
-            <Pressable
+            <AnimatedOption
               key={level}
-              onPress={() => { hapticLight(); onChange(level); }}
-              style={[
-                styles.levelBtn,
-                compact && styles.levelBtnCompact,
-                { borderColor: active ? theme.accent : 'rgba(255,255,255,0.14)' },
-                active && { backgroundColor: 'rgba(249,115,82,0.16)' },
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${displayLabel} importance ${t(`priorities.importance_${level}`, { defaultValue: IMPORTANCE_LEVEL_LABELS[level] })}`}
-            >
-              <Text style={[styles.levelEmoji, compact && styles.levelEmojiCompact]}>
-                {IMPORTANCE_LEVEL_EMOJIS[level]}
-              </Text>
-              <Text style={[styles.levelNum, { color: active ? theme.accent : theme.subtext }]}>{level}</Text>
-            </Pressable>
+              level={level}
+              active={active}
+              displayLabel={displayLabel}
+              emoji={emoji}
+              theme={theme}
+              compact={compact}
+              onSelect={() => onChange(level)}
+              t={t}
+            />
           );
         })}
       </View>
@@ -101,10 +172,10 @@ export function PriorityMetricsPanel({ weights, onWeightChange, screenIndex, com
     <View style={styles.panel}>
       {!compact && (
         <>
-          <Text style={[styles.screenTitle, { color: theme.text }]}>
+          <Text style={[styles.screenTitle, { color: theme.text, textAlign: 'center' }]}>
             {t(`priorities.${screen.id}Title`, { defaultValue: screen.title })}
           </Text>
-          <Text style={[styles.screenSub, { color: theme.subtext }]}>
+          <Text style={[styles.screenSub, { color: theme.subtext, textAlign: 'center' }]}>
             {t(`priorities.${screen.id}Subtitle`, { defaultValue: screen.subtitle })}
           </Text>
         </>
@@ -126,6 +197,7 @@ const styles = StyleSheet.create({
   panel: { gap: 14 },
   screenTitle: { fontSize: 22, fontWeight: '800', marginBottom: 6 },
   screenSub: { fontSize: 14, marginBottom: 12, lineHeight: 20 },
+
   block: { marginBottom: 6 },
   blockCompact: { marginBottom: 2 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },

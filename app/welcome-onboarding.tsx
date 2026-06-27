@@ -30,6 +30,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { hapticMedium, hapticSuccess } from '@/core/haptics';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -37,6 +44,45 @@ const METRIC_PAGE_START = 0;
 const METRIC_PAGE_COUNT = PRIORITY_METRIC_SCREENS.length;
 const CUISINE_PAGE = METRIC_PAGE_START + METRIC_PAGE_COUNT;
 const STEPS = CUISINE_PAGE + 1;
+
+function AnimatedContinueButton({ onPress, text, theme }: { onPress: () => void; text: string; theme: any }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        animated={false}
+        onPress={() => {
+          scale.value = withSequence(
+            withTiming(1.15, { duration: 120 }),
+            withSpring(0.95, { damping: 5 }),
+            withSpring(1, { damping: 8 })
+          );
+          onPress();
+        }}
+        style={[
+          styles.primaryBtn,
+          {
+            backgroundColor: theme.accent,
+            shadowColor: theme.accent,
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.45,
+            shadowRadius: 12,
+            elevation: 8,
+            borderWidth: 2,
+            borderColor: '#FFFFFF44',
+          },
+        ]}
+      >
+        <Text style={[styles.primaryBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>{text}</Text>
+        <Ionicons name="sparkles" size={20} color={theme.accentOnColor ?? '#FFFFFF'} />
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function WelcomeOnboardingScreen() {
   const router = useRouter();
@@ -134,15 +180,15 @@ export default function WelcomeOnboardingScreen() {
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={[styles.title, styles.cuisineSectionTitle, { color: theme.text }]}>{t('onboarding.cuisineTitle')}</Text>
+        <Text style={[styles.sub, { color: theme.subtext }]}>
+          {t('onboarding.cuisineSubtitle')}
+        </Text>
         <ImportanceLevelPicker
           metric={CUISINE_FIT_METRIC}
           value={weights.cuisine}
           onChange={level => setWeight('cuisine', level)}
         />
-        <Text style={[styles.title, styles.cuisineSectionTitle, { color: theme.text }]}>{t('onboarding.cuisineTitle')}</Text>
-        <Text style={[styles.sub, { color: theme.subtext }]}>
-          {t('onboarding.cuisineSubtitle')}
-        </Text>
         <CuisineRankGrid
           ranked={favoriteCuisines}
           onChange={setFavoriteCuisines}
@@ -157,20 +203,19 @@ export default function WelcomeOnboardingScreen() {
     return <View style={[styles.root, { backgroundColor: theme.cardBackground }]} />;
   }
 
+  const pct = page === 0 ? 25 : page === 1 ? 50 : 100;
+
   return (
     <View style={[styles.root, { backgroundColor: theme.cardBackground }]}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topRow}>
           <BackButton onPress={goBack} disabled={!canGoBack} size={26} />
-          <View style={styles.dots}>
-            {Array.from({ length: STEPS }, (_, i) => (
-              <View
-                key={i}
-                style={[styles.dot, { backgroundColor: i === page ? theme.accent : 'rgba(255,255,255,0.2)' }]}
-              />
-            ))}
+          <View style={styles.progressContainer}>
+            <View style={[styles.progressTrack, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+              <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.accent }]} />
+            </View>
+            <Text style={[styles.progressText, { color: theme.accent }]}>{pct}%</Text>
           </View>
-          <View style={{ width: 40 }} />
         </View>
 
         <FlatList
@@ -186,12 +231,11 @@ export default function WelcomeOnboardingScreen() {
         />
 
         <View style={styles.footer}>
-          <Pressable onPress={goNext} style={[styles.primaryBtn, { backgroundColor: theme.accent }]}>
-            <Text style={[styles.primaryBtnText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
-              {page === STEPS - 1 ? t('onboarding.startExploring') : t('onboarding.continue')}
-            </Text>
-            <Ionicons name="arrow-forward" size={20} color={theme.accentOnColor ?? '#FFFFFF'} />
-          </Pressable>
+          <AnimatedContinueButton
+            onPress={goNext}
+            text={page === STEPS - 1 ? t('onboarding.startExploring') : t('onboarding.continue')}
+            theme={theme}
+          />
         </View>
       </SafeAreaView>
     </View>
@@ -205,15 +249,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 8,
   },
-  dots: { flexDirection: 'row', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  progressContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '800',
+    minWidth: 40,
+    textAlign: 'right',
+  },
   page: { paddingHorizontal: 20, paddingTop: 8 },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
-  cuisineSectionTitle: { marginTop: 8 },
-  sub: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
+  title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  cuisineSectionTitle: { marginTop: 4 },
+  sub: { fontSize: 14, marginBottom: 16, lineHeight: 20, textAlign: 'center' },
   footer: { padding: 20 },
   primaryBtn: {
     borderRadius: 18,

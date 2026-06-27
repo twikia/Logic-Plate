@@ -57,7 +57,22 @@ const en = {
     radarSpeed: 'Speed',
     walk: 'Walk',
     drive: 'Drive',
+    walkLess1Min: '< 1 min walk',
+    walkMin: '{{count}} min walk',
+    driveShort: 'drive',
     more: 'More',
+  },
+
+  days: {
+    monday: 'Monday',
+    tuesday: 'Tuesday',
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+    sunday: 'Sunday',
+    closed: 'Closed',
+    open24Hours: 'Open 24 hours',
   },
 
   loading: {
@@ -135,7 +150,7 @@ const en = {
     hungover: 'Hungover',
     hungoverRecovery: 'Hungover recovery',
     atAGlance: 'At a glance',
-    plateboundOverall: 'Platebound overall',
+    plateboundOverall: 'Logic Plate overall',
     flavorValue: 'Flavor & value',
     convenience: 'Convenience',
     recovery: 'Recovery',
@@ -185,6 +200,7 @@ const en = {
 
   result: {
     matchScore: 'Match Score',
+    top3SignatureItems: 'Top 3 Signature Items',
     healthScore: 'Health Score',
     viewWebsite: 'Website',
     noSummary: 'No summary yet.',
@@ -239,7 +255,7 @@ const en = {
       needMore: 'Need {{count}} more to start',
       ready: 'Ready to go!',
       waitingFirst: 'Waiting for the first response\u2026',
-      shareMessage: 'Join our Platebound vote! Code: {{code}}',
+      shareMessage: 'Join our Logic Plate vote! Code: {{code}}',
       errors: {
         locationRequired: 'Location is required to start a group session.',
         appSecret:
@@ -423,7 +439,7 @@ const en = {
   },
 
   auth: {
-    brand: 'Platebound',
+    brand: 'Logic Plate',
     welcomeBack: 'Welcome back',
     saveProfile: 'Save this profile',
     createAccount: 'Create an account',
@@ -523,19 +539,19 @@ const en = {
 
   priorities: {
     practicalTitle: 'Practical priorities',
-    practicalSubtitle: 'How much travel, cost, and speed matter when we pick.',
+    practicalSubtitle: 'How much speed, cost, and rating matter to you.',
     healthTitle: 'Health & nutrition',
     healthSubtitle: 'What you want from meals for your body and goals.',
     speedLabel: 'Speed',
     speedHint: 'Quick service and short waits',
     costLabel: 'Cost',
-    costHint: 'Favor cheaper restaurants when this matters to you',
+    costHint: 'Favor cheaper restaurants',
     distanceLabel: 'Distance',
     distanceHint: 'How close the spot is',
     ratingAdherenceLabel: 'Top rating importance',
-    ratingAdherenceHint: 'How much star ratings matter when we pick',
+    ratingAdherenceHint: 'Favor higher ratings',
     ratingLabel: 'Top rating importance',
-    ratingHint: 'How much star ratings matter when we pick',
+    ratingHint: 'Favor higher ratings',
     valueForMoneyLabel: 'Value for money',
     valueForMoneyHint: 'Great bang for your buck',
     healthLabel: 'Health',
@@ -543,7 +559,7 @@ const en = {
     proteinLabel: 'Protein',
     proteinHint: 'Protein-forward menus',
     tasteLabel: 'Taste',
-    tasteHint: 'AI flavor and menu quality',
+    tasteHint: 'Favor the flavor',
     caloriesLabel: 'Calories',
     caloriesHint: 'How much calorie density should sway your picks',
     caloriesLow: 'Favor less calories',
@@ -598,8 +614,8 @@ const en = {
     acquiringGpsSubtitle: 'Finding your culinary coordinates...',
     aiOverview: 'AI overview',
     whoIsItFor: 'Who is it for?',
-    aiScores: 'AI scores',
-    overallScore: 'Overall Platebound',
+    aiScores: 'Scores',
+    overallScore: 'Overall Logic Plate',
     overallShort: '{{score}} overall',
     distanceAway: '{{distance}} away',
     openStatus: 'Open',

@@ -230,10 +230,12 @@ export default function TabLayout() {
                   if (isDoubleTap) {
                     requestHomeTitleReroll();
                     requestRandomPickerReset();
-                    router.navigate('/(tabs)/(home)');
+                    if (router.canGoBack()) router.dismissAll();
+                    router.replace('/(tabs)/(home)');
                   } else if (isOnRandomPicker && !isMap && !isGroups) {
                     requestRandomPickerReset();
-                    router.navigate('/(tabs)/(home)');
+                    if (router.canGoBack()) router.dismissAll();
+                    router.replace('/(tabs)/(home)');
                   } else {
                     (props.onPress as (() => void) | undefined)?.();
                   }

@@ -1,6 +1,5 @@
 import { Pressable } from '@/components/ui/soundPressable';
-import { StyleSheet, Text, View, ScrollView, Alert, Linking } from 'react-native';
-import { Image } from 'expo-image';
+import { StyleSheet, Text, View, ScrollView, Linking } from 'react-native';
 import { useAppTheme } from '@/context/ThemeContext';
 import { Themes } from '@/constants/Themes';
 
@@ -13,17 +12,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutRight } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileIcon } from '@/hooks/useProfileIcon';
-import { runCacheTests } from '../tests/cacheTest';
-import { clearLocalCache } from '../core/cacheManager';
-import { resetAppIntro } from '../core/appIntro';
-import { clearRandomPickerState } from '../core/randomPickerState';
-import { resetRecommendationPrefsToOnboarding } from '../core/recommendationPrefs';
-import { clearResultCache } from '../core/resultCache';
-import { clearLocationCache } from '../core/locationCache';
-import { clearImageCache } from '../core/images';
 import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { hapticLight, hapticMedium, hapticSuccess } from '@/core/haptics';
+import { hapticLight, hapticMedium } from '@/core/haptics';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -193,38 +184,6 @@ export default function ProfileScreen() {
                     <Text style={[styles.menuItemText, { color: theme.text }]}>{t('profile.feedback')}</Text>
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.accent} />
                   </View>
-                </AnimatedPressable>
-              </View>
-
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('profile.developer')}</Text>
-                <AnimatedPressable 
-                  style={[styles.menuItem, { backgroundColor: theme.accent }]} 
-                  onPress={() => runCacheTests()}
-                >
-                  <Text style={[styles.menuItemText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>{t('profile.runAllTests')}</Text>
-                </AnimatedPressable>
-
-                <AnimatedPressable 
-                  style={[styles.menuItem, { backgroundColor: '#C1E1C1', marginTop: 10 }]} 
-                  onPress={async () => {
-                    await Promise.all([
-                      clearLocalCache(),
-                      clearResultCache(),
-                      clearLocationCache(),
-                      clearImageCache(),
-                      Image.clearMemoryCache(),
-                      Image.clearDiskCache(),
-                      clearRandomPickerState(),
-                      resetRecommendationPrefsToOnboarding(),
-                      resetAppIntro(),
-                    ]);
-                    hapticSuccess();
-                    Alert.alert(t('profile.cachePurgedTitle'), t('profile.cachePurgedMsg'));
-                    router.replace('/welcome-intro' as any);
-                  }}
-                >
-                  <Text style={[styles.menuItemText, { color: '#2B422A' }]}>{t('profile.clearAllCaches')}</Text>
                 </AnimatedPressable>
               </View>
             </ScrollView>

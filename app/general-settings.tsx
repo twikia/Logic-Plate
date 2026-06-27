@@ -1,5 +1,13 @@
 import { Pressable, TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View, ScrollView, Switch, Modal, ActivityIndicator, Alert } from 'react-native';
+import { Image } from 'expo-image';
+import { clearLocalCache } from '@/core/cacheManager';
+import { resetAppIntro } from '@/core/appIntro';
+import { clearRandomPickerState } from '@/core/randomPickerState';
+import { resetRecommendationPrefsToOnboarding } from '@/core/recommendationPrefs';
+import { clearResultCache } from '@/core/resultCache';
+import { clearLocationCache } from '@/core/locationCache';
+import { clearImageCache } from '@/core/images';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -140,44 +148,6 @@ export default function GeneralSettingsScreen() {
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={18} color={theme.subtext} />
-            </Pressable>
-
-            <Pressable
-              style={[styles.settingCard, { backgroundColor: 'rgba(255,68,68,0.12)', borderColor: 'rgba(255,68,68,0.35)', marginTop: 10 }]}
-              onPress={() => {
-                hapticLight();
-                Alert.alert(
-                  t('settings.deleteAccountTitle'),
-                  t('settings.deleteAccountMsg'),
-                  [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                      text: t('settings.deleteAccountConfirm'),
-                      style: 'destructive',
-                      onPress: async () => {
-                        const result = await deleteAccount();
-                        if (!result.ok) {
-                          Alert.alert(t('settings.deleteAccountFailedTitle'), t('settings.deleteAccountFailedMsg'));
-                          return;
-                        }
-                        hapticSuccess();
-                        Alert.alert(t('settings.deleteAccountDoneTitle'), t('settings.deleteAccountDoneMsg'));
-                        router.replace('/(tabs)' as any);
-                      },
-                    },
-                  ]
-                );
-              }}
-            >
-              <View style={styles.settingInfo}>
-                <Ionicons name="trash-outline" size={24} color="#FF4444" />
-                <View style={styles.textContainer}>
-                  <Text style={[styles.settingLabel, { color: '#FF6B6B' }]}>{t('settings.deleteAccount')}</Text>
-                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>
-                    {t('settings.deleteAccountDesc')}
-                  </Text>
-                </View>
-              </View>
             </Pressable>
           </View>
 
@@ -329,6 +299,76 @@ export default function GeneralSettingsScreen() {
                   {user?.id ?? '\u2014'}
                 </Text>
              </View>
+          </View>
+
+          <View style={styles.section}>
+            <Pressable
+              style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}
+              onPress={async () => {
+                await Promise.all([
+                  clearLocalCache(),
+                  clearResultCache(),
+                  clearLocationCache(),
+                  clearImageCache(),
+                  Image.clearMemoryCache(),
+                  Image.clearDiskCache(),
+                  clearRandomPickerState(),
+                  resetRecommendationPrefsToOnboarding(),
+                  resetAppIntro(),
+                ]);
+                hapticSuccess();
+                Alert.alert(t('profile.cachePurgedTitle'), t('profile.cachePurgedMsg'));
+                router.replace('/welcome-intro' as any);
+              }}
+            >
+              <View style={styles.settingInfo}>
+                <Ionicons name="trash-bin-outline" size={24} color="#10B981" />
+                <View style={styles.textContainer}>
+                  <Text style={[styles.settingLabel, { color: '#10B981' }]}>{t('profile.clearAllCaches')}</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>
+                    Purge all saved locations, images, and preference caches
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[styles.settingCard, { backgroundColor: 'rgba(255,68,68,0.12)', borderColor: 'rgba(255,68,68,0.35)', marginTop: 10 }]}
+              onPress={() => {
+                hapticLight();
+                Alert.alert(
+                  t('settings.deleteAccountTitle'),
+                  t('settings.deleteAccountMsg'),
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('settings.deleteAccountConfirm'),
+                      style: 'destructive',
+                      onPress: async () => {
+                        const result = await deleteAccount();
+                        if (!result.ok) {
+                          Alert.alert(t('settings.deleteAccountFailedTitle'), t('settings.deleteAccountFailedMsg'));
+                          return;
+                        }
+                        hapticSuccess();
+                        Alert.alert(t('settings.deleteAccountDoneTitle'), t('settings.deleteAccountDoneMsg'));
+                        router.replace('/(tabs)' as any);
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <View style={styles.settingInfo}>
+                <Ionicons name="trash-outline" size={24} color="#FF4444" />
+                <View style={styles.textContainer}>
+                  <Text style={[styles.settingLabel, { color: '#FF6B6B' }]}>{t('settings.deleteAccount')}</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>
+                    {t('settings.deleteAccountDesc')}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>

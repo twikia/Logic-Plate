@@ -640,10 +640,12 @@ function SpotlightCard({
   scored,
   onReject,
   onPress,
+  isDriveMode,
 }: {
   scored: ScoredRestaurant;
   onReject: () => void;
   onPress: () => void;
+  isDriveMode?: boolean;
 }) {
   const { theme } = useAppTheme();
   const { t } = useTranslation();
@@ -781,14 +783,16 @@ function SpotlightCard({
                 : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
             ]}
           >
-            <Ionicons name="walk-outline" size={11} color={neonUi ? NEON_CYAN : theme.accent} />
+            <Ionicons name={isDriveMode ? "car-outline" : "walk-outline"} size={11} color={neonUi ? NEON_CYAN : theme.accent} />
             <Text
               style={[
                 styles.spotlightMetaText,
                 { color: neonUi ? 'rgba(255,255,255,0.92)' : theme.subtext },
               ]}
             >
-              {formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
+              {isDriveMode
+                ? `${formatDistance(place.distanceMeters ?? 0)} ${t('home.driveShort', { defaultValue: 'drive' })}`
+                : formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
             </Text>
           </View>
           {scored.plateboundScore > 0 ? (
@@ -1409,8 +1413,9 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
                 })}
                 renderItem={({ item }) => (
                   <View style={styles.carouselPage}>
-                    <SpotlightCard
+                     <SpotlightCard
                       scored={item}
+                      isDriveMode={sessionRadiusRef.current > 1000}
                       onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
                       onPress={() => void openDetails(item)}
                     />

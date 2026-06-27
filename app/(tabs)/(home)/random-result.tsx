@@ -12,6 +12,7 @@ import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
 import { fetchAiMenu } from '@/core/menuCache';
 import { useAppTheme } from '@/context/ThemeContext';
+import { formatWeekdayHours } from '@/core/i18nLabels';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { usePersistedAccordion } from '@/hooks/usePersistedAccordion';
 import { Ionicons } from '@expo/vector-icons';
@@ -509,7 +510,7 @@ export default function RandomResultScreen() {
               <View style={styles.badgeRow}>
                 {type ? (
                   <View style={[styles.typeBadge, { borderColor: theme.tint + '66' }]}>
-                    <Text style={[styles.typeBadgeText, { color: '#FFFFFF' }]}>{type}</Text>
+                    <TranslatedText text={type} style={[styles.typeBadgeText, { color: '#FFFFFF' }]} />
                   </View>
                 ) : null}
                 {price ? (
@@ -579,7 +580,7 @@ export default function RandomResultScreen() {
                   theme={theme}
                   centerText={plateboundScore.toFixed(1)}
                   centerSub={plateboundWord}
-                  label="Platebound"
+                  label="Logic Plate"
                 />
                 <OrbitalGauge
                   score={healthScore}
@@ -590,38 +591,6 @@ export default function RandomResultScreen() {
                   label={t('result.healthScore')}
                 />
               </View>
-            ) : null}
-
-            {menuItems && menuItems.length > 0 ? (
-              <View style={{ marginTop: 12, marginBottom: 4 }}>
-                <SectionCard
-                  title="Top 3 Signature Items"
-                  icon="restaurant-outline"
-                  theme={theme}
-                  accordionKey="menu"
-                  defaultExpanded={true}
-                >
-                  <View style={{ gap: 10 }}>
-                    {menuItems.map((item, idx) => (
-                      <View key={idx} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-                        <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>🍽️</Text>
-                        <TranslatedText text={item} style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]} />
-                      </View>
-                    ))}
-                  </View>
-                </SectionCard>
-              </View>
-            ) : null}
-
-            {website ? (
-              <TouchableOpacity
-                style={[styles.primaryCtaBtn, { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                onPress={() => Linking.openURL(website)}
-                activeOpacity={0.88}
-              >
-                <Ionicons name="globe-outline" size={20} color="#000" />
-                <Text style={styles.primaryCtaText}>{t('result.viewWebsite')}</Text>
-              </TouchableOpacity>
             ) : null}
 
             {!ph ? (
@@ -637,12 +606,31 @@ export default function RandomResultScreen() {
                       <Text style={styles.cardEmoji}>🎯</Text>
                       <Text style={[styles.cardTitle, { color: theme.text }]}>{t('map.whoIsItFor')}</Text>
                     </View>
-                    <Text style={[styles.bodyText, { color: theme.subtext }]}>
-                      {aiOverview.whoThisPlaceIsFor}
-                    </Text>
+                    <TranslatedText text={aiOverview.whoThisPlaceIsFor} style={[styles.bodyText, { color: theme.subtext }]} />
                   </>
                 ) : null}
               </SectionCard>
+            ) : null}
+
+            {menuItems && menuItems.length > 0 ? (
+              <View style={{ marginTop: 12, marginBottom: 4 }}>
+                <SectionCard
+                  title={t('result.top3SignatureItems', { defaultValue: 'Top 3 Signature Items' })}
+                  icon="restaurant-outline"
+                  theme={theme}
+                  accordionKey="menu"
+                  defaultExpanded={true}
+                >
+                  <View style={{ gap: 10 }}>
+                    {menuItems.map((item, idx) => (
+                      <View key={idx} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                        <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>🍽️</Text>
+                        <TranslatedText text={item} style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]} />
+                      </View>
+                    ))}
+                  </View>
+                </SectionCard>
+              </View>
             ) : null}
 
             {!ph ? (
@@ -706,9 +694,7 @@ export default function RandomResultScreen() {
                   </View>
                 ) : null}
                 {aiOverview?.absoluteMacros ? (
-                  <Text style={[styles.bodyText, { color: theme.subtext, marginTop: 12 }]}>
-                    {aiOverview.absoluteMacros}
-                  </Text>
+                  <TranslatedText text={aiOverview.absoluteMacros} style={[styles.bodyText, { color: theme.subtext, marginTop: 12 }]} />
                 ) : null}
               </SectionCard>
             ) : null}
@@ -774,7 +760,7 @@ export default function RandomResultScreen() {
                             i === todayIndex && styles.hoursLineToday,
                           ]}
                         >
-                          {line}
+                          {formatWeekdayHours(line)}
                         </Text>
                       ))}
                     </View>
@@ -814,6 +800,30 @@ export default function RandomResultScreen() {
             <Ionicons name="map-outline" size={17} color={theme.subtext} />
             <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>{t('result.mapPage')}</Text>
           </TouchableOpacity>
+          {website ? (
+            <TouchableOpacity
+              animated={false}
+              style={[
+                styles.stickyMiddle,
+                { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+              ]}
+              onPress={() => Linking.openURL(website)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="globe-outline" size={17} color={theme.text} />
+              <Text style={[styles.stickyGhostText, { color: theme.text }]}>{t('result.viewWebsite')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View
+              style={[
+                styles.stickyMiddle,
+                { backgroundColor: theme.subtext + '22', borderColor: 'transparent' },
+              ]}
+            >
+              <Ionicons name="globe-outline" size={17} color={theme.subtext} />
+              <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>{t('result.viewWebsite')}</Text>
+            </View>
+          )}
           {mapsReady ? (
             <TouchableOpacity
               animated={false}
@@ -1060,6 +1070,16 @@ const styles = StyleSheet.create({
   },
   stickyGhost: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+  },
+  stickyMiddle: {
+    flex: 1.2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

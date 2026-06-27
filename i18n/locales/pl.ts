@@ -58,7 +58,21 @@ const pl: Translations = {
     "radarSpeed": "Prędkość",
     "walk": "Chodzić",
     "drive": "Prowadzić",
+    "walkLess1Min": "< 1 min pieszo",
+    "walkMin": "{{count}} min pieszo",
+    "driveShort": "samochodem",
     "more": "Więcej"
+  },
+  "days": {
+    "monday": "Poniedziałek",
+    "tuesday": "Wtorek",
+    "wednesday": "Środa",
+    "thursday": "Czwartek",
+    "friday": "Piątek",
+    "saturday": "Sobota",
+    "sunday": "Niedziela",
+    "closed": "Zamknięte",
+    "open24Hours": "Czynne całą dobę"
   },
   "loading": {
     "preparing": "Przygotowanie...",
@@ -132,7 +146,7 @@ const pl: Translations = {
     "hungover": "Kac",
     "hungoverRecovery": "Powrót do zdrowia po kacu",
     "atAGlance": "W skrócie",
-    "plateboundOverall": "Ogólnie rzecz biorąc, platerowany",
+    "plateboundOverall": "Logic Plate ogólnie",
     "flavorValue": "Smak i wartość",
     "convenience": "Wygoda",
     "recovery": "Powrót do zdrowia",
@@ -183,6 +197,7 @@ const pl: Translations = {
   },
   "result": {
     "matchScore": "Wynik meczu",
+    "top3SignatureItems": "Top 3 Specjały",
     "healthScore": "Wynik zdrowia",
     "viewWebsite": "Strona internetowa",
     "noSummary": "Nie ma jeszcze podsumowania.",
@@ -236,7 +251,7 @@ const pl: Translations = {
       "needMore": "Na początek potrzebujesz jeszcze {{count}}",
       "ready": "Gotowy do pracy!",
       "waitingFirst": "Czekam na pierwszą odpowiedź…",
-      "shareMessage": "Dołącz do naszego głosowania na Platebound! Kod: {{kod}}",
+      "shareMessage": "Dołącz do naszego głosowania na Logic Plate! Kod: {{kod}}",
       "errors": {
         "locationRequired": "Aby rozpocząć sesję grupową, wymagana jest lokalizacja.",
         "appSecret": "W tej kompilacji aplikacji nie ustawiono EXPO_PUBLIC_APP_SECRET. Musi pasować do sekretu APP_SECRET w funkcjach Supabase Edge, aby sesja tworzenia grupy mogła autoryzować.",
@@ -570,7 +585,7 @@ const pl: Translations = {
     "aiOverview": "Przegląd sztucznej inteligencji",
     "whoIsItFor": "Dla kogo to jest?",
     "aiScores": "Wyniki AI",
-    "overallScore": "Ogólnie rzecz biorąc, platebound",
+    "overallScore": "Ogólnie Logic Plate",
     "overallShort": "Łącznie {{wynik}}",
     "distanceAway": "{{odległość}} dalej",
     "openStatus": "Otwarte",

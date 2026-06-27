@@ -144,7 +144,7 @@ const NEUTRAL_BLEND: Record<(typeof NORM_WEIGHT_KEYS)[number], number> = {
   speed: 0.08,
   cost: 0.12,
   health: 0.12,
-  valueForMoney: 0.06,
+  valueForMoney: 0.02,
   taste: 0.1,
   ratingAdherence: 0.22,
   cuisine: 0.1,
@@ -169,7 +169,7 @@ function importanceToStrength(level: ImportanceLevel): number {
 
 function normalizedStrengths(w: RecommendationWeights): Record<(typeof NORM_WEIGHT_KEYS)[number], number> {
   const keys = NORM_WEIGHT_KEYS;
-  const raw = keys.map(k => importanceToStrength(w[k]));
+  const raw = keys.map(k => k === 'valueForMoney' ? 0.02 : importanceToStrength(w[k]));
   const sum = raw.reduce((a, b) => a + b, 0);
   if (sum <= 0) return { ...NEUTRAL_BLEND };
   return Object.fromEntries(keys.map((k, i) => [k, raw[i]! / sum])) as Record<(typeof NORM_WEIGHT_KEYS)[number], number>;

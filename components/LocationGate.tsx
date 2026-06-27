@@ -74,7 +74,7 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
           </Text>
           <Text style={[styles.body, { color: theme.subtext }]}>
             {isDenied
-              ? t('map.locationRequiredBody', 'Platebound needs your location to find the best restaurants around you. Please grant location permissions to continue.')
+              ? t('map.locationRequiredBody', 'Logic Plate needs your location to find the best restaurants around you. Please grant location permissions to continue.')
               : t('map.gpsUnavailableBody', 'We could not determine your current location. Please ensure your GPS is turned on and try again.')}
           </Text>
         </View>

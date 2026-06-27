@@ -58,7 +58,21 @@ const es: Translations = {
     "radarSpeed": "Velocidad",
     "walk": "Caminar",
     "drive": "Conducir",
+    "walkLess1Min": "< 1 min a pie",
+    "walkMin": "{{count}} min a pie",
+    "driveShort": "en auto",
     "more": "Más"
+  },
+  "days": {
+    "monday": "Lunes",
+    "tuesday": "Martes",
+    "wednesday": "Miércoles",
+    "thursday": "Jueves",
+    "friday": "Viernes",
+    "saturday": "Sábado",
+    "sunday": "Domingo",
+    "closed": "Cerrado",
+    "open24Hours": "Abierto las 24 horas"
   },
   "loading": {
     "preparing": "Preparando...",
@@ -132,7 +146,7 @@ const es: Translations = {
     "hungover": "Resaca",
     "hungoverRecovery": "Recuperación de la resaca",
     "atAGlance": "A primera vista",
-    "plateboundOverall": "Enlazado en placa en general",
+    "plateboundOverall": "Logic Plate en general",
     "flavorValue": "Sabor y valor",
     "convenience": "Comodidad",
     "recovery": "De recuperación",
@@ -183,6 +197,7 @@ const es: Translations = {
   },
   "result": {
     "matchScore": "Resultado",
+    "top3SignatureItems": "Top 3 Platos Estrella",
     "healthScore": "Puntuación de salud",
     "viewWebsite": "Sitio web",
     "noSummary": "Aún no hay un resumen.",
@@ -236,7 +251,7 @@ const es: Translations = {
       "needMore": "Necesitas {{count}} más para empezar",
       "ready": "¡Listo para comenzar!",
       "waitingFirst": "Esperando la primera respuesta...",
-      "shareMessage": "¡Únase a nuestra votación Platebound! Código: {{code}}",
+      "shareMessage": "¡Únase a nuestra votación Logic Plate! Código: {{code}}",
       "errors": {
         "locationRequired": "La ubicación es necesaria para iniciar una sesión de grupo.",
         "appSecret": "EXPO_PUBLIC_APP_SECRET no está configurado en esta compilación de aplicaciones. Debe coincidir con el secreto APP_SECRET en sus funciones de borde de Supabase para que create-group-session pueda autorizarlo.",
@@ -570,7 +585,7 @@ const es: Translations = {
     "aiOverview": "Resumen de IA",
     "whoIsItFor": "¿Para quién es?",
     "aiScores": "Puntuaciones de IA",
-    "overallScore": "Platebound general",
+    "overallScore": "Logic Plate general",
     "overallShort": "{{score}} en general",
     "distanceAway": "A {{distance}}",
     "openStatus": "Abierto",

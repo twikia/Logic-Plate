@@ -22,7 +22,7 @@ import {
   MAX_SEARCH_RADIUS_METERS,
   MIN_SEARCH_RADIUS_METERS,
 } from '@/core/searchRadiusOptions';
-import { RestaurantImage } from '@/core/images';
+import { RestaurantCarousel } from '@/components/RestaurantCarousel';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
@@ -38,10 +38,11 @@ import {
   mapMarkerScoreColor,
   mapSortRawHigherIsGreener,
 } from '@/core/restaurantSort';
-import { tScoreLabel, tSortLabel } from '@/core/i18nLabels';
+import { tScoreLabel, tSortLabel, formatWeekdayHours } from '@/core/i18nLabels';
 import { scoreWithLoadedPrefs } from '@/core/recommendationEngine';
 
 function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
+  if (sortBy === 'matchScore') return item.matchScore != null ? `${Math.round(item.matchScore)}%` : '—';
   if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
   if (sortBy === 'price') return formatPlacePriceLabel(item) || '—';
   if (sortBy === 'rating') {
@@ -871,19 +872,13 @@ export default function MapScreen() {
           >
             <View style={styles.sheetHeader}>
               <View style={{ marginRight: 12 }}>
-                <RestaurantImage
-                  restaurantId={selectedRestaurant.id}
-                  photos={selectedRestaurant.photos}
-                  photoUrl={selectedRestaurant.photo_url}
-                  name={selectedRestaurant.displayName?.text}
-                  latitude={selectedRestaurant.location?.latitude}
-                  longitude={selectedRestaurant.location?.longitude}
-                  websiteUrl={selectedRestaurant.websiteUri}
-                  formattedAddress={selectedRestaurant.formattedAddress}
-                  cuisineKey={selectedRestaurant.primaryType?.replace(/_restaurant$/, '')}
+                <RestaurantCarousel
+                  place={selectedRestaurant}
                   width={64}
                   height={64}
                   borderRadius={12}
+                  startIndex={1}
+                  autoRotate={true}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -1002,7 +997,7 @@ export default function MapScreen() {
                 ).map((line: string, i: number) => {
                   const todayIdx = (new Date().getDay() + 6) % 7;
                   return (
-                    <Text key={i} style={[styles.infoSectionBody, { color: i === todayIdx ? '#4CD964' : theme.subtext, fontWeight: i === todayIdx ? '700' : '400' }]}>{line}</Text>
+                    <Text key={i} style={[styles.infoSectionBody, { color: i === todayIdx ? '#4CD964' : theme.subtext, fontWeight: i === todayIdx ? '700' : '400' }]}>{formatWeekdayHours(line)}</Text>
                   );
                 })}
               </View>

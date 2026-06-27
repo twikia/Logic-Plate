@@ -109,6 +109,7 @@ function RestaurantImageInner({
   const [state, setState] = useState<LoadState>('waiting');
   const [activeUri, setActiveUri] = useState<string | null>(null);
   const [resolvedPhotos, setResolvedPhotos] = useState<any[]>(photos);
+  const [imageFit, setImageFit] = useState<'cover' | 'contain'>('cover');
   const candidatesRef = useRef<string[]>([]);
   const indexRef = useRef(0);
   const mountedRef = useRef(true);
@@ -221,8 +222,11 @@ function RestaurantImageInner({
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
-  const onLoad = useCallback(() => {
+  const onLoad = useCallback((e?: any) => {
     if (!mountedRef.current || !activeUri) return;
+    if (e?.source?.width && e?.source?.height && e.source.width > e.source.height) {
+      setImageFit('contain');
+    }
     setState('loaded');
     // Cache the working URL
     cacheImageUrl(restaurantId, activeUri).catch(err =>
@@ -292,7 +296,7 @@ function RestaurantImageInner({
       <Image
         source={{ uri: activeUri! }}
         style={{ width, height }}
-        contentFit="cover"
+        contentFit={imageFit}
         transition={250}
         onLoad={onLoad}
         onError={onError}

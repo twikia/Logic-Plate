@@ -40,7 +40,7 @@ export default function ScenariosScreen() {
                   style={styles.chipWrap}
                   onPress={() => {
                     hapticLight();
-                    router.push({ pathname: '/random', params: { scenario } });
+                    router.replace({ pathname: '/random', params: { scenario } });
                   }}
                 >
                   {neon && neonColors ? (
