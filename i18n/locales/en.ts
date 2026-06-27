@@ -59,6 +59,8 @@ const en = {
     drive: 'Drive',
     walkLess1Min: '< 1 min walk',
     walkMin: '{{count}} min walk',
+    driveLess1Min: '< 1 min drive',
+    driveMin: '{{count}} min drive',
     driveShort: 'drive',
     more: 'More',
   },
@@ -73,6 +75,7 @@ const en = {
     sunday: 'Sunday',
     closed: 'Closed',
     open24Hours: 'Open 24 hours',
+    daily: 'Daily',
   },
 
   loading: {

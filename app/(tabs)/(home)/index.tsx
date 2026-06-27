@@ -654,7 +654,7 @@ function SpotlightCard({
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
-  const { formatDistance, formatWalkingTime } = useDistanceFormatter();
+  const { formatDistance, formatWalkingTime, formatDrivingTime } = useDistanceFormatter();
   const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
   const reviews = place.userRatingCount;
   const costLabel = formatRestaurantCostLabel(place);
@@ -791,7 +791,7 @@ function SpotlightCard({
               ]}
             >
               {isDriveMode
-                ? `${formatDistance(place.distanceMeters ?? 0)} ${t('home.driveShort', { defaultValue: 'drive' })}`
+                ? formatDrivingTime(Math.round(place.distanceMeters ?? 0))
                 : formatWalkingTime(Math.round(place.distanceMeters ?? 0))}
             </Text>
           </View>

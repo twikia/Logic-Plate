@@ -60,6 +60,8 @@ const es: Translations = {
     "drive": "Conducir",
     "walkLess1Min": "< 1 min a pie",
     "walkMin": "{{count}} min a pie",
+    "driveLess1Min": "< 1 min en auto",
+    "driveMin": "{{count}} min en auto",
     "driveShort": "en auto",
     "more": "Más"
   },
@@ -72,7 +74,8 @@ const es: Translations = {
     "saturday": "Sábado",
     "sunday": "Domingo",
     "closed": "Cerrado",
-    "open24Hours": "Abierto las 24 horas"
+    "open24Hours": "Abierto las 24 horas",
+    "daily": "Diario"
   },
   "loading": {
     "preparing": "Preparando...",

@@ -41,13 +41,44 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
     title: 'Practical priorities',
     subtitle: 'How much speed, cost, and rating matter to you.',
     metrics: [
-      { key: 'speed', label: 'Speed', hint: 'Quick service and short waits', icon: '🚀' },
-      { key: 'cost', label: 'Cost', hint: 'Favor cheaper restaurants', icon: '💎' },
+      {
+        key: 'speed',
+        label: 'Speed',
+        hint: 'Quick service and short waits',
+        icon: '🚀',
+        customLevelEmojis: {
+          1: '🐌',
+          2: '🚶',
+          3: '🚲',
+          4: '🚗',
+          5: '🚀',
+        },
+      },
+      {
+        key: 'cost',
+        label: 'Cost',
+        hint: 'Favor cheaper restaurants',
+        icon: '💎',
+        customLevelEmojis: {
+          1: '🥂',
+          2: '🍽️',
+          3: '💵',
+          4: '🪙',
+          5: '🏷️',
+        },
+      },
       {
         key: 'ratingAdherence',
         label: 'Top rating importance',
         hint: 'Favor higher ratings',
         icon: '🏆',
+        customLevelEmojis: {
+          1: '🤷',
+          2: '⭐',
+          3: '🌟',
+          4: '🔥',
+          5: '🏆',
+        },
       },
     ],
   },
@@ -89,6 +120,13 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
         icon: '⚡',
         rangeLowLabel: 'Favor less calories',
         rangeHighLabel: 'Favor more calories',
+        customLevelEmojis: {
+          1: '🍃',
+          2: '🍎',
+          3: '⚖️',
+          4: '🍝',
+          5: '⚡',
+        },
       },
     ],
   },
@@ -99,6 +137,13 @@ export const CUISINE_FIT_METRIC: PriorityMetricDef = {
   label: 'Cuisine fit',
   hint: 'How much to favor your favorites',
   icon: '🍱',
+  customLevelEmojis: {
+    1: '🎲',
+    2: '🌍',
+    3: '🍽️',
+    4: '❤️',
+    5: '🎯',
+  },
 };
 
 export function allPriorityMetricKeys(): PriorityMetricKey[] {

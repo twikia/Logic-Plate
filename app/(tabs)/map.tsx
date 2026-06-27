@@ -23,6 +23,7 @@ import {
   MIN_SEARCH_RADIUS_METERS,
 } from '@/core/searchRadiusOptions';
 import { RestaurantCarousel } from '@/components/RestaurantCarousel';
+import { TranslatedText } from '@/components/ui/TranslatedText';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { formatPlacePriceLabel } from '@/core/placePriceLabel';
@@ -181,7 +182,7 @@ function MapSheetAiScores({
           {AI_OVERVIEW_FIELD_PLACEHOLDER}
         </Text>
       ) : ai?.absoluteMacros ? (
-        <Text style={[styles.macrosBlock, { color: theme.subtext }]}>{ai.absoluteMacros}</Text>
+        <TranslatedText text={ai.absoluteMacros} style={[styles.macrosBlock, { color: theme.subtext }]} />
       ) : null}
     </View>
   );
@@ -943,9 +944,11 @@ export default function MapScreen() {
                 <Ionicons name="person-outline" size={15} color="#B8E0FF" />
                 <Text style={[styles.infoSectionTitle, { color: '#B8E0FF' }]}>{t('map.whoIsItFor')}</Text>
               </View>
-              <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>
-                {selectedRestaurant.aiOverview?.whoThisPlaceIsFor || AI_OVERVIEW_FIELD_PLACEHOLDER}
-              </Text>
+              {selectedRestaurant.aiOverview?.whoThisPlaceIsFor ? (
+                <TranslatedText text={selectedRestaurant.aiOverview.whoThisPlaceIsFor} style={[styles.infoSectionBody, { color: theme.subtext }]} />
+              ) : (
+                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+              )}
             </View>
 
             <MapSheetAiScores

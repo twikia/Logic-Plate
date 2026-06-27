@@ -55,6 +55,7 @@ export function distanceBetweenMeters(
 export const getLocation = async (
   force = false
 ): Promise<{ latitude: number; longitude: number } | null> => {
+  return { latitude: 40.7128, longitude: -74.0060 }; // Hardcoded NYC for testing
   // 1. If a request is already in progress, wait for it instead of starting a new one
   if (pendingLocationPromise) {
     console.log('GPS request already in progress, waiting for it...');

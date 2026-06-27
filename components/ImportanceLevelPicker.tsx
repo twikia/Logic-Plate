@@ -51,13 +51,10 @@ function AnimatedOption({
     hapticLight();
     scale.value = withSequence(
       withTiming(1.22, { duration: 180 }),
-      withSpring(0.92, { damping: 4, stiffness: 150 }),
-      withSpring(1.05, { damping: 5, stiffness: 180 }),
-      withSpring(1, { damping: 8 })
+      withTiming(0.95, { duration: 130 }),
+      withTiming(1.0, { duration: 110 })
     );
     rot.value = withSequence(
-      withTiming(-8, { duration: 90 }),
-      withTiming(8, { duration: 90 }),
       withTiming(-4, { duration: 90 }),
       withTiming(0, { duration: 90 })
     );

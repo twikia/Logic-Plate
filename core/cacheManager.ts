@@ -115,6 +115,46 @@ export const readCache = async (cellId: string, resolution: number = 8): Promise
 };
 
 /**
+ * Appends newly fetched places to an existing cached cell entry (L1 / AsyncStorage).
+ *
+ * Used for pages 2 and 3 of the restaurant search so that subsequent Google
+ * page-token results are merged into the same cache slot without overwriting
+ * page-1 data.  The original `fetched_at` timestamp is preserved — freshness
+ * is always measured from when the initial search (page 1) ran.
+ *
+ * Supabase (L2) append is handled server-side by fetch-restaurants/index.ts,
+ * so the DB write completes even when the client exits before this resolves.
+ */
+export const appendToCache = async (cellId: string, newPlaces: any[]): Promise<void> => {
+  if (!newPlaces || newPlaces.length === 0) return;
+  try {
+    const key = `cell_${cellId}`;
+    const existing = await AsyncStorage.getItem(key);
+
+    let existingRestaurants: any[] = [];
+    let fetchedAt = new Date().toISOString(); // fallback only — should always find page-1 entry
+
+    if (existing) {
+      try {
+        const parsed = JSON.parse(existing);
+        existingRestaurants = Array.isArray(parsed.restaurants) ? parsed.restaurants : [];
+        fetchedAt = parsed.fetched_at ?? fetchedAt; // preserve original timestamp
+      } catch { /* start fresh on parse error */ }
+    }
+
+    const existingIds = new Set(existingRestaurants.map((p: any) => p.id).filter(Boolean));
+    const uniqueNew = newPlaces.filter((p: any) => p.id && !existingIds.has(p.id));
+
+    if (uniqueNew.length === 0) return; // nothing new to append
+
+    const merged = [...existingRestaurants, ...uniqueNew];
+    await AsyncStorage.setItem(key, JSON.stringify({ restaurants: merged, fetched_at: fetchedAt }));
+  } catch (err) {
+    console.error('AsyncStorage appendToCache error:', err);
+  }
+};
+
+/**
  * Writes ONLY to AsyncStorage (L1). Supabase (L2) is handled by the Edge Function.
  */
 export const writeCache = async (cellId: string, restaurants: any[]) => {

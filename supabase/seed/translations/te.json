@@ -56,7 +56,24 @@
     "radarSpeed": "వేగం",
     "walk": "నడవండి",
     "drive": "డ్రైవ్ చేయండి",
+    "walkLess1Min": "< 1 నిమి నడక",
+    "walkMin": "{{count}} నిమి నడక",
+    "driveLess1Min": "< 1 నిమి డ్రైవ్",
+    "driveMin": "{{count}} నిమి డ్రైవ్",
+    "driveShort": "డ్రైవ్",
     "more": "మరిన్ని"
+  },
+  "days": {
+    "monday": "సోమవారం",
+    "tuesday": "మంగళవారం",
+    "wednesday": "బుధవారం",
+    "thursday": "గురువారం",
+    "friday": "శుక్రవారం",
+    "saturday": "శనివారం",
+    "sunday": "ఆదివారం",
+    "closed": "మూసివేయబడింది",
+    "open24Hours": "24 గంటలు తెరిచి ఉంటుంది",
+    "daily": "రోజువారీ"
   },
   "loading": {
     "preparing": "సిద్ధమవుతోంది...",
@@ -130,7 +147,7 @@
     "hungover": "హ్యాంగోవర్",
     "hungoverRecovery": "హ్యాంగోవర్ రికవరీ",
     "atAGlance": "ఒక చూపులో",
-    "plateboundOverall": "మొత్తంగా ప్లేట్‌బౌండ్",
+    "plateboundOverall": "లాజిక్ ప్లేట్ మొత్తం",
     "flavorValue": "రుచి & విలువ",
     "convenience": "సౌలభ్యం",
     "recovery": "రికవరీ",
@@ -181,6 +198,7 @@
   },
   "result": {
     "matchScore": "మ్యాచ్ స్కోరు",
+    "top3SignatureItems": "టాప్ 3 సంతకం అంశాలు",
     "healthScore": "ఆరోగ్య స్కోరు",
     "viewWebsite": "వెబ్సైట్",
     "noSummary": "ఇంకా సారాంశం లేదు.",
@@ -194,7 +212,7 @@
     "tapToOpen": "తెరవడానికి నొక్కండి",
     "healthTier": {
       "nutritious": "పుష్టికరమైనది",
-      "moderate": "మధ్యస్తంగా",
+      "moderate": "మితమైన",
       "indulgent": "విలాసవంతమైన"
     },
     "matchTier": {
@@ -234,11 +252,11 @@
       "needMore": "ప్రారంభించడానికి ఇంకా {{count}} అవసరం",
       "ready": "వెళ్ళడానికి సిద్ధంగా ఉంది!",
       "waitingFirst": "మొదటి ప్రతిస్పందన కోసం వేచి ఉంది…",
-      "shareMessage": "మా ప్లేట్‌బౌండ్ ఓటులో చేరండి! కోడ్: {{code}}",
+      "shareMessage": "మా లాజిక్ ప్లేట్ ఓటులో చేరండి! కోడ్: {{code}}",
       "errors": {
         "locationRequired": "సమూహ సెషన్‌ను ప్రారంభించడానికి స్థానం అవసరం.",
         "appSecret": "ఈ యాప్ బిల్డ్‌లో EXPO_PUBLIC_APP_SECRET సెట్ చేయబడలేదు. ఇది తప్పనిసరిగా మీ సుపాబేస్ ఎడ్జ్ ఫంక్షన్‌లలోని APP_SECRET రహస్యానికి సరిపోలాలి, కాబట్టి create-group-session ప్రమాణీకరించవచ్చు.",
-        "appSecretReconcile": "EXPO_PUBLIC_APP_SECRET ఈ యాప్ బిల్డ్‌లో సెట్ చేయబడలేదు. రీకన్సిల్-గ్రూప్ అమలు చేయడానికి ఇది తప్పనిసరిగా Supabaseలో APP_SECRETతో సరిపోలాలి.",
+        "appSecretReconcile": "ఈ యాప్ బిల్డ్‌లో EXPO_PUBLIC_APP_SECRET సెట్ చేయబడలేదు. రీకన్సిల్-గ్రూప్ అమలు చేయడానికి ఇది తప్పనిసరిగా Supabaseలో APP_SECRETతో సరిపోలాలి.",
         "sessionTimedOut": "సెషన్ సమయం ముగిసింది."
       }
     },
@@ -403,7 +421,7 @@
     "start": "ప్రారంభించండి"
   },
   "auth": {
-    "brand": "ప్లేట్‌బౌండ్",
+    "brand": "లాజిక్ ప్లేట్",
     "welcomeBack": "తిరిగి స్వాగతం",
     "saveProfile": "ఈ ప్రొఫైల్‌ను సేవ్ చేయండి",
     "createAccount": "ఖాతాను సృష్టించండి",
@@ -452,7 +470,7 @@
     "footer": "చెల్లింపు ప్రాసెసింగ్ త్వరలో వస్తుంది. ప్లాన్‌లు ప్రివ్యూ కోసం మాత్రమే చూపబడ్డాయి.",
     "tiers": {
       "free": "ఉచిత",
-      "minimal": "కనిష్ట",
+      "minimal": "కనిష్టమైనది",
       "pro": "ప్రో",
       "ultimate": "అల్టిమేట్"
     },
@@ -495,19 +513,19 @@
   },
   "priorities": {
     "practicalTitle": "ఆచరణాత్మక ప్రాధాన్యతలు",
-    "practicalSubtitle": "మనం ఎంచుకున్నప్పుడు ఎంత ప్రయాణం, ఖర్చు మరియు వేగం ముఖ్యం.",
+    "practicalSubtitle": "మీకు ఎంత వేగం, ధర మరియు రేటింగ్ ముఖ్యం.",
     "healthTitle": "ఆరోగ్యం & పోషణ",
     "healthSubtitle": "మీ శరీరం మరియు లక్ష్యాల కోసం మీరు భోజనం నుండి ఏమి కోరుకుంటున్నారు.",
     "speedLabel": "వేగం",
     "speedHint": "త్వరిత సేవ మరియు చిన్న నిరీక్షణలు",
     "costLabel": "ఖర్చు",
-    "costHint": "ఇది మీకు ముఖ్యమైనప్పుడు చౌకైన రెస్టారెంట్‌లను ఇష్టపడండి",
+    "costHint": "చౌకైన రెస్టారెంట్లను ఇష్టపడండి",
     "distanceLabel": "దూరం",
     "distanceHint": "స్పాట్ ఎంత దగ్గరగా ఉంది",
     "ratingAdherenceLabel": "అగ్ర రేటింగ్ ప్రాముఖ్యత",
-    "ratingAdherenceHint": "మనం ఎంచుకున్నప్పుడు ఎంత స్టార్ రేటింగ్స్ ముఖ్యం",
+    "ratingAdherenceHint": "అధిక రేటింగ్‌లను ఇష్టపడండి",
     "ratingLabel": "అగ్ర రేటింగ్ ప్రాముఖ్యత",
-    "ratingHint": "మనం ఎంచుకున్నప్పుడు ఎంత స్టార్ రేటింగ్స్ ముఖ్యం",
+    "ratingHint": "అధిక రేటింగ్‌లను ఇష్టపడండి",
     "valueForMoneyLabel": "డబ్బు కోసం విలువ",
     "valueForMoneyHint": "మీ బక్ కోసం గొప్ప బ్యాంగ్",
     "healthLabel": "ఆరోగ్యం",
@@ -515,7 +533,7 @@
     "proteinLabel": "ప్రొటీన్",
     "proteinHint": "ప్రోటీన్-ఫార్వర్డ్ మెనులు",
     "tasteLabel": "రుచి",
-    "tasteHint": "AI రుచి మరియు మెను నాణ్యత",
+    "tasteHint": "రుచిని ఇష్టపడండి",
     "caloriesLabel": "కేలరీలు",
     "caloriesHint": "ఎంత క్యాలరీ సాంద్రత మీ ఎంపికలను ప్రభావితం చేయాలి",
     "caloriesLow": "తక్కువ కేలరీలను ఇష్టపడండి",
@@ -524,7 +542,7 @@
     "cuisineHint": "మీకు ఇష్టమైన వాటికి ఎంత అనుకూలంగా ఉండాలి",
     "importance_1": "కేవలం",
     "importance_2": "కొంచెం",
-    "importance_3": "మధ్యస్తంగా",
+    "importance_3": "మితమైన",
     "importance_4": "ముఖ్యమైనది",
     "importance_5": "ముఖ్యమైన"
   },
@@ -567,8 +585,8 @@
     "acquiringGpsSubtitle": "మీ పాక కోఆర్డినేట్‌లను కనుగొంటోంది...",
     "aiOverview": "AI అవలోకనం",
     "whoIsItFor": "ఇది ఎవరి కోసం?",
-    "aiScores": "AI స్కోర్లు",
-    "overallScore": "మొత్తం ప్లేట్‌బౌండ్",
+    "aiScores": "స్కోర్లు",
+    "overallScore": "మొత్తం లాజిక్ ప్లేట్",
     "overallShort": "మొత్తంగా {{స్కోరు}}",
     "distanceAway": "{{distance}} దూరంలో ఉంది",
     "openStatus": "తెరవండి",

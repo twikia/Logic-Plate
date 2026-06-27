@@ -813,17 +813,7 @@ export default function RandomResultScreen() {
               <Ionicons name="globe-outline" size={17} color={theme.text} />
               <Text style={[styles.stickyGhostText, { color: theme.text }]}>{t('result.viewWebsite')}</Text>
             </TouchableOpacity>
-          ) : (
-            <View
-              style={[
-                styles.stickyMiddle,
-                { backgroundColor: theme.subtext + '22', borderColor: 'transparent' },
-              ]}
-            >
-              <Ionicons name="globe-outline" size={17} color={theme.subtext} />
-              <Text style={[styles.stickyGhostText, { color: theme.subtext }]}>{t('result.viewWebsite')}</Text>
-            </View>
-          )}
+          ) : null}
           {mapsReady ? (
             <TouchableOpacity
               animated={false}

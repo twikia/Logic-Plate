@@ -483,7 +483,11 @@ export default function RandomScreen() {
   const handleBack = useCallback(() => {
     hydratedRef.current = false;
     void clearRandomPickerState();
-    router.navigate('/(tabs)/(home)');
+    if (router.canGoBack()) {
+      router.dismissAll();
+    } else {
+      router.replace('/(tabs)/(home)');
+    }
   }, [router]);
 
   useFocusEffect(

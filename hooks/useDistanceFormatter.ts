@@ -42,5 +42,16 @@ export function useDistanceFormatter() {
     return i18n.t('home.walkMin', { count: mins, defaultValue: `${mins} min walk` });
   };
 
-  return { unit, formatDistance, formatLabel, formatWalkingTime };
+  /** Typical drive in city — lower by 1-2 mins than walk time per user request. */
+  const formatDrivingTime = (meters: number): string => {
+    const m = Math.max(0, Math.round(meters));
+    if (m < 80) return i18n.t('home.driveLess1Min', { defaultValue: '< 1 min drive' });
+    const walkMins = Math.floor(m / (4800 / 60));
+    if (walkMins < 1) return i18n.t('home.driveLess1Min', { defaultValue: '< 1 min drive' });
+    const reduction = walkMins > 2 ? 2 : (walkMins > 1 ? 1 : 0);
+    const driveMins = Math.max(1, walkMins - reduction);
+    return i18n.t('home.driveMin', { count: driveMins, defaultValue: `${driveMins} min drive` });
+  };
+
+  return { unit, formatDistance, formatLabel, formatWalkingTime, formatDrivingTime };
 }

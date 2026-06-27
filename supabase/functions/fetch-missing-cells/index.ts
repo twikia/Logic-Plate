@@ -23,7 +23,8 @@ serve(async (req) => {
   }
 
   try {
-    const { missingCells } = await req.json();
+    const body = await req.json();
+    const { missingCells, page = 1, hasNextPage = false } = body;
     if (!missingCells || !Array.isArray(missingCells)) {
       return new Response(JSON.stringify({ error: 'missingCells array is required' }), {
         status: 400,
@@ -190,9 +191,15 @@ serve(async (req) => {
       });
     }
 
+    const totalPlacesReturned = newlyFetchedRestaurants.reduce((sum, item) => sum + (item.places?.length || 0), 0);
+    console.log(`[fetch-missing-cells] Page ${page}: Searched ${missingCells.length} cells -> Returned ${totalPlacesReturned} restaurants across ${newlyFetchedRestaurants.length} successful cells. Next page available: ${hasNextPage ? 'Yes' : 'No'}.`);
+
     return new Response(JSON.stringify({
       newlyFetchedRestaurants,
       failedCells,
+      page,
+      totalPlacesReturned,
+      hasNextPage,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

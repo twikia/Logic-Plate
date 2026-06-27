@@ -31,14 +31,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { hapticMedium, hapticSuccess } from '@/core/haptics';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const METRIC_PAGE_START = 0;
 const METRIC_PAGE_COUNT = PRIORITY_METRIC_SCREENS.length;
@@ -58,8 +60,8 @@ function AnimatedContinueButton({ onPress, text, theme }: { onPress: () => void;
         onPress={() => {
           scale.value = withSequence(
             withTiming(1.15, { duration: 120 }),
-            withSpring(0.95, { damping: 5 }),
-            withSpring(1, { damping: 8 })
+            withTiming(0.96, { duration: 100 }),
+            withTiming(1.0, { duration: 100 })
           );
           onPress();
         }}
@@ -93,8 +95,24 @@ export default function WelcomeOnboardingScreen() {
 
   const [weights, setWeights] = useState<RecommendationWeights>({ ...DEFAULT_WEIGHTS });
   const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>([]);
-
   const [ready, setReady] = useState(false);
+
+  const [isCompleting, setIsCompleting] = useState(false);
+  const completingRef = useRef(false);
+
+  const progressVal = useSharedValue(25);
+  const translateY = useSharedValue(0);
+  const translateX = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const contentOpacity = useSharedValue(1);
+  const celebrationOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (!isCompleting) {
+      const targetPct = page === 0 ? 25 : page === 1 ? 50 : 75;
+      progressVal.value = withTiming(targetPct, { duration: 250 });
+    }
+  }, [page, isCompleting, progressVal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,33 +139,53 @@ export default function WelcomeOnboardingScreen() {
     };
   }, [router]);
 
-  const finish = useCallback(async () => {
+  const finish = useCallback(async (cuisinesToSave?: string[]) => {
     hapticSuccess();
     await markOnboardingComplete({
       v: 1,
       weights,
-      favoriteCuisines,
+      favoriteCuisines: cuisinesToSave && Array.isArray(cuisinesToSave) ? cuisinesToSave : favoriteCuisines,
       openNowOnly: true,
     });
     router.replace('/(tabs)' as any);
   }, [favoriteCuisines, router, weights]);
+
+  const triggerCompletion = useCallback((cuisines?: string[]) => {
+    if (completingRef.current) return;
+    completingRef.current = true;
+    setIsCompleting(true);
+    hapticSuccess();
+
+    progressVal.value = withTiming(100, { duration: 450, easing: Easing.out(Easing.cubic) });
+    translateY.value = withDelay(450, withTiming(SCREEN_H * 0.38, { duration: 550, easing: Easing.out(Easing.cubic) }));
+    translateX.value = withDelay(450, withTiming(-17, { duration: 550, easing: Easing.out(Easing.cubic) }));
+    scale.value = withDelay(450, withTiming(1.35, { duration: 550, easing: Easing.out(Easing.cubic) }));
+    contentOpacity.value = withDelay(400, withTiming(0, { duration: 300 }));
+    celebrationOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
+
+    setTimeout(() => {
+      void finish(cuisines);
+    }, 2450);
+  }, [finish, progressVal, translateY, translateX, scale, contentOpacity, celebrationOpacity]);
 
   const setWeight = (key: keyof RecommendationWeights, level: ImportanceLevel) => {
     setWeights(w => ({ ...w, [key]: level }));
   };
 
   const goNext = () => {
+    if (isCompleting) return;
     hapticMedium();
     if (page < STEPS - 1) {
       listRef.current?.scrollToIndex({ index: page + 1, animated: true });
     } else {
-      void finish();
+      triggerCompletion(favoriteCuisines);
     }
   };
 
   const canGoBack = page > 0 || router.canGoBack();
 
   const goBack = () => {
+    if (isCompleting) return;
     if (page > 0) {
       listRef.current?.scrollToIndex({ index: page - 1, animated: true });
     } else if (router.canGoBack()) {
@@ -156,6 +194,7 @@ export default function WelcomeOnboardingScreen() {
   };
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (isCompleting) return;
     const x = e.nativeEvent.contentOffset.x;
     const idx = Math.round(x / SCREEN_W);
     if (idx >= 0 && idx < STEPS && idx !== page) setPage(idx);
@@ -191,7 +230,12 @@ export default function WelcomeOnboardingScreen() {
         />
         <CuisineRankGrid
           ranked={favoriteCuisines}
-          onChange={setFavoriteCuisines}
+          onChange={(next) => {
+            setFavoriteCuisines(next);
+            if (next.length === 5 && !completingRef.current) {
+              triggerCompletion(next);
+            }
+          }}
           accent={theme.accent}
           textColor={theme.text}
         />
@@ -199,44 +243,77 @@ export default function WelcomeOnboardingScreen() {
     );
   };
 
+  const progressContainerAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: translateY.value },
+      { translateX: translateX.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const progressFillAnimStyle = useAnimatedStyle(() => ({
+    width: `${progressVal.value}%`,
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
+
+  const celebrationAnimStyle = useAnimatedStyle(() => ({
+    opacity: celebrationOpacity.value,
+  }));
+
   if (!ready) {
     return <View style={[styles.root, { backgroundColor: theme.cardBackground }]} />;
   }
 
-  const pct = page === 0 ? 25 : page === 1 ? 50 : 100;
+  const pct = page === 0 ? 25 : page === 1 ? 50 : 75;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.cardBackground }]}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.topRow}>
-          <BackButton onPress={goBack} disabled={!canGoBack} size={26} />
-          <View style={styles.progressContainer}>
+          <Animated.View style={{ opacity: isCompleting ? 0 : 1 }}>
+            <BackButton onPress={goBack} disabled={!canGoBack || isCompleting} size={26} />
+          </Animated.View>
+          <Animated.View style={[styles.progressContainer, progressContainerAnimStyle]}>
             <View style={[styles.progressTrack, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-              <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.accent }]} />
+              <Animated.View style={[styles.progressFill, { backgroundColor: theme.accent }, progressFillAnimStyle]} />
             </View>
-            <Text style={[styles.progressText, { color: theme.accent }]}>{pct}%</Text>
-          </View>
+            <Text style={[styles.progressText, { color: theme.accent }]}>
+              {isCompleting ? '100%' : `${pct}%`}
+            </Text>
+          </Animated.View>
         </View>
 
-        <FlatList
-          ref={listRef}
-          data={Array.from({ length: STEPS }, (_, i) => i)}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={i => String(i)}
-          renderItem={({ index }) => renderPage({ index })}
-          onMomentumScrollEnd={onScroll}
-          getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-        />
+        {isCompleting && (
+          <Animated.View style={[styles.celebrationOverlay, celebrationAnimStyle]}>
+            <Text style={[styles.celebrationTitle, { color: theme.text }]}>🎉 {t('onboarding.done', 'All Set!')}</Text>
+            <Text style={[styles.celebrationSub, { color: theme.subtext }]}>Starting Platebound...</Text>
+          </Animated.View>
+        )}
 
-        <View style={styles.footer}>
-          <AnimatedContinueButton
-            onPress={goNext}
-            text={page === STEPS - 1 ? t('onboarding.startExploring') : t('onboarding.continue')}
-            theme={theme}
+        <Animated.View style={[{ flex: 1 }, contentAnimStyle]} pointerEvents={isCompleting ? 'none' : 'auto'}>
+          <FlatList
+            ref={listRef}
+            data={Array.from({ length: STEPS }, (_, i) => i)}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={i => String(i)}
+            renderItem={({ index }) => renderPage({ index })}
+            onMomentumScrollEnd={onScroll}
+            getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
           />
-        </View>
+
+          <View style={styles.footer}>
+            <AnimatedContinueButton
+              onPress={goNext}
+              text={page === STEPS - 1 ? t('onboarding.startExploring') : t('onboarding.continue')}
+              theme={theme}
+            />
+          </View>
+        </Animated.View>
       </SafeAreaView>
     </View>
   );
@@ -289,4 +366,21 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   primaryBtnText: { fontSize: 17, fontWeight: '800' },
+  celebrationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 80,
+    zIndex: 100,
+    pointerEvents: 'none',
+  },
+  celebrationTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  celebrationSub: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });

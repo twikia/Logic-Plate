@@ -230,14 +230,29 @@ export default function TabLayout() {
                   if (isDoubleTap) {
                     requestHomeTitleReroll();
                     requestRandomPickerReset();
-                    if (router.canGoBack()) router.dismissAll();
-                    router.replace('/(tabs)/(home)');
+                    if (isMap || isGroups) {
+                      router.replace('/(tabs)/(home)');
+                    } else if (router.canGoBack()) {
+                      router.dismissAll();
+                    } else {
+                      router.replace('/(tabs)/(home)');
+                    }
                   } else if (isOnRandomPicker && !isMap && !isGroups) {
                     requestRandomPickerReset();
-                    if (router.canGoBack()) router.dismissAll();
+                    if (router.canGoBack()) {
+                      router.dismissAll();
+                    } else {
+                      router.replace('/(tabs)/(home)');
+                    }
+                  } else if (isMap || isGroups) {
+                    // On top-level tabs: navigate directly instead of dismissAll (avoids POP_TO_TOP error)
                     router.replace('/(tabs)/(home)');
                   } else {
-                    (props.onPress as (() => void) | undefined)?.();
+                    if (router.canGoBack()) {
+                      router.dismissAll();
+                    } else {
+                      (props.onPress as (() => void) | undefined)?.();
+                    }
                   }
                   setLastPress(now);
                 }}

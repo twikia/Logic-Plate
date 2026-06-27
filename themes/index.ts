@@ -15,7 +15,7 @@ export const Themes: Record<string, ThemeColors> = {
     tint: '#00FFFF',
     buttonBackground: 'rgba(0,255,255,0.12)',
     glassBackground: 'rgba(0,255,255,0.08)',
-    imageBackdrop: '#CCFBF1',
+    imageBackdrop: 'rgba(168,85,247,0.22)',
     buttonShape: 'pill',
     cardBorderColor: 'rgba(0,255,255,0.55)',
     cardShadowColor: '#00FFFF',

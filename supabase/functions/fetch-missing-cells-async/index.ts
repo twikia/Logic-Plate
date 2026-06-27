@@ -24,7 +24,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const missingCells = body.missingCells;
+    const { missingCells, page = 2, hasNextPage = false } = body;
     const rawRes = body.resolution ?? 8;
     const resolution = Number(rawRes);
 
@@ -203,9 +203,15 @@ serve(async (req) => {
       });
     }
 
+    const totalPlacesReturned = newlyFetchedRestaurants.reduce((sum, item) => sum + (item.places?.length || 0), 0);
+    console.log(`[fetch-missing-cells-async] Page ${page}: Searched ${missingCells.length} cells -> Returned ${totalPlacesReturned} restaurants across ${newlyFetchedRestaurants.length} successful cells. Next page available: ${hasNextPage ? 'Yes' : 'No'}.`);
+
     return new Response(JSON.stringify({
       newlyFetchedRestaurants,
       failedCells,
+      page,
+      totalPlacesReturned,
+      hasNextPage,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

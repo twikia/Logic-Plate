@@ -46,7 +46,6 @@ export const resolvePhotoUri = (photo: any): string | null => {
     if (typeof val === 'string' && val.startsWith('http')) return val;
   }
 
-  console.warn('[ImageCache] Could not resolve URL from photo:', JSON.stringify(photo).slice(0, 200));
   return null;
 };
 
@@ -323,7 +322,6 @@ async function fetchRestaurantPhotoUrlsInternal({
 
   // ── L3: Edge Function (live fetch from all sources) ───────────────────────
   try {
-    console.log(`[ImageCache] Calling fetch-restaurant-photos for "${name}" (${placeId})`);
     const { data: invoked, error: invokeError } = await supabase.functions.invoke('fetch-restaurant-photos', {
       body: {
         place_id:          placeId,
@@ -338,7 +336,6 @@ async function fetchRestaurantPhotoUrlsInternal({
     });
 
     if (invokeError) {
-      console.warn('[ImageCache] Edge function invoke error:', invokeError);
       return [];
     }
 
@@ -348,13 +345,15 @@ async function fetchRestaurantPhotoUrlsInternal({
       ...(Array.isArray(invoked?.wikimedia_urls) ? invoked.wikimedia_urls : []),
       ...(Array.isArray(invoked?.unsplash_urls) ? invoked.unsplash_urls : []),
     ]);
-    console.log(`[ImageCache] Edge function returned ${urls.length} URLs for ${placeId}`);
+    if (urls.length === 0) {
+      console.log(`[ImageCache] Zero images found for "${name}" (${placeId}) — complete fallback.`);
+    }
 
     AsyncStorage.setItem(localKey, JSON.stringify({
       photo_urls: urls,
       ts: Date.now(),
       pipeline_version: PHOTO_PIPELINE_VERSION,
-    })).catch(e => console.error('[ImageCache] Local write after edge error:', e));
+    })).catch(() => {});
 
     return urls;
   } catch (err) {

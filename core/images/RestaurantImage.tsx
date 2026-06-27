@@ -224,15 +224,14 @@ function RestaurantImageInner({
 
   const onLoad = useCallback((e?: any) => {
     if (!mountedRef.current || !activeUri) return;
-    if (e?.source?.width && e?.source?.height && e.source.width > e.source.height) {
+    const isSquare = Math.abs(width - height) <= 2;
+    if (!isSquare && e?.source?.width && e?.source?.height && e.source.width > e.source.height) {
       setImageFit('contain');
     }
     setState('loaded');
     // Cache the working URL
-    cacheImageUrl(restaurantId, activeUri).catch(err =>
-      console.error(`[RestaurantImage] Cache write error for ${restaurantId}:`, err)
-    );
-  }, [activeUri, restaurantId]);
+    cacheImageUrl(restaurantId, activeUri).catch(() => {});
+  }, [activeUri, restaurantId, width, height]);
 
   const onError = useCallback(() => {
     if (!mountedRef.current) return;
@@ -248,9 +247,7 @@ function RestaurantImageInner({
       const nextUri = adjustQuality(candidatesRef.current[nextIdx], maxPx);
       setActiveUri(nextUri);
     } else {
-      console.warn(
-        `[RestaurantImage] All ${candidatesRef.current.length} URLs exhausted for "${restaurantId}" — showing default`
-      );
+      console.log(`[RestaurantImage] Zero images found for "${restaurantId}" — complete fallback`);
       setState('failed');
     }
   }, [restaurantId, quality, width]);
@@ -296,7 +293,7 @@ function RestaurantImageInner({
       <Image
         source={{ uri: activeUri! }}
         style={{ width, height }}
-        contentFit={imageFit}
+        contentFit={Math.abs(width - height) <= 2 ? 'cover' : imageFit}
         transition={250}
         onLoad={onLoad}
         onError={onError}

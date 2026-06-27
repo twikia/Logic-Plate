@@ -1,6 +1,6 @@
 import { getCellsInRadiusDynamic, getCellCenter, getChildCells } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
-import { readCacheBulk, writeCache } from './cacheManager';
+import { readCacheBulk, writeCache, appendToCache } from './cacheManager';
 import { supabase } from './supabaseClient';
 import { logEdgeFunctionFailure } from './supabaseFunctionErrors';
 import {
@@ -107,6 +107,39 @@ const formatAndSortPlaces = (rawPlaces: any[], userLat: number, userLng: number,
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 };
 
+// ── Edge function call helper ─────────────────────────────────────────────────
+
+type FetchRestaurantsPayload = {
+  cells: Array<{ cellId: string; lat?: number; lng?: number; pageToken?: string }>;
+  resolution: number;
+  page: number;
+};
+
+type FetchRestaurantsResponse = {
+  newlyFetchedRestaurants: { cellId: string; places: any[] }[];
+  pageTokens: Record<string, string>; // { cellId: nextPageToken }
+  failedCells?: string[];
+  page: number;
+  totalPlacesReturned: number;
+  hasNextPage: boolean;
+};
+
+async function invokeFetchRestaurants(
+  payload: FetchRestaurantsPayload
+): Promise<{ data: FetchRestaurantsResponse | null; error: any }> {
+  try {
+    const result = await supabase.functions.invoke('fetch-restaurants', {
+      body: payload,
+      headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
+    });
+    return { data: result.data as FetchRestaurantsResponse | null, error: result.error };
+  } catch (err) {
+    return { data: null, error: err };
+  }
+}
+
+// ── Core load function ────────────────────────────────────────────────────────
+
 async function loadNearbyRestaurantsInternal(
   userLat: number,
   userLng: number,
@@ -116,21 +149,20 @@ async function loadNearbyRestaurantsInternal(
 ): Promise<any[]> {
   const jobSeq = ++latestRestaurantJobSeq;
   const safeRadius = Math.min(radiusMeters, SEARCH_CONFIG.MAX_RADIUS_METERS);
-  const apiCallCap = safeRadius <= SEARCH_CONFIG.SMALL_RADIUS_METERS
-    ? SEARCH_CONFIG.SMALL_RADIUS_API_CAP
-    : SEARCH_CONFIG.LARGE_RADIUS_API_CAP;
 
+  // Always exactly 3 cells: center + 2 nearest neighbours from kRing(1)
+  // Resolution 7 for ≤1.5 miles, resolution 6 for larger areas.
   const { cellIds, resolution } = getCellsInRadiusDynamic(userLat, userLng, safeRadius);
   if (cellIds.length === 0) {
     throw new Error('No search cells generated for current location.');
   }
 
+  // ── Cache check (L1 AsyncStorage + L2 Supabase) ────────────────────────────
   onProgress?.({ stage: 'reading-cache', progress: 0.2 });
   const { hits: rawHits, misses: rawMisses } = await readCacheBulk(cellIds, resolution);
 
-  // When changing distance (macro resolution < 8), run parent calls no matter what instead of only relying on child cache
-  const uncachedCells = resolution < 8 ? [...cellIds] : rawMisses;
-  const hits = resolution < 8 ? new Map<string, any[]>() : rawHits;
+  const uncachedCells = rawMisses;
+  const hits = rawHits;
 
   console.log(
     `Restaurant cache check complete: ${hits.size}/${cellIds.length} cells found in cache (local+db), ${uncachedCells.length} cells still missing.`
@@ -141,81 +173,74 @@ async function loadNearbyRestaurantsInternal(
     parentRestaurants = parentRestaurants.concat(restaurants);
   });
 
+  // ── Child cache join ───────────────────────────────────────────────────────
+  // For uncached res-7 cells, check if any res-8 child cells are already cached.
+  // For uncached res-6 cells, check res-7 children.
+  // This surfaces previously-fetched data immediately while the API fetch runs.
   let childCachedRestaurants: any[] = [];
-  if (resolution < 8) {
+  if (resolution < 8 && uncachedCells.length > 0) {
+    const childRes = resolution === 7 ? 8 : 7;
     const childCellIds: string[] = [];
-    for (const id of cellIds) {
-      childCellIds.push(...getChildCells(id, 8));
+    for (const id of uncachedCells) {
+      childCellIds.push(...getChildCells(id, childRes));
     }
-    const { hits: childHits } = await readCacheBulk(childCellIds, 8);
+    const { hits: childHits } = await readCacheBulk(childCellIds, childRes);
     childHits.forEach(restaurants => {
       childCachedRestaurants = childCachedRestaurants.concat(restaurants);
     });
-    console.log(`Merged child (res 8) cache data: found ${childHits.size} child cells cached.`);
+    console.log(`Merged child (res ${childRes}) cache data: found ${childHits.size} child cells cached.`);
   }
 
-  // Page 1 (Synchronous immediate load)
+  // ── Page 1: synchronous fetch of all uncached cells ───────────────────────
   let page1NewPlacesCount = 0;
-  let page1FetchedCellsCount = 0;
+  let page1PageTokens: Record<string, string> = {};
 
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
-    const cellsToFetch = uncachedCells.slice(0, apiCallCap);
-    page1FetchedCellsCount = cellsToFetch.length;
-    const missingCellsPayload = cellsToFetch.map(cellId => {
+
+    // Build payload: lat/lng required for fresh page-1 searches
+    const cellsPayload = uncachedCells.map(cellId => {
       const [lat, lng] = getCellCenter(cellId);
       return { cellId, lat, lng };
     });
 
+    const hasMoreCells = false; // always false: 3 cells always fit in one page
     console.log(
-      `Database cache misses remain for ${uncachedCells.length} cells. Sending Page 1 (${cellsToFetch.length} cells) to fetch-missing-cells...`
+      `[Search Page 1] Fetching ${cellsPayload.length} cells at resolution ${resolution}.`
     );
 
-    let data: unknown;
-    let error: { message?: string; name?: string; context?: unknown } | null = null;
-    try {
-      const functionName = resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro';
-      const body = resolution === 8 
-        ? { missingCells: missingCellsPayload } 
-        : { missingCells: missingCellsPayload, resolution };
-
-      const invokeResult = await supabase.functions.invoke(functionName, {
-        body,
-        headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
-      });
-      data = invokeResult.data;
-      error = invokeResult.error;
-    } catch (err) {
-      logEdgeFunctionFailure(resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro', {
-        data: null,
-        error: err instanceof Error ? { message: err.message, name: err.name } : { message: String(err) },
-      });
-      if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
-        throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, err);
-      }
-      data = null;
-      error = null;
-    }
+    const { data, error } = await invokeFetchRestaurants({
+      cells: cellsPayload,
+      resolution,
+      page: 1,
+    });
 
     if (error) {
-      logEdgeFunctionFailure(resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro', { data, error });
+      logEdgeFunctionFailure('fetch-restaurants', { data, error });
       if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, error);
       }
-    } else if (data && Array.isArray((data as { newlyFetchedRestaurants?: unknown }).newlyFetchedRestaurants)) {
-      const payload = data as {
-        newlyFetchedRestaurants: { cellId: string; places: any[] }[];
-        failedCells?: string[];
-      };
-      console.log(`Edge function returned data for ${payload.newlyFetchedRestaurants.length} cells.`);
-      if (Array.isArray(payload.failedCells) && payload.failedCells.length > 0) {
-        console.warn('[restaurants] Edge function reported failed cells:', payload.failedCells);
+    } else if (data && Array.isArray(data.newlyFetchedRestaurants)) {
+      const returnedCount = data.totalPlacesReturned ??
+        data.newlyFetchedRestaurants.reduce((sum, r) => sum + (r.places?.length || 0), 0);
+      const tokenCount = Object.keys(data.pageTokens ?? {}).length;
+      console.log(
+        `[Search Page 1 Complete] Returned ${returnedCount} restaurants across ` +
+        `${data.newlyFetchedRestaurants.length} cells. Page tokens available: ${tokenCount}.`
+      );
+
+      if (Array.isArray(data.failedCells) && data.failedCells.length > 0) {
+        console.warn('[restaurants] Edge function reported failed cells:', data.failedCells);
       }
-      for (const result of payload.newlyFetchedRestaurants) {
+
+      for (const result of data.newlyFetchedRestaurants) {
         await writeCache(result.cellId, result.places);
         parentRestaurants = parentRestaurants.concat(result.places);
         page1NewPlacesCount += result.places?.length ?? 0;
       }
+
+      page1PageTokens = data.pageTokens ?? {};
+
       if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned zero restaurants');
       }
@@ -224,7 +249,7 @@ async function loadNearbyRestaurantsInternal(
     }
   }
 
-  // Favor parent first so distant places take precedence over close child cache items
+  // Merge parent results (freshly fetched or cached) with any child-cache bonus data
   let allRestaurants = parentRestaurants.concat(childCachedRestaurants);
   if (allRestaurants.length === 0) {
     throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'no restaurant data available');
@@ -240,73 +265,99 @@ async function loadNearbyRestaurantsInternal(
     options?.onAiReady?.(placesWithAi);
   };
 
+  // ── Async: pages 2 & 3 + AI enrichment ────────────────────────────────────
   const runAsyncNextPagesAndAi = async () => {
     let currentRestaurants = [...allRestaurants];
 
-    // Page 2 Async
-    // Only call Page 2 if Page 1 maxed out its cell cap AND Page 1 actually found restaurants (not blank)
-    const shouldFetchPage2 = page1FetchedCellsCount === apiCallCap && page1NewPlacesCount > 0;
+    // ── Page 2: follow Google nextPageToken for cells that had more results ──
+    // Triggered only if page 1 returned page tokens AND got results.
+    const page2CellsWithTokens = Object.entries(page1PageTokens).map(([cellId, pageToken]) => ({
+      cellId,
+      pageToken,
+    }));
+
+    let page2PageTokens: Record<string, string> = {};
     let page2NewPlacesCount = 0;
 
-    const page2Cells = uncachedCells.slice(apiCallCap, apiCallCap * 2);
-    if (shouldFetchPage2 && page2Cells.length > 0) {
-      const page2Payload = page2Cells.map(cellId => {
-        const [lat, lng] = getCellCenter(cellId);
-        return { cellId, lat, lng };
-      });
-      console.log(`[Async Page 2] Fetching ${page2Cells.length} missing cells via fetch-missing-cells-async...`);
+    if (page2CellsWithTokens.length > 0 && page1NewPlacesCount > 0) {
+      console.log(`[Search Page 2] Following page tokens for ${page2CellsWithTokens.length} cells.`);
       try {
-        const res2 = await supabase.functions.invoke('fetch-missing-cells-async', {
-          body: { missingCells: page2Payload, resolution },
-          headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
+        const { data: data2, error: err2 } = await invokeFetchRestaurants({
+          cells: page2CellsWithTokens,
+          resolution,
+          page: 2,
         });
-        if (jobSeq !== latestRestaurantJobSeq) return;
-        if (res2.data && Array.isArray(res2.data.newlyFetchedRestaurants)) {
-          for (const item of res2.data.newlyFetchedRestaurants) {
-            await writeCache(item.cellId, item.places);
+
+        if (err2) {
+          console.warn('[Search Page 2] Error:', err2);
+        } else if (data2 && Array.isArray(data2.newlyFetchedRestaurants)) {
+          const count2 = data2.totalPlacesReturned ??
+            data2.newlyFetchedRestaurants.reduce((sum: number, r: any) => sum + (r.places?.length || 0), 0);
+          const token2Count = Object.keys(data2.pageTokens ?? {}).length;
+          console.log(
+            `[Search Page 2 Complete] Returned ${count2} restaurants. Page tokens for page 3: ${token2Count}.`
+          );
+
+          // Cache write always runs regardless of jobSeq — ensures DB/AsyncStorage completeness
+          for (const item of data2.newlyFetchedRestaurants) {
+            await appendToCache(item.cellId, item.places);
             currentRestaurants = currentRestaurants.concat(item.places);
             page2NewPlacesCount += item.places?.length ?? 0;
           }
-          const sorted2 = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
-          triggerUpdates(mergeAiOntoPlaces(sorted2, cachedAi));
+
+          page2PageTokens = data2.pageTokens ?? {};
+
+          // Only update UI if this job is still active
+          if (jobSeq === latestRestaurantJobSeq) {
+            const sorted2 = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
+            triggerUpdates(mergeAiOntoPlaces(sorted2, cachedAi));
+          }
         }
       } catch (err) {
-        console.warn('[Async Page 2] Error:', err);
+        console.warn('[Search Page 2] Error:', err);
       }
     }
 
-    // Page 3 Async (Sequential check after Page 2)
-    // Only call Page 3 if Page 2 maxed out its cell cap AND Page 2 actually found restaurants (not blank)
-    const shouldFetchPage3 = shouldFetchPage2 && page2Cells.length === apiCallCap && page2NewPlacesCount > 0;
-    if (shouldFetchPage3) {
-      const page3Cells = uncachedCells.slice(apiCallCap * 2, apiCallCap * 3);
-      if (page3Cells.length > 0) {
-        const page3Payload = page3Cells.map(cellId => {
-          const [lat, lng] = getCellCenter(cellId);
-          return { cellId, lat, lng };
+    // ── Page 3: follow page-2 tokens ────────────────────────────────────────
+    const page3CellsWithTokens = Object.entries(page2PageTokens).map(([cellId, pageToken]) => ({
+      cellId,
+      pageToken,
+    }));
+
+    if (page3CellsWithTokens.length > 0 && page2NewPlacesCount > 0) {
+      console.log(`[Search Page 3] Following page tokens for ${page3CellsWithTokens.length} cells.`);
+      try {
+        const { data: data3, error: err3 } = await invokeFetchRestaurants({
+          cells: page3CellsWithTokens,
+          resolution,
+          page: 3,
         });
-        console.log(`[Async Page 3] Fetching ${page3Cells.length} missing cells via fetch-missing-cells-async...`);
-        try {
-          const res3 = await supabase.functions.invoke('fetch-missing-cells-async', {
-            body: { missingCells: page3Payload, resolution },
-            headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
-          });
-          if (jobSeq !== latestRestaurantJobSeq) return;
-          if (res3.data && Array.isArray(res3.data.newlyFetchedRestaurants)) {
-            for (const item of res3.data.newlyFetchedRestaurants) {
-              await writeCache(item.cellId, item.places);
-              currentRestaurants = currentRestaurants.concat(item.places);
-            }
+
+        if (err3) {
+          console.warn('[Search Page 3] Error:', err3);
+        } else if (data3 && Array.isArray(data3.newlyFetchedRestaurants)) {
+          const count3 = data3.totalPlacesReturned ??
+            data3.newlyFetchedRestaurants.reduce((sum: number, r: any) => sum + (r.places?.length || 0), 0);
+          console.log(`[Search Page 3 Complete] Returned ${count3} restaurants.`);
+
+          // Cache write always runs regardless of jobSeq
+          for (const item of data3.newlyFetchedRestaurants) {
+            await appendToCache(item.cellId, item.places);
+            currentRestaurants = currentRestaurants.concat(item.places);
+          }
+
+          // Only update UI if this job is still active
+          if (jobSeq === latestRestaurantJobSeq) {
             const sorted3 = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
             triggerUpdates(mergeAiOntoPlaces(sorted3, cachedAi));
           }
-        } catch (err) {
-          console.warn('[Async Page 3] Error:', err);
         }
+      } catch (err) {
+        console.warn('[Search Page 3] Error:', err);
       }
     }
 
-    // Background AI Overviews Enrichment
+    // ── Background AI Overviews Enrichment ────────────────────────────────────
     const finalSorted = formatAndSortPlaces(currentRestaurants, userLat, userLng, safeRadius);
     const missingAiIds = finalSorted.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
     if (missingAiIds.length === 0) {

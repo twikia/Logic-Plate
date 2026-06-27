@@ -23,7 +23,8 @@ serve(async (req) => {
   }
 
   try {
-    const { missingCells, resolution: rawRes } = await req.json();
+    const body = await req.json();
+    const { missingCells, resolution: rawRes, page = 1, hasNextPage = false } = body;
     const resolution = Number(rawRes ?? 8);
 
     if (!missingCells || !Array.isArray(missingCells)) {
@@ -208,9 +209,15 @@ serve(async (req) => {
       });
     }
 
+    const totalPlacesReturned = newlyFetchedRestaurants.reduce((sum, item) => sum + (item.places?.length || 0), 0);
+    console.log(`[fetch-missing-cells-macro] Page ${page}: Searched ${missingCells.length} cells -> Returned ${totalPlacesReturned} restaurants across ${newlyFetchedRestaurants.length} successful cells. Next page available: ${hasNextPage ? 'Yes' : 'No'}.`);
+
     return new Response(JSON.stringify({
       newlyFetchedRestaurants,
       failedCells,
+      page,
+      totalPlacesReturned,
+      hasNextPage,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
