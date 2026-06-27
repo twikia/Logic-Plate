@@ -12,7 +12,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.twikiastudios.logicplate",
       "buildNumber": "2",
-      "deploymentTarget": "15.1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Location access is needed to find nearby restaurants.",
         "ITSAppUsesNonExemptEncryption": false
@@ -53,8 +52,16 @@
         }
       ],
       "expo-web-browser",
+      "expo-asset",
       "expo-audio",
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ],
       "expo-location"
     ],
     "experiments": {

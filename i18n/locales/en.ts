@@ -55,6 +55,9 @@ const en = {
     radarValue: 'Value',
     radarDate: 'Date',
     radarSpeed: 'Speed',
+    walk: 'Walk',
+    drive: 'Drive',
+    more: 'More',
   },
 
   loading: {
@@ -81,9 +84,11 @@ const en = {
     date: 'Date Night',
     munchies: 'Munchie Mode',
     recovery_protein: 'Recover & Fuel',
+    moreFilters: 'More Filters',
   },
 
   sort: {
+    matchScore: 'Match Score',
     distance: 'Distance',
     price: 'Price',
     rating: 'Rating',
@@ -527,8 +532,12 @@ const en = {
     costHint: 'Favor cheaper restaurants when this matters to you',
     distanceLabel: 'Distance',
     distanceHint: 'How close the spot is',
+    ratingAdherenceLabel: 'Top rating importance',
+    ratingAdherenceHint: 'How much star ratings matter when we pick',
     ratingLabel: 'Top rating importance',
     ratingHint: 'How much star ratings matter when we pick',
+    valueForMoneyLabel: 'Value for money',
+    valueForMoneyHint: 'Great bang for your buck',
     healthLabel: 'Health',
     healthHint: 'Wholesome, less processed picks',
     proteinLabel: 'Protein',
@@ -601,6 +610,8 @@ const en = {
     maps: 'Maps',
     webTitle: 'Map View',
     webSubtitle: 'The interactive map is available on the iOS and Android apps.',
+    hideClosed: 'Hide closed',
+    closedHidden: 'Closed hidden',
   },
 };
 

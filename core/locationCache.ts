@@ -100,7 +100,7 @@ export const getLocation = async (
       notifyLocationListeners(cachedCoords);
       return cachedCoords;
     } catch (err) {
-      console.error('GPS acquisition failed:', err);
+      console.warn('GPS acquisition failed:', err);
       return null;
     } finally {
       pendingLocationPromise = null;

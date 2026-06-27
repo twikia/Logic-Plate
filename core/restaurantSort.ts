@@ -67,6 +67,7 @@ export type RestaurantSortInput = {
   priceLevel?: string;
   distanceMeters?: number;
   matchScore?: number;
+  userRatingCount?: number | null;
 };
 
 export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): number {
@@ -75,7 +76,7 @@ export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): numb
   }
   const ai = r.aiOverview ?? null;
   if (sortBy === 'overall') {
-    return calculatePlateboundScore(ai, r.rating, r.priceLevel);
+    return calculatePlateboundScore(ai, r.rating, r.priceLevel, r.userRatingCount);
   }
   if (sortBy === 'distance') {
     return r.distanceMeters ?? 0;
@@ -169,7 +170,7 @@ export function sortGoodness01(
     return Math.max(0, Math.min(1, v / 5));
   }
   if (sortBy === 'overall') {
-    const o = calculatePlateboundScore(r.aiOverview ?? null, r.rating, r.priceLevel);
+    const o = calculatePlateboundScore(r.aiOverview ?? null, r.rating, r.priceLevel, r.userRatingCount);
     return Math.max(0, Math.min(1, o / 10));
   }
   if (sortBy === 'health' || sortBy === 'workoutRecovery') {

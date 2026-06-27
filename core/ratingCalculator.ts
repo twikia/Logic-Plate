@@ -13,10 +13,19 @@ import { AiOverview } from './aiOverviewCache';
  * - Speed Score (0-5 -> 0-10): 2.5%
  * - Noise Level (0-5 -> 0-10): 2.5% (Inverted)
  */
+export function ratingConfidenceCurve(count?: number | null): number {
+  const n = Math.max(0, count ?? 0);
+  if (n <= 5) return 0;
+  const log5 = 1.6094379124341003;
+  const log1500 = 7.313220387090301;
+  return Math.max(0, Math.min(1, (Math.log(n) - log5) / (log1500 - log5)));
+}
+
 export function calculatePlateboundScore(
   overview: AiOverview | undefined | null,
   googleRating?: number,
-  priceLevel?: string
+  priceLevel?: string,
+  userRatingCount?: number | null
 ): number {
   if (!overview) return 0;
 
@@ -31,8 +40,11 @@ export function calculatePlateboundScore(
     noise: 0.025,
   };
 
-  // Normalize Google Rating (0-5)
-  const normGoogle = (googleRating || 0) * 2;
+  // Normalize Google Rating (0-5) with confidence weighting
+  const rawNormGoogle = (googleRating || 0) * 2;
+  const conf = ratingConfidenceCurve(userRatingCount);
+  const baselineNormGoogle = 8.3; // 4.15 * 2
+  const normGoogle = googleRating ? (conf * rawNormGoogle + (1 - conf) * baselineNormGoogle) : 0;
 
   // Map Price Level to 0-10 score (Favoring value)
   let priceScore = 7; // Default to moderate

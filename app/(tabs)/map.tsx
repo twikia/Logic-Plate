@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
-import { StyleSheet, View, Text, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Platform, ScrollView, Animated, PanResponder, Linking, ActivityIndicator } from 'react-native';
 import { FlatList, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import Slider from '@react-native-community/slider';
 import MapView, { Circle, PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -49,7 +49,7 @@ function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: 
   }
   if (sortBy === 'overall') {
     if (!item.aiOverview) return '—';
-    const s = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel);
+    const s = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel, item.userRatingCount);
     return s.toFixed(1);
   }
   const raw = getSortValue(item, sortBy);
@@ -256,7 +256,7 @@ export default function MapScreen() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
   const [region, setRegion] = useState<Region | null>(mapSessionRegion);
   const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(mapSessionUserCoords);
-  const [, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(allRestaurants.length === 0);
   const [isLocating, setIsLocating] = useState(!mapSessionInitialized);
   const [locationProgress] = useState(new Animated.Value(mapSessionInitialized ? 1 : 0));
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(mapSessionUserCoords);
@@ -357,7 +357,7 @@ export default function MapScreen() {
         if (__DEV__) console.warn('[restaurants]', error.message, error.cause);
         return;
       }
-      console.error('Error loading restaurants for map:', error);
+      console.warn('Error loading restaurants for map:', error);
     } finally {
       setIsLoading(false);
       setOpenStatusEpoch((e) => e + 1);
@@ -618,7 +618,8 @@ export default function MapScreen() {
       ? calculatePlateboundScore(
           selectedRestaurant.aiOverview,
           selectedRestaurant.rating,
-          selectedRestaurant.priceLevel
+          selectedRestaurant.priceLevel,
+          selectedRestaurant.userRatingCount
         )
       : null;
   const sheetScrollMaxHeight = sheetSnap === 'full' ? height * 0.72 : height * 0.34;
@@ -755,7 +756,7 @@ export default function MapScreen() {
           >
             <Ionicons name="time-outline" size={14} color={hideClosed ? '#FFF' : theme.accent} />
             <Text style={[styles.radiusText, { color: hideClosed ? '#FFF' : theme.text }]}>
-              {hideClosed ? 'Closed hidden' : 'Hide closed'}
+              {hideClosed ? t('map.closedHidden', { defaultValue: 'Closed hidden' }) : t('map.hideClosed', { defaultValue: 'Hide closed' })}
             </Text>
           </TouchableOpacity>
 
@@ -825,6 +826,13 @@ export default function MapScreen() {
               />
             </View>
           </View>
+        </View>
+      )}
+
+      {/* Slow Wi-Fi / Fetch Loading Overlay */}
+      {isLoading && !isLocating && (
+        <View style={[styles.loadingOverlay, { backgroundColor: '#000000' }]}>
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       )}
 

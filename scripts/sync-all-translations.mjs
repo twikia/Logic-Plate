@@ -19,6 +19,12 @@ const ALL_LANGS = [
 
 function parseLocaleFile(filePath) {
   const raw = fs.readFileSync(filePath, 'utf8');
+  if (raw.includes('.data.json')) {
+    const jsonPath = filePath.replace('.ts', '.data.json');
+    if (fs.existsSync(jsonPath)) {
+      return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    }
+  }
   const eq = raw.indexOf('=');
   const start = raw.indexOf('{', eq);
   const end = raw.lastIndexOf('};');
@@ -49,42 +55,37 @@ function unflatten(flat) {
   return out;
 }
 
-function deepMerge(base, override) {
-  const out = structuredClone(base);
-  for (const [k, v] of Object.entries(override)) {
-    if (v && typeof v === 'object' && !Array.isArray(v) && typeof out[k] === 'object' && !Array.isArray(out[k])) {
-      out[k] = deepMerge(out[k], v);
-    } else {
-      out[k] = v;
+async function translateSingle(text, targetLang) {
+  if (!text || typeof text !== 'string' || !/[a-zA-Z]/.test(text)) return text;
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    let tr = '';
+    if (Array.isArray(data) && Array.isArray(data[0])) {
+      for (const p of data[0]) if (Array.isArray(p) && typeof p[0] === 'string') tr += p[0];
     }
+    return tr || text;
+  } catch {
+    return text;
   }
-  return out;
 }
 
 async function translateBatch(texts, targetLang) {
   if (targetLang === 'en') return texts;
-  const results = [];
-  for (const text of texts) {
-    if (!text || typeof text !== 'string') {
-      results.push(text);
-      continue;
+  const chunkSize = 15;
+  const results = new Array(texts.length);
+  for (let i = 0; i < texts.length; i += chunkSize) {
+    const chunk = texts.slice(i, i + chunkSize);
+    const chunkRes = await Promise.all(chunk.map(async (item) => {
+      if (Array.isArray(item)) {
+        return Promise.all(item.map((sub) => translateSingle(sub, targetLang)));
+      }
+      return translateSingle(item, targetLang);
+    }));
+    for (let j = 0; j < chunkRes.length; j++) {
+      results[i + j] = chunkRes[j];
     }
-    if (!/[a-zA-Z]/.test(text)) {
-      results.push(text);
-      continue;
-    }
-    try {
-      const url =
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}` +
-        `&langpair=en|${targetLang}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const translated = data?.responseData?.translatedText;
-      results.push(translated && translated !== text ? translated : text);
-    } catch {
-      results.push(text);
-    }
-    await new Promise((r) => setTimeout(r, 350));
   }
   return results;
 }
@@ -98,7 +99,12 @@ async function buildLang(enFlat, lang) {
     for (const [k, v] of Object.entries(existing)) {
       if (v !== undefined && v !== enFlat[k]) merged[k] = v;
     }
-    const missing = Object.keys(enFlat).filter((k) => merged[k] === enFlat[k] || merged[k] === undefined);
+    const missing = Object.keys(enFlat).filter((k) => {
+      if (Array.isArray(enFlat[k])) {
+        return !Array.isArray(merged[k]) || merged[k].length === 0 || merged[k][0] === enFlat[k][0];
+      }
+      return merged[k] === enFlat[k] || merged[k] === undefined;
+    });
     if (missing.length === 0) return merged;
     const translated = await translateBatch(missing.map((k) => enFlat[k]), lang);
     missing.forEach((k, i) => {
@@ -122,9 +128,7 @@ function sqlEscapeJson(obj) {
 function writeLocaleTs(lang, data) {
   if (lang === 'en') return;
   const importLine = "import type { Translations } from './en';\n\n";
-  const body = JSON.stringify(data, null, 2)
-    .replace(/"([^"]+)":/g, '$1:')
-    .replace(/"/g, "'");
+  const body = JSON.stringify(data, null, 2);
   const content =
     `${importLine}const ${lang}: Translations = ${body};\n\nexport default ${lang};\n`;
   fs.writeFileSync(path.join(localesDir, `${lang}.ts`), content);
@@ -158,4 +162,4 @@ for (const lang of ALL_LANGS) {
 
 const migrationPath = path.join(root, 'supabase', 'migrations', '20260615120000_sync_all_translations.sql');
 fs.writeFileSync(migrationPath, sqlStatements.join('\n'));
-console.log(`Wrote ${ALL_LANGS.length} JSON files, es/fr TS, and ${migrationPath}`);
+console.log(`Wrote ${ALL_LANGS.length} JSON files, es/fr/pl TS, and ${migrationPath}`);

@@ -126,16 +126,22 @@ async function loadNearbyRestaurantsInternal(
   }
 
   onProgress?.({ stage: 'reading-cache', progress: 0.2 });
-  const { hits, misses: uncachedCells } = await readCacheBulk(cellIds, resolution);
+  const { hits: rawHits, misses: rawMisses } = await readCacheBulk(cellIds, resolution);
+
+  // When changing distance (macro resolution < 8), run parent calls no matter what instead of only relying on child cache
+  const uncachedCells = resolution < 8 ? [...cellIds] : rawMisses;
+  const hits = resolution < 8 ? new Map<string, any[]>() : rawHits;
+
   console.log(
     `Restaurant cache check complete: ${hits.size}/${cellIds.length} cells found in cache (local+db), ${uncachedCells.length} cells still missing.`
   );
 
-  let allRestaurants: any[] = [];
+  let parentRestaurants: any[] = [];
   hits.forEach(restaurants => {
-    allRestaurants = allRestaurants.concat(restaurants);
+    parentRestaurants = parentRestaurants.concat(restaurants);
   });
 
+  let childCachedRestaurants: any[] = [];
   if (resolution < 8) {
     const childCellIds: string[] = [];
     for (const id of cellIds) {
@@ -143,7 +149,7 @@ async function loadNearbyRestaurantsInternal(
     }
     const { hits: childHits } = await readCacheBulk(childCellIds, 8);
     childHits.forEach(restaurants => {
-      allRestaurants = allRestaurants.concat(restaurants);
+      childCachedRestaurants = childCachedRestaurants.concat(restaurants);
     });
     console.log(`Merged child (res 8) cache data: found ${childHits.size} child cells cached.`);
   }
@@ -184,7 +190,7 @@ async function loadNearbyRestaurantsInternal(
         data: null,
         error: err instanceof Error ? { message: err.message, name: err.name } : { message: String(err) },
       });
-      if (allRestaurants.length === 0) {
+      if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, err);
       }
       data = null;
@@ -193,7 +199,7 @@ async function loadNearbyRestaurantsInternal(
 
     if (error) {
       logEdgeFunctionFailure(resolution === 8 ? 'fetch-missing-cells' : 'fetch-missing-cells-macro', { data, error });
-      if (allRestaurants.length === 0) {
+      if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, error);
       }
     } else if (data && Array.isArray((data as { newlyFetchedRestaurants?: unknown }).newlyFetchedRestaurants)) {
@@ -207,15 +213,21 @@ async function loadNearbyRestaurantsInternal(
       }
       for (const result of payload.newlyFetchedRestaurants) {
         await writeCache(result.cellId, result.places);
-        allRestaurants = allRestaurants.concat(result.places);
+        parentRestaurants = parentRestaurants.concat(result.places);
         page1NewPlacesCount += result.places?.length ?? 0;
       }
-      if (allRestaurants.length === 0) {
+      if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
         throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned zero restaurants');
       }
-    } else if (allRestaurants.length === 0) {
+    } else if (parentRestaurants.length === 0 && childCachedRestaurants.length === 0) {
       throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned no data');
     }
+  }
+
+  // Favor parent first so distant places take precedence over close child cache items
+  let allRestaurants = parentRestaurants.concat(childCachedRestaurants);
+  if (allRestaurants.length === 0) {
+    throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'no restaurant data available');
   }
 
   onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
@@ -259,7 +271,7 @@ async function loadNearbyRestaurantsInternal(
           triggerUpdates(mergeAiOntoPlaces(sorted2, cachedAi));
         }
       } catch (err) {
-        console.error('[Async Page 2] Error:', err);
+        console.warn('[Async Page 2] Error:', err);
       }
     }
 
@@ -289,7 +301,7 @@ async function loadNearbyRestaurantsInternal(
             triggerUpdates(mergeAiOntoPlaces(sorted3, cachedAi));
           }
         } catch (err) {
-          console.error('[Async Page 3] Error:', err);
+          console.warn('[Async Page 3] Error:', err);
         }
       }
     }
@@ -314,7 +326,7 @@ async function loadNearbyRestaurantsInternal(
         triggerUpdates(mergeAiOntoPlaces(finalSorted, cachedAi));
       }
     } catch (err) {
-      console.error('Background AI overviews failed:', err);
+      console.warn('Background AI overviews failed:', err);
     } finally {
       if (jobSeq === latestRestaurantJobSeq) {
         onProgress?.({ stage: 'done', progress: 1 });

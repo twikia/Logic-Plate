@@ -1,4 +1,6 @@
-{
+import type { Translations } from './en';
+
+const pl: Translations = {
   "common": {
     "unknown": "Nieznany",
     "restaurant": "Restauracja",
@@ -582,4 +584,6 @@
     "hideClosed": "Ukryj zamknięte",
     "closedHidden": "Zamknięte, ukryte"
   }
-}
+};
+
+export default pl;

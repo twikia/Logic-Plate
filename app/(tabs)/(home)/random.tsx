@@ -262,7 +262,7 @@ const RestaurantRow = React.memo(function RestaurantRow({
   const distM = Math.round(item.distanceMeters ?? 0);
   const dist = formatDistance(distM);
   const price = formatPlacePriceLabel(item);
-  const overall = calculatePlateboundScore(ai, item.rating, item.priceLevel);
+  const overall = calculatePlateboundScore(ai, item.rating, item.priceLevel, item.userRatingCount);
   const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
   const ratingColor =
     typeof item.rating === 'number' && item.rating > 0
@@ -590,7 +590,7 @@ export default function RandomScreen() {
         setErrorMsg(e.message);
         return;
       }
-      console.error(e);
+      if (__DEV__) console.warn('[random load]', e);
       setErrorMsg(t('random.loadError'));
     } finally {
       snapProgressComplete();

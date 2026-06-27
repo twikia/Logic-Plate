@@ -1,4 +1,5 @@
 import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
+import { TranslatedText } from '@/components/ui/TranslatedText';
 import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import {
@@ -333,7 +334,7 @@ export default function RandomResultScreen() {
   const aiOverview = place.aiOverview;
   const ph = !aiOverview;
   const plateboundScore = !ph
-    ? calculatePlateboundScore(aiOverview, place.rating, place.priceLevel)
+    ? calculatePlateboundScore(aiOverview, place.rating, place.priceLevel, place.userRatingCount)
     : null;
 
   useEffect(() => {
@@ -347,17 +348,21 @@ export default function RandomResultScreen() {
       ) {
         return;
       }
-      const urls = await fetchRestaurantPhotoUrls({
-        placeId: place.id,
-        name,
-        latitude: lat,
-        longitude: lng,
-        websiteUrl: place.websiteUri || undefined,
-        formattedAddress: place.formattedAddress || undefined,
-        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
-      });
-      if (cancelled) return;
-      setHeroPhotos(urls.length > 0 ? urls : (place.photos || []));
+      try {
+        const urls = await fetchRestaurantPhotoUrls({
+          placeId: place.id,
+          name,
+          latitude: lat,
+          longitude: lng,
+          websiteUrl: place.websiteUri || undefined,
+          formattedAddress: place.formattedAddress || undefined,
+          cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+        });
+        if (cancelled) return;
+        setHeroPhotos(urls && urls.length > 0 ? urls : (place.photos || []));
+      } catch (err) {
+        console.warn('[random-result] Failed to load photos:', err);
+      }
     };
     loadPhotos();
     return () => { cancelled = true; };
@@ -367,9 +372,13 @@ export default function RandomResultScreen() {
     let cancelled = false;
     const loadMenu = async () => {
       if (!place || !place.id) return;
-      const items = await fetchAiMenu(place.id, place.websiteUri || undefined, name, place.primaryType || undefined);
-      if (!cancelled && items.length > 0) {
-        setMenuItems(items);
+      try {
+        const items = await fetchAiMenu(place.id, place.websiteUri || undefined, name, place.primaryType || undefined);
+        if (!cancelled && Array.isArray(items) && items.length > 0) {
+          setMenuItems(items);
+        }
+      } catch (err) {
+        console.warn('[random-result] Failed to load menu:', err);
       }
     };
     loadMenu();
@@ -596,7 +605,7 @@ export default function RandomResultScreen() {
                     {menuItems.map((item, idx) => (
                       <View key={idx} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
                         <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>🍽️</Text>
-                        <Text style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]}>{item}</Text>
+                        <TranslatedText text={item} style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]} />
                       </View>
                     ))}
                   </View>

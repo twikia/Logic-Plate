@@ -1068,6 +1068,37 @@ export default function HomeScreen() {
     if (session != null) sessionRadiusRef.current = session.radiusMeters;
   }, [session]);
 
+function applyHomeFeedRandomness(scored: any[]): any[] {
+  if (scored.length <= 5) return scored;
+  const top1 = scored[0];
+  const candidatesTop4 = scored.slice(1, 5);
+  const pool = scored.slice(5, Math.min(scored.length, 13));
+
+  if (pool.length === 0) return scored;
+
+  const u = Math.random();
+  let k = 0;
+  if (u < 0.25) k = 0;
+  else if (u < 0.65) k = 1;
+  else if (u < 0.92) k = 2;
+  else k = Math.min(3, candidatesTop4.length, pool.length);
+
+  if (k === 0) return scored;
+
+  const shuffledCandidates = [...candidatesTop4].sort(() => Math.random() - 0.5);
+  const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+
+  const keptCandidates = shuffledCandidates.slice(k);
+  const broughtIn = shuffledPool.slice(0, k);
+  const remainingPool = shuffledPool.slice(k);
+  const restOfPool = scored.slice(Math.min(scored.length, 13));
+
+  const newTop5 = [top1, ...keptCandidates, ...broughtIn].sort((a, b) => b.plateboundScore - a.plateboundScore);
+  const remainingAll = [...shuffledCandidates.slice(0, k), ...remainingPool, ...restOfPool].sort((a, b) => b.plateboundScore - a.plateboundScore);
+
+  return [...newTop5, ...remainingAll];
+}
+
   const recompute = useCallback(async () => {
     const coords = coordsRef.current;
     if (!prefs || !session || !coords || rawPlaces.length === 0) return;
@@ -1086,9 +1117,10 @@ export default function HomeScreen() {
       return;
     }
 
-    setRanked(scored);
+    const randomizedFeed = applyHomeFeedRandomness(scored);
+    setRanked(randomizedFeed);
     setRejectedIds(new Set());
-    const nextVisibleLen = Math.max(0, scored.slice(0, 5).length - 1);
+    const nextVisibleLen = Math.max(0, randomizedFeed.slice(0, 5).length - 1);
     const nextPick = Math.min(pickIndexRef.current, nextVisibleLen);
     setPickIndex(nextPick);
     carouselRef.current?.scrollToOffset({ offset: nextPick * CAROUSEL_PAGE, animated: false });
@@ -1185,7 +1217,7 @@ export default function HomeScreen() {
       if (isRestaurantFetchError(e)) {
         if (__DEV__) console.warn('[restaurants]', e.message, e.cause);
       } else {
-        console.error(e);
+        if (__DEV__) console.warn('[home load]', e);
       }
       if (!hadCachedPlaces) {
         setErrorMsg(i18n.t('home.loadError'));
@@ -1321,7 +1353,7 @@ export default function HomeScreen() {
             >
               <Ionicons name={sessionRadiusRef.current <= 1000 ? "walk" : "car"} size={16} color={theme.accent} />
               <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
-                {sessionRadiusRef.current <= 1000 ? 'Walk' : 'Drive'}
+                {sessionRadiusRef.current <= 1000 ? t('home.walk', { defaultValue: 'Walk' }) : t('home.drive', { defaultValue: 'Drive' })}
               </Text>
             </TouchableOpacity>
 
@@ -1333,7 +1365,7 @@ export default function HomeScreen() {
               }}
             >
               <Ionicons name="restaurant-outline" size={15} color={theme.accent} />
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>More</Text>
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>{t('home.more', { defaultValue: 'More' })}</Text>
               <Ionicons name="chevron-forward" size={14} color={theme.subtext} />
             </TouchableOpacity>
           </View>

@@ -7,6 +7,7 @@ import type { ThemeColors } from '@/themes/types';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLiveTranslation } from '@/core/liveTranslation';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
@@ -17,6 +18,7 @@ type Props = {
   theme: ThemeColors;
   googleRating?: number;
   priceLevel?: string;
+  userRatingCount?: number | null;
 };
 
 function clamp01(v: number, max: number) {
@@ -206,9 +208,11 @@ function sectionPreview(values: (string | undefined)[], ph: boolean): string | u
   return parts.length ? parts.join(' · ') : undefined;
 }
 
-export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel }: Props) {
+export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel, userRatingCount }: Props) {
   const { t } = useTranslation();
-  const overall = ph ? null : calculatePlateboundScore(ai, googleRating, priceLevel);
+  const translatedMacros = useLiveTranslation(ai?.absoluteMacros);
+  const translatedWho = useLiveTranslation(ai?.whoThisPlaceIsFor);
+  const overall = ph ? null : calculatePlateboundScore(ai, googleRating, priceLevel, userRatingCount);
   const border = theme.cardBorderColor;
 
   return (
@@ -367,7 +371,7 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
         {ph ? (
           <Text style={[styles.macros, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
         ) : ai?.absoluteMacros ? (
-          <Text style={[styles.macros, { color: theme.subtext }]}>{ai.absoluteMacros}</Text>
+          <Text style={[styles.macros, { color: theme.subtext }]}>{translatedMacros}</Text>
         ) : null}
       </ExpandableSection>
 
@@ -441,7 +445,7 @@ export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel 
           <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('scores.whoIsThisPlaceFor')}</Text>
         </View>
         <Text style={[styles.body, { color: theme.subtext }]}>
-          {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : ai?.whoThisPlaceIsFor || t('common.missingScore')}
+          {ph ? AI_OVERVIEW_FIELD_PLACEHOLDER : translatedWho || t('common.missingScore')}
         </Text>
       </View>
     </View>

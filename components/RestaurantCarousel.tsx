@@ -68,6 +68,19 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
     const photo = displayPhotos[currentIndex] || displayPhotos[0];
     return (
       <View style={{ width, height, borderRadius, overflow: 'hidden' }}>
+        {/* Hidden Preloader for upcoming carousel images */}
+        <View style={{ position: 'absolute', opacity: 0, width: 1, height: 1, overflow: 'hidden', pointerEvents: 'none' }}>
+          {displayPhotos.map((p, i) => (
+            <RestaurantImage
+              key={`preload_${i}`}
+              restaurantId={`${place?.id ?? 'unknown'}_${i}`}
+              photos={[p]}
+              width={typeof width === 'number' ? width : 400}
+              height={height}
+              borderRadius={0}
+            />
+          ))}
+        </View>
         <Animated.View key={currentIndex} entering={FadeIn.duration(400)} exiting={FadeOut.duration(400)} style={{ width, height, position: 'absolute' }}>
           <RestaurantImage
             restaurantId={`${place?.id ?? 'unknown'}_${currentIndex}`}

@@ -1,4 +1,5 @@
 import type { AiOverview } from './aiOverviewCache';
+import { ratingConfidenceCurve } from './ratingCalculator';
 import { isOpenNow } from './isOpenNow';
 import {
   bestFavoriteCuisineRankIndex,
@@ -242,7 +243,11 @@ function rawHealthScore(place: any): number {
 
 function rawRatingScore(place: any): number {
   const r = typeof place?.rating === 'number' ? place.rating : 0;
-  return (r / 5) * 100;
+  if (r === 0) return 0;
+  const rawScore = (r / 5) * 100;
+  const conf = ratingConfidenceCurve(place?.userRatingCount);
+  const baseline = 83; // 4.15 / 5 * 100
+  return conf * rawScore + (1 - conf) * baseline;
 }
 
 function rawSpeedScore(place: any): number {

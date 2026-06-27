@@ -3,7 +3,10 @@ import type { RandomSortBy } from './randomPickerState';
 import type { ScenarioKey } from './scenarioFilters';
 
 export function tSortLabel(key: RandomSortBy): string {
-  return i18n.t(`sort.${key}`);
+  if (key === 'matchScore') {
+    return i18n.t('matchScore', { defaultValue: 'Match Score' });
+  }
+  return i18n.t(`sort.${key}`, { defaultValue: key });
 }
 
 export function tScenarioLabel(key: ScenarioKey): string {

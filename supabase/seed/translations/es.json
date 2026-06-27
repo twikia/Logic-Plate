@@ -17,7 +17,7 @@
     "vote": "%{count} votar",
     "refresh": "Actualizar",
     "missingScore": "—",
-    "notAvailable": "N/A",
+    "notAvailable": "N / A",
     "selectAll": "Seleccionar todo",
     "deselectAll": "Deseleccionar todo",
     "people": "%{count} personas",
@@ -53,7 +53,10 @@
     "radarTaste": "Sabor",
     "radarValue": "Valor",
     "radarDate": "Cita",
-    "radarSpeed": "Velocidad"
+    "radarSpeed": "Velocidad",
+    "walk": "Caminar",
+    "drive": "Conducir",
+    "more": "Más"
   },
   "loading": {
     "preparing": "Preparando...",
@@ -77,31 +80,33 @@
     "drinks_out": "Salir a beber",
     "date": "Noche de cita",
     "munchies": "Modo antojo",
-    "recovery_protein": "Recuperación"
+    "recovery_protein": "Recuperación",
+    "moreFilters": "Más filtros"
   },
   "sort": {
+    "matchScore": "Puntuación del partido",
     "distance": "Distancia",
     "price": "Precio",
     "rating": "Valoración",
     "overall": "General",
-    "health": "Health",
+    "health": "Salud",
     "taste": "Gusto",
     "valueForMoney": "Valor",
-    "speed": "Speed",
+    "speed": "Velocidad",
     "workoutRecovery": "De recuperación",
-    "munchy": "Munchy",
+    "munchy": "munchy",
     "protein": "Proteínas",
     "calorie": "Calorías",
     "dateWorthiness": "Fecha",
-    "soloDiner": "Solo diner",
+    "soloDiner": "Cena en solitario",
     "energySustain": "Energía"
   },
   "scores": {
     "taste": "Gusto",
     "value": "Valor",
     "valueForMoney": "Relación calidad-precio",
-    "speed": "Speed",
-    "health": "Health",
+    "speed": "Velocidad",
+    "health": "Salud",
     "healthScore": "Puntuación de salud",
     "workoutRecovery": "Recuperación del entrenamiento",
     "processedLoad": "Carga procesada",
@@ -114,10 +119,10 @@
     "dateWorthiness": "Dignidad de la fecha",
     "noiseLevel": "Nivel de ruido",
     "groupSweetSpot": "Punto dulce del grupo",
-    "soloDinerFriendly": "Solo diner friendly",
+    "soloDinerFriendly": "Amable para cenar solo",
     "energySustain": "Sostenimiento energético",
     "protein": "Proteínas",
-    "calorie": "Calorie",
+    "calorie": "Caloría",
     "carb": "Carbohidratos",
     "macro": "Macro",
     "workout": "Deportes",
@@ -136,7 +141,7 @@
     "whoIsThisPlaceFor": "¿Para quién es este lugar?",
     "slow": "LENTO",
     "fast": "rápido",
-    "crashy": "⚡ crashy",
+    "crashy": "⚡ chocante",
     "slowSustain": "sostenido lento",
     "topVibeStats": "Estadísticas de las mejores vibraciones",
     "performance": "Rendimiento",
@@ -153,7 +158,7 @@
     "filters": "Filtros",
     "filtersCount": "Conteo de Filtros",
     "openNow": "Abierto ahora",
-    "vibeFilter": "Vibe · {{scenario}}",
+    "vibeFilter": "Ambiente · {{escenario}}",
     "price": "Precio",
     "rating": "Valoración",
     "cuisines": "Cocinas",
@@ -177,8 +182,10 @@
   "result": {
     "matchScore": "Resultado",
     "healthScore": "Puntuación de salud",
+    "viewWebsite": "Sitio web",
     "noSummary": "Aún no hay un resumen.",
     "pickAgain": "Volver a elegir",
+    "mapPage": "Mapa",
     "goThere": "IR",
     "noLocation": "No tiene ubicación",
     "tapToCopy": "Pulsa para copiar",
@@ -225,7 +232,7 @@
       "shareLink": "Compartir enlace",
       "responses": "Respuestas",
       "needMore": "Necesitas {{count}} más para empezar",
-      "ready": "Ready to go!",
+      "ready": "¡Listo para comenzar!",
       "waitingFirst": "Esperando la primera respuesta...",
       "shareMessage": "¡Únase a nuestra votación Platebound! Código: {{code}}",
       "errors": {
@@ -294,8 +301,8 @@
     "noDietaryNeeds": "Ninguna — como de todo",
     "dietary_vegetarian": "Vegetariano",
     "dietary_vegan": "Vegano",
-    "dietary_halal": "Halal",
-    "dietary_kosher": "Kosher",
+    "dietary_halal": "halal",
+    "dietary_kosher": "Comestible según la ley judía",
     "dietary_gluten_free": "Sin gluten",
     "dietary_dairy_free": "Sin lácteos",
     "dietary_nut_free": "Alergia a nueces",
@@ -348,7 +355,8 @@
     "clearAllCaches": "Limpiar todos los cachés",
     "chooseAvatar": "Elige un avatar",
     "cachePurgedTitle": "Sistema limpiado",
-    "cachePurgedMsg": "Se limpiaron todos los cachés locales (H3, Resultados, Ubicación e Imágenes). Las preferencias de recomendación fueron reiniciadas."
+    "cachePurgedMsg": "Se limpiaron todos los cachés locales (H3, Resultados, Ubicación e Imágenes). Las preferencias de recomendación fueron reiniciadas.",
+    "feedback": "Comentarios"
   },
   "settings": {
     "title": "Ajustes generales",
@@ -358,7 +366,7 @@
     "searchPrefsSection": "Preferencias de búsqueda",
     "distanceUnit": "Unidad de distancia",
     "distanceUnitDesc": "Cómo se muestran los radios de búsqueda",
-    "unitKm": "KM",
+    "unitKm": "km",
     "unitMiles": "Millas",
     "audioSection": "Audio y retroalimentación",
     "sfxVolume": "Efectos de sonido",
@@ -378,7 +386,21 @@
     "aboutSection": "Acerca de",
     "version": "Versión 1.0.4 (Fase 2)",
     "credits": "Hecho con ❤️ para amantes de la comida",
-    "userId": "ID de usuario"
+    "userId": "ID de usuario",
+    "deleteAccount": "Eliminar cuenta",
+    "deleteAccountDesc": "Elimina permanentemente tu perfil y datos de inicio de sesión de nuestros servidores.",
+    "deleteAccountTitle": "¿Eliminar tu cuenta?",
+    "deleteAccountMsg": "Esto elimina permanentemente tu cuenta y perfil. Los datos locales en este dispositivo se conservan hasta que borres el almacenamiento de la app. No se puede deshacer.",
+    "deleteAccountConfirm": "Eliminar",
+    "deleteAccountFailedTitle": "No se pudo eliminar la cuenta",
+    "deleteAccountFailedMsg": "Revisa tu conexión e inténtalo de nuevo.",
+    "deleteAccountDoneTitle": "Cuenta eliminada",
+    "deleteAccountDoneMsg": "Tu cuenta fue eliminada. Ahora usas una nueva sesión de invitado."
+  },
+  "intro": {
+    "title": "Come mejor, descubre más rápido",
+    "body": "Logic Plate te ayuda a tomar decisiones informadas y encontrar joyas cerca de ti — para que cuando preguntes “¿dónde debería comer?”, tengas una respuesta clara respaldada por datos reales.",
+    "start": "Empezar"
   },
   "auth": {
     "brand": "Enlazado en placa",
@@ -479,11 +501,15 @@
     "speedLabel": "Velocidad",
     "speedHint": "Servicio rápido y pocas esperas",
     "costLabel": "Costo",
-    "costHint": "Mantenerte dentro de tu presupuesto",
+    "costHint": "Favorecer restaurantes más baratos cuando te importe",
     "distanceLabel": "Distancia",
     "distanceHint": "Qué tan cerca está el lugar",
+    "ratingAdherenceLabel": "Importancia de calificación máxima",
+    "ratingAdherenceHint": "¿Cuánto importan las calificaciones de estrellas cuando elegimos?",
     "ratingLabel": "Importancia de las calificaciones",
     "ratingHint": "Cuánto importan las estrellas al elegir",
+    "valueForMoneyLabel": "Valor por dinero",
+    "valueForMoneyHint": "Gran inversión por tu dinero",
     "healthLabel": "Salud",
     "healthHint": "Opciones saludables, menos procesadas",
     "proteinLabel": "Proteína",
@@ -503,13 +529,13 @@
     "importance_5": "Esencial"
   },
   "cuisines": {
-    "cafe": "Café",
+    "cafe": "Cafetería",
     "drinks": "Copas",
     "non_food": "Non Food",
     "bars": "Barritas",
-    "american": "American",
+    "american": "Americano",
     "mexican": "Comida mexicana",
-    "italian": "Italian",
+    "italian": "italiano",
     "chinese": "Chino",
     "japanese": "Japonés",
     "indian": "Comida india",
@@ -524,15 +550,15 @@
     "seafood": "Pescado",
     "pizza": "Pizza",
     "burgers": "Hamburguesas",
-    "sushi": "Sushi",
+    "sushi": "sushi",
     "vegan": "Vegano",
-    "bakery": "Bakery",
+    "bakery": "Panadería",
     "dessert": "el postre"
   },
   "languages": {
     "en": "Inglés",
     "es": "Español",
-    "fr": "Français"
+    "fr": "francés"
   },
   "map": {
     "title": "Explorar",
@@ -552,6 +578,8 @@
     "hours": "Horario",
     "maps": "Mapas",
     "webTitle": "Vista de mapa",
-    "webSubtitle": "El mapa interactivo está disponible en las aplicaciones de iOS y Android."
+    "webSubtitle": "El mapa interactivo está disponible en las aplicaciones de iOS y Android.",
+    "hideClosed": "Ocultar cerrado",
+    "closedHidden": "cerrado oculto"
   }
 }

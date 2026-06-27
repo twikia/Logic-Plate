@@ -50,9 +50,9 @@ export const getCellsInRadius = (lat: number, lng: number, radiusMeters: number)
 };
 
 export function getMacroResolutionAndRadius(radiusMeters: number): { resolution: number; cellSpacingMeters: number; placeSearchRadius: number } {
-  if (radiusMeters <= 2253) {
+  if (radiusMeters <= 600) {
     return { resolution: 8, cellSpacingMeters: 1300, placeSearchRadius: 600 };
-  } else if (radiusMeters <= 8046) {
+  } else if (radiusMeters <= 4000) {
     return { resolution: 7, cellSpacingMeters: 2800, placeSearchRadius: 1500 };
   } else {
     return { resolution: 6, cellSpacingMeters: 7400, placeSearchRadius: 4000 };
@@ -63,7 +63,27 @@ export const getCellsInRadiusDynamic = (lat: number, lng: number, radiusMeters: 
   const { resolution, cellSpacingMeters } = getMacroResolutionAndRadius(radiusMeters);
   const centerCell = h3.geoToH3(lat, lng, resolution);
   const ringSize = Math.ceil(radiusMeters / cellSpacingMeters);
-  const cellIds = h3.kRing(centerCell, ringSize);
+  const allCells = h3.kRing(centerCell, ringSize);
+
+  // Sort cells by distance from user lat/lng to cell center
+  const sorted = allCells.sort((a: string, b: string) => {
+    const [latA, lngA] = getCellCenter(a);
+    const [latB, lngB] = getCellCenter(b);
+    const dLatA = latA - lat;
+    const dLngA = (lngA - lng) * Math.cos((lat * Math.PI) / 180);
+    const distA = dLatA * dLatA + dLngA * dLngA;
+
+    const dLatB = latB - lat;
+    const dLngB = (lngB - lng) * Math.cos((lat * Math.PI) / 180);
+    const distB = dLatB * dLatB + dLngB * dLngB;
+
+    return distA - distB;
+  });
+
+  // Cap at 3 max so all cells fit within Page 1 synchronous fetch cap
+  const maxCells = ringSize === 0 ? 1 : 3;
+  const cellIds = sorted.slice(0, maxCells);
+
   return { cellIds, resolution };
 };
 

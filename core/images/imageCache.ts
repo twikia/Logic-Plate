@@ -327,7 +327,7 @@ async function fetchRestaurantPhotoUrlsInternal({
     });
 
     if (invokeError) {
-      console.error('[ImageCache] Edge function invoke error:', invokeError);
+      console.warn('[ImageCache] Edge function invoke error:', invokeError);
       return [];
     }
 
