@@ -27,8 +27,8 @@ function resolveServiceRoleKey(): string {
 }
 
 const DIETARY_VETO_MAP: Record<string, string[]> = {
-  vegan: ["steakhouse", "burger_restaurant", "seafood_restaurant", "barbecue_restaurant"],
-  vegetarian: ["steakhouse", "burger_restaurant", "barbecue_restaurant"],
+  vegan: ["steak_house", "steakhouse", "burger_restaurant", "hamburger_restaurant", "seafood_restaurant", "barbecue_restaurant"],
+  vegetarian: ["steak_house", "steakhouse", "burger_restaurant", "hamburger_restaurant", "barbecue_restaurant"],
   halal: ["barbecue_restaurant"],
   gluten_free: ["pizza_restaurant", "ramen_restaurant"],
 };
@@ -56,6 +56,10 @@ const MOOD_CUISINE_MAP: Record<string, string[]> = {
   bold: ["mexican_restaurant", "indian_restaurant", "thai_restaurant", "ethiopian_restaurant"],
   surprise: [],
 };
+
+function placeCategory(r: { category?: string; primaryType?: string; cuisineKey?: string }): string {
+  return String(r.category ?? r.primaryType ?? r.cuisineKey ?? "");
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -172,7 +176,7 @@ serve(async (req) => {
   }
 
   const { data: cacheRows } = await supabase
-    .from("restaurant_cache")
+    .from("v2_restaurant_cell_cache")
     .select("id, restaurants, fetched_at")
     .in("id", cellIds);
 
@@ -214,8 +218,8 @@ serve(async (req) => {
     )
   );
 
-  const eligible = restaurants.filter((r: { primaryType?: string }) => {
-    const pt = r.primaryType ?? "";
+  const eligible = restaurants.filter((r: { category?: string; primaryType?: string; cuisineKey?: string }) => {
+    const pt = placeCategory(r);
     for (const veto of allVetoes) {
       const blocked = DIETARY_VETO_MAP[veto] ?? [];
       if (blocked.includes(pt)) return false;
@@ -259,12 +263,17 @@ serve(async (req) => {
 
   const scored = eligible.map((r: Record<string, unknown>) => {
     let score = 0;
+    const aiHealth = typeof (r.aiOverview as { healthScore?: number } | undefined)?.healthScore === "number"
+      ? (r.aiOverview as { healthScore: number }).healthScore
+      : null;
     const rating = typeof r.rating === "number" ? r.rating : null;
     const ratingScore = rating != null ? ((rating - 1) / 4) * 100 : 50;
     score += ratingScore * weights.rating;
 
-    const primaryType = String(r.primaryType ?? "");
-    const healthScore = (HEALTH_SCORES[primaryType] ?? 3) / 5 * 100;
+    const primaryType = placeCategory(r as { category?: string; primaryType?: string; cuisineKey?: string });
+    const healthScore = aiHealth != null
+      ? (aiHealth / 10) * 100
+      : (HEALTH_SCORES[primaryType] ?? 3) / 5 * 100;
     score += healthScore * 0.2;
 
     if (boostedCuisines.has(primaryType)) score += 20;
@@ -290,7 +299,7 @@ serve(async (req) => {
   const overflow: Record<string, unknown>[] = [];
 
   for (const r of sortedAll) {
-    const pt = String(r.primaryType ?? "");
+    const pt = placeCategory(r as { category?: string; primaryType?: string; cuisineKey?: string });
     const count = cuisineCounts[pt] ?? 0;
     if (count < 2 && top5.length < 5) {
       top5.push(r);
@@ -323,18 +332,18 @@ serve(async (req) => {
     .filter(Boolean);
 
   const { data: aiRows } = await supabase
-    .from("ai_overview_cache")
-    .select("place_id, summary_good_bad, health_score")
-    .in("place_id", top5Ids);
+    .from("v2_ai_overview_cache")
+    .select("gers_id, summary_good_bad, health_score")
+    .in("gers_id", top5Ids);
 
   const aiMap = new Map<string, { summaryGoodBad: string; healthScore: number }>();
   for (const row of (aiRows ?? []) as {
-    place_id: string;
+    gers_id: string;
     summary_good_bad: string | null;
     health_score: number | null;
   }[]) {
     if (row.summary_good_bad && row.health_score != null) {
-      aiMap.set(row.place_id, {
+      aiMap.set(row.gers_id, {
         summaryGoodBad: row.summary_good_bad,
         healthScore: row.health_score,
       });

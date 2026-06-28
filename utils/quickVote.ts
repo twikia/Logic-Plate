@@ -85,7 +85,7 @@ function enrichWithDistance(
 
 export async function loadCachedRestaurants(): Promise<QuickVoteRestaurant[]> {
   const keys = await AsyncStorage.getAllKeys();
-  const cellKeys = keys.filter((k) => k.startsWith('cell_'));
+  const cellKeys = keys.filter((k) => k.startsWith('v2_cell_'));
   const pairs = await AsyncStorage.multiGet(cellKeys);
 
   const all: QuickVoteRestaurant[] = [];

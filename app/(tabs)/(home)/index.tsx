@@ -653,14 +653,15 @@ function SpotlightCard({
   const { theme } = useAppTheme();
   const { t } = useTranslation();
   const place = scored.place;
-  const name = place.displayName?.text || t('common.unknown');
+  // v2 (Overture) fields with v1 (Google) fallbacks
+  const name = place.name || place.displayName?.text || t('common.unknown');
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
   const { formatDistance, formatWalkingTime, formatDrivingTime } = useDistanceFormatter();
-  const rating = place.rating != null ? Number(place.rating).toFixed(1) : null;
-  const reviews = place.userRatingCount;
-  const costLabel = formatRestaurantCostLabel(place);
+  const rating = (place.rating != null && place.rating > 0) ? Number(place.rating).toFixed(1) : null;
+  const reviews = place.userRatingCount ?? null;
+  const costLabel = formatRestaurantCostLabel(place); // cascades priceRange → priceLevel → priceTier → '-'
   const ai = place.aiOverview as AiOverview | null | undefined;
   const neonUi = Boolean(theme.neonColors);
   const radarVar = theme.radarVariant ?? 'solid';
@@ -1382,15 +1383,17 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
   useEffect(() => {
     for (const item of visibleList) {
       const place = item.place;
-      if (!place?.id || !place.displayName?.text || !place.location) continue;
+      if (!place?.id || !(place.name || place.displayName?.text) || !place.location) continue;
+      const placeName = place.name || place.displayName?.text;
+      const cuisineKey = place.cuisineKey || place.aiOverview?.cuisineKey || place.category?.replace(/_restaurant$/, '') || place.primaryType?.replace(/_restaurant$/, '') || undefined;
       void fetchRestaurantPhotoUrls({
-        placeId: place.id,
-        name: place.displayName.text,
+        placeId: String(place.id),
+        name: placeName,
         latitude: place.location.latitude,
         longitude: place.location.longitude,
-        websiteUrl: place.websiteUri || undefined,
-        formattedAddress: place.formattedAddress || undefined,
-        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+        websiteUrl: place.website_url || place.websiteUri || undefined,
+        formattedAddress: place.address || place.formattedAddress || undefined,
+        cuisineKey,
       });
     }
   }, [visibleList]);

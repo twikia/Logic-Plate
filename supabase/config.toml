@@ -410,12 +410,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
 
-[functions.generate-ai-overviews]
-enabled = true
-verify_jwt = false
-import_map = "./functions/generate-ai-overviews/deno.json"
-entrypoint = "./functions/generate-ai-overviews/index.ts"
-
 [functions.fetch-restaurant-photos]
 enabled = true
 verify_jwt = false

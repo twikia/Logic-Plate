@@ -1,4 +1,4 @@
-import { AiOverview } from './aiOverviewCache';
+import type { AiOverview } from './aiOverviewCache';
 
 /**
  * Calculates a unified "Platebound Score" from 0-10 based on AI ratings and Google data.
@@ -24,8 +24,9 @@ export function ratingConfidenceCurve(count?: number | null): number {
 export function calculatePlateboundScore(
   overview: AiOverview | undefined | null,
   googleRating?: number,
-  priceLevel?: string,
-  userRatingCount?: number | null
+  priceLevel?: string,       // v1: Google PRICE_LEVEL_* string
+  userRatingCount?: number | null,
+  priceTier?: number | null  // v2: Overture integer 1-4
 ): number {
   if (!overview) return 0;
 
@@ -47,6 +48,7 @@ export function calculatePlateboundScore(
   const normGoogle = googleRating ? (conf * rawNormGoogle + (1 - conf) * baselineNormGoogle) : 0;
 
   // Map Price Level to 0-10 score (Favoring value)
+  // Supports both v1 (Google priceLevel string) and v2 (Overture priceTier integer 1-4)
   let priceScore = 7; // Default to moderate
   if (priceLevel) {
     switch (priceLevel) {
@@ -55,6 +57,14 @@ export function calculatePlateboundScore(
       case 'PRICE_LEVEL_MODERATE': priceScore = 8; break;
       case 'PRICE_LEVEL_EXPENSIVE': priceScore = 4; break;
       case 'PRICE_LEVEL_VERY_EXPENSIVE': priceScore = 1; break;
+    }
+  } else if (priceTier != null) {
+    // v2: 1=budget, 2=moderate, 3=pricey, 4=fine dining
+    switch (priceTier) {
+      case 1: priceScore = 10; break;
+      case 2: priceScore = 8; break;
+      case 3: priceScore = 4; break;
+      case 4: priceScore = 1; break;
     }
   }
 

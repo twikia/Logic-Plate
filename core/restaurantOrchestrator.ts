@@ -1,13 +1,14 @@
 import { getCellsInRadiusDynamic, getCellCenter, getChildCells } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
-import { readCacheBulk, writeCache } from './cacheManager';
+import { readCacheBulk, writeCache, type CachedPlace } from './cacheManager';
 import { supabase } from './supabaseClient';
 import { logEdgeFunctionFailure } from './supabaseFunctionErrors';
+import { checkIsPopulatedArea } from './geoRestriction';
 import {
   getCachedAiOverviewsForPlaces,
   invokeGenerateAiOverviewsForPlaces,
   mergeAiOverviewsOntoPlaces,
-  type AiOverview,
+  type PlaceSeed,
 } from './aiOverviewCache';
 
 const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -18,8 +19,7 @@ const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
 export type RestaurantLoadStage =
@@ -36,9 +36,7 @@ export type RestaurantLoadProgress = {
 
 export class RestaurantLoadSupersededError extends Error {
   readonly name = 'RestaurantLoadSupersededError';
-  constructor() {
-    super('Restaurant load superseded');
-  }
+  constructor() { super('Restaurant load superseded'); }
 }
 
 export const RESTAURANT_FETCH_USER_MESSAGE =
@@ -46,7 +44,7 @@ export const RESTAURANT_FETCH_USER_MESSAGE =
 
 export class RestaurantFetchError extends Error {
   readonly name = 'RestaurantFetchError';
-  constructor(message: string = RESTAURANT_FETCH_USER_MESSAGE, readonly cause?: unknown) {
+  constructor(message = RESTAURANT_FETCH_USER_MESSAGE, readonly cause?: unknown) {
     super(message);
   }
 }
@@ -63,9 +61,9 @@ export type GetNearbyRestaurantsOptions = {
   waitForAi?: boolean;
 };
 
-let latestRestaurantJobSeq = 0;
+let latestJobSeq = 0;
 
-type QueuedRestaurantTask = {
+type QueuedTask = {
   userLat: number;
   userLng: number;
   radiusMeters: number;
@@ -75,39 +73,8 @@ type QueuedRestaurantTask = {
   reject: (e: unknown) => void;
 };
 
-let restaurantFetchActive = false;
-let restaurantFetchPending: QueuedRestaurantTask | null = null;
-
-const mergeAiOntoPlaces = (finalList: any[], aiById: Map<string, AiOverview>) =>
-  mergeAiOverviewsOntoPlaces(finalList, aiById);
-
-const formatAndSortPlaces = (rawPlaces: any[], userLat: number, userLng: number, safeRadius: number) => {
-  const uniqueRestaurantsMap = new Map<string, any>();
-  for (const place of rawPlaces) {
-    if (place.id && !uniqueRestaurantsMap.has(place.id)) {
-      uniqueRestaurantsMap.set(place.id, place);
-    }
-  }
-  return Array.from(uniqueRestaurantsMap.values())
-    .map(place => {
-      if (!place.location?.latitude || !place.location?.longitude) {
-        return { ...place, distanceMeters: Infinity };
-      }
-      return {
-        ...place,
-        distanceMeters: haversineDistance(
-          userLat,
-          userLng,
-          place.location.latitude,
-          place.location.longitude
-        ),
-      };
-    })
-    .filter(place => place.distanceMeters <= safeRadius)
-    .sort((a, b) => a.distanceMeters - b.distanceMeters);
-};
-
-// ── Edge function call helper ─────────────────────────────────────────────────
+let fetchActive = false;
+let fetchPending: QueuedTask | null = null;
 
 type FetchRestaurantsPayload = {
   cells: Array<{ cellId: string; lat?: number; lng?: number }>;
@@ -115,8 +82,8 @@ type FetchRestaurantsPayload = {
 };
 
 type FetchRestaurantsResponse = {
-  newlyFetchedRestaurants: { cellId: string; places: any[] }[];
-  failedCells?: string[];
+  newlyFetchedRestaurants: { cellId: string; places: CachedPlace[] }[];
+  failedCells?: { cellId: string; reason: string }[];
   totalPlacesReturned: number;
 };
 
@@ -124,7 +91,7 @@ async function invokeFetchRestaurants(
   payload: FetchRestaurantsPayload
 ): Promise<{ data: FetchRestaurantsResponse | null; error: any }> {
   try {
-    const result = await supabase.functions.invoke('fetch-restaurants', {
+    const result = await supabase.functions.invoke('v2-fetch-restaurants', {
       body: payload,
       headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
     });
@@ -134,7 +101,40 @@ async function invokeFetchRestaurants(
   }
 }
 
-// ── Core load function ────────────────────────────────────────────────────────
+const formatAndSortPlaces = (
+  rawPlaces: CachedPlace[],
+  userLat: number,
+  userLng: number,
+  safeRadius: number
+): CachedPlace[] => {
+  const uniqueMap = new Map<string, CachedPlace>();
+  for (const place of rawPlaces) {
+    if (place.id && !uniqueMap.has(place.id)) {
+      uniqueMap.set(place.id, place);
+    }
+  }
+
+  return Array.from(uniqueMap.values())
+    .map(place => {
+      const lat = place.location?.latitude;
+      const lng = place.location?.longitude;
+      if (!lat || !lng) return { ...place, distanceMeters: Infinity };
+      return { ...place, distanceMeters: haversineDistance(userLat, userLng, lat, lng) };
+    })
+    .filter(place => place.distanceMeters <= safeRadius)
+    .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
+};
+
+const toPlaceSeed = (place: CachedPlace): PlaceSeed => ({
+  id: place.id,
+  name: place.name,
+  website_url: place.website_url,
+  address: place.address,
+  city: place.city,
+  category: place.category,
+  location: place.location,
+  phone: place.phone,
+});
 
 async function loadNearbyRestaurantsInternal(
   userLat: number,
@@ -143,31 +143,33 @@ async function loadNearbyRestaurantsInternal(
   onProgress?: (update: RestaurantLoadProgress) => void,
   options?: GetNearbyRestaurantsOptions
 ): Promise<any[]> {
-  const jobSeq = ++latestRestaurantJobSeq;
+  const jobSeq = ++latestJobSeq;
   const safeRadius = Math.min(radiusMeters, SEARCH_CONFIG.MAX_RADIUS_METERS);
 
-  // Get up to 7 cells (kRing 1) at resolution 8, 7, or 6 based on 80% coverage rule
   const { cellIds, resolution } = getCellsInRadiusDynamic(userLat, userLng, safeRadius);
   if (cellIds.length === 0) {
-    throw new Error('No search cells generated for current location.');
+    throw new RestaurantFetchError('No search cells generated for current location.');
   }
 
-  // ── Cache check (L1 AsyncStorage + L2 Supabase) ────────────────────────────
+  const isPopulated = await checkIsPopulatedArea(userLat, userLng);
+  if (!isPopulated) {
+    console.log(
+      `[GeoRestriction] Location (${userLat}, ${userLng}) identified as 0 population / middle of nowhere. Skipping searches.`
+    );
+    onProgress?.({ stage: 'done', progress: 1.0 });
+    return [];
+  }
+
+  console.log(`[Orchestrator] Starting restaurant load: ${cellIds.length} cells at resolution ${resolution}`);
+
   onProgress?.({ stage: 'reading-cache', progress: 0.2 });
   const { hits: rawHits, misses: uncachedCells } = await readCacheBulk(cellIds, resolution);
 
-  console.log(
-    `Restaurant cache check complete: ${rawHits.size}/${cellIds.length} cells found in cache (local+db), ${uncachedCells.length} cells still missing.`
-  );
+  console.log(`[Orchestrator] Cell cache check: ${rawHits.size}/${cellIds.length} cells hit, ${uncachedCells.length} cells missing`);
 
-  let allRestaurants: any[] = [];
-  rawHits.forEach(restaurants => {
-    allRestaurants = allRestaurants.concat(restaurants);
-  });
+  let allPlaces: CachedPlace[] = [];
+  rawHits.forEach(places => { allPlaces = allPlaces.concat(places); });
 
-  // ── Child cache join ───────────────────────────────────────────────────────
-  // For uncached cells, check if any immediate child cells are already cached.
-  // Never make API calls for children — only join existing cached items.
   if (resolution < 8 && uncachedCells.length > 0) {
     const childRes = resolution === 7 ? 8 : 7;
     const childCellIds: string[] = [];
@@ -175,13 +177,10 @@ async function loadNearbyRestaurantsInternal(
       childCellIds.push(...getChildCells(id, childRes));
     }
     const { hits: childHits } = await readCacheBulk(childCellIds, childRes);
-    childHits.forEach(restaurants => {
-      allRestaurants = allRestaurants.concat(restaurants);
-    });
-    console.log(`Merged child (res ${childRes}) cache data: found ${childHits.size} child cells cached.`);
+    childHits.forEach(places => { allPlaces = allPlaces.concat(places); });
+    console.log(`[Orchestrator] Child cache (res ${childRes}): ${childHits.size} child cells merged`);
   }
 
-  // ── Synchronous fetch of all uncached cells (up to 7 cells max, no paging) ─
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
 
@@ -190,101 +189,91 @@ async function loadNearbyRestaurantsInternal(
       return { cellId, lat, lng };
     });
 
-    console.log(
-      `[Search] Fetching ${cellsPayload.length} cells at resolution ${resolution} without paging.`
-    );
+    console.log(`[Orchestrator] Invoking v2-fetch-restaurants for ${cellsPayload.length} uncached cells...`);
 
-    const { data, error } = await invokeFetchRestaurants({
-      cells: cellsPayload,
-      resolution,
-    });
+    const { data, error } = await invokeFetchRestaurants({ cells: cellsPayload, resolution });
 
     if (error) {
-      logEdgeFunctionFailure('fetch-restaurants', { data, error });
-      if (allRestaurants.length === 0) {
-        throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, error);
+      logEdgeFunctionFailure('v2-fetch-restaurants', { data, error });
+      if (allPlaces.length === 0) {
+        throw new RestaurantFetchError(undefined, error);
       }
     } else if (data && Array.isArray(data.newlyFetchedRestaurants)) {
       const returnedCount = data.totalPlacesReturned ??
         data.newlyFetchedRestaurants.reduce((sum, r) => sum + (r.places?.length || 0), 0);
-      console.log(
-        `[Search Complete] Returned ${returnedCount} restaurants across ${data.newlyFetchedRestaurants.length} cells.`
-      );
+      console.log(`[Orchestrator] v2-fetch-restaurants returned ${returnedCount} places across ${data.newlyFetchedRestaurants.length} cells`);
 
       if (Array.isArray(data.failedCells) && data.failedCells.length > 0) {
-        console.warn('[restaurants] Edge function reported failed cells:', data.failedCells);
+        console.warn('[Orchestrator] Edge function reported failed cells:', data.failedCells);
       }
 
       for (const result of data.newlyFetchedRestaurants) {
         await writeCache(result.cellId, result.places);
-        allRestaurants = allRestaurants.concat(result.places);
+        allPlaces = allPlaces.concat(result.places);
       }
 
-      if (allRestaurants.length === 0) {
-        throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned zero restaurants');
+      if (allPlaces.length === 0) {
+        throw new RestaurantFetchError(undefined, 'v2-fetch-restaurants returned zero places');
       }
-    } else if (allRestaurants.length === 0) {
-      throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'edge function returned no data');
+    } else if (allPlaces.length === 0) {
+      throw new RestaurantFetchError(undefined, 'v2-fetch-restaurants returned no data');
     }
   }
 
-  if (allRestaurants.length === 0) {
-    throw new RestaurantFetchError(RESTAURANT_FETCH_USER_MESSAGE, 'no restaurant data available');
+  if (allPlaces.length === 0) {
+    throw new RestaurantFetchError(undefined, 'no restaurant data available');
   }
 
   onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
-  const finalList = formatAndSortPlaces(allRestaurants, userLat, userLng, safeRadius);
-  const cachedAi = await getCachedAiOverviewsForPlaces(finalList);
-  const baseList = mergeAiOntoPlaces(finalList, cachedAi);
+  const finalList = formatAndSortPlaces(allPlaces, userLat, userLng, safeRadius);
+  console.log(`[Orchestrator] After dedupe/sort/filter: ${finalList.length} restaurants within ${safeRadius}m`);
 
-  const triggerUpdates = (placesWithAi: any[]) => {
-    options?.onPlacesUpdated?.(placesWithAi);
-    options?.onAiReady?.(placesWithAi);
+  const seeds = finalList.map(toPlaceSeed);
+  const cachedAi = await getCachedAiOverviewsForPlaces(seeds);
+  const baseList = mergeAiOverviewsOntoPlaces(finalList, cachedAi);
+  console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${finalList.length} already enriched`);
+
+  const triggerUpdates = (enriched: any[]) => {
+    options?.onPlacesUpdated?.(enriched);
+    options?.onAiReady?.(enriched);
   };
 
-  const runBackgroundAiEnrichment = async () => {
-    const missingAiIds = finalList.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
-    if (missingAiIds.length === 0) {
-      if (jobSeq === latestRestaurantJobSeq) {
-        onProgress?.({ stage: 'done', progress: 1 });
-      }
+  const runBackgroundAi = async () => {
+    const missingIds = finalList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
+    if (missingIds.length === 0) {
+      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: 1 });
       return;
     }
     onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
+    console.log(`[Orchestrator] Generating AI overviews for ${missingIds.length} uncached places...`);
     try {
-      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingAiIds);
-      if (jobSeq !== latestRestaurantJobSeq) return;
-      for (const [k, v] of generated) {
-        cachedAi.set(k, v);
-      }
+      const generated = await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
+      if (jobSeq !== latestJobSeq) return;
+      for (const [k, v] of generated) cachedAi.set(k, v);
       if (generated.size > 0) {
-        triggerUpdates(mergeAiOntoPlaces(finalList, cachedAi));
+        triggerUpdates(mergeAiOverviewsOntoPlaces(finalList, cachedAi));
       }
     } catch (err) {
-      console.warn('Background AI overviews failed:', err);
+      console.warn('[Orchestrator] Background AI overview generation failed:', err);
     } finally {
-      if (jobSeq === latestRestaurantJobSeq) {
-        onProgress?.({ stage: 'done', progress: 1 });
-      }
+      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: 1 });
     }
   };
 
   if (options?.waitForAi) {
-    const missingAiIds = finalList.map(p => p.id).filter((id: string) => !!id && !cachedAi.has(id));
-    if (missingAiIds.length > 0) {
+    const missingIds = finalList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
+    if (missingIds.length > 0) {
       onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
-      const generated = await invokeGenerateAiOverviewsForPlaces(finalList, missingAiIds);
-      for (const [k, v] of generated) {
-        cachedAi.set(k, v);
-      }
+      const generated = await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
+      for (const [k, v] of generated) cachedAi.set(k, v);
     }
-    const enriched = mergeAiOntoPlaces(finalList, cachedAi);
+    const enriched = mergeAiOverviewsOntoPlaces(finalList, cachedAi);
     onProgress?.({ stage: 'done', progress: 1 });
-    void runBackgroundAiEnrichment();
+    void runBackgroundAi();
     return enriched;
   }
 
-  void runBackgroundAiEnrichment();
+  void runBackgroundAi();
   return baseList;
 }
 
@@ -296,27 +285,21 @@ export const getNearbyRestaurants = (
   options?: GetNearbyRestaurantsOptions
 ): Promise<any[]> => {
   return new Promise((resolve, reject) => {
-    const task: QueuedRestaurantTask = {
-      userLat,
-      userLng,
-      radiusMeters,
-      onProgress,
-      options,
-      resolve,
-      reject,
+    const task: QueuedTask = {
+      userLat, userLng, radiusMeters, onProgress, options, resolve, reject,
     };
 
-    if (restaurantFetchActive) {
-      if (restaurantFetchPending) {
-        restaurantFetchPending.reject(new RestaurantLoadSupersededError());
+    if (fetchActive) {
+      if (fetchPending) {
+        fetchPending.reject(new RestaurantLoadSupersededError());
       }
-      restaurantFetchPending = task;
+      fetchPending = task;
       return;
     }
 
-    restaurantFetchActive = true;
+    fetchActive = true;
     void (async () => {
-      let current: QueuedRestaurantTask | null = task;
+      let current: QueuedTask | null = task;
       while (current) {
         try {
           const result = await loadNearbyRestaurantsInternal(
@@ -324,16 +307,16 @@ export const getNearbyRestaurants = (
             current.userLng,
             current.radiusMeters,
             current.onProgress,
-            current.options
+            current.options,
           );
           current.resolve(result);
         } catch (e) {
           current.reject(e);
         }
-        current = restaurantFetchPending;
-        restaurantFetchPending = null;
+        current = fetchPending;
+        fetchPending = null;
       }
-      restaurantFetchActive = false;
+      fetchActive = false;
     })();
   });
 };

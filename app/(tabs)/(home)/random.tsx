@@ -38,7 +38,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { AiOverview } from '../../../core/aiOverviewCache';
 import { isOpenNow } from '../../../core/isOpenNow';
-import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
+import { formatRestaurantCostLabel } from '../../../core/placePriceLabel';
 import { calculatePlateboundScore } from '../../../core/ratingCalculator';
 import { getLocation } from '../../../core/locationCache';
 import {
@@ -50,6 +50,8 @@ import {
   DEFAULT_SEARCH_RADIUS_METERS,
   MAX_SEARCH_RADIUS_METERS,
   MIN_SEARCH_RADIUS_METERS,
+  radiusToSliderValue,
+  sliderValueToRadius,
 } from '@/core/searchRadiusOptions';
 import { replaceCurrentRestaurantIfInList, setCurrentRestaurant } from '../../../core/currentSelection';
 import {
@@ -258,12 +260,20 @@ const RestaurantRow = React.memo(function RestaurantRow({
   const tc = themedColors(theme, neonUi);
   const { formatDistance } = useDistanceFormatter();
 
-  const name = item.displayName?.text || t('common.unknown');
+  // v2 (Overture) fields with v1 (Google) fallbacks
+  const name = item.name || item.displayName?.text || t('common.unknown');
+  const cuisineKey = item.cuisineKey || item.aiOverview?.cuisineKey || item.category?.replace(/_restaurant$/, '') || item.primaryType?.replace(/_restaurant$/, '') || undefined;
   const ai = item.aiOverview as AiOverview | undefined | null;
   const distM = Math.round(item.distanceMeters ?? 0);
   const dist = formatDistance(distM);
-  const price = formatPlacePriceLabel(item);
-  const overall = calculatePlateboundScore(ai, item.rating, item.priceLevel, item.userRatingCount);
+  const price = formatRestaurantCostLabel(item);
+  const overall = calculatePlateboundScore(
+    ai,
+    item.rating ?? undefined,
+    item.priceLevel,
+    item.userRatingCount,
+    item.priceTier ?? item.aiOverview?.priceTier
+  );
   const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
   const ratingColor =
     typeof item.rating === 'number' && item.rating > 0
@@ -301,9 +311,9 @@ const RestaurantRow = React.memo(function RestaurantRow({
             name={name}
             latitude={lat}
             longitude={lng}
-            websiteUrl={item.websiteUri}
-            formattedAddress={item.formattedAddress}
-            cuisineKey={item.primaryType?.replace(/_restaurant$/, '')}
+            websiteUrl={item.website_url || item.websiteUri}
+            formattedAddress={item.address || item.formattedAddress}
+            cuisineKey={cuisineKey}
             containHorizontal={true}
           />
         </View>
@@ -681,14 +691,23 @@ export default function RandomScreen() {
 
   const filtered = useMemo(() => {
     return allResults.filter(r => {
-      if (!((r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
+      if (!((r.name || r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
       if (openOnly) {
         if (!isOpenNow(r)) return false;
       }
-      if (selectedPrices.size > 0 && r.priceLevel && !selectedPrices.has(r.priceLevel)) return false;
+      // Price filter: support both v1 priceLevel string and v2 priceTier integer
+      if (selectedPrices.size > 0) {
+        const v1Price = r.priceLevel;
+        const v2Tier = r.priceTier ?? r.aiOverview?.priceTier;
+        const priceLabelFromTier = v2Tier != null
+          ? ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE', 'PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE'][v2Tier - 1]
+          : undefined;
+        const effectivePrice = v1Price || priceLabelFromTier;
+        if (effectivePrice && !selectedPrices.has(effectivePrice)) return false;
+      }
       if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
       if (selectedCuisines.size > 0) {
-        const pType = r.primaryType;
+        const pType = r.category || r.primaryType;
         const tTypes = r.types || [];
         const hasMatch = Array.from(selectedCuisines).some(cuisineKey => {
           if (cuisineKey === 'dessert') return placeOffersSweets(r);
@@ -848,12 +867,12 @@ export default function RandomScreen() {
             </Text>
             <Slider
               style={{ width: '100%', height: 40 }}
-              minimumValue={MIN_SEARCH_RADIUS_METERS}
-              maximumValue={MAX_SEARCH_RADIUS_METERS}
-              step={100}
-              value={radius}
-              onValueChange={setRadius}
-              onSlidingComplete={changeRadius}
+              minimumValue={0}
+              maximumValue={1}
+              step={0.005}
+              value={radiusToSliderValue(radius)}
+              onValueChange={(val) => setRadius(sliderValueToRadius(val))}
+              onSlidingComplete={(val) => changeRadius(sliderValueToRadius(val))}
               minimumTrackTintColor={theme.accent}
               maximumTrackTintColor={tc.chipBorder}
               thumbTintColor={theme.accent}

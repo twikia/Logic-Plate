@@ -26,22 +26,24 @@ export type AiOverview = {
   soloDinerScore: number;
   energySustainScore: number;
   workFriendlyScore: number;
+  topMenuItems: Array<{ name: string; price: string; overview: string }>;
+  priceTier: number;
+  cuisineKey: string;
 };
 
-export function mergeAiOverviewsOntoPlaces<T extends { id?: string }>(
-  places: T[],
-  aiById: Map<string, AiOverview>
-): T[] {
-  return places.map(place => {
-    const id = place.id;
-    const ai = id ? aiById.get(id) : undefined;
-    if (!ai) return { ...place };
-    return { ...place, aiOverview: ai, healthScore: ai.healthScore };
-  });
-}
+export type PlaceSeed = {
+  id: string;
+  name: string;
+  website_url?: string | null;
+  address?: string | null;
+  city?: string | null;
+  category?: string | null;
+  location?: { latitude?: number; longitude?: number } | null;
+  phone?: string | null;
+};
 
 type AiOverviewRow = {
-  place_id: string;
+  gers_id: string;
   summary_good_bad: string | null;
   speed_score: number | null;
   health_score: number | null;
@@ -64,55 +66,29 @@ type AiOverviewRow = {
   solo_diner_score?: number | null;
   energy_sustain_score?: number | null;
   work_friendly_score?: number | null;
-};
-
-export type PlaceSeed = {
-  id: string;
-  displayName?: { text?: string };
-  formattedAddress?: string;
-  primaryType?: string;
-  primaryTypeDisplayName?: { text?: string };
-  types?: string[];
-  priceLevel?: string;
-  rating?: number;
-  userRatingCount?: number;
-  location?: { latitude?: number; longitude?: number };
-  googleMapsUri?: string;
-  websiteUri?: string;
-  nationalPhoneNumber?: string;
-  internationalPhoneNumber?: string;
-  businessStatus?: string;
-  currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
-  currentSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
-  regularOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
-  regularSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
-  accessibilityOptions?: {
-    wheelchairAccessibleParking?: boolean;
-    wheelchairAccessibleEntrance?: boolean;
-    wheelchairAccessibleRestroom?: boolean;
-    wheelchairAccessibleSeating?: boolean;
-  };
-  priceRange?: unknown;
+  top_menu_items?: unknown | null;
+  price_tier?: number | null;
+  cuisine_key?: string | null;
 };
 
 const localMemory = new Map<string, AiOverview>();
 
-const normalizeOverview = (row: AiOverviewRow): AiOverview | null => {
+const normalizeRow = (row: AiOverviewRow): AiOverview | null => {
   if (!row.summary_good_bad || !row.absolute_macros || !row.who_this_place_is_for) return null;
   if (
-    row.speed_score === null ||
-    row.health_score === null ||
-    row.workout_recovery_score === null ||
-    row.processed_score === null ||
-    row.calorie_score === null ||
-    row.protein_score === null ||
-    row.carb_score === null ||
-    row.date_worthiness === null ||
-    row.noise_level_estimate === null ||
-    row.group_size_sweet_spot === null
-  ) {
-    return null;
-  }
+    row.speed_score === null || row.health_score === null ||
+    row.workout_recovery_score === null || row.processed_score === null ||
+    row.calorie_score === null || row.protein_score === null ||
+    row.carb_score === null || row.date_worthiness === null ||
+    row.noise_level_estimate === null || row.group_size_sweet_spot === null
+  ) return null;
+
+  const rawItems = Array.isArray(row.top_menu_items) ? row.top_menu_items : [];
+  const topMenuItems = rawItems.map((item: any) => ({
+    name: String(item?.name ?? ''),
+    price: String(item?.price ?? ''),
+    overview: String(item?.overview ?? ''),
+  }));
 
   return {
     summaryGoodBad: row.summary_good_bad,
@@ -137,10 +113,13 @@ const normalizeOverview = (row: AiOverviewRow): AiOverview | null => {
     soloDinerScore: row.solo_diner_score ?? 0,
     energySustainScore: row.energy_sustain_score ?? 0,
     workFriendlyScore: row.work_friendly_score ?? 0,
+    topMenuItems,
+    priceTier: row.price_tier ?? 2,
+    cuisineKey: row.cuisine_key ?? 'general',
   };
 };
 
-const fromStorage = (value: string | null): AiOverview | null => {
+const fromStorageJson = (value: string | null): AiOverview | null => {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value) as Partial<AiOverview>;
@@ -161,10 +140,7 @@ const fromStorage = (value: string | null): AiOverview | null => {
       carbScore: z(parsed.carbScore),
       dateWorthiness: z(parsed.dateWorthiness),
       noiseLevelEstimate: z(parsed.noiseLevelEstimate),
-      groupSizeSweetSpot: (() => {
-        const g = z(parsed.groupSizeSweetSpot);
-        return g >= 1 && g <= 6 ? g : 1;
-      })(),
+      groupSizeSweetSpot: (() => { const g = z(parsed.groupSizeSweetSpot); return g >= 1 && g <= 6 ? g : 2; })(),
       absoluteMacros: parsed.absoluteMacros,
       whoThisPlaceIsFor: parsed.whoThisPlaceIsFor,
       tasteScore: z(parsed.tasteScore),
@@ -176,93 +152,107 @@ const fromStorage = (value: string | null): AiOverview | null => {
       soloDinerScore: z(parsed.soloDinerScore),
       energySustainScore: z(parsed.energySustainScore),
       workFriendlyScore: z(parsed.workFriendlyScore),
+      topMenuItems: Array.isArray(parsed.topMenuItems) ? parsed.topMenuItems : [],
+      priceTier: typeof parsed.priceTier === 'number' ? parsed.priceTier : 2,
+      cuisineKey: typeof parsed.cuisineKey === 'string' ? parsed.cuisineKey : 'general',
     };
   } catch {
     return null;
   }
 };
 
-const placeToEdgePayload = (p: PlaceSeed) => ({
-  id: p.id,
-  name: p.displayName?.text ?? '',
-  formattedAddress: p.formattedAddress ?? '',
-  primaryType: p.primaryType ?? '',
-  primaryTypeDisplayName: p.primaryTypeDisplayName?.text ?? '',
-  types: p.types ?? [],
-  priceLevel: p.priceLevel ?? '',
-  priceRange: p.priceRange ?? null,
-  rating: p.rating ?? null,
-  userRatingCount: p.userRatingCount ?? null,
-  location: p.location ?? null,
-  googleMapsUri: p.googleMapsUri ?? '',
-  websiteUri: p.websiteUri ?? '',
-  nationalPhoneNumber: p.nationalPhoneNumber ?? '',
-  internationalPhoneNumber: p.internationalPhoneNumber ?? '',
-  businessStatus: p.businessStatus ?? '',
-  currentOpeningHours: p.currentOpeningHours ?? null,
-  currentSecondaryOpeningHours: p.currentSecondaryOpeningHours ?? null,
-  regularOpeningHours: p.regularOpeningHours ?? null,
-  regularSecondaryOpeningHours: p.regularSecondaryOpeningHours ?? null,
-  accessibilityOptions: p.accessibilityOptions ?? null,
-});
+export function toPlaceSeed(place: {
+  id?: string;
+  name?: string;
+  displayName?: { text?: string };
+  website_url?: string | null;
+  websiteUri?: string | null;
+  address?: string | null;
+  formattedAddress?: string | null;
+  city?: string | null;
+  category?: string | null;
+  primaryType?: string | null;
+  location?: { latitude?: number; longitude?: number } | null;
+  phone?: string | null;
+  nationalPhoneNumber?: string | null;
+}): PlaceSeed | null {
+  if (!place.id) return null;
+  return {
+    id: place.id,
+    name: place.name ?? place.displayName?.text ?? '',
+    website_url: place.website_url ?? place.websiteUri ?? null,
+    address: place.address ?? place.formattedAddress ?? null,
+    city: place.city ?? null,
+    category: place.category ?? place.primaryType ?? null,
+    location: place.location ?? null,
+    phone: place.phone ?? place.nationalPhoneNumber ?? null,
+  };
+}
 
 export const getCachedAiOverviewsForPlaces = async (
-  places: PlaceSeed[]
+  places: Array<{ id?: string; name?: string; displayName?: { text?: string }; website_url?: string | null; websiteUri?: string | null; address?: string | null; formattedAddress?: string | null; city?: string | null; category?: string | null; primaryType?: string | null; location?: { latitude?: number; longitude?: number } | null; phone?: string | null; nationalPhoneNumber?: string | null }>
 ): Promise<Map<string, AiOverview>> => {
+  const seeds = places.map(toPlaceSeed).filter((p): p is PlaceSeed => p != null);
   const result = new Map<string, AiOverview>();
-  const uniquePlaces = Array.from(new Map(places.filter(p => p?.id).map(p => [p.id, p])).values());
+  const uniquePlaces = Array.from(
+    new Map(seeds.filter(p => p?.id).map(p => [p.id, p])).values()
+  );
   if (uniquePlaces.length === 0) return result;
 
-  const placeIds = uniquePlaces.map(p => p.id);
+  const gersIds = uniquePlaces.map(p => p.id);
   const needsStorage: string[] = [];
 
-  for (const placeId of placeIds) {
-    const memo = localMemory.get(placeId);
+  for (const gersId of gersIds) {
+    const memo = localMemory.get(gersId);
     if (memo) {
-      result.set(placeId, memo);
+      result.set(gersId, memo);
     } else {
-      needsStorage.push(placeId);
+      needsStorage.push(gersId);
     }
   }
 
   if (needsStorage.length > 0) {
-    const pairs = await AsyncStorage.multiGet(needsStorage.map(id => `ai_overview_${id}`));
+    const pairs = await AsyncStorage.multiGet(needsStorage.map(id => `v2_ai_overview_${id}`));
     const needsDb: string[] = [];
     for (const [key, value] of pairs) {
-      const placeId = key.replace('ai_overview_', '');
-      const overview = fromStorage(value);
+      const gersId = key.replace('v2_ai_overview_', '');
+      const overview = fromStorageJson(value);
       if (overview) {
-        localMemory.set(placeId, overview);
-        result.set(placeId, overview);
+        localMemory.set(gersId, overview);
+        result.set(gersId, overview);
       } else {
-        needsDb.push(placeId);
+        needsDb.push(gersId);
       }
     }
 
     if (needsDb.length > 0) {
       const { data, error } = await supabase
-        .from('ai_overview_cache')
+        .from('v2_ai_overview_cache')
         .select(
-          'place_id, summary_good_bad, speed_score, health_score, workout_recovery_score, processed_score, calorie_score, protein_score, carb_score, date_worthiness, noise_level_estimate, group_size_sweet_spot, absolute_macros, who_this_place_is_for, taste_score, value_for_money_score, hungover_recovery_score, munchy_score, variety_score, macro_friendly_score, solo_diner_score, energy_sustain_score, work_friendly_score'
+          'gers_id, summary_good_bad, speed_score, health_score, workout_recovery_score, ' +
+          'processed_score, calorie_score, protein_score, carb_score, date_worthiness, ' +
+          'noise_level_estimate, group_size_sweet_spot, absolute_macros, who_this_place_is_for, ' +
+          'taste_score, value_for_money_score, hungover_recovery_score, munchy_score, ' +
+          'variety_score, macro_friendly_score, solo_diner_score, energy_sustain_score, ' +
+          'work_friendly_score, top_menu_items, price_tier, cuisine_key'
         )
-        .in('place_id', needsDb);
+        .in('gers_id', needsDb);
 
       if (!error && data) {
+        console.log(`[AI] Supabase v2_ai_overview_cache: ${data.length} rows returned for ${needsDb.length} GERS IDs`);
         const backfills: [string, string][] = [];
-
         for (const row of data as AiOverviewRow[]) {
-          const normalized = normalizeOverview(row);
-          if (!normalized) {
-            continue;
-          }
-          localMemory.set(row.place_id, normalized);
-          result.set(row.place_id, normalized);
-          backfills.push([`ai_overview_${row.place_id}`, JSON.stringify(normalized)]);
+          const normalized = normalizeRow(row);
+          if (!normalized) continue;
+          localMemory.set(row.gers_id, normalized);
+          result.set(row.gers_id, normalized);
+          backfills.push([`v2_ai_overview_${row.gers_id}`, JSON.stringify(normalized)]);
         }
-
         if (backfills.length > 0) {
           AsyncStorage.multiSet(backfills).catch(() => undefined);
         }
+      } else if (error) {
+        console.warn('[AI] Supabase v2_ai_overview_cache read error:', error.message);
       }
     }
   }
@@ -272,20 +262,32 @@ export const getCachedAiOverviewsForPlaces = async (
 
 export const invokeGenerateAiOverviewsForPlaces = async (
   places: PlaceSeed[],
-  missingPlaceIds: string[]
+  missingGersIds: string[]
 ): Promise<Map<string, AiOverview>> => {
   const out = new Map<string, AiOverview>();
-  const uniquePlaces = Array.from(new Map(places.filter(p => p?.id).map(p => [p.id, p])).values());
+  const uniquePlaces = Array.from(
+    new Map(places.filter(p => p?.id).map(p => [p.id, p])).values()
+  );
   const placeMap = new Map(uniquePlaces.map(p => [p.id, p]));
-  const payloadPlaces = missingPlaceIds
+
+  const payloadPlaces = missingGersIds
     .map(id => placeMap.get(id))
     .filter(Boolean)
-    .map(p => placeToEdgePayload(p as PlaceSeed));
+    .map(p => ({
+      gers_id: p!.id,
+      name: p!.name,
+      website_url: p!.website_url ?? null,
+      address: p!.address ?? null,
+      city: p!.city ?? null,
+      category: p!.category ?? null,
+      location: p!.location ?? null,
+      phone: p!.phone ?? null,
+    }));
 
   if (payloadPlaces.length === 0) return out;
 
   const { data: generatedData, error: invokeError } = await supabase.functions.invoke(
-    'generate-ai-overviews',
+    'v2-generate-ai-overview',
     {
       body: { places: payloadPlaces },
       headers: { 'x-app-secret': process.env.EXPO_PUBLIC_APP_SECRET || '' },
@@ -293,34 +295,39 @@ export const invokeGenerateAiOverviewsForPlaces = async (
   );
 
   if (invokeError || !generatedData?.generatedOverviews) {
+    console.warn('[AI] v2-generate-ai-overview invoke error:', invokeError?.message ?? 'no data');
     return out;
   }
 
-  const generatedBackfills: [string, string][] = [];
-  for (const item of generatedData.generatedOverviews as { placeId: string; overview: AiOverview }[]) {
-    if (!item?.placeId || !item?.overview) continue;
-    localMemory.set(item.placeId, item.overview);
-    out.set(item.placeId, item.overview);
-    generatedBackfills.push([`ai_overview_${item.placeId}`, JSON.stringify(item.overview)]);
+  const backfills: [string, string][] = [];
+  for (const item of generatedData.generatedOverviews as { gersId: string; overview: AiOverview }[]) {
+    if (!item?.gersId || !item?.overview) continue;
+    localMemory.set(item.gersId, item.overview);
+    out.set(item.gersId, item.overview);
+    backfills.push([`v2_ai_overview_${item.gersId}`, JSON.stringify(item.overview)]);
   }
-  if (generatedBackfills.length > 0) {
-    AsyncStorage.multiSet(generatedBackfills).catch(() => undefined);
+  if (backfills.length > 0) {
+    AsyncStorage.multiSet(backfills).catch(() => undefined);
   }
 
   return out;
 };
 
-export const getAiOverviewsForPlaces = async (
-  places: PlaceSeed[]
-): Promise<Map<string, AiOverview>> => {
-  const result = await getCachedAiOverviewsForPlaces(places);
-  const uniquePlaces = Array.from(new Map(places.filter(p => p?.id).map(p => [p.id, p])).values());
-  const stillMissing = uniquePlaces.map(p => p.id).filter(id => !result.has(id));
-  if (stillMissing.length === 0) return result;
-
-  const generated = await invokeGenerateAiOverviewsForPlaces(places, stillMissing);
-  for (const [k, v] of generated) {
-    result.set(k, v);
-  }
-  return result;
-};
+export function mergeAiOverviewsOntoPlaces<T extends { id?: string }>(
+  places: T[],
+  aiById: Map<string, AiOverview>
+): T[] {
+  return places.map(place => {
+    const gersId = place.id;
+    const ai = gersId ? aiById.get(gersId) : undefined;
+    if (!ai) return { ...place };
+    return {
+      ...place,
+      aiOverview: ai,
+      healthScore: ai.healthScore,
+      priceTier: ai.priceTier,
+      cuisineKey: ai.cuisineKey,
+      topMenuItems: ai.topMenuItems,
+    };
+  });
+}

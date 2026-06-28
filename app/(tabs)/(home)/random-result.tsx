@@ -44,7 +44,7 @@ import {
   subscribeCurrentRestaurant,
 } from '../../../core/currentSelection';
 import { isOpenNow } from '../../../core/isOpenNow';
-import { formatPlacePriceLabel } from '../../../core/placePriceLabel';
+import { formatRestaurantCostLabel } from '../../../core/placePriceLabel';
 
 const SCREEN_W = Dimensions.get('window').width;
 const HERO_H = 340;
@@ -314,14 +314,16 @@ export default function RandomResultScreen() {
 
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
 
-  const name = place.displayName?.text || t('common.unknown');
-  const address = place.formattedAddress || '';
-  const phone = place.nationalPhoneNumber || '';
-  const website = place.websiteUri || '';
-  const rating = place.rating;
-  const reviews = place.userRatingCount;
-  const price = formatPlacePriceLabel(place);
-  const type = place.primaryType?.replace(/_/g, ' ') || '';
+  // v2 (Overture) fields with v1 (Google) fallbacks
+  const name = place.name || place.displayName?.text || t('common.unknown');
+  const address = place.address || place.formattedAddress || '';
+  const phone = place.phone || place.nationalPhoneNumber || '';
+  const website = place.website_url || place.websiteUri || '';
+  const rating = place.rating ?? null; // null for v2 Overture (no ratings)
+  const reviews = place.userRatingCount ?? null; // null for v2
+  const price = formatRestaurantCostLabel(place); // cascades: priceRange → priceLevel → priceTier → '-'
+  const type = (place.category || place.primaryType || '').replace(/_/g, ' ');
+  const cuisineKey = place.cuisineKey || place.aiOverview?.cuisineKey || place.category?.replace(/_restaurant$/, '') || place.primaryType?.replace(/_restaurant$/, '') || undefined;
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const { formatDistance } = useDistanceFormatter();
@@ -337,7 +339,13 @@ export default function RandomResultScreen() {
   const aiOverview = place.aiOverview;
   const ph = !aiOverview;
   const plateboundScore = !ph
-    ? calculatePlateboundScore(aiOverview, place.rating, place.priceLevel, place.userRatingCount)
+    ? calculatePlateboundScore(
+        aiOverview,
+        place.rating ?? undefined,
+        place.priceLevel,
+        place.userRatingCount,
+        place.priceTier ?? place.aiOverview?.priceTier
+      )
     : null;
 
   useEffect(() => {
@@ -357,9 +365,9 @@ export default function RandomResultScreen() {
           name,
           latitude: lat,
           longitude: lng,
-          websiteUrl: place.websiteUri || undefined,
-          formattedAddress: place.formattedAddress || undefined,
-          cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+          websiteUrl: place.website_url || place.websiteUri || undefined,
+          formattedAddress: place.address || place.formattedAddress || undefined,
+          cuisineKey,
         });
         if (cancelled) return;
         setHeroPhotos(urls && urls.length > 0 ? urls : (place.photos || []));
@@ -372,11 +380,29 @@ export default function RandomResultScreen() {
   }, [place]);
 
   useEffect(() => {
+    // v2: menu items come from aiOverview.topMenuItems (already cached)
+    // v1 fallback: invoke the old generate-ai-menus edge function
+    const aiMenuItems = place.aiOverview?.topMenuItems;
+    if (Array.isArray(aiMenuItems) && aiMenuItems.length > 0) {
+      const formatted = aiMenuItems.map((item: { name: string; price: string; overview: string }) => {
+        const price = item.price && item.price !== '' ? ` - ${item.price}` : '';
+        const desc = item.overview ? `: ${item.overview}` : '';
+        return `${item.name}${price}${desc}`;
+      });
+      setMenuItems(formatted);
+      return;
+    }
+    // v1 fallback
     let cancelled = false;
     const loadMenu = async () => {
       if (!place || !place.id) return;
       try {
-        const items = await fetchAiMenu(place.id, place.websiteUri || undefined, name, place.primaryType || undefined);
+        const items = await fetchAiMenu(
+          place.id,
+          place.website_url || place.websiteUri || undefined,
+          name,
+          place.category || place.primaryType || undefined
+        );
         if (!cancelled && Array.isArray(items) && items.length > 0) {
           setMenuItems(items);
         }

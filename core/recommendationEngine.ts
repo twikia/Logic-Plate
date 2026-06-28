@@ -369,37 +369,53 @@ function timeFreshnessModifier(place: any, meal: MealTypeContext, weekendDinnerL
   return m;
 }
 
+export function isCafeOrDrinkPlace(place: any): boolean {
+  const pt = String(place?.primaryType || '').toLowerCase();
+  const types = Array.isArray(place?.types) ? place.types.map((t: any) => String(t).toLowerCase()) : [];
+  const cafeTypes = ['cafe', 'coffee_shop', 'bakery', 'bar', 'night_club', 'tea_house', 'ice_cream_shop', 'juice_shop', 'dessert_shop', 'dessert_restaurant'];
+  if (cafeTypes.includes(pt)) return true;
+  if (types.some((t: string) => cafeTypes.includes(t)) && !types.some((t: string) => t.includes('restaurant') || t === 'meal_takeaway' || t === 'meal_delivery' || t === 'food')) {
+    return true;
+  }
+  return false;
+}
+
 function intentModifier(place: any, intent: LaunchIntentCategory | null): number {
   if (!intent) return 0;
   const pt = String(place?.primaryType || '').toLowerCase();
+  const isCafe = isCafeOrDrinkPlace(place);
   
   if (intent === 'cafe_drinks') {
-    if (['cafe', 'coffee_shop', 'bakery', 'bar', 'night_club'].includes(pt)) return 30;
-    return -15;
+    if (isCafe) return 35;
+    return -50;
   }
+
+  // For any meal category (nice_meal, quick_casual, health_macros), food places take heavy precedence over cafes
+  let baseIntentScore = isCafe ? -55 : 15;
+
   if (intent === 'nice_meal') {
     const pl = place?.priceLevel;
-    if (['fine_dining_restaurant', 'steak_house', 'seafood_restaurant'].includes(pt)) return 30;
-    if (pl === 'PRICE_LEVEL_EXPENSIVE' || pl === 'PRICE_LEVEL_VERY_EXPENSIVE') return 25;
-    if (['fast_food_restaurant', 'hamburger_restaurant'].includes(pt)) return -25;
-    return 0;
+    if (['fine_dining_restaurant', 'steak_house', 'seafood_restaurant'].includes(pt)) return baseIntentScore + 25;
+    if (pl === 'PRICE_LEVEL_EXPENSIVE' || pl === 'PRICE_LEVEL_VERY_EXPENSIVE') return baseIntentScore + 20;
+    if (['fast_food_restaurant', 'hamburger_restaurant'].includes(pt)) return baseIntentScore - 25;
+    return baseIntentScore;
   }
   if (intent === 'quick_casual') {
-    if (['fast_food_restaurant', 'sandwich_shop', 'hamburger_restaurant', 'pizza_restaurant'].includes(pt)) return 30;
-    if (place?.takeout === true) return 15;
+    if (['fast_food_restaurant', 'sandwich_shop', 'hamburger_restaurant', 'pizza_restaurant'].includes(pt)) return baseIntentScore + 25;
+    if (place?.takeout === true) return baseIntentScore + 10;
     const pl = place?.priceLevel;
-    if (pl === 'PRICE_LEVEL_EXPENSIVE' || pl === 'PRICE_LEVEL_VERY_EXPENSIVE') return -25;
-    return 0;
+    if (pl === 'PRICE_LEVEL_EXPENSIVE' || pl === 'PRICE_LEVEL_VERY_EXPENSIVE') return baseIntentScore - 25;
+    return baseIntentScore;
   }
   if (intent === 'health_macros') {
     const ai = place?.aiOverview;
     const fromAi = typeof ai?.healthScore === 'number' ? ai.healthScore : 0;
-    if (fromAi >= 8) return 30;
-    if (['salad_shop', 'vegetarian_restaurant', 'vegan_restaurant', 'juice_shop'].includes(pt)) return 25;
-    if (['fast_food_restaurant', 'bar', 'dessert_restaurant'].includes(pt)) return -25;
-    return 0;
+    if (fromAi >= 8) return baseIntentScore + 25;
+    if (['salad_shop', 'vegetarian_restaurant', 'vegan_restaurant', 'juice_shop'].includes(pt)) return baseIntentScore + 20;
+    if (['fast_food_restaurant', 'bar', 'dessert_restaurant'].includes(pt)) return baseIntentScore - 25;
+    return baseIntentScore;
   }
-  return 0;
+  return baseIntentScore;
 }
 
 function buildMatchPills(sr: Omit<ScoredRestaurant, 'matchPills'>): ScoredRestaurant['matchPills'] {
@@ -591,7 +607,20 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     return { ...baseSr, matchPills: buildMatchPills(baseSr) };
   });
 
-  scored.sort((a, b) => b.plateboundScore - a.plateboundScore);
+  const activeIntent = getLaunchIntent();
+  scored.sort((a, b) => {
+    if (activeIntent) {
+      const aIsCafe = isCafeOrDrinkPlace(a.place);
+      const bIsCafe = isCafeOrDrinkPlace(b.place);
+      if (activeIntent === 'cafe_drinks') {
+        if (aIsCafe !== bIsCafe) return aIsCafe ? -1 : 1;
+      } else {
+        // Meal categories: food places come first
+        if (aIsCafe !== bIsCafe) return !aIsCafe ? -1 : 1;
+      }
+    }
+    return b.plateboundScore - a.plateboundScore;
+  });
   return scored;
 }
 

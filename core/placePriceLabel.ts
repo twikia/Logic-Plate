@@ -61,11 +61,32 @@ export function formatPriceLevelLabel(priceLevel?: string | null): string {
   }
 }
 
+/**
+ * Converts a v2 integer priceTier (1–4) to a dollar-sign label.
+ * 1 = '$', 2 = '$$', 3 = '$$$', 4 = '$$$$', undefined/null → '-'
+ */
+export function formatPriceTierLabel(priceTier?: number | null): string {
+  switch (priceTier) {
+    case 1: return '$';
+    case 2: return '$$';
+    case 3: return '$$$';
+    case 4: return '$$$$';
+    default: return '-';
+  }
+}
+
 export function formatRestaurantCostLabel(place: {
   priceRange?: { startPrice?: Money; endPrice?: Money };
   priceLevel?: string | null;
+  priceTier?: number | null; // v2 Overture field
 }): string {
-  return formatPlacePriceLabel(place) || formatPriceLevelLabel(place.priceLevel);
+  // Cascade: priceRange (Google v1) → priceLevel (Google v1) → priceTier (Overture v2) → '-'
+  return (
+    formatPlacePriceLabel(place) ||
+    formatPriceLevelLabel(place.priceLevel) ||
+    formatPriceTierLabel(place.priceTier) ||
+    '-'
+  );
 }
 
 export function formatPlacePriceLabel(place: {

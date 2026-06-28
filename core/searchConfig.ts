@@ -1,12 +1,12 @@
 /**
  * Central configuration for restaurant search, H3 grid, and API call limits.
  *
- * NOTE: CELL_SEARCH_RADIUS_BY_RESOLUTION in supabase/functions/fetch-restaurants/index.ts
+ * NOTE: SEARCH_RADIUS_BY_RESOLUTION in supabase/functions/v2-fetch-restaurants/index.ts
  * mirrors the values here — update both if you change search radii.
  */
 export const SEARCH_CONFIG = {
   // ── Radius Cap ─────────────────────────────────────────────────────────────
-  MAX_RADIUS_METERS: 24140, // 15 miles — hard cap applied before every search
+  MAX_RADIUS_METERS: 12070, // 7.5 miles — hard cap matching size 6x3 H3 cluster reach
 
   // ── Resolution Selection (80% Circle Coverage Rule) ────────────────────────
   // The search resolution is chosen such that the 7-cell kRing(1) cluster covers
@@ -29,9 +29,9 @@ export const SEARCH_CONFIG = {
   MAX_CELLS: 7 as const,
   CELLS_PER_SEARCH: 7 as const,
 
-  // ── Google Places API ──────────────────────────────────────────────────────
-  // Search radius (meters) passed to Google Places for each H3 cell.
-  // Mirrored in supabase/functions/fetch-restaurants/index.ts.
+  // ── Overture Maps API ─────────────────────────────────────────────────────
+  // Search radius (meters) passed to Overture for each H3 cell.
+  // Mirrored in supabase/functions/v2-fetch-restaurants/index.ts.
   CELL_SEARCH_RADIUS_BY_RESOLUTION: {
     8: 600,
     7: 1056,

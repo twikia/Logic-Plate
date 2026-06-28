@@ -64,7 +64,7 @@ export function normalizePlaces(raw: unknown): { places: any[]; wasModified: boo
 }
 
 /**
- * Checks rows from restaurant_cache. If any row has old paging structures or
+ * Checks rows from v2_restaurant_cell_cache. If any row has old paging structures or
  * malformed data (wasModified === true), updates the DB immediately so it is flat and simple.
  */
 export async function healDatabaseRows(supabase: any, rows: any[]): Promise<Map<string, any[]>> {
@@ -75,10 +75,10 @@ export async function healDatabaseRows(supabase: any, rows: any[]): Promise<Map<
     if (!row || !row.id) continue;
     const { places, wasModified } = normalizePlaces(row.restaurants);
     if (wasModified) {
-      console.log(`[Heal DB] Fixing malformed or nested paging row for cell ${row.id} -> ${places.length} places.`);
+      console.log(`[Heal DB] Fixing malformed row for cell ${row.id} -> ${places.length} places.`);
       try {
         await supabase
-          .from('restaurant_cache')
+          .from('v2_restaurant_cell_cache')
           .upsert({
             id: row.id,
             restaurants: places,

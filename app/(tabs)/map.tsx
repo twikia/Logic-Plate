@@ -15,12 +15,18 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { consumeMapFocusRestaurant } from '@/core/currentSelection';
 import { getLocation, subscribeLocationUpdates, distanceBetweenMeters } from '@/core/locationCache';
-import { getNearbyRestaurants, isRestaurantFetchError, isRestaurantLoadSupersededError } from '@/core/restaurantOrchestrator';
+import {
+  getNearbyRestaurants,
+  isRestaurantFetchError,
+  isRestaurantLoadSupersededError,
+} from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import {
   DEFAULT_SEARCH_RADIUS_METERS,
   MAX_SEARCH_RADIUS_METERS,
   MIN_SEARCH_RADIUS_METERS,
+  radiusToSliderValue,
+  sliderValueToRadius,
 } from '@/core/searchRadiusOptions';
 import { RestaurantCarousel } from '@/components/RestaurantCarousel';
 import { TranslatedText } from '@/components/ui/TranslatedText';
@@ -715,12 +721,12 @@ export default function MapScreen() {
               </Text>
               <Slider
                 style={{ width: '100%', height: 40 }}
-                minimumValue={MIN_SEARCH_RADIUS_METERS}
-                maximumValue={MAX_SEARCH_RADIUS_METERS}
-                step={100}
-                value={sliderRadius}
-                onValueChange={setSliderRadius}
-                onSlidingComplete={handleRadiusChange}
+                minimumValue={0}
+                maximumValue={1}
+                step={0.005}
+                value={radiusToSliderValue(sliderRadius)}
+                onValueChange={(val) => setSliderRadius(sliderValueToRadius(val))}
+                onSlidingComplete={(val) => handleRadiusChange(sliderValueToRadius(val))}
                 minimumTrackTintColor={theme.accent}
                 maximumTrackTintColor={isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}
                 thumbTintColor={theme.accent}
