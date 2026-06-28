@@ -56,7 +56,7 @@ export function getCellSearchRadius(resolution: number): number {
   if (resolution === 8) return SEARCH_CONFIG.CELL_SEARCH_RADIUS_BY_RESOLUTION[8];
   if (resolution === 7) return SEARCH_CONFIG.CELL_SEARCH_RADIUS_BY_RESOLUTION[7];
   if (resolution === 6) return SEARCH_CONFIG.CELL_SEARCH_RADIUS_BY_RESOLUTION[6];
-  return 1260;
+  return 600;
 }
 
 /**

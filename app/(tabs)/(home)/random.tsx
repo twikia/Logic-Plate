@@ -295,7 +295,7 @@ const RestaurantRow = React.memo(function RestaurantRow({
             photos={item.photos || []}
             width={52}
             height={52}
-            quality={200}
+            quality={150}
             loadDelay={400}
             borderRadius={11}
             name={name}
@@ -484,11 +484,15 @@ export default function RandomScreen() {
   const handleBack = useCallback(() => {
     hydratedRef.current = false;
     void clearRandomPickerState();
-    if (router.canGoBack()) {
-      router.dismissAll();
-    } else {
-      router.replace('/(tabs)/(home)');
+    if (typeof router.canDismiss === 'function' && router.canDismiss()) {
+      try {
+        router.dismissAll();
+        return;
+      } catch {
+        // ignore error
+      }
     }
+    router.replace('/(tabs)/(home)');
   }, [router]);
 
   useFocusEffect(

@@ -3,10 +3,18 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { I18nextProvider } from 'react-i18next';
+
+LogBox.ignoreLogs([
+  'ProgressBarAndroid has been extracted',
+  'SafeAreaView has been deprecated',
+  'Clipboard has been extracted',
+  'PushNotificationIOS has been extracted',
+]);
 
 import { AuthGate } from '@/components/auth/AuthGate';
 import { initDistanceUnit, getLanguage } from '@/core/userSettings';

@@ -24,6 +24,12 @@ function CarouselSlide({
   quality,
   containHorizontal,
   onImageDimensions,
+  name,
+  latitude,
+  longitude,
+  websiteUrl,
+  formattedAddress,
+  cuisineKey,
 }: {
   active: boolean;
   width: number | `${number}%`;
@@ -33,13 +39,22 @@ function CarouselSlide({
   quality?: number;
   containHorizontal?: boolean;
   onImageDimensions?: (w: number, h: number) => void;
+  name?: string;
+  latitude?: number;
+  longitude?: number;
+  websiteUrl?: string;
+  formattedAddress?: string;
+  cuisineKey?: string;
 }) {
   const animStyle = useAnimatedStyle(() => ({
     opacity: withTiming(active ? 1 : 0, { duration: 400 }),
   }), [active]);
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFillObject, { width, height }, animStyle]}>
+    <Animated.View
+      style={[StyleSheet.absoluteFillObject, { width, height, zIndex: active ? 1 : 0 }, animStyle]}
+      pointerEvents={active ? 'auto' : 'none'}
+    >
       <RestaurantImage
         restaurantId={restaurantId}
         photos={[photo]}
@@ -49,6 +64,12 @@ function CarouselSlide({
         quality={quality}
         containHorizontal={containHorizontal}
         onImageDimensions={onImageDimensions}
+        name={name}
+        latitude={latitude}
+        longitude={longitude}
+        websiteUrl={websiteUrl}
+        formattedAddress={formattedAddress}
+        cuisineKey={cuisineKey}
       />
     </Animated.View>
   );
@@ -57,6 +78,13 @@ function CarouselSlide({
 export function RestaurantCarousel({ place, width, height, borderRadius = 0, startIndex = 0, autoRotate = false, quality, containHorizontal, onImageDimensions }: Props) {
   const [photos, setPhotos] = useState<any[]>(place?.photos || []);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
+
+  const name = place?.displayName?.text;
+  const latitude = place?.location?.latitude;
+  const longitude = place?.location?.longitude;
+  const websiteUrl = place?.websiteUri;
+  const formattedAddress = place?.formattedAddress;
+  const cuisineKey = place?.primaryType?.replace(/_restaurant$/, '');
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +132,12 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
           quality={quality}
           containHorizontal={containHorizontal}
           onImageDimensions={onImageDimensions}
+          name={name}
+          latitude={latitude}
+          longitude={longitude}
+          websiteUrl={websiteUrl}
+          formattedAddress={formattedAddress}
+          cuisineKey={cuisineKey}
         />
       </View>
     );
@@ -118,11 +152,17 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
             active={currentIndex === i}
             width={width}
             height={height}
-            restaurantId={`${place?.id ?? 'unknown'}_${i}`}
+            restaurantId={i === 0 ? (place?.id ?? 'unknown') : `${place?.id ?? 'unknown'}_${i}`}
             photo={photo}
             quality={quality}
             containHorizontal={containHorizontal}
             onImageDimensions={onImageDimensions}
+            name={name}
+            latitude={latitude}
+            longitude={longitude}
+            websiteUrl={websiteUrl}
+            formattedAddress={formattedAddress}
+            cuisineKey={cuisineKey}
           />
         ))}
       </View>
@@ -134,7 +174,7 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
     return (
       <View style={{ width, height, borderRadius, overflow: 'hidden' }}>
         <RestaurantImage
-          restaurantId={`${place?.id ?? 'unknown'}_0`}
+          restaurantId={place?.id ?? 'unknown'}
           photos={[photo]}
           width={typeof width === 'number' ? width : 400}
           height={height}
@@ -142,6 +182,12 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
           quality={quality}
           containHorizontal={containHorizontal}
           onImageDimensions={onImageDimensions}
+          name={name}
+          latitude={latitude}
+          longitude={longitude}
+          websiteUrl={websiteUrl}
+          formattedAddress={formattedAddress}
+          cuisineKey={cuisineKey}
         />
       </View>
     );
@@ -165,6 +211,12 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
             quality={quality}
             containHorizontal={containHorizontal}
             onImageDimensions={onImageDimensions}
+            name={name}
+            latitude={latitude}
+            longitude={longitude}
+            websiteUrl={websiteUrl}
+            formattedAddress={formattedAddress}
+            cuisineKey={cuisineKey}
           />
         </View>
       ))}

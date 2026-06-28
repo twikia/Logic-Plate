@@ -478,8 +478,11 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
   const weekendDinner = weekend && (session.mealType === 'dinner' || session.mealType === 'late_night');
 
   const filtered = places.filter(place => {
-    if (String(place?.businessStatus || 'OPERATIONAL') !== 'OPERATIONAL') return false;
-    if (!ctx.includeClosed && hardExcludeClosed(place)) return false;
+    if (String(place?.businessStatus || 'OPERATIONAL') === 'CLOSED_PERMANENTLY') return false;
+    if (!ctx.includeClosed) {
+      if (String(place?.businessStatus || 'OPERATIONAL') !== 'OPERATIONAL') return false;
+      if (hardExcludeClosed(place)) return false;
+    }
     const dm = typeof place?.distanceMeters === 'number' ? place.distanceMeters : Infinity;
     if (!Number.isFinite(dm) || dm > radius) return false;
     return true;

@@ -263,6 +263,12 @@ export default function MapScreen() {
   const [locationProgress] = useState(new Animated.Value(mapSessionInitialized ? 1 : 0));
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(mapSessionUserCoords);
   const [radius, setRadius] = useState(mapSessionRadius);
+  const [sliderRadius, setSliderRadius] = useState(mapSessionRadius);
+
+  useEffect(() => {
+    setSliderRadius(radius);
+  }, [radius]);
+
   const restaurantsRef = useRef<any[]>([]);
   const [showRadiusPicker, setShowRadiusPicker] = useState(false);
   const [mapSortBy, setMapSortBy] = useState<RandomSortBy>('matchScore');
@@ -333,7 +339,6 @@ export default function MapScreen() {
     setIsLoading(true);
     setSearchCenter({ latitude: lat, longitude: lng });
     try {
-      commitAllRestaurants([]);
       const results = await getNearbyRestaurants(lat, lng, fetchRadius, undefined, {
         onAiReady: async (enriched) => {
           mapSessionFetchedRadius = fetchRadius;
@@ -601,8 +606,9 @@ export default function MapScreen() {
     const clamped = Math.min(newRadius, MAX_SEARCH_RADIUS_METERS);
     mapSessionRadius = clamped;
     setRadius(clamped);
+    setSliderRadius(clamped);
     setShowSortPicker(false);
-    if (clamped > mapSessionFetchedRadius) {
+    if (Math.abs(clamped - mapSessionFetchedRadius) > 50) {
       const coords = mapSessionUserCoords ?? userCoords;
       if (coords) {
         void loadRestaurants(coords.latitude, coords.longitude, clamped);
@@ -696,22 +702,22 @@ export default function MapScreen() {
             }}
           >
             <Ionicons name="locate" size={14} color={theme.accent} />
-            <Text style={[styles.radiusText, { color: theme.text }]}>{formatLabel(radius)}</Text>
+            <Text style={[styles.radiusText, { color: theme.text }]}>{formatLabel(sliderRadius)}</Text>
             <Ionicons name={showRadiusPicker ? 'chevron-up' : 'chevron-down'} size={12} color={theme.subtext} />
           </TouchableOpacity>
 
           {showRadiusPicker && (
             <View style={[styles.pickerContainer, { padding: 16, width: 220, alignItems: 'stretch', backgroundColor: theme.cardBackground, borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
               <Text style={{ color: theme.text, textAlign: 'center', marginBottom: 12, fontSize: 16, fontWeight: '700' }}>
-                {formatLabel(radius)}
+                {formatLabel(sliderRadius)}
               </Text>
               <Slider
                 style={{ width: '100%', height: 40 }}
                 minimumValue={MIN_SEARCH_RADIUS_METERS}
                 maximumValue={MAX_SEARCH_RADIUS_METERS}
                 step={100}
-                value={radius}
-                onValueChange={setRadius}
+                value={sliderRadius}
+                onValueChange={setSliderRadius}
                 onSlidingComplete={handleRadiusChange}
                 minimumTrackTintColor={theme.accent}
                 maximumTrackTintColor={isDarkTheme ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}
@@ -878,7 +884,7 @@ export default function MapScreen() {
                   width={64}
                   height={64}
                   borderRadius={12}
-                  startIndex={1}
+                  startIndex={0}
                   autoRotate={true}
                   containHorizontal={true}
                 />

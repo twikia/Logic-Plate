@@ -8,13 +8,13 @@ const corsHeaders = {
 };
 
 /**
- * Google Places searchText search radius per H3 resolution (meters).
+ * Google Places searchNearby search radius per H3 resolution (meters).
  * These values mirror core/searchConfig.ts → CELL_SEARCH_RADIUS_BY_RESOLUTION.
  */
 const SEARCH_RADIUS_BY_RESOLUTION: Record<number, number> = {
-  8: 1260,
-  7: 3333,
-  6: 8820,
+  8: 600,
+  7: 1056,
+  6: 2800,
 };
 
 /**
@@ -108,7 +108,7 @@ serve(async (req) => {
     if (!supabaseServiceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY missing from edge function environment');
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const searchRadius = SEARCH_RADIUS_BY_RESOLUTION[resolution] ?? 1500;
+    const searchRadius = SEARCH_RADIUS_BY_RESOLUTION[resolution] ?? 1056;
 
     const newlyFetchedRestaurants: { cellId: string; places: any[] }[] = [];
     const failedCells: { cellId: string; reason: string }[] = [];
@@ -141,11 +141,21 @@ serve(async (req) => {
           }
         }
 
-        // Fresh search using Places API Text Search sorted by RELEVANCE (default when omitted)
+        // Fresh search using Places API Nearby Search restricted to cell circle and sorted by POPULARITY
         const requestBody = {
-          textQuery: 'restaurant',
+          includedTypes: [
+            'restaurant', 'cafe', 'bar', 'coffee_shop', 'fast_food_restaurant',
+            'pizza_restaurant', 'hamburger_restaurant', 'sandwich_shop', 'ice_cream_shop',
+            'bakery', 'dessert_shop', 'dessert_restaurant', 'donut_shop', 'candy_store',
+            'chocolate_shop', 'confectionery', 'cake_shop', 'pastry_shop', 'acai_shop',
+            'steak_house', 'seafood_restaurant', 'american_restaurant', 'breakfast_restaurant',
+            'brunch_restaurant', 'italian_restaurant', 'japanese_restaurant', 'korean_restaurant',
+            'mexican_restaurant', 'thai_restaurant', 'vegetarian_restaurant', 'vegan_restaurant',
+            'meal_takeaway', 'meal_delivery',
+          ],
           maxResultCount: 20,
-          locationBias: {
+          rankPreference: 'POPULARITY',
+          locationRestriction: {
             circle: {
               center: { latitude: cell.lat, longitude: cell.lng },
               radius: searchRadius,
@@ -153,7 +163,7 @@ serve(async (req) => {
           },
         };
 
-        const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        const response = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

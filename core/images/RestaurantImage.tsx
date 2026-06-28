@@ -206,8 +206,11 @@ function RestaurantImageInner({
 
       if (cached) {
         if (mountedRef.current) {
-          setActiveUri(adjustQuality(cached, maxPx));
-          setState('loading');
+          const newUri = adjustQuality(cached, maxPx);
+          if (activeUri !== newUri || state === 'waiting' || state === 'failed') {
+            setActiveUri(newUri);
+            setState('loading');
+          }
         }
         return;
       }
@@ -215,14 +218,16 @@ function RestaurantImageInner({
       timer = setTimeout(() => {
         if (!mountedRef.current) return;
         const uri = adjustQuality(candidatesRef.current[0], maxPx);
-        setActiveUri(uri);
-        setState('loading');
+        if (activeUri !== uri || state === 'waiting' || state === 'failed') {
+          setActiveUri(uri);
+          setState('loading');
+        }
       }, loadDelay);
     };
 
     init();
     return () => clearTimeout(timer);
-  }, [loadDelay, photoUrl, quality, resolvedPhotos, restaurantId, width]);
+  }, [loadDelay, photoUrl, quality, resolvedPhotos, restaurantId]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 

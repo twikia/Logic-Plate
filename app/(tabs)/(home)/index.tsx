@@ -758,9 +758,9 @@ function SpotlightCard({
             width={thumbWidth}
             height={SPOTLIGHT_THUMB_SIZE}
             borderRadius={14}
-            startIndex={1}
+            startIndex={0}
             autoRotate={true}
-            quality={800}
+            quality={400}
             onImageDimensions={handleImageDimensions}
           />
         </View>

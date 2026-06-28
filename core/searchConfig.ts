@@ -33,9 +33,9 @@ export const SEARCH_CONFIG = {
   // Search radius (meters) passed to Google Places for each H3 cell.
   // Mirrored in supabase/functions/fetch-restaurants/index.ts.
   CELL_SEARCH_RADIUS_BY_RESOLUTION: {
-    8: 1260,
-    7: 3333,
-    6: 8820,
+    8: 600,
+    7: 1056,
+    6: 2800,
   } as const,
 
   // Max results per Google API call (Google's hard cap)

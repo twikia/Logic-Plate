@@ -227,32 +227,40 @@ export default function TabLayout() {
                 onPress={() => {
                   const now = Date.now();
                   const isDoubleTap = now - lastPress < 300;
+                  const safeDismissOrReplace = (fallback?: () => void) => {
+                    if (typeof router.canDismiss === 'function' && router.canDismiss()) {
+                      try {
+                        router.dismissAll();
+                        return;
+                      } catch {
+                        // ignore error
+                      }
+                    }
+                    if (fallback) {
+                      fallback();
+                    } else {
+                      router.replace('/(tabs)/(home)');
+                    }
+                  };
+
                   if (isDoubleTap) {
                     requestHomeTitleReroll();
                     requestRandomPickerReset();
                     if (isMap || isGroups) {
                       router.replace('/(tabs)/(home)');
-                    } else if (router.canGoBack()) {
-                      router.dismissAll();
                     } else {
-                      router.replace('/(tabs)/(home)');
+                      safeDismissOrReplace();
                     }
                   } else if (isOnRandomPicker && !isMap && !isGroups) {
                     requestRandomPickerReset();
-                    if (router.canGoBack()) {
-                      router.dismissAll();
-                    } else {
-                      router.replace('/(tabs)/(home)');
-                    }
+                    safeDismissOrReplace();
                   } else if (isMap || isGroups) {
-                    // On top-level tabs: navigate directly instead of dismissAll (avoids POP_TO_TOP error)
-                    router.replace('/(tabs)/(home)');
+                    // Resume active screen in (home) stack (e.g. filter screen) instead of wiping stack
+                    (props.onPress as (() => void) | undefined)?.();
                   } else {
-                    if (router.canGoBack()) {
-                      router.dismissAll();
-                    } else {
+                    safeDismissOrReplace(() => {
                       (props.onPress as (() => void) | undefined)?.();
-                    }
+                    });
                   }
                   setLastPress(now);
                 }}
