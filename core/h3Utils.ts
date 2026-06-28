@@ -19,97 +19,55 @@ const h3 = require('h3-js');
 
 import { SEARCH_CONFIG } from './searchConfig';
 
-/**
- * Returns the resolution-8 cell ID containing a lat/lng point.
- * Used for group sessions (cell overlap matching) and child cache joins.
- */
-export const getRes8CellId = (lat: number, lng: number): string =>
-  h3.geoToH3(lat, lng, 8);
+const H3_RES = SEARCH_CONFIG.H3_RESOLUTION;
 
 /**
  * Returns the geographic centre [lat, lng] of an H3 cell.
  */
 export const getCellCenter = (cellId: string): [number, number] => {
-  // h3-js v3 returns [lat, lng]
   const coords = h3.h3ToGeo(cellId);
   return [coords[0], coords[1]];
 };
 
 /**
- * Returns the H3 resolution appropriate for the given search radius based on the 80% coverage rule.
- * Tests resolutions from finest (8) to coarsest (6).
+ * Returns the res-7 H3 cell containing a lat/lng point.
  */
-export function getSearchResolution(radiusMeters: number): number {
-  const r8Cover = Math.min(1, Math.pow(SEARCH_CONFIG.CLUSTER_RADIUS_BY_RESOLUTION[8] / radiusMeters, 2));
-  if (r8Cover >= SEARCH_CONFIG.CELL_COVERAGE_THRESHOLD) return 8;
-
-  const r7Cover = Math.min(1, Math.pow(SEARCH_CONFIG.CLUSTER_RADIUS_BY_RESOLUTION[7] / radiusMeters, 2));
-  if (r7Cover >= SEARCH_CONFIG.CELL_COVERAGE_THRESHOLD) return 7;
-
-  return 6;
-}
+export const getRes7CellId = (lat: number, lng: number): string =>
+  h3.geoToH3(lat, lng, H3_RES);
 
 /**
- * Returns the Google Places search radius (metres) for a given H3 resolution.
+ * Returns cell centers for a list of cell IDs.
  */
-export function getCellSearchRadius(resolution: number): number {
-  if (resolution === 8) return SEARCH_CONFIG.CELL_SEARCH_RADIUS_BY_RESOLUTION[8];
-  if (resolution === 7) return SEARCH_CONFIG.CELL_SEARCH_RADIUS_BY_RESOLUTION[7];
-  if (resolution === 6) return SEARCH_CONFIG.CELL_SEARCH_RADIUS_BY_RESOLUTION[6];
-  return 600;
-}
-
-/**
- * Returns all res-8 cells within a radius (used for group session cell overlap checks).
- */
-export const getCellsInRadius = (lat: number, lng: number, radiusMeters: number): string[] => {
-  const centerCell = getRes8CellId(lat, lng);
-  const ringSize = Math.ceil(radiusMeters / 1300);
-  return h3.kRing(centerCell, ringSize);
+export const getCellCentersMap = (cellIds: string[]): Map<string, [number, number]> => {
+  const map = new Map<string, [number, number]>();
+  for (const cellId of cellIds) {
+    map.set(cellId, getCellCenter(cellId));
+  }
+  return map;
 };
 
 /**
- * Returns exactly 7 H3 cells (kRing 1) for the restaurant search pipeline.
- *
- * Resolution is dynamically chosen using the 80% area coverage rule.
- * The 7 cells are sorted by distance from the user position to cell center.
+ * Returns res-7 H3 cells covering the user's search radius.
+ * - Small radius (≤ inscribed): 1 cell (user's containing hex)
+ * - Larger radius: kRing(1) = 7 cells, sorted by cell id for stable ordering
  */
-export const getCellsInRadiusDynamic = (
+export const getSearchCells = (
   lat: number,
   lng: number,
   radiusMeters: number
-): { cellIds: string[]; resolution: number } => {
-  const resolution = getSearchResolution(radiusMeters);
-  const centerCell = h3.geoToH3(lat, lng, resolution);
+): string[] => {
+  const centerCell = h3.geoToH3(lat, lng, H3_RES);
 
-  // kRing(1) always gives 7 cells: the centre cell + 6 immediate hexagonal neighbours
+  if (radiusMeters <= SEARCH_CONFIG.RES7_INSCRIBED_RADIUS_METERS) {
+    return [centerCell];
+  }
+
   const ring: string[] = h3.kRing(centerCell, 1);
-
-  const cosLat = Math.cos((lat * Math.PI) / 180);
-  const sorted = ring.slice().sort((a: string, b: string) => {
-    const [latA, lngA] = getCellCenter(a);
-    const [latB, lngB] = getCellCenter(b);
-    const dA = (latA - lat) ** 2 + ((lngA - lng) * cosLat) ** 2;
-    const dB = (latB - lat) ** 2 + ((lngB - lng) * cosLat) ** 2;
-    return dA - dB;
-  });
-
-  // Take up to MAX_CELLS (7)
-  const cellIds = sorted.slice(0, SEARCH_CONFIG.MAX_CELLS);
-  return { cellIds, resolution };
+  return ring.slice().sort();
 };
 
 /**
- * Returns all immediate child cells of a given cell at childRes resolution.
+ * Returns res-7 cells within a radius (group session cell overlap checks).
  */
-export const getChildCells = (cellId: string, childRes: number): string[] =>
-  h3.h3ToChildren(cellId, childRes);
-
-/**
- * Clamps an arbitrary resolution to the supported cache resolutions (6, 7, 8).
- */
-export const clampResolution = (res: number): number => {
-  if (res >= 8) return 8;
-  if (res <= 6) return 6;
-  return 7;
-};
+export const getCellsInRadius = (lat: number, lng: number, radiusMeters: number): string[] =>
+  getSearchCells(lat, lng, radiusMeters);

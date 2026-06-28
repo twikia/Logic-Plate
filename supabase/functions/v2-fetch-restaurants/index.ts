@@ -14,17 +14,11 @@ const corsHeaders = {
 
 const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 
-// Search radius per H3 resolution (meters).
-// Res 8 is tight (600m cell), res 6 is large (2800m cell).
-// We use slightly larger radii than Google to capture cell edges.
-const SEARCH_RADIUS_BY_RESOLUTION: Record<number, number> = {
-  8: 650,
-  7: 1100,
-  6: 3000,
-};
+// H3 res-7 inscribed radius (apothem) = edge × √3/2 — mirrors core/searchConfig.ts
+const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
-// Overture food & beverage categories to filter for restaurants.
-// The Overture taxonomy uses these category strings.
+const MAX_RESULTS_PER_CELL = 350;
+
 const FOOD_CATEGORIES = [
   'restaurant',
   'fast_food_restaurant',
@@ -55,21 +49,36 @@ const FOOD_CATEGORIES = [
   'meal_takeaway',
 ].join(',');
 
-// Max results per API call. Overture API may have its own cap.
-// We request 50 per cell; if the API returns fewer, that's fine.
-const MAX_RESULTS_PER_CELL = 50;
-
-// Cache TTL: 30 days. Overture data is relatively stable.
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const OVERTURE_MAX_RETRIES = 3;
+const OVERTURE_RETRY_BASE_DELAY_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isOvertureRateLimited(status: number): boolean {
+  return status === 429 || status === 503;
+}
+
+function parseRetryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+  const date = Date.parse(header);
+  if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
+  return null;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OvertureFeature = {
-  id: string; // GERS ID (UUID)
+  id: string;
   type: string;
   geometry: {
     type: string;
-    coordinates: [number, number]; // [lng, lat]
+    coordinates: [number, number];
   };
   properties: {
     name?: string;
@@ -77,15 +86,15 @@ type OvertureFeature = {
       primary?: string;
       alternate?: string[];
     };
-    // New taxonomy fields (2025+)
     basic_category?: string;
     taxonomy?: {
       primary?: string;
       alternate?: string[];
     };
     confidence?: number;
-    websites?: string[];
-    phones?: string[];
+    websites?: unknown;
+    website?: unknown;
+    phones?: unknown;
     addresses?: Array<{
       freeform?: string;
       locality?: string;
@@ -93,7 +102,7 @@ type OvertureFeature = {
       region?: string;
       country?: string;
     }>;
-    socials?: string[];
+    socials?: unknown;
     emails?: string[];
     brand?: {
       names?: { common?: Array<{ value: string; language?: string }> };
@@ -109,9 +118,9 @@ type OvertureApiResponse = {
 };
 
 type NormalizedPlace = {
-  id: string;          // GERS ID — primary key replacing Google place_id
+  id: string;
   name: string;
-  category: string;    // primary Overture category (e.g. "restaurant")
+  category: string;
   website_url: string | null;
   phone: string | null;
   address: string | null;
@@ -123,7 +132,73 @@ type NormalizedPlace = {
   };
 };
 
-// ─── Normalizer ───────────────────────────────────────────────────────────────
+// ─── Normalizer helpers ───────────────────────────────────────────────────────
+
+const SOCIAL_HOSTS = /(?:facebook|instagram|twitter|x\.com|tiktok|youtube|linkedin|yelp|tripadvisor|doordash|ubereats|grubhub)\./i;
+
+function normalizeWebsiteUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(withProtocol);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (!url.hostname || url.hostname === 'localhost') return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractUrlFromEntry(entry: unknown): string | null {
+  if (typeof entry === 'string') return normalizeWebsiteUrl(entry);
+  if (entry && typeof entry === 'object') {
+    const obj = entry as Record<string, unknown>;
+    for (const key of ['url', 'value', 'uri', 'href']) {
+      if (typeof obj[key] === 'string') {
+        const normalized = normalizeWebsiteUrl(obj[key] as string);
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return null;
+}
+
+function extractWebsiteUrl(props: OvertureFeature['properties']): string | null {
+  const candidates: unknown[] = [];
+  if (Array.isArray(props.websites)) candidates.push(...props.websites);
+  if (props.website != null) candidates.push(props.website);
+  if (Array.isArray(props.socials)) candidates.push(...props.socials);
+
+  for (const entry of candidates) {
+    const url = extractUrlFromEntry(entry);
+    if (url && !SOCIAL_HOSTS.test(url)) return url;
+  }
+
+  for (const entry of candidates) {
+    const url = extractUrlFromEntry(entry);
+    if (url) return url;
+  }
+
+  return null;
+}
+
+function extractPhone(props: OvertureFeature['properties']): string | null {
+  const phones = props.phones;
+  if (!phones) return null;
+  if (typeof phones === 'string') return phones.trim() || null;
+  if (Array.isArray(phones)) {
+    for (const entry of phones) {
+      if (typeof entry === 'string' && entry.trim()) return entry.trim();
+      if (entry && typeof entry === 'object') {
+        const obj = entry as Record<string, unknown>;
+        if (typeof obj.phone === 'string' && obj.phone.trim()) return obj.phone.trim();
+        if (typeof obj.value === 'string' && obj.value.trim()) return obj.value.trim();
+      }
+    }
+  }
+  return null;
+}
 
 function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | null {
   if (!feature?.id || !feature?.geometry?.coordinates) return null;
@@ -133,17 +208,13 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
 
   const props = feature.properties ?? {};
   const name = props.name?.trim() || '';
-  if (!name) return null; // skip unnamed places
+  if (!name) return null;
 
-  // Prefer new taxonomy fields, fall back to legacy categories
   const category =
     props.basic_category ||
     props.taxonomy?.primary ||
     props.categories?.primary ||
     'restaurant';
-
-  const websiteUrl = props.websites?.[0]?.trim() || null;
-  const phone = props.phones?.[0]?.trim() || null;
 
   const addr = props.addresses?.[0];
   const address = addr?.freeform?.trim() || null;
@@ -154,8 +225,8 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
     id: feature.id,
     name,
     category,
-    website_url: websiteUrl,
-    phone,
+    website_url: extractWebsiteUrl(props),
+    phone: extractPhone(props),
     address,
     city,
     country,
@@ -168,59 +239,83 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
 async function fetchOvertureNearby(
   lat: number,
   lng: number,
-  radiusMeters: number,
   apiKey: string,
 ): Promise<NormalizedPlace[]> {
   const url = new URL(OVERTURE_API_BASE);
   url.searchParams.set('lat', String(lat));
   url.searchParams.set('lng', String(lng));
-  url.searchParams.set('radius', String(radiusMeters));
+  url.searchParams.set('radius', String(OVERTURE_SEARCH_RADIUS_METERS));
   url.searchParams.set('categories', FOOD_CATEGORIES);
   url.searchParams.set('limit', String(MAX_RESULTS_PER_CELL));
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000); // 9s timeout
+  let lastRateLimitError: Error | null = null;
 
-  try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+  for (let attempt = 0; attempt <= OVERTURE_MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 9000);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[v2-fetch-restaurants] Overture API error ${response.status}: ${errText.slice(0, 300)}`);
-      throw new Error(`Overture API error: ${response.status}`);
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (isOvertureRateLimited(response.status)) {
+        const errText = await response.text();
+        lastRateLimitError = new Error(`Overture API rate limited: ${response.status}`);
+        if (attempt < OVERTURE_MAX_RETRIES) {
+          const retryAfter = parseRetryAfterMs(response.headers.get('Retry-After'));
+          const delay = retryAfter ?? OVERTURE_RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+          console.warn(
+            `[v2-fetch-restaurants] Overture ${response.status} at (${lat.toFixed(4)}, ${lng.toFixed(4)}), ` +
+            `retry ${attempt + 1}/${OVERTURE_MAX_RETRIES} in ${delay}ms: ${errText.slice(0, 120)}`
+          );
+          await sleep(delay);
+          continue;
+        }
+        console.error(
+          `[v2-fetch-restaurants] Overture rate limit exhausted after ${OVERTURE_MAX_RETRIES} retries: ${errText.slice(0, 300)}`
+        );
+        throw lastRateLimitError;
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[v2-fetch-restaurants] Overture API error ${response.status}: ${errText.slice(0, 300)}`);
+        throw new Error(`Overture API error: ${response.status}`);
+      }
+
+      const data: OvertureApiResponse = await response.json();
+      const features = data?.features ?? [];
+      console.log(`[v2-fetch-restaurants] Overture returned ${features.length} raw features at (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+
+      const places: NormalizedPlace[] = [];
+      for (const feature of features) {
+        const normalized = normalizeOvertureFeature(feature);
+        if (normalized) places.push(normalized);
+      }
+
+      const seen = new Set<string>();
+      return places.filter(p => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error('Overture API request timed out');
+      }
+      throw err;
     }
-
-    const data: OvertureApiResponse = await response.json();
-    const features = data?.features ?? [];
-    console.log(`[v2-fetch-restaurants] Overture returned ${features.length} raw features at (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-
-    const places: NormalizedPlace[] = [];
-    for (const feature of features) {
-      const normalized = normalizeOvertureFeature(feature);
-      if (normalized) places.push(normalized);
-    }
-
-    // Deduplicate by GERS ID
-    const seen = new Set<string>();
-    const deduplicated = places.filter(p => {
-      if (seen.has(p.id)) return false;
-      seen.add(p.id);
-      return true;
-    });
-
-    return deduplicated;
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
   }
+
+  throw lastRateLimitError ?? new Error('Overture API rate limited');
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -230,7 +325,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Auth guard
   const expectedSecret = Deno.env.get('APP_SECRET');
   const incomingSecret = req.headers.get('x-app-secret');
   if (!expectedSecret || incomingSecret !== expectedSecret) {
@@ -242,18 +336,10 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { cells, resolution: rawRes = 8 } = body;
-    const resolution = Number(rawRes);
+    const { cells } = body;
 
     if (!cells || !Array.isArray(cells) || cells.length === 0) {
       return new Response(JSON.stringify({ error: 'cells array is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (![8, 7, 6].includes(resolution)) {
-      return new Response(JSON.stringify({ error: `Invalid resolution ${resolution}` }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -268,10 +354,8 @@ serve(async (req) => {
     if (!supabaseServiceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY missing');
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const searchRadius = SEARCH_RADIUS_BY_RESOLUTION[resolution] ?? 1100;
     const now = Date.now();
 
-    // ── Step 1: Bulk check Supabase v2 cache for all requested cells ──────────
     const cellIdsToFetch = cells.map((c: { cellId: string }) => c.cellId);
     const { data: existingRows, error: dbReadError } = await supabase
       .from('v2_restaurant_cell_cache')
@@ -292,16 +376,13 @@ serve(async (req) => {
 
     console.log(`[v2-fetch-restaurants] Supabase v2 cell cache: ${cachedMap.size} / ${cellIdsToFetch.length} cells cached`);
 
-    // ── Step 2: Fetch uncached cells from Overture API ────────────────────────
     const newlyFetchedRestaurants: { cellId: string; places: NormalizedPlace[] }[] = [];
     const failedCells: { cellId: string; reason: string }[] = [];
 
-    // Return cached hits first
     for (const [cellId, places] of cachedMap) {
       newlyFetchedRestaurants.push({ cellId, places });
     }
 
-    // Fetch misses in parallel
     const missingCells = cells.filter((c: { cellId: string }) => !cachedMap.has(c.cellId));
 
     await Promise.all(
@@ -311,10 +392,9 @@ serve(async (req) => {
             throw new Error(`Cell ${cell.cellId} is missing lat/lng`);
           }
 
-          const places = await fetchOvertureNearby(cell.lat, cell.lng, searchRadius, overtureApiKey);
+          const places = await fetchOvertureNearby(cell.lat, cell.lng, overtureApiKey);
           newlyFetchedRestaurants.push({ cellId: cell.cellId, places });
 
-          // Write to Supabase v2 cache (non-blocking, best-effort)
           if (places.length > 0) {
             const { error: upsertError } = await supabase
               .from('v2_restaurant_cell_cache')
@@ -351,7 +431,7 @@ serve(async (req) => {
     );
 
     console.log(
-      `[v2-fetch-restaurants] Complete: res ${resolution}, ${cells.length} cells → ${totalPlacesReturned} total places returned`
+      `[v2-fetch-restaurants] Complete: res 7, ${cells.length} cells → ${totalPlacesReturned} total places returned`
     );
 
     return new Response(

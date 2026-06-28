@@ -1,3 +1,5 @@
+import { SEARCH_CONFIG } from './searchConfig';
+
 export function milesToMeters(miles: number): number {
   return Math.round(miles * 1609.344);
 }
@@ -7,7 +9,7 @@ export function metersToMiles(meters: number): number {
 }
 
 export const MIN_SEARCH_RADIUS_METERS = milesToMeters(0.4);
-export const MAX_SEARCH_RADIUS_METERS = milesToMeters(7.5);
+export const MAX_SEARCH_RADIUS_METERS = SEARCH_CONFIG.MAX_RADIUS_METERS;
 export const DEFAULT_SEARCH_RADIUS_METERS = milesToMeters(0.6);
 
 export function clampSearchRadius(meters: number): number {

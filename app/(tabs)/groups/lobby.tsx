@@ -229,7 +229,7 @@ export default function GroupLobbyScreen() {
           restaurants,
         }));
       } catch {
-        // Non-fatal: reconcile-group will fall back to Supabase restaurant_cache
+        // Non-fatal: reconcile-group will fall back to Supabase v2_restaurant_cell_cache
       }
     }
     setReconciling(true);

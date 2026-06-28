@@ -1,43 +1,41 @@
 /**
- * Central configuration for restaurant search, H3 grid, and API call limits.
+ * Central configuration for restaurant search and Overture API limits.
  *
- * NOTE: SEARCH_RADIUS_BY_RESOLUTION in supabase/functions/v2-fetch-restaurants/index.ts
- * mirrors the values here — update both if you change search radii.
+ * NOTE: Overture per-cell limit in supabase/functions/v2-fetch-restaurants/index.ts
+ * mirrors MAX_RESULTS_PER_CELL — update both if you change it.
  */
 export const SEARCH_CONFIG = {
   // ── Radius Cap ─────────────────────────────────────────────────────────────
-  MAX_RADIUS_METERS: 12070, // 7.5 miles — hard cap matching size 6x3 H3 cluster reach
 
-  // ── Resolution Selection (80% Circle Coverage Rule) ────────────────────────
-  // The search resolution is chosen such that the 7-cell kRing(1) cluster covers
-  // at least 80% of the search circle area.
-  //
-  // Coverage ≈ min(1, (cluster_radius / search_radius)²)
-  //
-  // Cluster radii below approximate the outer reach of 7 contiguous hexagons:
-  //   Res 8: ~1260m cluster radius → qualifies for R ≤ 1408m (~0.87 mi)
-  //   Res 7: ~3333m cluster radius → qualifies for R ≤ 3726m (~2.3 mi)
-  //   Res 6: ~8820m cluster radius → qualifies for larger radii
-  CELL_COVERAGE_THRESHOLD: 0.80,
-  CLUSTER_RADIUS_BY_RESOLUTION: {
-    8: 1260,
-    7: 3333,
-    6: 8820,
-  } as const,
+  // ── H3 Grid (resolution 7 only) ────────────────────────────────────────────
+  H3_RESOLUTION: 7 as const,
 
-  // Hard cap on Google API calls per search (= number of H3 cells fetched)
+  // Uber H3 spec: res-7 average hex edge length (m).
+  RES7_EDGE_LENGTH_METERS: 1220.629071,
+
+  // Inscribed radius (apothem) = edge × cos(30°) = edge × √3/2
+  RES7_INSCRIBED_RADIUS_METERS: 1057.052559,
+
+  // Largest circle (centered on the user's cell) that fits inside a kRing(1) cluster of 7 hexes.
+  // On a flat hex lattice this equals √7 × apothem (~2797 m / ~1.74 mi).
+  RES7_SEVEN_CELL_INSCRIBED_RADIUS_METERS: 2796.753037,
+
+  // User search radius cap — cannot exceed what 7 res-7 cells can cover.
+  MAX_RADIUS_METERS: 2796.753037,
+
+  // Overture query radius matches the res-7 inscribed radius exactly.
+  OVERTURE_SEARCH_RADIUS_METERS: 1057.052559,
+
+  // 1 cell when search radius fits inside one hex; otherwise up to 7 (kRing 1).
   MAX_CELLS: 7 as const,
-  CELLS_PER_SEARCH: 7 as const,
 
-  // ── Overture Maps API ─────────────────────────────────────────────────────
-  // Search radius (meters) passed to Overture for each H3 cell.
-  // Mirrored in supabase/functions/v2-fetch-restaurants/index.ts.
-  CELL_SEARCH_RADIUS_BY_RESOLUTION: {
-    8: 600,
-    7: 1056,
-    6: 2800,
-  } as const,
+  // ── Overture Maps API ──────────────────────────────────────────────────────
+  // High per-cell fetch so partial-cell searches (e.g. 0.6 mi) still fill the radius.
+  MAX_RESULTS_PER_CELL: 350,
+  // Max restaurants shown to the user and sent to AI enrichment per search.
+  MAX_DISPLAY_RESULTS: 150,
 
-  // Max results per Google API call (Google's hard cap)
-  PLACES_MAX_RESULTS_PER_CELL: 20,
+  // Polar grid for deterministic geographic spread (rings × sectors around the user).
+  SPREAD_NUM_RINGS: 5,
+  SPREAD_NUM_SECTORS: 10,
 } as const;

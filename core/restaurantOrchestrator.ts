@@ -1,4 +1,4 @@
-import { getCellsInRadiusDynamic, getCellCenter, getChildCells } from './h3Utils';
+import { getSearchCells, getCellCenter, getCellCentersMap } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
 import { readCacheBulk, writeCache, type CachedPlace } from './cacheManager';
 import { supabase } from './supabaseClient';
@@ -10,17 +10,10 @@ import {
   mergeAiOverviewsOntoPlaces,
   type PlaceSeed,
 } from './aiOverviewCache';
-
-const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const R = 6371e3;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+import {
+  placesWithinRadius,
+  selectSpreadPlaces,
+} from './restaurantSpreadSelection';
 
 export type RestaurantLoadStage =
   | 'reading-cache'
@@ -78,7 +71,6 @@ let fetchPending: QueuedTask | null = null;
 
 type FetchRestaurantsPayload = {
   cells: Array<{ cellId: string; lat?: number; lng?: number }>;
-  resolution: number;
 };
 
 type FetchRestaurantsResponse = {
@@ -101,30 +93,6 @@ async function invokeFetchRestaurants(
   }
 }
 
-const formatAndSortPlaces = (
-  rawPlaces: CachedPlace[],
-  userLat: number,
-  userLng: number,
-  safeRadius: number
-): CachedPlace[] => {
-  const uniqueMap = new Map<string, CachedPlace>();
-  for (const place of rawPlaces) {
-    if (place.id && !uniqueMap.has(place.id)) {
-      uniqueMap.set(place.id, place);
-    }
-  }
-
-  return Array.from(uniqueMap.values())
-    .map(place => {
-      const lat = place.location?.latitude;
-      const lng = place.location?.longitude;
-      if (!lat || !lng) return { ...place, distanceMeters: Infinity };
-      return { ...place, distanceMeters: haversineDistance(userLat, userLng, lat, lng) };
-    })
-    .filter(place => place.distanceMeters <= safeRadius)
-    .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
-};
-
 const toPlaceSeed = (place: CachedPlace): PlaceSeed => ({
   id: place.id,
   name: place.name,
@@ -146,7 +114,7 @@ async function loadNearbyRestaurantsInternal(
   const jobSeq = ++latestJobSeq;
   const safeRadius = Math.min(radiusMeters, SEARCH_CONFIG.MAX_RADIUS_METERS);
 
-  const { cellIds, resolution } = getCellsInRadiusDynamic(userLat, userLng, safeRadius);
+  const cellIds = getSearchCells(userLat, userLng, safeRadius);
   if (cellIds.length === 0) {
     throw new RestaurantFetchError('No search cells generated for current location.');
   }
@@ -160,26 +128,19 @@ async function loadNearbyRestaurantsInternal(
     return [];
   }
 
-  console.log(`[Orchestrator] Starting restaurant load: ${cellIds.length} cells at resolution ${resolution}`);
+  console.log(`[Orchestrator] Starting restaurant load: ${cellIds.length} res-7 cells`);
 
   onProgress?.({ stage: 'reading-cache', progress: 0.2 });
-  const { hits: rawHits, misses: uncachedCells } = await readCacheBulk(cellIds, resolution);
+  const { hits: rawHits, misses: uncachedCells } = await readCacheBulk(cellIds);
 
   console.log(`[Orchestrator] Cell cache check: ${rawHits.size}/${cellIds.length} cells hit, ${uncachedCells.length} cells missing`);
 
-  let allPlaces: CachedPlace[] = [];
-  rawHits.forEach(places => { allPlaces = allPlaces.concat(places); });
-
-  if (resolution < 8 && uncachedCells.length > 0) {
-    const childRes = resolution === 7 ? 8 : 7;
-    const childCellIds: string[] = [];
-    for (const id of uncachedCells) {
-      childCellIds.push(...getChildCells(id, childRes));
+  let allPlaces: Array<CachedPlace & { sourceCellId?: string }> = [];
+  rawHits.forEach((places, cellId) => {
+    for (const place of places) {
+      allPlaces.push({ ...place, sourceCellId: cellId });
     }
-    const { hits: childHits } = await readCacheBulk(childCellIds, childRes);
-    childHits.forEach(places => { allPlaces = allPlaces.concat(places); });
-    console.log(`[Orchestrator] Child cache (res ${childRes}): ${childHits.size} child cells merged`);
-  }
+  });
 
   if (uncachedCells.length > 0) {
     onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
@@ -191,7 +152,7 @@ async function loadNearbyRestaurantsInternal(
 
     console.log(`[Orchestrator] Invoking v2-fetch-restaurants for ${cellsPayload.length} uncached cells...`);
 
-    const { data, error } = await invokeFetchRestaurants({ cells: cellsPayload, resolution });
+    const { data, error } = await invokeFetchRestaurants({ cells: cellsPayload });
 
     if (error) {
       logEdgeFunctionFailure('v2-fetch-restaurants', { data, error });
@@ -209,7 +170,9 @@ async function loadNearbyRestaurantsInternal(
 
       for (const result of data.newlyFetchedRestaurants) {
         await writeCache(result.cellId, result.places);
-        allPlaces = allPlaces.concat(result.places);
+        for (const place of result.places) {
+          allPlaces.push({ ...place, sourceCellId: result.cellId });
+        }
       }
 
       if (allPlaces.length === 0) {
@@ -225,13 +188,22 @@ async function loadNearbyRestaurantsInternal(
   }
 
   onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
-  const finalList = formatAndSortPlaces(allPlaces, userLat, userLng, safeRadius);
-  console.log(`[Orchestrator] After dedupe/sort/filter: ${finalList.length} restaurants within ${safeRadius}m`);
+  const cellCenters = getCellCentersMap(cellIds);
+  const withinRadius = placesWithinRadius(allPlaces, userLat, userLng, safeRadius, cellIds);
+  const visibleList = selectSpreadPlaces(
+    withinRadius,
+    cellIds,
+    cellCenters,
+    SEARCH_CONFIG.MAX_DISPLAY_RESULTS
+  );
+  console.log(
+    `[Orchestrator] Cells [${cellIds.join(', ')}] within ${safeRadius}m: ${withinRadius.length} eligible, showing ${visibleList.length}`
+  );
 
-  const seeds = finalList.map(toPlaceSeed);
+  const seeds = visibleList.map(toPlaceSeed);
   const cachedAi = await getCachedAiOverviewsForPlaces(seeds);
-  const baseList = mergeAiOverviewsOntoPlaces(finalList, cachedAi);
-  console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${finalList.length} already enriched`);
+  const baseList = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
+  console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${visibleList.length} already enriched`);
 
   const triggerUpdates = (enriched: any[]) => {
     options?.onPlacesUpdated?.(enriched);
@@ -239,7 +211,7 @@ async function loadNearbyRestaurantsInternal(
   };
 
   const runBackgroundAi = async () => {
-    const missingIds = finalList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
+    const missingIds = visibleList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
     if (missingIds.length === 0) {
       if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: 1 });
       return;
@@ -251,7 +223,7 @@ async function loadNearbyRestaurantsInternal(
       if (jobSeq !== latestJobSeq) return;
       for (const [k, v] of generated) cachedAi.set(k, v);
       if (generated.size > 0) {
-        triggerUpdates(mergeAiOverviewsOntoPlaces(finalList, cachedAi));
+        triggerUpdates(mergeAiOverviewsOntoPlaces(visibleList, cachedAi));
       }
     } catch (err) {
       console.warn('[Orchestrator] Background AI overview generation failed:', err);
@@ -261,13 +233,13 @@ async function loadNearbyRestaurantsInternal(
   };
 
   if (options?.waitForAi) {
-    const missingIds = finalList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
+    const missingIds = visibleList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
     if (missingIds.length > 0) {
       onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
       const generated = await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
       for (const [k, v] of generated) cachedAi.set(k, v);
     }
-    const enriched = mergeAiOverviewsOntoPlaces(finalList, cachedAi);
+    const enriched = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
     onProgress?.({ stage: 'done', progress: 1 });
     void runBackgroundAi();
     return enriched;

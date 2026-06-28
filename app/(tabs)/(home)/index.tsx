@@ -1446,7 +1446,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
               onPress={() => {
                 hapticMedium();
                 const isWalk = sessionRadiusRef.current <= 1000;
-                const nextRad = isWalk ? 8046 : DEFAULT_SEARCH_RADIUS_METERS;
+                const nextRad = isWalk ? MAX_SEARCH_RADIUS_METERS : DEFAULT_SEARCH_RADIUS_METERS;
                 sessionRadiusRef.current = nextRad;
                 setSession(s => (s ? { ...s, radiusMeters: nextRad } : s));
               }}

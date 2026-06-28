@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
-import { clampResolution } from './h3Utils';
 import { pruneStorageCache, safeAsyncStorageMultiSet, safeAsyncStorageSet } from './resultCache';
 
 export type CachedPlace = {
@@ -35,9 +34,7 @@ function normalizePlaceArray(raw: unknown): CachedPlace[] {
 
 export const readCacheBulk = async (
   cellIds: string[],
-  resolution: number = 8
 ): Promise<{ hits: Map<string, CachedPlace[]>; misses: string[] }> => {
-  const _validResolution = clampResolution(resolution);
   const now = Date.now();
   const hits = new Map<string, CachedPlace[]>();
   const l1MissCells: string[] = [];
@@ -113,11 +110,8 @@ export const readCacheBulk = async (
   return { hits, misses };
 };
 
-export const readCache = async (
-  cellId: string,
-  resolution: number = 8
-): Promise<CachedPlace[] | null> => {
-  const { hits } = await readCacheBulk([cellId], clampResolution(resolution));
+export const readCache = async (cellId: string): Promise<CachedPlace[] | null> => {
+  const { hits } = await readCacheBulk([cellId]);
   return hits.get(cellId) ?? null;
 };
 

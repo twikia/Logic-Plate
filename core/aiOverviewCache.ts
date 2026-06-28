@@ -241,7 +241,7 @@ export const getCachedAiOverviewsForPlaces = async (
       if (!error && data) {
         console.log(`[AI] Supabase v2_ai_overview_cache: ${data.length} rows returned for ${needsDb.length} GERS IDs`);
         const backfills: [string, string][] = [];
-        for (const row of data as AiOverviewRow[]) {
+        for (const row of (data as unknown as AiOverviewRow[])) {
           const normalized = normalizeRow(row);
           if (!normalized) continue;
           localMemory.set(row.gers_id, normalized);
