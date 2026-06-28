@@ -14,7 +14,7 @@ import {
   cacheImageUrl,
   fetchRestaurantPhotoUrls,
   getCachedImageUrl,
-  invalidateCachedImageUrl,
+  peekCachedImageUrl,
 } from './imageCache';
 
 /**
@@ -60,6 +60,25 @@ interface Props {
 }
 
 type LoadState = 'waiting' | 'loading' | 'loaded' | 'failed';
+
+const loadedImageKeys = new Set<string>();
+
+function resolveInitialImage(
+  restaurantId: string,
+  photos: any[],
+  photoUrl: string | undefined,
+  quality: number | undefined,
+  width: number,
+): { uri: string | null; state: LoadState } {
+  const maxPx = quality ?? (width <= 100 ? 300 : width);
+  const direct = buildCandidateUrls(photos);
+  const cached = peekCachedImageUrl(restaurantId);
+  const seed = cached ?? direct[0] ?? photoUrl ?? null;
+  if (!seed) return { uri: null, state: 'waiting' };
+  const uri = adjustQuality(seed, maxPx);
+  const ready = Boolean(cached) || loadedImageKeys.has(restaurantId) || direct.length > 0;
+  return { uri, state: ready ? 'loaded' : 'waiting' };
+}
 
 function ImageFrame({
   width,
@@ -110,13 +129,15 @@ function RestaurantImageInner({
 }: Props) {
   const { theme } = useAppTheme();
   const frameIconColor = theme.neonColors ? '#042F2E' : theme.subtext;
-  const [state, setState] = useState<LoadState>('waiting');
-  const [activeUri, setActiveUri] = useState<string | null>(null);
+  const initial = resolveInitialImage(restaurantId, photos, photoUrl, quality, width);
+  const [state, setState] = useState<LoadState>(initial.state);
+  const [activeUri, setActiveUri] = useState<string | null>(initial.uri);
   const [resolvedPhotos, setResolvedPhotos] = useState<any[]>(photos);
   const [imageFit, setImageFit] = useState<'cover' | 'contain'>('cover');
   const candidatesRef = useRef<string[]>([]);
   const indexRef = useRef(0);
   const mountedRef = useRef(true);
+  const readyKeyRef = useRef(`${restaurantId}:${initial.uri ?? ''}`);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -181,14 +202,15 @@ function RestaurantImageInner({
   ]);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
 
     const init = async () => {
       const seedPhotos = photoUrl && buildCandidateUrls(resolvedPhotos).length === 0
         ? [photoUrl, ...resolvedPhotos]
         : resolvedPhotos;
       const urls = buildCandidateUrls(seedPhotos);
-      const cached = await getCachedImageUrl(restaurantId);
+      const cached = peekCachedImageUrl(restaurantId) ?? await getCachedImageUrl(restaurantId);
+      const maxPx = quality ?? (width <= 100 ? 300 : width);
 
       if (urls.length === 0 && !cached) {
         if (mountedRef.current) {
@@ -203,36 +225,35 @@ function RestaurantImageInner({
         : urls;
       indexRef.current = 0;
 
-      const maxPx = quality ?? (width <= 100 ? 300 : width);
+      const nextUri = adjustQuality(candidatesRef.current[0], maxPx);
+      const readyKey = `${restaurantId}:${nextUri}`;
 
-      if (cached) {
-        if (mountedRef.current) {
-          const newUri = adjustQuality(cached, maxPx);
-          if (activeUri !== newUri) {
-            setActiveUri(newUri);
-            setState(state === 'loaded' ? 'loaded' : 'loading');
-          } else if (state === 'waiting' || state === 'failed') {
-            setState('loading');
-          }
-        }
+      if (readyKeyRef.current === readyKey) {
         return;
       }
 
-      timer = setTimeout(() => {
-        if (!mountedRef.current) return;
-        const uri = adjustQuality(candidatesRef.current[0], maxPx);
-        if (activeUri !== uri) {
-          setActiveUri(uri);
-          setState(state === 'loaded' ? 'loaded' : 'loading');
-        } else if (state === 'waiting' || state === 'failed') {
+      readyKeyRef.current = readyKey;
+      if (mountedRef.current) {
+        setActiveUri(nextUri);
+        if (cached || loadedImageKeys.has(restaurantId)) {
+          setState('loaded');
+        } else {
           setState('loading');
         }
-      }, loadDelay);
+      }
     };
 
-    init();
+    void init();
+  }, [photoUrl, quality, resolvedPhotos, restaurantId, width]);
+
+  useEffect(() => {
+    if (state !== 'waiting' || loadDelay <= 0) return;
+    const timer = setTimeout(() => {
+      if (!mountedRef.current || activeUri) return;
+      setState('loading');
+    }, loadDelay);
     return () => clearTimeout(timer);
-  }, [loadDelay, photoUrl, quality, resolvedPhotos, restaurantId]);
+  }, [activeUri, loadDelay, state]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -250,16 +271,12 @@ function RestaurantImageInner({
       }
     }
     setState('loaded');
-    // Cache the working URL
+    loadedImageKeys.add(restaurantId);
     cacheImageUrl(restaurantId, activeUri).catch(() => {});
   }, [activeUri, restaurantId, width, height, containHorizontal, onImageDimensions]);
 
   const onError = useCallback(() => {
     if (!mountedRef.current) return;
-
-    if (indexRef.current === 0) {
-      invalidateCachedImageUrl(restaurantId).catch(() => {});
-    }
 
     const nextIdx = indexRef.current + 1;
     if (nextIdx < candidatesRef.current.length) {
@@ -312,14 +329,14 @@ function RestaurantImageInner({
         </View>
       )}
       <Image
-        key={activeUri}
         source={{ uri: activeUri! }}
         style={{ width, height }}
         contentFit={(containHorizontal && imageFit === 'contain') ? 'contain' : (Math.abs(width - height) <= 2 ? 'cover' : imageFit)}
-        transition={250}
+        transition={state === 'loaded' ? 0 : 250}
         onLoad={onLoad}
         onError={onError}
         cachePolicy="memory-disk"
+        recyclingKey={restaurantId}
       />
     </ImageFrame>
   );

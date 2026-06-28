@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import {
   RestaurantLoadingProgressBar,
   useRestaurantLoadProgress,
@@ -34,7 +35,7 @@ import {
   isRestaurantFetchError,
   isRestaurantLoadSupersededError,
 } from '@/core/restaurantOrchestrator';
-import { RestaurantImage } from '@/core/images';
+import { fetchRestaurantPhotoUrls } from '@/core/images';
 import {
   consumeHomeReturnFromDetails,
   getHomeCarouselIndex,
@@ -636,6 +637,8 @@ function RestaurantScorePentagon({
   );
 }
 
+const thumbWidthByPlace = new Map<string, number>();
+
 function SpotlightCard({
   scored,
   onReject,
@@ -666,14 +669,19 @@ function SpotlightCard({
   const opacity = useSharedValue(1);
   const pressScale = useSharedValue(1);
   const panStartY = useSharedValue(0);
+  const placeId = String(place?.id ?? '');
 
-  const [thumbWidth, setThumbWidth] = useState(SPOTLIGHT_THUMB_SIZE);
+  const [thumbWidth, setThumbWidth] = useState(
+    () => thumbWidthByPlace.get(placeId) ?? SPOTLIGHT_THUMB_SIZE,
+  );
   const handleImageDimensions = useCallback((w: number, h: number) => {
     if (w > h) {
       const aspect = Math.min(16 / 9, w / h);
-      setThumbWidth(Math.round(SPOTLIGHT_THUMB_SIZE * aspect));
+      const next = Math.round(SPOTLIGHT_THUMB_SIZE * aspect);
+      thumbWidthByPlace.set(placeId, next);
+      setThumbWidth(next);
     }
-  }, []);
+  }, [placeId]);
 
   const rejectRef = useRef(onReject);
   rejectRef.current = onReject;
@@ -681,11 +689,9 @@ function SpotlightCard({
     rejectRef.current();
   }, []);
 
-  const placeId = String(place?.id ?? '');
   useEffect(() => {
     ty.value = 0;
     opacity.value = 1;
-    setThumbWidth(SPOTLIGHT_THUMB_SIZE);
   }, [placeId, ty, opacity]);
 
   const pressRef = useRef(onPress);
@@ -921,6 +927,49 @@ function SpotlightCard({
 
   return cardInner;
 }
+
+const MemoSpotlightCard = React.memo(SpotlightCard, (prev, next) => (
+  prev.scored.place?.id === next.scored.place?.id &&
+  prev.scored.plateboundScore === next.scored.plateboundScore &&
+  prev.isDriveMode === next.isDriveMode &&
+  prev.scored.place?.aiOverview === next.scored.place?.aiOverview
+));
+
+function HomeCarouselCard({
+  item,
+  isDriveMode,
+  onReject,
+  onPress,
+}: {
+  item: ScoredRestaurant;
+  isDriveMode: boolean;
+  onReject: (placeId: string) => void;
+  onPress: (item: ScoredRestaurant) => void;
+}) {
+  const placeId = String(item.place?.id ?? '');
+  const handleReject = useCallback(() => onReject(placeId), [onReject, placeId]);
+  const handlePress = useCallback(() => onPress(item), [item, onPress]);
+
+  return (
+    <View style={styles.carouselPage}>
+      <MemoSpotlightCard
+        scored={item}
+        isDriveMode={isDriveMode}
+        onReject={handleReject}
+        onPress={handlePress}
+      />
+    </View>
+  );
+}
+
+const MemoHomeCarouselCard = React.memo(HomeCarouselCard, (prev, next) => (
+  prev.item.place?.id === next.item.place?.id &&
+  prev.item.plateboundScore === next.item.plateboundScore &&
+  prev.isDriveMode === next.isDriveMode &&
+  prev.item.place?.aiOverview === next.item.place?.aiOverview &&
+  prev.onReject === next.onReject &&
+  prev.onPress === next.onPress
+));
 
 function AnimatedDot({ active, accentColor, inactiveColor }: { active: boolean; accentColor: string; inactiveColor: string }) {
   const scale = useSharedValue(1);
@@ -1304,16 +1353,47 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
     [visibleList.length]
   );
 
-  const openDetails = async (item: ScoredRestaurant) => {
+  const openDetails = useCallback(async (item: ScoredRestaurant) => {
     skipNextFocusReloadRef.current = true;
     markHomeOpeningDetails(pickIndexRef.current);
     await appendVisit(String(item.place?.id || ''), String(item.place?.primaryType || ''));
     const enrichedPlace = { ...item.place, _matchScore: item.plateboundScore };
     setCurrentRestaurant(enrichedPlace);
     setTimeout(() => {
+      Image.clearMemoryCache();
       router.push('/random-result');
     }, 0);
-  };
+  }, [router]);
+
+  const isDriveMode = (session?.radiusMeters ?? DEFAULT_SEARCH_RADIUS_METERS) > 1000;
+
+  const renderCarouselItem = useCallback(
+    ({ item }: { item: ScoredRestaurant }) => (
+      <MemoHomeCarouselCard
+        item={item}
+        isDriveMode={isDriveMode}
+        onReject={rejectPickAt}
+        onPress={openDetails}
+      />
+    ),
+    [isDriveMode, rejectPickAt, openDetails]
+  );
+
+  useEffect(() => {
+    for (const item of visibleList) {
+      const place = item.place;
+      if (!place?.id || !place.displayName?.text || !place.location) continue;
+      void fetchRestaurantPhotoUrls({
+        placeId: place.id,
+        name: place.displayName.text,
+        latitude: place.location.latitude,
+        longitude: place.location.longitude,
+        websiteUrl: place.websiteUri || undefined,
+        formattedAddress: place.formattedAddress || undefined,
+        cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+      });
+    }
+  }, [visibleList]);
 
   // Fix loading flash: don't consider it noPlacesAtAll if we are still fetching or have a radius pending
   const noPlacesAtAll = !isLoading && !errorMsg && ranked.length === 0 && !spotlightLoadingRef.current;
@@ -1378,6 +1458,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
               onPress={() => {
                 hapticMedium();
+                Image.clearMemoryCache();
                 router.push('/scenarios' as any);
               }}
             >
@@ -1419,21 +1500,16 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
                 overScrollMode="never"
                 showsHorizontalScrollIndicator={false}
                 onMomentumScrollEnd={onCarouselMomentumEnd}
+                renderItem={renderCarouselItem}
+                removeClippedSubviews={false}
+                initialNumToRender={5}
+                maxToRenderPerBatch={5}
+                windowSize={5}
                 getItemLayout={(_, index) => ({
                   length: CAROUSEL_PAGE,
                   offset: CAROUSEL_PAGE * index,
                   index,
                 })}
-                renderItem={({ item }) => (
-                  <View style={styles.carouselPage}>
-                     <SpotlightCard
-                      scored={item}
-                      isDriveMode={sessionRadiusRef.current > 1000}
-                      onReject={() => rejectPickAt(String(item.place?.id ?? ''))}
-                      onPress={() => void openDetails(item)}
-                    />
-                  </View>
-                )}
               />
               <View style={styles.dotsBar}>
                 {visibleList.map((_, i) => (

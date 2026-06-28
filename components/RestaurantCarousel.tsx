@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
+import { RestaurantImage, fetchRestaurantPhotoUrls, resolvePhotoUri } from '@/core/images';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 interface Props {
@@ -64,6 +64,7 @@ function CarouselSlide({
         height={height}
         borderRadius={0}
         quality={quality}
+        loadDelay={0}
         containHorizontal={containHorizontal}
         onImageDimensions={onImageDimensions}
         name={name}
@@ -77,10 +78,20 @@ function CarouselSlide({
   );
 }
 
-export function RestaurantCarousel({ place, width, height, borderRadius = 0, startIndex = 0, autoRotate = false, quality, containHorizontal, onImageDimensions }: Props) {
+function photosEqual(prev: any[], next: string[]): boolean {
+  if (prev.length !== next.length) return false;
+  return prev.every((photo, index) => {
+    const prevUri = resolvePhotoUri(photo);
+    const nextUri = next[index];
+    return prevUri === nextUri || photo === nextUri;
+  });
+}
+
+function RestaurantCarouselInner({ place, width, height, borderRadius = 0, startIndex = 0, autoRotate = false, quality, containHorizontal, onImageDimensions }: Props) {
   const [photos, setPhotos] = useState<any[]>(place?.photos || []);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
 
+  const placeId = place?.id ?? '';
   const name = place?.displayName?.text;
   const latitude = place?.location?.latitude;
   const longitude = place?.location?.longitude;
@@ -91,26 +102,26 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!place?.id || !place?.displayName?.text || !place?.location) return;
+      if (!placeId || !name || typeof latitude !== 'number' || typeof longitude !== 'number') return;
       try {
         const urls = await fetchRestaurantPhotoUrls({
-          placeId: place.id,
-          name: place.displayName.text,
-          latitude: place.location.latitude,
-          longitude: place.location.longitude,
-          websiteUrl: place.websiteUri || undefined,
-          formattedAddress: place.formattedAddress || undefined,
-          cuisineKey: place.primaryType?.replace(/_restaurant$/, '') || undefined,
+          placeId,
+          name,
+          latitude,
+          longitude,
+          websiteUrl: websiteUrl || undefined,
+          formattedAddress: formattedAddress || undefined,
+          cuisineKey: cuisineKey || undefined,
         });
         if (!cancelled && urls.length > 0) {
-          setPhotos(urls);
+          setPhotos(prev => (photosEqual(prev, urls) ? prev : urls));
           if (urls.length > startIndex) setCurrentIndex(startIndex);
         }
       } catch {}
     };
     load();
     return () => { cancelled = true; };
-  }, [place, startIndex]);
+  }, [placeId, name, latitude, longitude, websiteUrl, formattedAddress, cuisineKey, startIndex]);
 
   const displayPhotos = useMemo(() => photos.slice(0, 3), [photos]);
 
@@ -126,12 +137,13 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
     return (
       <View style={{ width, height, borderRadius, overflow: 'hidden' }}>
         <RestaurantImage
-          restaurantId={place?.id ?? 'unknown'}
+          restaurantId={placeId || 'unknown'}
           photos={[]}
           width={typeof width === 'number' ? width : 400}
           height={height}
           borderRadius={0}
           quality={quality}
+          loadDelay={0}
           containHorizontal={containHorizontal}
           onImageDimensions={onImageDimensions}
           name={name}
@@ -154,7 +166,7 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
             active={currentIndex === i}
             width={width}
             height={height}
-            restaurantId={i === 0 ? (place?.id ?? 'unknown') : `${place?.id ?? 'unknown'}_${i}`}
+            restaurantId={i === 0 ? (placeId || 'unknown') : `${placeId || 'unknown'}_${i}`}
             photo={photo}
             quality={quality}
             containHorizontal={containHorizontal}
@@ -172,16 +184,16 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
   }
 
   if (displayPhotos.length === 1) {
-    const photo = displayPhotos[0];
     return (
       <View style={{ width, height, borderRadius, overflow: 'hidden' }}>
         <RestaurantImage
-          restaurantId={place?.id ?? 'unknown'}
+          restaurantId={placeId || 'unknown'}
           photos={displayPhotos}
           width={typeof width === 'number' ? width : 400}
           height={height}
           borderRadius={0}
           quality={quality}
+          loadDelay={0}
           containHorizontal={containHorizontal}
           onImageDimensions={onImageDimensions}
           name={name}
@@ -205,12 +217,13 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
       {displayPhotos.map((p, i) => (
         <View key={i} style={{ width, height }}>
           <RestaurantImage
-            restaurantId={`${place?.id ?? 'unknown'}_${i}`}
+            restaurantId={`${placeId || 'unknown'}_${i}`}
             photos={displayPhotos.slice(i, i + 1)}
             width={typeof width === 'number' ? width : 400}
             height={height}
             borderRadius={0}
             quality={quality}
+            loadDelay={0}
             containHorizontal={containHorizontal}
             onImageDimensions={onImageDimensions}
             name={name}
@@ -225,3 +238,5 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
     </ScrollView>
   );
 }
+
+export const RestaurantCarousel = React.memo(RestaurantCarouselInner);

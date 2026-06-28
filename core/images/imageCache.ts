@@ -119,6 +119,10 @@ export const cacheImageUrl = async (restaurantId: string, url: string): Promise<
 /**
  * Reads a previously cached image URL. Returns null if not found or expired.
  */
+export const peekCachedImageUrl = (restaurantId: string): string | null => {
+  return memoryCache.get(restaurantId) ?? null;
+};
+
 export const getCachedImageUrl = async (restaurantId: string): Promise<string | null> => {
   const mem = memoryCache.get(restaurantId);
   if (mem) return mem;

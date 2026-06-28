@@ -8,4 +8,4 @@
  *  - clearRemotePhotoCache    (function)  — wipe the remote Supabase cache table
  */
 export { RestaurantImage } from './RestaurantImage';
-export { clearImageCache, clearRemotePhotoCache, fetchRestaurantPhotoUrls } from './imageCache';
+export { clearImageCache, clearRemotePhotoCache, fetchRestaurantPhotoUrls, resolvePhotoUri } from './imageCache';
