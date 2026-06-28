@@ -20,7 +20,7 @@ const CACHE_TTL_MS        = 24 * 60 * 60 * 1000;          // 24h per-image URL c
 const PHOTO_CACHE_PREFIX  = 'restphotos_';
 const PHOTO_CACHE_TTL_MS  = 45 * 24 * 60 * 60 * 1000;    // 45 days — permanent-ish
 const PHOTO_PIPELINE_VERSION = 2;
-const MIN_FALLBACK_URLS = 2;
+const MIN_FALLBACK_URLS = 1;
 
 // In-memory LRU — avoids AsyncStorage reads on repeated renders
 const memoryCache = new Map<string, string>();

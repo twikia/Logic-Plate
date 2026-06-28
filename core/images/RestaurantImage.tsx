@@ -167,6 +167,7 @@ function RestaurantImageInner({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     cuisineKey,
     formattedAddress,
@@ -174,7 +175,7 @@ function RestaurantImageInner({
     longitude,
     name,
     photoUrl,
-    photos,
+    JSON.stringify(photos),
     restaurantId,
     websiteUrl,
   ]);
@@ -207,8 +208,10 @@ function RestaurantImageInner({
       if (cached) {
         if (mountedRef.current) {
           const newUri = adjustQuality(cached, maxPx);
-          if (activeUri !== newUri || state === 'waiting' || state === 'failed') {
+          if (activeUri !== newUri) {
             setActiveUri(newUri);
+            setState(state === 'loaded' ? 'loaded' : 'loading');
+          } else if (state === 'waiting' || state === 'failed') {
             setState('loading');
           }
         }
@@ -218,8 +221,10 @@ function RestaurantImageInner({
       timer = setTimeout(() => {
         if (!mountedRef.current) return;
         const uri = adjustQuality(candidatesRef.current[0], maxPx);
-        if (activeUri !== uri || state === 'waiting' || state === 'failed') {
+        if (activeUri !== uri) {
           setActiveUri(uri);
+          setState(state === 'loaded' ? 'loaded' : 'loading');
+        } else if (state === 'waiting' || state === 'failed') {
           setState('loading');
         }
       }, loadDelay);
@@ -307,6 +312,7 @@ function RestaurantImageInner({
         </View>
       )}
       <Image
+        key={activeUri}
         source={{ uri: activeUri! }}
         style={{ width, height }}
         contentFit={(containHorizontal && imageFit === 'contain') ? 'contain' : (Math.abs(width - height) <= 2 ? 'cover' : imageFit)}

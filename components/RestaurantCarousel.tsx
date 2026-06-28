@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
@@ -50,6 +50,8 @@ function CarouselSlide({
     opacity: withTiming(active ? 1 : 0, { duration: 400 }),
   }), [active]);
 
+  const photoArray = useMemo(() => [photo], [photo]);
+
   return (
     <Animated.View
       style={[StyleSheet.absoluteFillObject, { width, height, zIndex: active ? 1 : 0 }, animStyle]}
@@ -57,7 +59,7 @@ function CarouselSlide({
     >
       <RestaurantImage
         restaurantId={restaurantId}
-        photos={[photo]}
+        photos={photoArray}
         width={typeof width === 'number' ? width : 400}
         height={height}
         borderRadius={0}
@@ -110,7 +112,7 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
     return () => { cancelled = true; };
   }, [place, startIndex]);
 
-  const displayPhotos = photos.slice(0, 3);
+  const displayPhotos = useMemo(() => photos.slice(0, 3), [photos]);
 
   useEffect(() => {
     if (!autoRotate || displayPhotos.length <= 1) return;
@@ -175,7 +177,7 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
       <View style={{ width, height, borderRadius, overflow: 'hidden' }}>
         <RestaurantImage
           restaurantId={place?.id ?? 'unknown'}
-          photos={[photo]}
+          photos={displayPhotos}
           width={typeof width === 'number' ? width : 400}
           height={height}
           borderRadius={0}
@@ -204,7 +206,7 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
         <View key={i} style={{ width, height }}>
           <RestaurantImage
             restaurantId={`${place?.id ?? 'unknown'}_${i}`}
-            photos={[p]}
+            photos={displayPhotos.slice(i, i + 1)}
             width={typeof width === 'number' ? width : 400}
             height={height}
             borderRadius={0}
