@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useAppTheme } from '@/context/ThemeContext';
+import { GradientShadow } from '@/components/ui/GradientShadow';
 
 interface NeonBorderCardProps {
   children: React.ReactNode;
@@ -20,7 +21,8 @@ interface NeonBorderCardProps {
 /**
  * Themed card wrapper.
  * - When theme.neonColors is defined: renders an animated rotating gradient border.
- * - Otherwise: renders a standard bordered card with shadow.
+ * - Otherwise: renders a 3D convex card using theme.depth tokens (or falls back
+ *   to a plain bordered card with shadow if depth tokens are absent).
  *
  * Layout (flex, margins, padding) is never altered by this component —
  * those must be supplied via outerStyle / innerStyle.
@@ -34,6 +36,62 @@ export function NeonBorderCard({
   const { theme } = useAppTheme();
 
   if (!theme.neonColors) {
+    // 3D depth-aware non-neon card
+    const d = theme.depth;
+
+    if (d) {
+      return (
+        <View
+          style={[
+            {
+              borderRadius,
+              overflow: 'visible',
+              // Dual-side 1.5px edge borders: top+left = highlight, bottom+right = shadow
+              borderTopWidth: 1.5,
+              borderLeftWidth: 1.5,
+              borderTopColor: d.edgeHighlight,
+              borderLeftColor: d.edgeHighlight,
+              borderBottomWidth: 1.5,
+              borderRightWidth: 1.5,
+              borderBottomColor: d.edgeShadow,
+              borderRightColor: d.edgeShadow,
+              // Native shadow (iOS/light themes only — gradient shadow handles dark)
+              shadowColor: d.shadowColor,
+              shadowOffset: { width: 2, height: 8 },
+              shadowOpacity: 0.35,
+              shadowRadius: 16,
+              elevation: 12,
+            },
+            outerStyle,
+          ]}
+        >
+          {/* Convex gradient fill (top-left light source) */}
+          <LinearGradient
+            colors={d.convexGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFillObject, { borderRadius: borderRadius - 1.5 }]}
+          />
+          <View
+            style={[
+              { borderRadius: borderRadius - 1.5, overflow: 'hidden' },
+              innerStyle,
+            ]}
+          >
+            {children}
+          </View>
+          {/* Gradient pool shadow — visible on all backgrounds */}
+          <GradientShadow
+            height={22}
+            spreadX={12}
+            offsetY={-8}
+            borderRadius={borderRadius}
+          />
+        </View>
+      );
+    }
+
+    // Fallback: plain card (no depth tokens, e.g. sketch_paper without depth)
     return (
       <View
         style={[
@@ -48,6 +106,14 @@ export function NeonBorderCard({
         ]}
       >
         {children}
+        {/* Light shadow for light themes without depth tokens */}
+        <GradientShadow
+          height={16}
+          spreadX={8}
+          offsetY={-6}
+          borderRadius={borderRadius}
+          colors={[theme.cardShadowColor, 'transparent']}
+        />
       </View>
     );
   }
@@ -221,11 +287,11 @@ function NeonAnimatedBorder({
 
 const styles = StyleSheet.create({
   standardCard: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     overflow: 'visible',
     shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.35,
-    shadowRadius: 22,
+    shadowOpacity: 0.30,
+    shadowRadius: 20,
     elevation: 12,
   },
 });

@@ -47,6 +47,8 @@ export interface ThemeColors {
   radarVariant?: 'solid' | 'gradient' | 'sketch' | 'watercolor';
   /** When true, renders hand-drawn food illustrations in the screen background. */
   paperIllustrations?: boolean;
+  /** Full-screen background for tab screens (home, groups, map). Defaults to black for neon themes. */
+  screenBackground?: string;
   /** Override background color for the home tab circular button. Defaults to accent. */
   tabHomeBackground?: string;
   /** Override background color for the tab bar. Defaults to cardBackground. */
@@ -61,4 +63,44 @@ export interface ThemeColors {
   buttonVariant?: 'primary-ghost' | 'outline-outline';
   /** Optional font family override for titles and key text elements. */
   fontFamily?: string;
+
+  // ── 3D Depth / Lighting tokens ───────────────────────────────────────────
+  /**
+   * Optional depth token set. When present, enables full 3D surface rendering:
+   * convex/concave gradients, 1px edge highlights, and layered drop shadows.
+   * Assumes a consistent top-left light source across the entire app.
+   */
+  depth?: {
+    /**
+     * LinearGradient stops for a convex (elevated) surface.
+     * Top-left corner appears lighter (near light source), bottom-right darker.
+     * [highlight, mid, shadow] — 3 stops mapped to start:{x:0,y:0} → end:{x:1,y:1}
+     */
+    convexGradient: [string, string, string];
+    /**
+     * LinearGradient stops for a concave (pressed-in) surface.
+     * Inverted — top-left darker, bottom-right lighter.
+     */
+    concaveGradient: [string, string, string];
+    /**
+     * 1px top + left border color: slightly lighter than the surface
+     * (simulates light catching the upper-left edge).
+     */
+    edgeHighlight: string;
+    /**
+     * 1px bottom + right border color: darker than the surface
+     * (simulates shadow on the lower-right edge).
+     */
+    edgeShadow: string;
+    /** Drop shadow color for elevated surfaces (iOS shadow + Android elevation). */
+    shadowColor: string;
+    /**
+     * Two-stop gradient painted as a visible "pool shadow" strip beneath elevated
+     * cards. Works on both dark and light backgrounds.
+     * [accentTintedEdge, transparent] — e.g. ['rgba(0,255,255,0.22)', 'transparent']
+     */
+    shadowGradient: [string, string];
+    /** Two-stop gradient for the tab bar background [top, bottom]. */
+    tabBarGradient: [string, string];
+  };
 }

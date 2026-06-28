@@ -18,7 +18,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 const RING_SIZE = 58;
 const GRAD_SPIN_SIZE = 120;
 
-function NeonProfileRing({ icon, pressed, neonColors }: { icon: string; pressed: boolean; neonColors: [string, string, string, string] }) {
+function NeonProfileRing({ icon, pressed, neonColors, cardBg }: { icon: string; pressed: boolean; neonColors: [string, string, string, string]; cardBg: string }) {
   const rotate = useSharedValue(0);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ function NeonProfileRing({ icon, pressed, neonColors }: { icon: string; pressed:
         styles.neonRing,
         {
           opacity: pressed ? 0.75 : 1,
-          shadowColor: '#00FFFF',
+          shadowColor: neonColors[0],
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.85,
           shadowRadius: 12,
@@ -68,7 +68,7 @@ function NeonProfileRing({ icon, pressed, neonColors }: { icon: string; pressed:
           end={{ x: 1, y: 1 }}
         />
       </Animated.View>
-      <View style={styles.neonInner}>
+      <View style={[styles.neonInner, { backgroundColor: cardBg }]}>
         <Text style={styles.iconText}>{icon}</Text>
       </View>
     </View>
@@ -80,6 +80,7 @@ export function TopProfileButton() {
   const { icon } = useProfileIcon();
   const insets = useSafeAreaInsets();
   const neon = theme.neonColors;
+  const d = theme.depth;
 
   return (
     <View style={[styles.container, { top: profileButtonTop(insets.top) }]}>
@@ -87,8 +88,39 @@ export function TopProfileButton() {
         <AnimatedPressable>
           {({ pressed }) =>
             neon ? (
-              <NeonProfileRing icon={icon} pressed={pressed} neonColors={neon} />
+              <NeonProfileRing icon={icon} pressed={pressed} neonColors={neon} cardBg={theme.cardBackground} />
+            ) : d ? (
+              // Depth-aware convex button
+              <View
+                style={[
+                  styles.button,
+                  {
+                    opacity: pressed ? 0.72 : 1,
+                    // Dual 1px edge borders
+                    borderTopColor: d.edgeHighlight,
+                    borderLeftColor: d.edgeHighlight,
+                    borderBottomColor: d.edgeShadow,
+                    borderRightColor: d.edgeShadow,
+                    // Drop shadow
+                    shadowColor: d.shadowColor,
+                    shadowOffset: { width: 1, height: 4 },
+                    shadowOpacity: 0.5,
+                    shadowRadius: 10,
+                    elevation: 8,
+                    overflow: 'hidden',
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={d.convexGradient}
+                  start={{ x: 0.1, y: 0.1 }}
+                  end={{ x: 0.9, y: 0.9 }}
+                  style={[StyleSheet.absoluteFillObject, { borderRadius: 25 }]}
+                />
+                <Text style={styles.iconText}>{icon}</Text>
+              </View>
             ) : (
+              // Fallback plain button
               <View style={[styles.button, { opacity: pressed ? 0.7 : 1 }]}>
                 <Text style={styles.iconText}>{icon}</Text>
               </View>
@@ -108,9 +140,8 @@ const styles = StyleSheet.create({
   },
   button: {
     borderRadius: 27,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    // borderWidth split to per-side in dynamic style for depth theming
+    borderWidth: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
     width: 54,
     height: 54,

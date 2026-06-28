@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState, useEffect } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Pressable } from '@/components/ui/soundPressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -46,7 +46,8 @@ function AnimatedTabIcon({
   dimColor,
   highlightBg,
   neonSide,
-}: AnimatedTabIconProps) {
+  depth,
+}: AnimatedTabIconProps & { depth?: NonNullable<import('@/themes/types').ThemeColors['depth']> }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -69,20 +70,37 @@ function AnimatedTabIcon({
           width: 44,
           height: 44,
           borderRadius: 22,
+          // Neon active: cyan-tinted pill
+          // Depth active: convex pill with highlight border
+          // Plain active: solid highlight bg
           backgroundColor:
             neonSide && isActive
               ? 'rgba(0,255,255,0.12)'
               : neonSide
                 ? 'transparent'
-                : isActive
-                  ? highlightBg
-                  : 'transparent',
-          borderWidth: neonSide && isActive ? 1 : 0,
-          borderColor: neonSide && isActive ? 'rgba(0,255,255,0.55)' : 'transparent',
+                : isActive && depth
+                  ? 'transparent'
+                  : isActive
+                    ? highlightBg
+                    : 'transparent',
+          borderWidth: (neonSide && isActive) || (depth && isActive) ? 1 : 0,
+          borderTopColor: neonSide && isActive ? 'rgba(0,255,255,0.55)' : depth && isActive ? depth.edgeHighlight : 'transparent',
+          borderLeftColor: neonSide && isActive ? 'rgba(0,255,255,0.55)' : depth && isActive ? depth.edgeHighlight : 'transparent',
+          borderBottomColor: neonSide && isActive ? 'rgba(0,255,255,0.55)' : depth && isActive ? depth.edgeShadow : 'transparent',
+          borderRightColor: neonSide && isActive ? 'rgba(0,255,255,0.55)' : depth && isActive ? depth.edgeShadow : 'transparent',
           justifyContent: 'center',
           alignItems: 'center',
+          overflow: 'hidden',
         }}
       >
+        {depth && isActive && (
+          <LinearGradient
+            colors={depth.convexGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
         <Animated.View style={animStyle}>
           <Ionicons
             size={24}
@@ -106,14 +124,17 @@ export default function TabLayout() {
     () => ({
       backgroundColor: theme.neonColors
         ? '#000000'
-        : (theme.tabBarBackground ?? theme.cardBackground),
+        : (theme.tabBarBackground ?? theme.depth?.tabBarGradient?.[1] ?? theme.cardBackground),
       borderTopWidth: 0,
       height: 52 + insets.bottom,
       paddingBottom: insets.bottom,
       paddingTop: 4,
     }),
-    [theme.cardBackground, theme.neonColors, theme.tabBarBackground, insets.bottom]
+    [theme, insets.bottom]
   );
+
+  // Tab bar gradient wrapper for non-neon depth themes
+  const tabBarGradient = !theme.neonColors && theme.depth?.tabBarGradient;
 
   const isMap = pathname.startsWith('/map');
   const isGroups = pathname.startsWith('/groups');
@@ -184,7 +205,7 @@ export default function TabLayout() {
         initialRouteName="(home)"
         backBehavior="history"
         screenOptions={{
-          sceneStyle: { backgroundColor: '#000000' },
+          sceneStyle: { backgroundColor: theme.screenBackground ?? '#000000' },
           headerShown: false,
           tabBarShowLabel: false,
           tabBarButton: HapticTab,
@@ -213,6 +234,7 @@ export default function TabLayout() {
               dimColor={neon ? 'rgba(255,255,255,0.42)' : theme.subtext}
               highlightBg={theme.accent}
               neonSide={neon}
+              depth={!neon ? theme.depth : undefined}
             />
           ),
         }}
@@ -359,6 +381,7 @@ export default function TabLayout() {
               dimColor={neon ? 'rgba(255,255,255,0.42)' : theme.subtext}
               highlightBg={theme.accent}
               neonSide={neon}
+              depth={!neon ? theme.depth : undefined}
             />
           ),
         }}

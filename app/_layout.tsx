@@ -19,6 +19,7 @@ LogBox.ignoreLogs([
 import { AuthGate } from '@/components/auth/AuthGate';
 import { initDistanceUnit, getLanguage } from '@/core/userSettings';
 import { initLocationCache } from '@/core/locationCache';
+import { pruneStorageCache } from '@/core/resultCache';
 import { bootstrapLanguage } from '@/core/translationLoader';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppThemeProvider } from '@/context/ThemeContext';
@@ -47,6 +48,7 @@ export default function RootLayout() {
     initLocationCache();
     void initDistanceUnit();
     void initAudio();
+    void pruneStorageCache();
     getLanguage().then((saved) => {
       void bootstrapLanguage(saved);
     });

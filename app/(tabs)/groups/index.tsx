@@ -74,7 +74,7 @@ export default function GroupsScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: theme.screenBackground ?? '#000000' }]}>
       <TopProfileButton />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.centerContent}>
@@ -147,7 +147,7 @@ export default function GroupsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#000000' },
+  screen: { flex: 1 },
   safe: { flex: 1 },
   headerTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   centerContent: {

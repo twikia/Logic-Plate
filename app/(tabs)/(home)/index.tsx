@@ -1534,7 +1534,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
   );
 
   return (
-    <View style={[styles.background, { backgroundColor: '#000000' }]}>
+    <View style={[styles.background, { backgroundColor: theme.screenBackground ?? '#000000' }]}>
       {homeBody}
       <LaunchIntentSurvey />
     </View>

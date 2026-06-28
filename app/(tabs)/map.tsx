@@ -246,7 +246,7 @@ function openMaps(name: string, lat: number, lng: number) {
 
 export default function MapScreen() {
   const { t } = useTranslation();
-  const { theme, themeName } = useAppTheme();
+  const { theme } = useAppTheme();
   const { formatDistance, formatLabel } = useDistanceFormatter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
@@ -291,9 +291,11 @@ export default function MapScreen() {
   // Animation for bottom sheet
   const sheetAnim = useRef(new Animated.Value(height)).current;
 
-  // Determine map style - Force Dark as requested
-  const currentMapStyle = darkMapStyle;
-  const isDarkTheme = themeName !== 'melon_fresh'; // Still used for UI elements
+  // Determine map style — light themes use the default (white) Google map
+  const isLightTheme = Boolean(theme.screenBackground);
+  const isDarkTheme = !isLightTheme;
+  const currentMapStyle = isLightTheme ? undefined : darkMapStyle;
+  const screenBg = theme.screenBackground ?? (isDarkTheme ? '#1E0F1E' : '#FDF8F5');
 
   const withSelectedRestaurant = useCallback((list: any[]) => {
     const selected = selectedRestaurantRef.current;
@@ -633,7 +635,7 @@ export default function MapScreen() {
   const sheetScrollMaxHeight = sheetSnap === 'full' ? height * 0.72 : height * 0.34;
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkTheme ? '#1E0F1E' : '#FDF8F5' }]}>
+    <View style={[styles.container, { backgroundColor: screenBg }]}>
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -646,7 +648,7 @@ export default function MapScreen() {
         showsCompass={false}
         showsMyLocationButton={false}
         toolbarEnabled={false}
-        customMapStyle={currentMapStyle}
+        {...(currentMapStyle ? { customMapStyle: currentMapStyle } : {})}
         loadingEnabled={false}
       >
         {circleCenter ? (
@@ -815,7 +817,7 @@ export default function MapScreen() {
 
       {/* Loading Overlay */}
       {isLocating && (
-        <View style={[styles.loadingOverlay, { backgroundColor: isDarkTheme ? '#1E0F1E' : '#FDF8F5' }]}>
+        <View style={[styles.loadingOverlay, { backgroundColor: screenBg }]}>
           <View style={styles.loadingContent}>
             <Text style={[styles.loadingTitle, { color: theme.text }]}>{t('map.acquiringGps')}</Text>
             <Text style={[styles.loadingSubtitle, { color: theme.subtext }]}>{t('map.acquiringGpsSubtitle')}</Text>

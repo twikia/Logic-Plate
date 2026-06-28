@@ -2,6 +2,7 @@ import { AiOverviewSummaryBody } from '@/components/AiOverviewSummaryBody';
 import { TranslatedText } from '@/components/ui/TranslatedText';
 import { NeonAmbientGlow } from '@/components/ui/NeonAmbientGlow';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { GradientShadow } from '@/components/ui/GradientShadow';
 import {
   NUTRITION_METRICS,
   PERFORMANCE_METRICS,
@@ -169,7 +170,7 @@ function MetricChip({
         { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
       ]}
     >
-      <Text style={styles.chipEmoji}>{emoji}</Text>
+      <Text style={[styles.chipEmoji, styles.emoji3d]}>{emoji}</Text>
       <Text style={[styles.chipLabel, { color: theme.subtext }]} numberOfLines={1}>
         {label}
       </Text>
@@ -305,6 +306,7 @@ export default function RandomResultScreen() {
   useEffect(() => subscribeCurrentRestaurant(() => setSelectionEpoch(e => e + 1)), []);
 
   const place = getCurrentRestaurant() ?? {};
+  const isEmpty = !place || (!place.displayName && !place.id);
   const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [heroPhotos, setHeroPhotos] = useState<any[]>(place.photos || []);
@@ -431,6 +433,23 @@ export default function RandomResultScreen() {
     : [];
   const sortedPerformanceMetrics = sortMetricsByScore(aiOverview, PERFORMANCE_METRICS);
   const sortedNutritionMetrics = sortMetricsByScore(aiOverview, NUTRITION_METRICS);
+
+  // Guard: if place is empty (navigated before data was set), show a minimal shell
+  if (isEmpty) {
+    return (
+      <LinearGradient colors={theme.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.bg}>
+        <NeonAmbientGlow />
+        <View style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}>
+          <AnimatedPressable
+            style={[styles.headerBtn, styles.headerBtnGlass]}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+          </AnimatedPressable>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -563,6 +582,7 @@ export default function RandomResultScreen() {
                   { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor },
                 ]}
               >
+                <GradientShadow height={16} spreadX={8} offsetY={-4} borderRadius={20} />
                 {matchPct != null ? (
                   <OrbitalGauge
                     score={matchPct}
@@ -603,7 +623,7 @@ export default function RandomResultScreen() {
                   <>
                     <View style={[styles.divider, { backgroundColor: theme.cardBorderColor }]} />
                     <View style={styles.cardHeader}>
-                      <Text style={styles.cardEmoji}>🎯</Text>
+                      <Text style={[styles.cardEmoji, styles.emoji3d]}>🎯</Text>
                       <Text style={[styles.cardTitle, { color: theme.text }]}>{t('map.whoIsItFor')}</Text>
                     </View>
                     <TranslatedText text={aiOverview.whoThisPlaceIsFor} style={[styles.bodyText, { color: theme.subtext }]} />
@@ -624,7 +644,9 @@ export default function RandomResultScreen() {
                   <View style={{ gap: 10 }}>
                     {menuItems.map((item, idx) => (
                       <View key={idx} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-                        <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>🍽️</Text>
+                  <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>
+                    <Text style={styles.emoji3d}>{'\uD83C\uDF7D\uFE0F'}</Text>
+                  </Text>
                         <TranslatedText text={item} style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]} />
                       </View>
                     ))}
@@ -684,7 +706,7 @@ export default function RandomResultScreen() {
                           },
                         ]}
                       >
-                        <Text style={styles.macroEmoji}>{p.emoji}</Text>
+                        <Text style={[styles.macroEmoji, styles.emoji3d]}>{p.emoji}</Text>
                         <Text style={[styles.macroLabel, { color: theme.subtext }]}>
                           {t(`scores.macros.${p.labelKey}`)}
                         </Text>
@@ -821,8 +843,8 @@ export default function RandomResultScreen() {
               onPress={() => openGoogleMaps(name, lat!, lng!)}
               activeOpacity={0.88}
             >
-              <Ionicons name="navigate" size={18} color="#000000" />
-              <Text style={[styles.stickyPrimaryText, { color: '#000000' }]}>
+              <Ionicons name="navigate" size={18} color={theme.accentOnColor ?? '#FFFFFF'} />
+              <Text style={[styles.stickyPrimaryText, { color: theme.accentOnColor ?? '#FFFFFF' }]}>
                 {t('result.goThere')}
               </Text>
             </TouchableOpacity>
@@ -1010,10 +1032,18 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 2,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    // Use a translucent dark that's visible on BOTH light and dark backgrounds
+    backgroundColor: 'rgba(128,128,128,0.18)',
     marginTop: 2,
   },
   chipFill: { height: '100%', borderRadius: 2 },
+
+  // ── 3D Emoji text-shadow ────────────────────────────────────────────────
+  emoji3d: {
+    textShadowColor: 'rgba(0,0,0,0.30)',
+    textShadowOffset: { width: 1, height: 1.5 },
+    textShadowRadius: 2,
+  },
 
   macroRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   macroPill: {

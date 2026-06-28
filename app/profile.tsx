@@ -151,13 +151,15 @@ export default function ProfileScreen() {
                           { borderColor: t2.accent }
                         ]}
                       >
-                        <View style={[styles.themePreview, { backgroundColor: t2.gradient[0] }]}>
+                      <View style={[styles.themePreview, { backgroundColor: t2.gradient[0] }]}>
                           <LinearGradient 
-                            colors={t2.gradient} 
+                            colors={t2.depth ? t2.depth.convexGradient : t2.gradient} 
                             style={StyleSheet.absoluteFill}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                           />
+                          {/* Accent ring overlay */}
+                          <View style={[StyleSheet.absoluteFill, { borderRadius: 12, borderWidth: 1.5, borderColor: t2.accent }]} />
                         </View>
                         <Text style={[
                           styles.themeText, 
@@ -245,7 +247,6 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: '#3D2B3D',
     borderTopLeftRadius: 35,
     borderBottomLeftRadius: 35,
   },

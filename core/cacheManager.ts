@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
 import { clampResolution } from './h3Utils';
-import { pruneStorageCache } from './resultCache';
+import { pruneStorageCache, safeAsyncStorageMultiSet, safeAsyncStorageSet } from './resultCache';
 
 function normalizeArray(raw: any): any[] {
   if (!raw) return [];
@@ -122,13 +122,7 @@ export const readCacheBulk = async (
         }
 
         if (backfillPairs.length > 0) {
-          try {
-            await AsyncStorage.multiSet(backfillPairs);
-          } catch (e) {
-            console.warn('AsyncStorage multiSet backfill error, pruning cache and retrying:', e);
-            await pruneStorageCache();
-            try { await AsyncStorage.multiSet(backfillPairs); } catch { /* ignore */ }
-          }
+          await safeAsyncStorageMultiSet(backfillPairs);
         }
       }
     } catch (err) {
@@ -186,29 +180,9 @@ export const appendToCache = async (cellId: string, newPlaces: any[]): Promise<v
     if (uniqueNew.length === 0) return; // nothing new to append
 
     const merged = [...existingRestaurants, ...uniqueNew];
-    await AsyncStorage.setItem(key, JSON.stringify({ restaurants: merged, fetched_at: fetchedAt }));
-  } catch (err) {
-    console.warn('AsyncStorage appendToCache error, pruning storage and retrying:', err);
-    await pruneStorageCache();
-    try {
-      const key = `cell_${cellId}`;
-      const existing = await AsyncStorage.getItem(key);
-      let existingRestaurants: any[] = [];
-      let fetchedAt = new Date().toISOString();
-      if (existing) {
-        try {
-          const parsed = JSON.parse(existing);
-          existingRestaurants = normalizeArray(parsed.restaurants);
-          fetchedAt = parsed.fetched_at ?? fetchedAt;
-        } catch { /* ignore */ }
-      }
-      const cleanNew = normalizeArray(newPlaces);
-      const existingIds = new Set(existingRestaurants.map((p: any) => p.id).filter(Boolean));
-      const uniqueNew = cleanNew.filter((p: any) => p.id && !existingIds.has(p.id));
-      if (uniqueNew.length > 0) {
-        await AsyncStorage.setItem(key, JSON.stringify({ restaurants: [...existingRestaurants, ...uniqueNew], fetched_at: fetchedAt }));
-      }
-    } catch { /* ignore final error */ }
+    await safeAsyncStorageSet(key, JSON.stringify({ restaurants: merged, fetched_at: fetchedAt }));
+  } catch {
+    // L1 append is best-effort — Supabase remains the source of truth
   }
 };
 
@@ -220,15 +194,8 @@ export const writeCache = async (cellId: string, restaurants: any[]) => {
   const clean = normalizeArray(restaurants);
   const cachePayload = { restaurants: clean, fetched_at: fetchedAt };
 
-  try {
-    await AsyncStorage.setItem(`cell_${cellId}`, JSON.stringify(cachePayload));
-  } catch (err) {
-    console.warn('AsyncStorage write error, pruning storage and retrying:', err);
-    await pruneStorageCache();
-    try {
-      await AsyncStorage.setItem(`cell_${cellId}`, JSON.stringify(cachePayload));
-    } catch { /* ignore final failure */ }
-  }
+  await pruneStorageCache();
+  await safeAsyncStorageSet(`cell_${cellId}`, JSON.stringify(cachePayload));
 };
 
 /**

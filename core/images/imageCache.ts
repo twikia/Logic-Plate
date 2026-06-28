@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabaseClient';
+import { safeAsyncStorageSet } from '../resultCache';
 
 /**
  * Image Cache — Three-tier restaurant photo URL resolution and caching.
@@ -106,14 +107,10 @@ export const cacheImageUrl = async (restaurantId: string, url: string): Promise<
   }
   memoryCache.set(restaurantId, url);
 
-  try {
-    await AsyncStorage.setItem(
-      `${CACHE_PREFIX}${restaurantId}`,
-      JSON.stringify({ url, ts: Date.now() })
-    );
-  } catch (err) {
-    console.error('[ImageCache] Failed to persist URL:', err);
-  }
+  await safeAsyncStorageSet(
+    `${CACHE_PREFIX}${restaurantId}`,
+    JSON.stringify({ url, ts: Date.now() })
+  );
 };
 
 /**
@@ -311,11 +308,11 @@ async function fetchRestaurantPhotoUrlsInternal({
       if (ageMs < PHOTO_CACHE_TTL_MS) {
         const urls = mergeCachedPhotoUrls(cached);
         if (urls.length >= MIN_FALLBACK_URLS) {
-          AsyncStorage.setItem(localKey, JSON.stringify({
+          void safeAsyncStorageSet(localKey, JSON.stringify({
             photo_urls: urls,
             ts: Date.now(),
             pipeline_version: PHOTO_PIPELINE_VERSION,
-          })).catch(e => console.error('[ImageCache] Local backfill write error:', e));
+          }));
           return urls;
         }
       }
@@ -353,11 +350,11 @@ async function fetchRestaurantPhotoUrlsInternal({
       console.log(`[ImageCache] Zero images found for "${name}" (${placeId}) — complete fallback.`);
     }
 
-    AsyncStorage.setItem(localKey, JSON.stringify({
+    void safeAsyncStorageSet(localKey, JSON.stringify({
       photo_urls: urls,
       ts: Date.now(),
       pipeline_version: PHOTO_PIPELINE_VERSION,
-    })).catch(() => {});
+    }));
 
     return urls;
   } catch (err) {

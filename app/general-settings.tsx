@@ -116,14 +116,47 @@ export default function GeneralSettingsScreen() {
   };
 
   return (
-    <LinearGradient colors={[theme.gradient[0], theme.gradient[1] ?? theme.cardBackground]} style={styles.container}>
+    <LinearGradient
+      colors={theme.depth
+        ? theme.depth.convexGradient
+        : [theme.gradient[0], theme.gradient[1] ?? theme.cardBackground]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
       <NeonAmbientGlow />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable
             onPress={() => { hapticLight(); router.back(); }}
-            style={[styles.backButton, { backgroundColor: theme.buttonBackground }]}
+            style={[
+              styles.backButton,
+              theme.depth ? {
+                borderTopWidth: 1,
+                borderLeftWidth: 1,
+                borderTopColor: theme.depth.edgeHighlight,
+                borderLeftColor: theme.depth.edgeHighlight,
+                borderBottomWidth: 1,
+                borderRightWidth: 1,
+                borderBottomColor: theme.depth.edgeShadow,
+                borderRightColor: theme.depth.edgeShadow,
+                shadowColor: theme.depth.shadowColor,
+                shadowOffset: { width: 1, height: 3 },
+                shadowOpacity: 0.4,
+                shadowRadius: 6,
+                elevation: 5,
+                overflow: 'hidden',
+              } : { backgroundColor: theme.buttonBackground },
+            ]}
           >
+            {theme.depth && (
+              <LinearGradient
+                colors={theme.depth.convexGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+            )}
             <Ionicons name="chevron-back" size={28} color={theme.text} />
           </Pressable>
           <Text style={[styles.title, { color: theme.text }]}>{t('settings.title')}</Text>
@@ -135,9 +168,23 @@ export default function GeneralSettingsScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.accountSection')}</Text>
             <Pressable
-              style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
               onPress={() => { hapticLight(); router.push('/edit-username'); }}
             >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="person-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -154,7 +201,23 @@ export default function GeneralSettingsScreen() {
           {/* Search Preferences */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.searchPrefsSection')}</Text>
-            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+            <View
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="navigate-circle-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -183,9 +246,23 @@ export default function GeneralSettingsScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.languageSection')}</Text>
             <Pressable
-              style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
               onPress={() => { hapticLight(); setShowLangPicker(true); }}
             >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="language-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -205,7 +282,23 @@ export default function GeneralSettingsScreen() {
           {/* Audio & Feedback */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.audioSection')}</Text>
-            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+            <View
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="musical-notes-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -228,7 +321,23 @@ export default function GeneralSettingsScreen() {
               </View>
             </View>
 
-            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+            <View
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="volume-high-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -251,7 +360,23 @@ export default function GeneralSettingsScreen() {
               </View>
             </View>
 
-            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+            <View
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="phone-portrait-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -271,7 +396,23 @@ export default function GeneralSettingsScreen() {
           {/* Notifications */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.notificationsSection')}</Text>
-            <View style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+            <View
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="notifications-outline" size={24} color={theme.accent} />
                 <View style={styles.textContainer}>
@@ -291,7 +432,23 @@ export default function GeneralSettingsScreen() {
           {/* About */}
           <View style={styles.section}>
              <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('settings.aboutSection')}</Text>
-             <View style={[styles.aboutCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}>
+             <View
+               style={[
+                 styles.aboutCard,
+                 theme.depth ? {
+                   borderTopWidth: 1, borderLeftWidth: 1,
+                   borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                   borderBottomWidth: 1, borderRightWidth: 1,
+                   borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                   shadowColor: theme.depth.shadowColor,
+                   shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
+                   overflow: 'hidden',
+                 } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+               ]}
+             >
+               {theme.depth && (
+                 <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+               )}
                 <Text style={[styles.versionText, { color: theme.text }]}>{t('settings.version')}</Text>
                 <Text style={[styles.creditsText, { color: theme.subtext }]}>{t('settings.credits')}</Text>
                 <Text style={[styles.aboutLabel, { color: theme.subtext }]}>{t('settings.userId')}</Text>
@@ -303,7 +460,18 @@ export default function GeneralSettingsScreen() {
 
           <View style={styles.section}>
             <Pressable
-              style={[styles.settingCard, { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor }]}
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
               onPress={async () => {
                 await Promise.all([
                   clearLocalCache(),
@@ -321,6 +489,9 @@ export default function GeneralSettingsScreen() {
                 router.replace('/welcome-intro' as any);
               }}
             >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
               <View style={styles.settingInfo}>
                 <Ionicons name="trash-bin-outline" size={24} color="#10B981" />
                 <View style={styles.textContainer}>
@@ -381,7 +552,24 @@ export default function GeneralSettingsScreen() {
         onRequestClose={() => setShowLangPicker(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowLangPicker(false)}>
-          <View style={[styles.modalBox, { backgroundColor: theme.cardBackground }]}>
+          <View style={[
+            styles.modalBox,
+            theme.depth ? {
+              borderTopWidth: 1, borderLeftWidth: 1,
+              borderTopColor: theme.depth.edgeShadow, borderLeftColor: theme.depth.edgeShadow,
+              borderBottomWidth: 1, borderRightWidth: 1,
+              borderBottomColor: theme.depth.edgeHighlight, borderRightColor: theme.depth.edgeHighlight,
+              overflow: 'hidden',
+            } : { backgroundColor: theme.cardBackground },
+          ]}>
+            {theme.depth && (
+              <LinearGradient
+                colors={theme.depth.concaveGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+            )}
             <Text style={[styles.modalTitle, { color: theme.text }]}>{t('settings.language')}</Text>
             <ScrollView style={styles.langScroll} nestedScrollEnabled>
             {langLoading ? (
