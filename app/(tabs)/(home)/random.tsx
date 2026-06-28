@@ -304,6 +304,7 @@ const RestaurantRow = React.memo(function RestaurantRow({
             websiteUrl={item.websiteUri}
             formattedAddress={item.formattedAddress}
             cuisineKey={item.primaryType?.replace(/_restaurant$/, '')}
+            containHorizontal={true}
           />
         </View>
 

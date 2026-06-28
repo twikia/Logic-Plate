@@ -175,7 +175,7 @@
     "filters": "फिल्टर",
     "filtersCount": "फिल्टर ({{count}})",
     "openNow": "आता उघडा",
-    "vibeFilter": "Vibe · {{दृश्य}}",
+    "vibeFilter": "Vibe · {{scenario}}",
     "price": "किंमत",
     "rating": "रेटिंग",
     "cuisines": "पाककृती",
@@ -185,7 +185,7 @@
     "matchingCount": "{{count}} रेस्टॉरंट जुळणारे फिल्टर",
     "expandRadius": "त्रिज्या विस्तृत करा",
     "pickOne": "एक निवडा ({{count}})",
-    "noResultsInRadius": "{{त्रिज्या}} मध्ये कोणतेही रेस्टॉरंट आढळले नाही.",
+    "noResultsInRadius": "{{radius}} मध्ये कोणतेही रेस्टॉरंट आढळले नाही.",
     "locationError": "जवळपासची रेस्टॉरंट शोधण्यासाठी स्थान प्रवेश आवश्यक आहे.\n\nते सेटिंग्ज → गोपनीयता → स्थान मध्ये सक्षम करा.",
     "loadError": "काहीतरी चूक झाली. कृपया पुन्हा प्रयत्न करा.",
     "aiMetric": "AI मेट्रिक",
@@ -299,7 +299,7 @@
     "less": "कमी ▲",
     "details": "तपशील ▾",
     "vote": "मत द्या",
-    "voterBadge": "मतदार {{वर्तमान}} / {{एकूण}}",
+    "voterBadge": "मतदार {{current}} / {{total}}",
     "voteHint": "विस्तृत करण्यासाठी कार्डावर टॅप करा, मत देण्यासाठी बॉक्सवर टॅप करा",
     "voteCasted": "मतदान झाले!",
     "passToVoter": "मतदाराला पास {{n}}",
@@ -353,7 +353,7 @@
     "openInMaps": "नकाशे मध्ये उघडा",
     "shareResult": "परिणाम शेअर करा",
     "done": "झाले",
-    "shareMessage": "आम्ही {{name}} ला जात आहोत! {{पत्ता}}"
+    "shareMessage": "आम्ही {{name}} ला जात आहोत! {{address}}"
   },
   "profile": {
     "change": "बदला",

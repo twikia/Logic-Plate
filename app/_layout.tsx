@@ -79,6 +79,7 @@ export default function RootLayout() {
               headerShown: false,
               animation: 'slide_from_right',
               animationDuration: 95,
+              // @ts-ignore
               detachInactiveScreens: false,
               contentStyle: { backgroundColor: colorScheme === 'dark' ? '#000000' : '#f0e8d6' },
             }}>

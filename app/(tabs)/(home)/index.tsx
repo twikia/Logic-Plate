@@ -667,6 +667,14 @@ function SpotlightCard({
   const pressScale = useSharedValue(1);
   const panStartY = useSharedValue(0);
 
+  const [thumbWidth, setThumbWidth] = useState(SPOTLIGHT_THUMB_SIZE);
+  const handleImageDimensions = useCallback((w: number, h: number) => {
+    if (w > h) {
+      const aspect = Math.min(16 / 9, w / h);
+      setThumbWidth(Math.round(SPOTLIGHT_THUMB_SIZE * aspect));
+    }
+  }, []);
+
   const rejectRef = useRef(onReject);
   rejectRef.current = onReject;
   const fireReject = useCallback(() => {
@@ -677,6 +685,7 @@ function SpotlightCard({
   useEffect(() => {
     ty.value = 0;
     opacity.value = 1;
+    setThumbWidth(SPOTLIGHT_THUMB_SIZE);
   }, [placeId, ty, opacity]);
 
   const pressRef = useRef(onPress);
@@ -742,21 +751,24 @@ function SpotlightCard({
 
   const cardBody = (
     <>
-      <View style={styles.spotlightThumbPinned}>
-        <RestaurantCarousel
-          place={place}
-          width={SPOTLIGHT_THUMB_SIZE}
-          height={SPOTLIGHT_THUMB_SIZE}
-          borderRadius={14}
-          startIndex={1}
-          autoRotate={true}
-        />
-      </View>
-      <View style={styles.spotlightHeroText}>
-        <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
-          {name}
-        </Text>
-        <View style={styles.spotlightMetaRow}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', minHeight: SPOTLIGHT_THUMB_SIZE }}>
+        <View style={{ width: thumbWidth, height: SPOTLIGHT_THUMB_SIZE, borderRadius: 14, overflow: 'hidden', marginRight: 12 }}>
+          <RestaurantCarousel
+            place={place}
+            width={thumbWidth}
+            height={SPOTLIGHT_THUMB_SIZE}
+            borderRadius={14}
+            startIndex={1}
+            autoRotate={true}
+            quality={800}
+            onImageDimensions={handleImageDimensions}
+          />
+        </View>
+        <View style={[styles.spotlightHeroText, { marginLeft: 0, flex: 1 }]}>
+          <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
+            {name}
+          </Text>
+          <View style={styles.spotlightMetaRow}>
           <View
             style={[
               styles.spotlightMetaPill,
@@ -848,6 +860,7 @@ function SpotlightCard({
             </View>
           ) : null}
         </View>
+      </View>
       </View>
       <View style={styles.scorePentagonCol}>
         <RestaurantScorePentagon

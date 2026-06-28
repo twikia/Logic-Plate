@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { normalizePlaces, healDatabaseRows } from "../_shared/normalizePlaces.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,11 +63,30 @@ serve(async (req) => {
     const newlyFetchedRestaurants: { cellId: string; places: any[] }[] = [];
     const failedCells: { cellId: string; reason: string }[] = [];
 
+    const cellIdsToFetch = missingCells.map((c: { cellId: string }) => c.cellId);
+    const { data: existingRows } = await supabase
+      .from('restaurant_cache')
+      .select('id, restaurants, fetched_at')
+      .in('id', cellIdsToFetch);
+
+    const healedMap = await healDatabaseRows(supabase, existingRows || []);
+    const now = Date.now();
+
     // Fetch all cells in parallel. The orchestrator enforces the API call cap
     // (7 cells for 0.8-mile search, 15 for 1.5-mile search) before invoking
     // this function, so the incoming array is already within safe bounds.
     const fetchTasks = missingCells.map((cell: {cellId: string, lat: number, lng: number}) => async () => {
       try {
+        const cachedPlaces = healedMap.get(cell.cellId);
+        const existingRow = existingRows?.find((r: { id: string }) => r.id === cell.cellId);
+        if (cachedPlaces && cachedPlaces.length > 0 && existingRow) {
+          const fetchedAt = new Date(existingRow.fetched_at).getTime();
+          if (now - fetchedAt < 30 * 24 * 60 * 60 * 1000) {
+            newlyFetchedRestaurants.push({ cellId: cell.cellId, places: cachedPlaces });
+            return;
+          }
+        }
+
         let tableName = 'restaurant_cache';
         let searchRadius = 600.0;
 
@@ -170,7 +190,8 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        const places = data.places || [];
+        const rawPlaces = data.places || [];
+        const { places } = normalizePlaces(rawPlaces);
         
         newlyFetchedRestaurants.push({ cellId: cell.cellId, places });
 

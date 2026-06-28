@@ -6,6 +6,7 @@ export default function GroupsLayout() {
       headerShown: false,
       animation: 'slide_from_right',
       animationDuration: 95,
+      // @ts-ignore
       detachInactiveScreens: false,
       contentStyle: { backgroundColor: '#000000' },
     }} />

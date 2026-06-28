@@ -1,35 +1,43 @@
 /**
  * Central configuration for restaurant search, H3 grid, and API call limits.
- * Edit this file to adjust search behavior across the app and edge functions.
  *
- * NOTE: SEARCH_RADIUS_BY_RESOLUTION in supabase/functions/fetch-restaurants/index.ts
- * mirrors RES7_CELL_SEARCH_RADIUS_METERS and RES6_CELL_SEARCH_RADIUS_METERS —
- * update both when changing those values.
+ * NOTE: CELL_SEARCH_RADIUS_BY_RESOLUTION in supabase/functions/fetch-restaurants/index.ts
+ * mirrors the values here — update both if you change search radii.
  */
 export const SEARCH_CONFIG = {
   // ── Radius Cap ─────────────────────────────────────────────────────────────
-  // Hard cap applied to every radius before H3 cell computation.
-  MAX_RADIUS_METERS: 2414, // 1.5 miles
+  MAX_RADIUS_METERS: 24140, // 15 miles — hard cap applied before every search
 
-  // ── H3 Resolution Selection ────────────────────────────────────────────────
-  // Searches ≤ RES7_THRESHOLD_METERS use resolution 7 (cell spacing ~2.8 km).
-  // Searches above that threshold use resolution 6 (cell spacing ~7.4 km).
-  // Resolution 8 is NEVER used as an active search resolution — only for child cache joins.
-  RES7_THRESHOLD_METERS: 2414, // ≤1.5 miles → res 7
+  // ── Resolution Selection (80% Circle Coverage Rule) ────────────────────────
+  // The search resolution is chosen such that the 7-cell kRing(1) cluster covers
+  // at least 80% of the search circle area.
+  //
+  // Coverage ≈ min(1, (cluster_radius / search_radius)²)
+  //
+  // Cluster radii below approximate the outer reach of 7 contiguous hexagons:
+  //   Res 8: ~1260m cluster radius → qualifies for R ≤ 1408m (~0.87 mi)
+  //   Res 7: ~3333m cluster radius → qualifies for R ≤ 3726m (~2.3 mi)
+  //   Res 6: ~8820m cluster radius → qualifies for larger radii
+  CELL_COVERAGE_THRESHOLD: 0.80,
+  CLUSTER_RADIUS_BY_RESOLUTION: {
+    8: 1260,
+    7: 3333,
+    6: 8820,
+  } as const,
 
-  // Always 3 cells per search (center + 2 nearest neighbours from kRing(1)).
-  CELLS_PER_SEARCH: 3 as const,
+  // Hard cap on Google API calls per search (= number of H3 cells fetched)
+  MAX_CELLS: 7 as const,
+  CELLS_PER_SEARCH: 7 as const,
 
-  // Maximum pages of results per session (same 3 cells, following Google nextPageToken).
-  // Max Google Places API calls = CELLS_PER_SEARCH × MAX_PAGES = 9.
-  MAX_PAGES: 3 as const,
+  // ── Google Places API ──────────────────────────────────────────────────────
+  // Search radius (meters) passed to Google Places for each H3 cell.
+  // Mirrored in supabase/functions/fetch-restaurants/index.ts.
+  CELL_SEARCH_RADIUS_BY_RESOLUTION: {
+    8: 1260,
+    7: 3333,
+    6: 8820,
+  } as const,
 
-  // ── Google Places API per cell ─────────────────────────────────────────────
-  // Search radius passed to Google Places API per H3 resolution.
-  // Mirrored in supabase/functions/fetch-restaurants/index.ts → SEARCH_RADIUS_BY_RESOLUTION.
-  RES7_CELL_SEARCH_RADIUS_METERS: 1500,  // ~1 mile — covers a res-7 cell plus neighbours
-  RES6_CELL_SEARCH_RADIUS_METERS: 4000,  // ~2.5 miles — covers a res-6 cell
-
-  // Max results per Google Places API call (Google's hard cap is 20).
+  // Max results per Google API call (Google's hard cap)
   PLACES_MAX_RESULTS_PER_CELL: 20,
 } as const;

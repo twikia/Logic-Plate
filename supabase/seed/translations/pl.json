@@ -175,7 +175,7 @@
     "filters": "Filtry",
     "filtersCount": "Filtry ({{count}})",
     "openNow": "Otwórz teraz",
-    "vibeFilter": "Klimat · {{scenariusz}}",
+    "vibeFilter": "Klimat · {{scenario}}",
     "price": "Cena",
     "rating": "Ocena",
     "cuisines": "Kuchnie",
@@ -252,7 +252,7 @@
       "needMore": "Na początek potrzebujesz jeszcze {{count}}",
       "ready": "Gotowy do pracy!",
       "waitingFirst": "Czekam na pierwszą odpowiedź…",
-      "shareMessage": "Dołącz do naszego głosowania na Logic Plate! Kod: {{kod}}",
+      "shareMessage": "Dołącz do naszego głosowania na Logic Plate! Kod: {{code}}",
       "errors": {
         "locationRequired": "Aby rozpocząć sesję grupową, wymagana jest lokalizacja.",
         "appSecret": "W tej kompilacji aplikacji nie ustawiono EXPO_PUBLIC_APP_SECRET. Musi pasować do sekretu APP_SECRET w funkcjach Supabase Edge, aby sesja tworzenia grupy mogła autoryzować.",
@@ -266,7 +266,7 @@
       "voteIn": "Twój głos jest w ✓",
       "hint": "Stuknij kartę, aby ją rozwinąć, a następnie zagłosuj →",
       "end": "Koniec",
-      "groupMatch": "Mecz grupowy {{wynik}}",
+      "groupMatch": "Mecz grupowy {{score}}",
       "alerts": {
         "endVotingTitle": "Nie można zakończyć głosowania",
         "saveVoteTitle": "Nie udało się zapisać głosu"
@@ -299,7 +299,7 @@
     "less": "Mniej ▲",
     "details": "Szczegóły ▾",
     "vote": "Głosować",
-    "voterBadge": "Głosujący {{bieżący}} / {{łącznie}}",
+    "voterBadge": "Głosujący {{current}} / {{total}}",
     "voteHint": "Stuknij kartę, aby ją rozwinąć, stuknij pole, aby zagłosować",
     "voteCasted": "Głos oddany!",
     "passToVoter": "Podaj wyborcy {{n}}",
@@ -353,7 +353,7 @@
     "openInMaps": "Otwórz w Mapach",
     "shareResult": "Udostępnij wynik",
     "done": "Zrobione",
-    "shareMessage": "Jedziemy do {{name}}! {{adres}}"
+    "shareMessage": "Jedziemy do {{name}}! {{address}}"
   },
   "profile": {
     "change": "Zmiana",
@@ -587,8 +587,8 @@
     "whoIsItFor": "Dla kogo to jest?",
     "aiScores": "Wyniki AI",
     "overallScore": "Ogólnie Logic Plate",
-    "overallShort": "Łącznie {{wynik}}",
-    "distanceAway": "{{odległość}} dalej",
+    "overallShort": "Łącznie {{score}}",
+    "distanceAway": "{{distance}} dalej",
     "openStatus": "Otwarte",
     "closedStatus": "Zamknięte",
     "phone": "Telefon",

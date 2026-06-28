@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { normalizePlaces, healDatabaseRows } from "../_shared/normalizePlaces.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -172,24 +173,24 @@ serve(async (req) => {
 
   const { data: cacheRows } = await supabase
     .from("restaurant_cache")
-    .select("id, restaurants")
+    .select("id, restaurants, fetched_at")
     .in("id", cellIds);
 
+  const healedMap = await healDatabaseRows(supabase, cacheRows || []);
   const supabaseMap = new Map<string, unknown[]>();
-  for (const row of (cacheRows ?? []) as { id: string; restaurants?: unknown }[]) {
-    if (Array.isArray(row.restaurants) && row.restaurants.length > 0) {
-      supabaseMap.set(row.id, row.restaurants);
+  for (const [id, places] of healedMap.entries()) {
+    if (places.length > 0) {
+      supabaseMap.set(id, places);
     }
   }
 
   const localMap = new Map<string, unknown[]>();
   for (const item of localRestaurantCache as { cellId?: unknown; restaurants?: unknown }[]) {
-    if (
-      typeof item.cellId === "string" &&
-      Array.isArray(item.restaurants) &&
-      item.restaurants.length > 0
-    ) {
-      localMap.set(item.cellId, item.restaurants);
+    if (typeof item.cellId === "string" && item.restaurants) {
+      const { places } = normalizePlaces(item.restaurants);
+      if (places.length > 0) {
+        localMap.set(item.cellId, places);
+      }
     }
   }
 

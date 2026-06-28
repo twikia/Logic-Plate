@@ -13,6 +13,7 @@ import {
   markOnboardingComplete,
 } from '@/core/recommendationPrefs';
 import { BackButton } from '@/components/ui/BackButton';
+import { Confetti } from '@/components/ui/Confetti';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -156,16 +157,16 @@ export default function WelcomeOnboardingScreen() {
     setIsCompleting(true);
     hapticSuccess();
 
-    progressVal.value = withTiming(100, { duration: 450, easing: Easing.out(Easing.cubic) });
-    translateY.value = withDelay(450, withTiming(SCREEN_H * 0.38, { duration: 550, easing: Easing.out(Easing.cubic) }));
-    translateX.value = withDelay(450, withTiming(-17, { duration: 550, easing: Easing.out(Easing.cubic) }));
-    scale.value = withDelay(450, withTiming(1.35, { duration: 550, easing: Easing.out(Easing.cubic) }));
-    contentOpacity.value = withDelay(400, withTiming(0, { duration: 300 }));
-    celebrationOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
+    progressVal.value = withTiming(100, { duration: 1500, easing: Easing.out(Easing.cubic) });
+    translateY.value = withDelay(1500, withTiming(SCREEN_H * 0.38, { duration: 800, easing: Easing.out(Easing.cubic) }));
+    translateX.value = withDelay(1500, withTiming(-17, { duration: 800, easing: Easing.out(Easing.cubic) }));
+    scale.value = withDelay(1500, withTiming(0.85, { duration: 800, easing: Easing.out(Easing.cubic) }));
+    contentOpacity.value = withDelay(1400, withTiming(0, { duration: 400 }));
+    celebrationOpacity.value = withDelay(1800, withTiming(1, { duration: 600 }));
 
     setTimeout(() => {
       void finish(cuisines);
-    }, 2450);
+    }, 4500);
   }, [finish, progressVal, translateY, translateX, scale, contentOpacity, celebrationOpacity]);
 
   const setWeight = (key: keyof RecommendationWeights, level: ImportanceLevel) => {
@@ -288,6 +289,7 @@ export default function WelcomeOnboardingScreen() {
 
         {isCompleting && (
           <Animated.View style={[styles.celebrationOverlay, celebrationAnimStyle]}>
+            <Confetti />
             <Text style={[styles.celebrationTitle, { color: theme.text }]}>🎉 {t('onboarding.done', 'All Set!')}</Text>
             <Text style={[styles.celebrationSub, { color: theme.subtext }]}>Starting Platebound...</Text>
           </Animated.View>

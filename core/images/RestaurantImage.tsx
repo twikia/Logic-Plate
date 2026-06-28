@@ -55,6 +55,8 @@ interface Props {
   formattedAddress?: string;
   cuisineKey?: string;
   photoUrl?: string;
+  containHorizontal?: boolean;
+  onImageDimensions?: (w: number, h: number) => void;
 }
 
 type LoadState = 'waiting' | 'loading' | 'loaded' | 'failed';
@@ -103,6 +105,8 @@ function RestaurantImageInner({
   formattedAddress,
   cuisineKey,
   photoUrl,
+  containHorizontal,
+  onImageDimensions,
 }: Props) {
   const { theme } = useAppTheme();
   const frameIconColor = theme.neonColors ? '#042F2E' : theme.subtext;
@@ -198,7 +202,7 @@ function RestaurantImageInner({
         : urls;
       indexRef.current = 0;
 
-      const maxPx = width <= 100 ? Math.min(quality ?? width, 250) : (quality ?? width);
+      const maxPx = quality ?? (width <= 100 ? 300 : width);
 
       if (cached) {
         if (mountedRef.current) {
@@ -224,14 +228,21 @@ function RestaurantImageInner({
 
   const onLoad = useCallback((e?: any) => {
     if (!mountedRef.current || !activeUri) return;
+    const w = e?.source?.width;
+    const h = e?.source?.height;
+    if (w && h && onImageDimensions) {
+      onImageDimensions(w, h);
+    }
     const isSquare = Math.abs(width - height) <= 2;
-    if (!isSquare && e?.source?.width && e?.source?.height && e.source.width > e.source.height) {
-      setImageFit('contain');
+    if (w && h && w > h) {
+      if (containHorizontal || !isSquare) {
+        setImageFit('contain');
+      }
     }
     setState('loaded');
     // Cache the working URL
     cacheImageUrl(restaurantId, activeUri).catch(() => {});
-  }, [activeUri, restaurantId, width, height]);
+  }, [activeUri, restaurantId, width, height, containHorizontal, onImageDimensions]);
 
   const onError = useCallback(() => {
     if (!mountedRef.current) return;
@@ -243,7 +254,7 @@ function RestaurantImageInner({
     const nextIdx = indexRef.current + 1;
     if (nextIdx < candidatesRef.current.length) {
       indexRef.current = nextIdx;
-      const maxPx = width <= 100 ? Math.min(quality ?? width, 250) : (quality ?? width);
+      const maxPx = quality ?? (width <= 100 ? 300 : width);
       const nextUri = adjustQuality(candidatesRef.current[nextIdx], maxPx);
       setActiveUri(nextUri);
     } else {
@@ -293,7 +304,7 @@ function RestaurantImageInner({
       <Image
         source={{ uri: activeUri! }}
         style={{ width, height }}
-        contentFit={Math.abs(width - height) <= 2 ? 'cover' : imageFit}
+        contentFit={(containHorizontal && imageFit === 'contain') ? 'contain' : (Math.abs(width - height) <= 2 ? 'cover' : imageFit)}
         transition={250}
         onLoad={onLoad}
         onError={onError}

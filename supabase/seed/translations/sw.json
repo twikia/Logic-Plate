@@ -266,7 +266,7 @@
       "voteIn": "Kura yako iko katika ✓",
       "hint": "Gusa kadi ili kupanua, kisha upige kura →",
       "end": "Mwisho",
-      "groupMatch": "Mechi ya kikundi {{alama}}",
+      "groupMatch": "Mechi ya kikundi {{score}}",
       "alerts": {
         "endVotingTitle": "Haikuweza kusitisha upigaji kura",
         "saveVoteTitle": "Kura haikuweza kuhifadhiwa"
@@ -299,7 +299,7 @@
     "less": "Chini ▲",
     "details": "Maelezo ▾",
     "vote": "Piga kura",
-    "voterBadge": "Mpiga kura {{current}} / {{jumla}}",
+    "voterBadge": "Mpiga kura {{current}} / {{total}}",
     "voteHint": "Gusa kadi ili kupanua, gusa kisanduku ili upige kura",
     "voteCasted": "Kura imepigwa!",
     "passToVoter": "Pitia kwa Mpiga Kura {{n}}",
@@ -353,11 +353,11 @@
     "openInMaps": "Fungua katika Ramani",
     "shareResult": "Shiriki matokeo",
     "done": "Imekamilika",
-    "shareMessage": "Tutaenda kwa {{name}}! {{anwani}}"
+    "shareMessage": "Tutaenda kwa {{name}}! {{address}}"
   },
   "profile": {
     "change": "Badilika",
-    "greeting": "Hujambo {{jina}}!",
+    "greeting": "Hujambo {{name}}!",
     "guest": "Mgeni",
     "signOut": "Ondoka",
     "sessionError": "Haikuweza kuanzisha kipindi. Angalia muunganisho wako na kuingia kwa Supabase bila kukutambulisha.",
@@ -588,7 +588,7 @@
     "aiScores": "Alama",
     "overallScore": "Bamba la Mantiki la Jumla",
     "overallShort": "{{score}} kwa ujumla",
-    "distanceAway": "{{umbali}} mbali",
+    "distanceAway": "{{distance}} mbali",
     "openStatus": "Fungua",
     "closedStatus": "Imefungwa",
     "phone": "Simu",

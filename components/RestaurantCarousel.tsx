@@ -10,6 +10,9 @@ interface Props {
   borderRadius?: number;
   startIndex?: number;
   autoRotate?: boolean;
+  quality?: number;
+  containHorizontal?: boolean;
+  onImageDimensions?: (w: number, h: number) => void;
 }
 
 function CarouselSlide({
@@ -18,12 +21,18 @@ function CarouselSlide({
   height,
   restaurantId,
   photo,
+  quality,
+  containHorizontal,
+  onImageDimensions,
 }: {
   active: boolean;
   width: number | `${number}%`;
   height: number;
   restaurantId: string;
   photo: any;
+  quality?: number;
+  containHorizontal?: boolean;
+  onImageDimensions?: (w: number, h: number) => void;
 }) {
   const animStyle = useAnimatedStyle(() => ({
     opacity: withTiming(active ? 1 : 0, { duration: 400 }),
@@ -37,12 +46,15 @@ function CarouselSlide({
         width={typeof width === 'number' ? width : 400}
         height={height}
         borderRadius={0}
+        quality={quality}
+        containHorizontal={containHorizontal}
+        onImageDimensions={onImageDimensions}
       />
     </Animated.View>
   );
 }
 
-export function RestaurantCarousel({ place, width, height, borderRadius = 0, startIndex = 0, autoRotate = false }: Props) {
+export function RestaurantCarousel({ place, width, height, borderRadius = 0, startIndex = 0, autoRotate = false, quality, containHorizontal, onImageDimensions }: Props) {
   const [photos, setPhotos] = useState<any[]>(place?.photos || []);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
 
@@ -89,6 +101,9 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
           width={typeof width === 'number' ? width : 400}
           height={height}
           borderRadius={0}
+          quality={quality}
+          containHorizontal={containHorizontal}
+          onImageDimensions={onImageDimensions}
         />
       </View>
     );
@@ -105,6 +120,9 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
             height={height}
             restaurantId={`${place?.id ?? 'unknown'}_${i}`}
             photo={photo}
+            quality={quality}
+            containHorizontal={containHorizontal}
+            onImageDimensions={onImageDimensions}
           />
         ))}
       </View>
@@ -121,6 +139,9 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
           width={typeof width === 'number' ? width : 400}
           height={height}
           borderRadius={0}
+          quality={quality}
+          containHorizontal={containHorizontal}
+          onImageDimensions={onImageDimensions}
         />
       </View>
     );
@@ -141,6 +162,9 @@ export function RestaurantCarousel({ place, width, height, borderRadius = 0, sta
             width={typeof width === 'number' ? width : 400}
             height={height}
             borderRadius={0}
+            quality={quality}
+            containHorizontal={containHorizontal}
+            onImageDimensions={onImageDimensions}
           />
         </View>
       ))}

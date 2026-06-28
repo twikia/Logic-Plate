@@ -42,14 +42,11 @@ export function useDistanceFormatter() {
     return i18n.t('home.walkMin', { count: mins, defaultValue: `${mins} min walk` });
   };
 
-  /** Typical drive in city — lower by 1-2 mins than walk time per user request. */
+  /** Typical drive in city (~24 mph / 38.6 km/h / ~650 m/min) — non-rush hour average. */
   const formatDrivingTime = (meters: number): string => {
     const m = Math.max(0, Math.round(meters));
-    if (m < 80) return i18n.t('home.driveLess1Min', { defaultValue: '< 1 min drive' });
-    const walkMins = Math.floor(m / (4800 / 60));
-    if (walkMins < 1) return i18n.t('home.driveLess1Min', { defaultValue: '< 1 min drive' });
-    const reduction = walkMins > 2 ? 2 : (walkMins > 1 ? 1 : 0);
-    const driveMins = Math.max(1, walkMins - reduction);
+    if (m < 300) return i18n.t('home.driveLess1Min', { defaultValue: '< 1 min drive' });
+    const driveMins = Math.max(1, Math.round(m / 650));
     return i18n.t('home.driveMin', { count: driveMins, defaultValue: `${driveMins} min drive` });
   };
 

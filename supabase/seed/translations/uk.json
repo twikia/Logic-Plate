@@ -175,7 +175,7 @@
     "filters": "Фільтри",
     "filtersCount": "Фільтри ({{count}})",
     "openNow": "Відкрити зараз",
-    "vibeFilter": "Атмосфера · {{сценарій}}",
+    "vibeFilter": "Атмосфера · {{scenario}}",
     "price": "Ціна",
     "rating": "Рейтинг",
     "cuisines": "Кухні",
@@ -353,7 +353,7 @@
     "openInMaps": "Відкрити в Картах",
     "shareResult": "Поділіться результатом",
     "done": "Готово",
-    "shareMessage": "Ми їдемо до {{name}}! {{адреса}}"
+    "shareMessage": "Ми їдемо до {{name}}! {{address}}"
   },
   "profile": {
     "change": "Зміна",

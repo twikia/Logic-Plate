@@ -21,7 +21,7 @@
     "selectAll": "すべて選択",
     "deselectAll": "すべての選択を解除",
     "people": "{{count}} 人",
-    "ppl": "{{数}}人"
+    "ppl": "{{count}}人"
   },
   "home": {
     "titles": [
@@ -175,7 +175,7 @@
     "filters": "フィルター",
     "filtersCount": "フィルタ ({{count}})",
     "openNow": "今すぐオープン",
-    "vibeFilter": "バイブ · {{シナリオ}}",
+    "vibeFilter": "バイブ · {{scenario}}",
     "price": "価格",
     "rating": "評価",
     "cuisines": "料理",
@@ -252,7 +252,7 @@
       "needMore": "開始するにはあと {{count}} 個必要です",
       "ready": "準備完了！",
       "waitingFirst": "最初の応答を待っています…",
-      "shareMessage": "ロジック プレートの投票に参加してください!コード: {{コード}}",
+      "shareMessage": "ロジック プレートの投票に参加してください!コード: {{code}}",
       "errors": {
         "locationRequired": "グループセッションを開始するには場所が必要です。",
         "appSecret": "このアプリのビルドでは EXPO_PUBLIC_APP_SECRET が設定されていません。 create-group-session が許可できるように、Supabase Edge Functions の APP_SECRET シークレットと一致する必要があります。",
@@ -266,7 +266,7 @@
       "voteIn": "あなたの投票は ✓ です",
       "hint": "カードをタップして展開し、投票します →",
       "end": "終わり",
-      "groupMatch": "グループマッチ {{スコア}}",
+      "groupMatch": "グループマッチ {{score}}",
       "alerts": {
         "endVotingTitle": "投票を終了できませんでした",
         "saveVoteTitle": "投票を保存できませんでした"
@@ -299,7 +299,7 @@
     "less": "少ない▲",
     "details": "詳細 ▾",
     "vote": "投票する",
-    "voterBadge": "投票者 {{現在}} / {{合計}}",
+    "voterBadge": "投票者 {{current}} / {{total}}",
     "voteHint": "カードをタップして展開し、ボックスをタップして投票します",
     "voteCasted": "投票しました！",
     "passToVoter": "有権者 {{n}} に渡します",
@@ -353,11 +353,11 @@
     "openInMaps": "マップで開く",
     "shareResult": "結果を共有する",
     "done": "終わり",
-    "shareMessage": "{{name}}に行きます! {{住所}}"
+    "shareMessage": "{{name}}に行きます! {{address}}"
   },
   "profile": {
     "change": "変化",
-    "greeting": "こんにちは、{{名前}}!",
+    "greeting": "こんにちは、{{name}}!",
     "guest": "ゲスト",
     "signOut": "サインアウト",
     "sessionError": "セッションを開始できませんでした。接続と Supabase 匿名サインインを確認してください。",
@@ -587,8 +587,8 @@
     "whoIsItFor": "誰のためのものですか？",
     "aiScores": "スコア",
     "overallScore": "ロジックプレート全体",
-    "overallShort": "総合 {{スコア}}",
-    "distanceAway": "{{距離}}離れています",
+    "overallShort": "総合 {{score}}",
+    "distanceAway": "{{distance}}離れています",
     "openStatus": "開ける",
     "closedStatus": "閉店",
     "phone": "電話",

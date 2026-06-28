@@ -175,7 +175,7 @@
     "filters": "Filtre",
     "filtersCount": "Filtre ({{count}})",
     "openNow": "Deschis acum",
-    "vibeFilter": "Vibe · {{scenariu}}",
+    "vibeFilter": "Vibe · {{scenario}}",
     "price": "Preţ",
     "rating": "Evaluare",
     "cuisines": "Bucătării",
@@ -185,7 +185,7 @@
     "matchingCount": "{{count}} restaurante care se potrivesc cu filtre",
     "expandRadius": "Extindeți Raza",
     "pickOne": "Alegeți unul ({{count}})",
-    "noResultsInRadius": "Nu s-au găsit restaurante în {{raza}}.",
+    "noResultsInRadius": "Nu s-au găsit restaurante în {{radius}}.",
     "locationError": "Accesul la locație este necesar pentru a găsi restaurante din apropiere.\n\nActivați-l în Setări → Confidențialitate → Locație.",
     "loadError": "Ceva a mers prost. Vă rugăm să încercați din nou.",
     "aiMetric": "metrica AI",
@@ -353,7 +353,7 @@
     "openInMaps": "Deschideți în Maps",
     "shareResult": "Partajați rezultatul",
     "done": "Făcut",
-    "shareMessage": "Mergem la {{name}}! {{adresa}}"
+    "shareMessage": "Mergem la {{name}}! {{address}}"
   },
   "profile": {
     "change": "Schimba",
@@ -588,7 +588,7 @@
     "aiScores": "Scoruri",
     "overallScore": "Placă logică generală",
     "overallShort": "{{score}} total",
-    "distanceAway": "{{distanță}} distanță",
+    "distanceAway": "{{distance}} distanță",
     "openStatus": "Deschide",
     "closedStatus": "Închis",
     "phone": "Telefon",

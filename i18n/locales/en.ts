@@ -258,7 +258,7 @@ const en = {
       needMore: 'Need {{count}} more to start',
       ready: 'Ready to go!',
       waitingFirst: 'Waiting for the first response\u2026',
-      shareMessage: 'Join our Logic Plate vote! Code: {{code}}',
+      shareMessage: 'Join our Logic Plate vote! Code: {{name}}',
       errors: {
         locationRequired: 'Location is required to start a group session.',
         appSecret:

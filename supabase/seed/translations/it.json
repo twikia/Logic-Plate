@@ -252,7 +252,7 @@
       "needMore": "Ne servono altri {{count}} per iniziare",
       "ready": "Pronti a partire!",
       "waitingFirst": "In attesa della prima risposta...",
-      "shareMessage": "Unisciti al nostro voto su Logic Plate! Codice: {{codice}}",
+      "shareMessage": "Unisciti al nostro voto su Logic Plate! Codice: {{code}}",
       "errors": {
         "locationRequired": "La posizione è necessaria per avviare una sessione di gruppo.",
         "appSecret": "EXPO_PUBLIC_APP_SECRET non è impostato in questa build dell'app. Deve corrispondere al segreto APP_SECRET sulle funzioni Edge Supabase in modo che create-group-session possa autorizzare.",
@@ -353,11 +353,11 @@
     "openInMaps": "Apri in Mappe",
     "shareResult": "Condividi il risultato",
     "done": "Fatto",
-    "shareMessage": "Andremo a {{name}}! {{indirizzo}}"
+    "shareMessage": "Andremo a {{name}}! {{address}}"
   },
   "profile": {
     "change": "Modifica",
-    "greeting": "Ciao {{nome}}!",
+    "greeting": "Ciao {{name}}!",
     "guest": "Ospite",
     "signOut": "disconnessione",
     "sessionError": "Impossibile avviare una sessione. Controlla la tua connessione e l'accesso anonimo a Supabase.",
@@ -587,8 +587,8 @@
     "whoIsItFor": "Per chi è?",
     "aiScores": "Punteggi",
     "overallScore": "Piastra logica generale",
-    "overallShort": "{{punteggio}} complessivo",
-    "distanceAway": "{{distanza}} di distanza",
+    "overallShort": "{{score}} complessivo",
+    "distanceAway": "{{distance}} di distanza",
     "openStatus": "Aprire",
     "closedStatus": "Chiuso",
     "phone": "Telefono",

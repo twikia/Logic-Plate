@@ -880,6 +880,7 @@ export default function MapScreen() {
                   borderRadius={12}
                   startIndex={1}
                   autoRotate={true}
+                  containHorizontal={true}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -959,6 +960,17 @@ export default function MapScreen() {
               overallScore={sheetOverallScore}
               overallPh={!selectedRestaurant.aiOverview}
             />
+
+            {selectedRestaurant.websiteUri ? (
+              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(selectedRestaurant.websiteUri)}>
+                <View style={styles.infoSectionHeader}>
+                  <Ionicons name="globe-outline" size={15} color="#F9A06F" />
+                  <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('result.viewWebsite', { defaultValue: 'Website' })}</Text>
+                  <Ionicons name="open-outline" size={12} color={theme.subtext} />
+                </View>
+                <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]} numberOfLines={1}>{selectedRestaurant.websiteUri}</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {selectedRestaurant.nationalPhoneNumber ? (
               <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(`tel:${selectedRestaurant.nationalPhoneNumber}`)}>

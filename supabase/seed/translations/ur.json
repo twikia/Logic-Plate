@@ -175,7 +175,7 @@
     "filters": "فلٹرز",
     "filtersCount": "فلٹرز ({{count}})",
     "openNow": "اب کھولیں۔",
-    "vibeFilter": "Vibe · {{ منظر نامہ}}",
+    "vibeFilter": "Vibe · {{scenario}}",
     "price": "قیمت",
     "rating": "درجہ بندی",
     "cuisines": "پکوان",
@@ -185,7 +185,7 @@
     "matchingCount": "{{count}} فلٹرز سے مماثل ریستوراں",
     "expandRadius": "رداس پھیلائیں۔",
     "pickOne": "ایک چنیں ({{count}})",
-    "noResultsInRadius": "{{ریڈیس}} کے اندر کوئی ریستوراں نہیں ملا۔",
+    "noResultsInRadius": "{{radius}} کے اندر کوئی ریستوراں نہیں ملا۔",
     "locationError": "قریبی ریستوراں تلاش کرنے کے لیے مقام تک رسائی درکار ہے۔\n\nاسے ترتیبات → رازداری → مقام میں فعال کریں۔",
     "loadError": "کچھ غلط ہو گیا۔ براہ کرم دوبارہ کوشش کریں۔",
     "aiMetric": "AI میٹرک",
@@ -299,7 +299,7 @@
     "less": "کم ▲",
     "details": "تفصیلات ▾",
     "vote": "ووٹ",
-    "voterBadge": "ووٹر {{موجودہ}} / {{کل}}",
+    "voterBadge": "ووٹر {{current}} / {{total}}",
     "voteHint": "پھیلانے کے لیے کارڈ کو تھپتھپائیں، ووٹ دینے کے لیے باکس کو تھپتھپائیں۔",
     "voteCasted": "ووٹ کاسٹ!",
     "passToVoter": "ووٹر کو پاس کریں {{n}}",
@@ -353,7 +353,7 @@
     "openInMaps": "Maps میں کھولیں۔",
     "shareResult": "نتیجہ شیئر کریں۔",
     "done": "ہو گیا",
-    "shareMessage": "ہم {{name}} پر جا رہے ہیں! {{پتہ}}"
+    "shareMessage": "ہم {{name}} پر جا رہے ہیں! {{address}}"
   },
   "profile": {
     "change": "تبدیلی",

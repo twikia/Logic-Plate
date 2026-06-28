@@ -353,7 +353,7 @@
     "openInMaps": "In Karten öffnen",
     "shareResult": "Ergebnis teilen",
     "done": "Erledigt",
-    "shareMessage": "Wir gehen nach {{name}}! {{Adresse}}"
+    "shareMessage": "Wir gehen nach {{name}}! {{address}}"
   },
   "profile": {
     "change": "Ändern",

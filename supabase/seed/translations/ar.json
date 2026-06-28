@@ -13,15 +13,15 @@
     "openInMaps": "افتح في الخرائط",
     "openInGoogleMaps": "افتح في خرائط جوجل",
     "openInAppleMaps": "افتح في خرائط أبل",
-    "votes": "{{عدد}} من الأصوات",
-    "vote": "{{عدد}} صوت",
+    "votes": "{{count}} من الأصوات",
+    "vote": "{{count}} صوت",
     "refresh": "ينعش",
     "missingScore": "—",
     "notAvailable": "لا يوجد",
     "selectAll": "حدد الكل",
     "deselectAll": "قم بإلغاء تحديد الكل",
-    "people": "{{عدد}} شخص",
-    "ppl": "{{عدد}} شخص آخر"
+    "people": "{{count}} شخص",
+    "ppl": "{{count}} شخص آخر"
   },
   "home": {
     "titles": [
@@ -57,9 +57,9 @@
     "walk": "يمشي",
     "drive": "يقود",
     "walkLess1Min": "<1 دقيقة سيرا على الأقدام",
-    "walkMin": "{{عدد}} دقيقة سيرا على الأقدام",
+    "walkMin": "{{count}} دقيقة سيرا على الأقدام",
     "driveLess1Min": "<1 دقيقة بالسيارة",
-    "driveMin": "{{عدد}} دقيقة بالسيارة",
+    "driveMin": "{{count}} دقيقة بالسيارة",
     "driveShort": "يقود",
     "more": "أكثر"
   },
@@ -175,7 +175,7 @@
     "filters": "المرشحات",
     "filtersCount": "المرشحات ({{count}})",
     "openNow": "افتح الآن",
-    "vibeFilter": "أجواء · {{سيناريو}}",
+    "vibeFilter": "أجواء · {{scenario}}",
     "price": "سعر",
     "rating": "تصنيف",
     "cuisines": "المطابخ",
@@ -252,7 +252,7 @@
       "needMore": "تحتاج إلى {{count}} المزيد للبدء",
       "ready": "على استعداد للذهاب!",
       "waitingFirst": "في انتظار الرد الأول...",
-      "shareMessage": "انضم إلى تصويتنا المنطقي! الكود: {{كود}}",
+      "shareMessage": "انضم إلى تصويتنا المنطقي! الكود: {{code}}",
       "errors": {
         "locationRequired": "الموقع مطلوب لبدء جلسة جماعية.",
         "appSecret": "لم يتم تعيين EXPO_PUBLIC_APP_SECRET في إصدار التطبيق هذا. يجب أن يتطابق مع سر APP_SECRET في وظائف Supabase Edge الخاصة بك حتى تتمكن من ترخيص جلسة إنشاء المجموعة.",
@@ -266,7 +266,7 @@
       "voteIn": "صوتك في ✓",
       "hint": "اضغط على البطاقة للتوسيع، ثم قم بالتصويت ←",
       "end": "نهاية",
-      "groupMatch": "مباراة المجموعة {{النتيجة}}",
+      "groupMatch": "مباراة المجموعة {{score}}",
       "alerts": {
         "endVotingTitle": "لا يمكن إنهاء التصويت",
         "saveVoteTitle": "لا يمكن حفظ التصويت"
@@ -299,7 +299,7 @@
     "less": "أقل ▲",
     "details": "التفاصيل ▾",
     "vote": "تصويت",
-    "voterBadge": "الناخب {{الحالي}} / {{المجموع}}",
+    "voterBadge": "الناخب {{current}} / {{total}}",
     "voteHint": "اضغط على البطاقة للتوسيع، اضغط على المربع للتصويت",
     "voteCasted": "تم التصويت!",
     "passToVoter": "تمرير للناخب {{n}}",
@@ -353,11 +353,11 @@
     "openInMaps": "افتح في الخرائط",
     "shareResult": "مشاركة النتيجة",
     "done": "منتهي",
-    "shareMessage": "نحن ذاهبون إلى {{name}}! {{عنوان}}"
+    "shareMessage": "نحن ذاهبون إلى {{name}}! {{address}}"
   },
   "profile": {
     "change": "يتغير",
-    "greeting": "مرحبًا {{اسم}}!",
+    "greeting": "مرحبًا {{name}}!",
     "guest": "ضيف",
     "signOut": "تسجيل الخروج",
     "sessionError": "تعذر بدء الجلسة. تحقق من اتصالك وتسجيل الدخول المجهول في Supabase.",
@@ -587,8 +587,8 @@
     "whoIsItFor": "لمن هو؟",
     "aiScores": "عشرات",
     "overallScore": "لوحة المنطق الشاملة",
-    "overallShort": "{{النتيجة}} بشكل عام",
-    "distanceAway": "{{مسافة}} على بعد",
+    "overallShort": "{{score}} بشكل عام",
+    "distanceAway": "{{distance}} على بعد",
     "openStatus": "يفتح",
     "closedStatus": "مغلق",
     "phone": "هاتف",

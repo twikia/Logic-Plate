@@ -13,15 +13,15 @@
     "openInMaps": "Mở trong Maps",
     "openInGoogleMaps": "Mở trong Google Maps",
     "openInAppleMaps": "Mở trong Apple Maps",
-    "votes": "{{đếm}} phiếu bầu",
+    "votes": "{{count}} phiếu bầu",
     "vote": "{{count}} phiếu bầu",
     "refresh": "Làm cho khỏe lại",
     "missingScore": "—",
     "notAvailable": "không áp dụng",
     "selectAll": "Chọn tất cả",
     "deselectAll": "Bỏ chọn tất cả",
-    "people": "{{đếm}} người",
-    "ppl": "{{đếm}} người"
+    "people": "{{count}} người",
+    "ppl": "{{count}} người"
   },
   "home": {
     "titles": [
@@ -175,7 +175,7 @@
     "filters": "Bộ lọc",
     "filtersCount": "Bộ lọc ({{count}})",
     "openNow": "Mở ngay bây giờ",
-    "vibeFilter": "Rung cảm · {{kịch bản}}",
+    "vibeFilter": "Rung cảm · {{scenario}}",
     "price": "Giá",
     "rating": "Đánh giá",
     "cuisines": "Món ăn",
@@ -185,7 +185,7 @@
     "matchingCount": "{{count}} nhà hàng phù hợp với bộ lọc",
     "expandRadius": "Mở rộng bán kính",
     "pickOne": "Chọn Một ({{count}})",
-    "noResultsInRadius": "Không tìm thấy nhà hàng nào trong phạm vi {{bán kính}}.",
+    "noResultsInRadius": "Không tìm thấy nhà hàng nào trong phạm vi {{radius}}.",
     "locationError": "Cần có quyền truy cập vị trí để tìm các nhà hàng gần đó.\n\nKích hoạt nó trong Cài đặt → Quyền riêng tư → Vị trí.",
     "loadError": "Đã xảy ra lỗi. Vui lòng thử lại.",
     "aiMetric": "Số liệu AI",
@@ -252,7 +252,7 @@
       "needMore": "Cần thêm {{count}} nữa để bắt đầu",
       "ready": "Sẵn sàng để đi!",
       "waitingFirst": "Đang chờ phản hồi đầu tiên…",
-      "shareMessage": "Hãy tham gia bỏ phiếu Logic Plate của chúng tôi! Mã: {{mã}}",
+      "shareMessage": "Hãy tham gia bỏ phiếu Logic Plate của chúng tôi! Mã: {{code}}",
       "errors": {
         "locationRequired": "Cần có địa điểm để bắt đầu phiên nhóm.",
         "appSecret": "EXPO_PUBLIC_APP_SECRET chưa được đặt trong bản dựng ứng dụng này. Nó phải khớp với bí mật APP_SECRET trên Supabase Edge Function của bạn để phiên tạo nhóm có thể ủy quyền.",
@@ -353,7 +353,7 @@
     "openInMaps": "Mở trong Maps",
     "shareResult": "Chia sẻ kết quả",
     "done": "Xong",
-    "shareMessage": "Chúng ta sẽ đến {{name}}! {{Địa chỉ}}"
+    "shareMessage": "Chúng ta sẽ đến {{name}}! {{address}}"
   },
   "profile": {
     "change": "Thay đổi",
@@ -587,8 +587,8 @@
     "whoIsItFor": "Nó dành cho ai?",
     "aiScores": "Điểm số",
     "overallScore": "Tấm logic tổng thể",
-    "overallShort": "{{điểm}} tổng thể",
-    "distanceAway": "cách đây {{khoảng cách}}",
+    "overallShort": "{{score}} tổng thể",
+    "distanceAway": "cách đây {{distance}}",
     "openStatus": "Mở",
     "closedStatus": "Đã đóng",
     "phone": "Điện thoại",

@@ -175,7 +175,7 @@
     "filters": "ตัวกรอง",
     "filtersCount": "ตัวกรอง ({{count}})",
     "openNow": "เปิดแล้ว",
-    "vibeFilter": "บรรยากาศ · {{สถานการณ์}}",
+    "vibeFilter": "บรรยากาศ · {{scenario}}",
     "price": "ราคา",
     "rating": "เรตติ้ง",
     "cuisines": "อาหาร",
@@ -252,7 +252,7 @@
       "needMore": "ต้องการเพิ่มอีก {{count}} เพื่อเริ่มต้น",
       "ready": "พร้อมลุย!",
       "waitingFirst": "กำลังรอการตอบกลับครั้งแรก...",
-      "shareMessage": "เข้าร่วมการโหวต Logic Plate ของเรา! รหัส: {{รหัส}}",
+      "shareMessage": "เข้าร่วมการโหวต Logic Plate ของเรา! รหัส: {{code}}",
       "errors": {
         "locationRequired": "ต้องระบุตำแหน่งเพื่อเริ่มเซสชันกลุ่ม",
         "appSecret": "EXPO_PUBLIC_APP_SECRET ไม่ได้ตั้งค่าในบิลด์แอปนี้ ต้องตรงกับความลับ APP_SECRET ในฟังก์ชัน Supabase Edge ของคุณเพื่อให้ create-group-session สามารถอนุญาตได้",
@@ -353,7 +353,7 @@
     "openInMaps": "เปิดในแผนที่",
     "shareResult": "แบ่งปันผลลัพธ์",
     "done": "เสร็จแล้ว",
-    "shareMessage": "เรากำลังจะไป {{name}}! {{ที่อยู่}}"
+    "shareMessage": "เรากำลังจะไป {{name}}! {{address}}"
   },
   "profile": {
     "change": "เปลี่ยน",

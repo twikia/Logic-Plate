@@ -175,7 +175,7 @@
     "filters": "过滤器",
     "filtersCount": "过滤器 ({{count}})",
     "openNow": "现已开放",
-    "vibeFilter": "氛围·{{场景}}",
+    "vibeFilter": "氛围·{{scenario}}",
     "price": "价格",
     "rating": "等级",
     "cuisines": "美食",
@@ -252,7 +252,7 @@
       "needMore": "还需要 {{count}} 才能开始",
       "ready": "准备出发！",
       "waitingFirst": "等待第一个回复...",
-      "shareMessage": "加入我们的逻辑板投票！代码：{{代码}}",
+      "shareMessage": "加入我们的逻辑板投票！代码：{{code}}",
       "errors": {
         "locationRequired": "需要位置才能开始小组会议。",
         "appSecret": "此应用程序版本中未设置 EXPO_PUBLIC_APP_SECRET。它必须与 Supabase Edge Functions 上的 APP_SECRET 密钥匹配，以便 create-group-session 可以授权。",
@@ -299,7 +299,7 @@
     "less": "少 ▲",
     "details": "详情▾",
     "vote": "投票",
-    "voterBadge": "选民 {{当前}} / {{总计}}",
+    "voterBadge": "选民 {{current}} / {{total}}",
     "voteHint": "点击卡片展开，点击方框进行投票",
     "voteCasted": "已投票！",
     "passToVoter": "传递给选民 {{n}}",
@@ -353,7 +353,7 @@
     "openInMaps": "在地图中打开",
     "shareResult": "分享结果",
     "done": "完毕",
-    "shareMessage": "我们要去{{name}}！ {{地址}}"
+    "shareMessage": "我们要去{{name}}！ {{address}}"
   },
   "profile": {
     "change": "改变",

@@ -1,6 +1,39 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
 import { clampResolution } from './h3Utils';
+import { pruneStorageCache } from './resultCache';
+
+function normalizeArray(raw: any): any[] {
+  if (!raw) return [];
+  let target = raw;
+  if (!Array.isArray(target)) {
+    if (target && typeof target === 'object') {
+      if (Array.isArray(target.restaurants)) target = target.restaurants;
+      else if (Array.isArray(target.pages)) target = target.pages;
+      else if (Array.isArray(target.places)) target = target.places;
+      else if (Array.isArray(target.results)) target = target.results;
+      else return [];
+    } else return [];
+  }
+  const flat: any[] = [];
+  const flatten = (arr: any[]) => {
+    for (const item of arr) {
+      if (Array.isArray(item)) flatten(item);
+      else if (item && typeof item === 'object') {
+        if (Array.isArray(item.places)) flatten(item.places);
+        else if (item.id || item.name) flat.push(item);
+      }
+    }
+  };
+  flatten(target);
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const p of flat) {
+    const k = String(p.id || p.name || '');
+    if (k && !seen.has(k)) { seen.add(k); out.push(p); }
+  }
+  return out;
+}
 
 /**
  * Phase 3: Cache Read/Write Module
@@ -41,8 +74,9 @@ export const readCacheBulk = async (
       try {
         const parsed = JSON.parse(value);
         const fetchedAt = new Date(parsed.fetched_at).getTime();
-        if (now - fetchedAt < SEVEN_DAYS_MS && Array.isArray(parsed.restaurants) && parsed.restaurants.length > 0) {
-          hits.set(cellId, parsed.restaurants);
+        const restaurants = normalizeArray(parsed.restaurants);
+        if (now - fetchedAt < SEVEN_DAYS_MS && restaurants.length > 0) {
+          hits.set(cellId, restaurants);
         } else {
           l1MissCells.push(cellId);
         }
@@ -77,11 +111,12 @@ export const readCacheBulk = async (
 
         for (const row of data) {
           const fetchedAt = new Date(row.fetched_at).getTime();
-          if (now - fetchedAt < THIRTY_DAYS_MS && Array.isArray(row.restaurants) && row.restaurants.length > 0) {
-            hits.set(row.id, row.restaurants);
+          const restaurants = normalizeArray(row.restaurants);
+          if (now - fetchedAt < THIRTY_DAYS_MS && restaurants.length > 0) {
+            hits.set(row.id, restaurants);
             backfillPairs.push([
               `cell_${row.id}`,
-              JSON.stringify({ restaurants: row.restaurants, fetched_at: new Date().toISOString() }),
+              JSON.stringify({ restaurants, fetched_at: new Date().toISOString() }),
             ]);
           }
         }
@@ -90,7 +125,9 @@ export const readCacheBulk = async (
           try {
             await AsyncStorage.multiSet(backfillPairs);
           } catch (e) {
-            console.error('AsyncStorage multiSet backfill error:', e);
+            console.warn('AsyncStorage multiSet backfill error, pruning cache and retrying:', e);
+            await pruneStorageCache();
+            try { await AsyncStorage.multiSet(backfillPairs); } catch { /* ignore */ }
           }
         }
       }
@@ -137,20 +174,41 @@ export const appendToCache = async (cellId: string, newPlaces: any[]): Promise<v
     if (existing) {
       try {
         const parsed = JSON.parse(existing);
-        existingRestaurants = Array.isArray(parsed.restaurants) ? parsed.restaurants : [];
+        existingRestaurants = normalizeArray(parsed.restaurants);
         fetchedAt = parsed.fetched_at ?? fetchedAt; // preserve original timestamp
       } catch { /* start fresh on parse error */ }
     }
 
+    const cleanNew = normalizeArray(newPlaces);
     const existingIds = new Set(existingRestaurants.map((p: any) => p.id).filter(Boolean));
-    const uniqueNew = newPlaces.filter((p: any) => p.id && !existingIds.has(p.id));
+    const uniqueNew = cleanNew.filter((p: any) => p.id && !existingIds.has(p.id));
 
     if (uniqueNew.length === 0) return; // nothing new to append
 
     const merged = [...existingRestaurants, ...uniqueNew];
     await AsyncStorage.setItem(key, JSON.stringify({ restaurants: merged, fetched_at: fetchedAt }));
   } catch (err) {
-    console.error('AsyncStorage appendToCache error:', err);
+    console.warn('AsyncStorage appendToCache error, pruning storage and retrying:', err);
+    await pruneStorageCache();
+    try {
+      const key = `cell_${cellId}`;
+      const existing = await AsyncStorage.getItem(key);
+      let existingRestaurants: any[] = [];
+      let fetchedAt = new Date().toISOString();
+      if (existing) {
+        try {
+          const parsed = JSON.parse(existing);
+          existingRestaurants = normalizeArray(parsed.restaurants);
+          fetchedAt = parsed.fetched_at ?? fetchedAt;
+        } catch { /* ignore */ }
+      }
+      const cleanNew = normalizeArray(newPlaces);
+      const existingIds = new Set(existingRestaurants.map((p: any) => p.id).filter(Boolean));
+      const uniqueNew = cleanNew.filter((p: any) => p.id && !existingIds.has(p.id));
+      if (uniqueNew.length > 0) {
+        await AsyncStorage.setItem(key, JSON.stringify({ restaurants: [...existingRestaurants, ...uniqueNew], fetched_at: fetchedAt }));
+      }
+    } catch { /* ignore final error */ }
   }
 };
 
@@ -159,12 +217,17 @@ export const appendToCache = async (cellId: string, newPlaces: any[]): Promise<v
  */
 export const writeCache = async (cellId: string, restaurants: any[]) => {
   const fetchedAt = new Date().toISOString();
-  const cachePayload = { restaurants, fetched_at: fetchedAt };
+  const clean = normalizeArray(restaurants);
+  const cachePayload = { restaurants: clean, fetched_at: fetchedAt };
 
   try {
     await AsyncStorage.setItem(`cell_${cellId}`, JSON.stringify(cachePayload));
   } catch (err) {
-    console.error('AsyncStorage write error:', err);
+    console.warn('AsyncStorage write error, pruning storage and retrying:', err);
+    await pruneStorageCache();
+    try {
+      await AsyncStorage.setItem(`cell_${cellId}`, JSON.stringify(cachePayload));
+    } catch { /* ignore final failure */ }
   }
 };
 

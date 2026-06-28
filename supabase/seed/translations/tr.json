@@ -175,7 +175,7 @@
     "filters": "Filtreler",
     "filtersCount": "Filtreler ({{count}})",
     "openNow": "Şimdi aç",
-    "vibeFilter": "Ortam · {{senaryo}}",
+    "vibeFilter": "Ortam · {{scenario}}",
     "price": "Fiyat",
     "rating": "Derecelendirme",
     "cuisines": "Mutfaklar",
@@ -252,7 +252,7 @@
       "needMore": "Başlamak için {{count}} tane daha gerekiyor",
       "ready": "Gitmeye hazırız!",
       "waitingFirst": "İlk yanıtı bekliyorum…",
-      "shareMessage": "Mantık Plakası oyumuza katılın! Kod: {{kod}}",
+      "shareMessage": "Mantık Plakası oyumuza katılın! Kod: {{code}}",
       "errors": {
         "locationRequired": "Grup oturumu başlatmak için konum gereklidir.",
         "appSecret": "EXPO_PUBLIC_APP_SECRET bu uygulama yapısında ayarlanmadı. Create-group-session'ın yetkilendirilebilmesi için Supabase Edge Functions'ınızdaki APP_SECRET sırrıyla eşleşmesi gerekir.",
@@ -299,7 +299,7 @@
     "less": "Daha az ▲",
     "details": "Ayrıntılar ▾",
     "vote": "Oy",
-    "voterBadge": "Seçmen {{güncel}} / {{toplam}}",
+    "voterBadge": "Seçmen {{current}} / {{total}}",
     "voteHint": "Genişletmek için bir karta dokunun, oy vermek için kutuya dokunun",
     "voteCasted": "Oy verildi!",
     "passToVoter": "{{n}} Seçmenine Geç",
@@ -353,7 +353,7 @@
     "openInMaps": "Haritalar'da aç",
     "shareResult": "Sonucu paylaş",
     "done": "Tamamlamak",
-    "shareMessage": "{{name}}'a gidiyoruz! {{adres}}"
+    "shareMessage": "{{name}}'a gidiyoruz! {{address}}"
   },
   "profile": {
     "change": "Değiştirmek",

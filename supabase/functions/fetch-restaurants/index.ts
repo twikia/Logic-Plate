@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { normalizePlaces, healDatabaseRows } from "../_shared/normalizePlaces.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,17 +9,16 @@ const corsHeaders = {
 
 /**
  * Google Places searchText search radius per H3 resolution (meters).
- * These values mirror core/searchConfig.ts → RES7_CELL_SEARCH_RADIUS_METERS etc.
+ * These values mirror core/searchConfig.ts → CELL_SEARCH_RADIUS_BY_RESOLUTION.
  */
 const SEARCH_RADIUS_BY_RESOLUTION: Record<number, number> = {
-  8: 600,
-  7: 1500,
-  6: 4000,
+  8: 1260,
+  7: 3333,
+  6: 8820,
 };
 
 /**
  * Field mask for Google Places API responses.
- * 'nextPageToken' must be included so pagination tokens are returned.
  */
 const PLACES_FIELD_MASK = [
   'places.id',
@@ -57,7 +57,6 @@ const PLACES_FIELD_MASK = [
   'places.delivery',
   'places.liveMusic',
   'places.reservable',
-  'nextPageToken',
 ].join(',');
 
 serve(async (req) => {
@@ -80,14 +79,10 @@ serve(async (req) => {
 
     /**
      * Request shape:
-     *   cells: Array<{ cellId: string; lat?: number; lng?: number; pageToken?: string }>
+     *   cells: Array<{ cellId: string; lat?: number; lng?: number }>
      *   resolution: 6 | 7 | 8
-     *   page: 1 | 2 | 3
-     *
-     * For page 1: cells have lat/lng and no pageToken (fresh search).
-     * For pages 2/3: cells have pageToken (continuation); lat/lng are optional and ignored.
      */
-    const { cells, resolution: rawRes = 7, page = 1 } = body;
+    const { cells, resolution: rawRes = 7 } = body;
     const resolution = Number(rawRes);
 
     if (!cells || !Array.isArray(cells) || cells.length === 0) {
@@ -116,39 +111,47 @@ serve(async (req) => {
     const searchRadius = SEARCH_RADIUS_BY_RESOLUTION[resolution] ?? 1500;
 
     const newlyFetchedRestaurants: { cellId: string; places: any[] }[] = [];
-    const returnedPageTokens: Record<string, string> = {};
     const failedCells: { cellId: string; reason: string }[] = [];
 
-    // Process all cells in parallel
-    await Promise.all(cells.map(async (cell: { cellId: string; lat?: number; lng?: number; pageToken?: string }) => {
-      try {
-        let requestBody: Record<string, unknown>;
+    // Check existing db rows to heal any old paging rows or malformed structures
+    const cellIdsToFetch = cells.map((c: { cellId: string }) => c.cellId);
+    const { data: existingRows } = await supabase
+      .from('restaurant_cache')
+      .select('id, restaurants, fetched_at')
+      .in('id', cellIdsToFetch);
 
-        if (cell.pageToken) {
-          // Continuation page: Google remembers all original search params from the token.
-          // Only the pageToken is required.
-          requestBody = { pageToken: cell.pageToken };
-        } else {
-          // Fresh search using Places API Text Search (supports nextPageToken for pagination).
-          // Default rankPreference is RELEVANCE — Google scores results by quality,
-          // popularity, and match quality across the full locationRestriction circle.
-          // We deliberately do NOT use rankPreference=DISTANCE: that mode is incompatible
-          // with locationRestriction and would pin results to the cell centre rather than
-          // returning the best places anywhere inside the cell.
-          if (cell.lat == null || cell.lng == null) {
-            throw new Error(`Cell ${cell.cellId} is missing lat/lng for a fresh (page 1) search.`);
-          }
-          requestBody = {
-            textQuery: 'restaurant',
-            maxResultCount: 20,
-            locationRestriction: {
-              circle: {
-                center: { latitude: cell.lat, longitude: cell.lng },
-                radius: searchRadius,
-              },
-            },
-          };
+    const healedMap = await healDatabaseRows(supabase, existingRows || []);
+    const now = Date.now();
+
+    // Process all cells in parallel (up to 7 cells)
+    await Promise.all(cells.map(async (cell: { cellId: string; lat?: number; lng?: number }) => {
+      try {
+        if (cell.lat == null || cell.lng == null) {
+          throw new Error(`Cell ${cell.cellId} is missing lat/lng.`);
         }
+
+        const cachedPlaces = healedMap.get(cell.cellId);
+        const existingRow = existingRows?.find((r: { id: string }) => r.id === cell.cellId);
+        if (cachedPlaces && cachedPlaces.length > 0 && existingRow) {
+          const fetchedAt = new Date(existingRow.fetched_at).getTime();
+          // If valid places exist and are less than 30 days old, use healed/cached DB row
+          if (now - fetchedAt < 30 * 24 * 60 * 60 * 1000) {
+            newlyFetchedRestaurants.push({ cellId: cell.cellId, places: cachedPlaces });
+            return;
+          }
+        }
+
+        // Fresh search using Places API Text Search sorted by RELEVANCE (default when omitted)
+        const requestBody = {
+          textQuery: 'restaurant',
+          maxResultCount: 20,
+          locationBias: {
+            circle: {
+              center: { latitude: cell.lat, longitude: cell.lng },
+              radius: searchRadius,
+            },
+          },
+        };
 
         const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
           method: 'POST',
@@ -162,7 +165,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const errorText = await response.text();
-          // Log the raw Google error so it's visible in the Supabase Function logs
           console.error(`[Google API] Cell ${cell.cellId} error ${response.status}:`, errorText);
           let detailedMessage = `Google Places API Error: ${response.status}`;
           try {
@@ -176,59 +178,24 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        const places: any[] = data.places ?? [];
-        const nextPageToken: string | undefined = data.nextPageToken;
+        const rawPlaces: any[] = data.places ?? [];
+        const { places } = normalizePlaces(rawPlaces);
 
         newlyFetchedRestaurants.push({ cellId: cell.cellId, places });
-        if (nextPageToken) {
-          returnedPageTokens[cell.cellId] = nextPageToken;
-        }
 
-        // --- Supabase cache write (always runs, even if client exits) ---
+        // --- Supabase cache write ---
         if (places.length > 0) {
-          if (page === 1) {
-            // Page 1: fresh overwrite of the cell's cache entry
-            const { error: dbError } = await supabase
-              .from('restaurant_cache')
-              .upsert({
-                id: cell.cellId,
-                restaurants: places,
-                fetched_at: new Date().toISOString(),
-              }, { onConflict: 'id' });
-            if (dbError) {
-              console.error(`[page 1] Supabase upsert error for cell ${cell.cellId}:`, dbError.message);
-            }
-          } else {
-            // Pages 2/3: append-merge new places onto the existing DB entry.
-            // Preserves the original fetched_at timestamp from page 1.
-            // This ensures all page results persist in the DB even if the client exits.
-            const { data: existing, error: readErr } = await supabase
-              .from('restaurant_cache')
-              .select('restaurants, fetched_at')
-              .eq('id', cell.cellId)
-              .maybeSingle();
-
-            if (readErr) {
-              console.error(`[page ${page}] Supabase read error for cell ${cell.cellId}:`, readErr.message);
-            } else {
-              const existingPlaces: any[] = existing?.restaurants ?? [];
-              const existingIds = new Set(existingPlaces.map((p: any) => p.id).filter(Boolean));
-              const uniqueNew = places.filter((p: any) => p.id && !existingIds.has(p.id));
-
-              if (uniqueNew.length > 0) {
-                const merged = [...existingPlaces, ...uniqueNew];
-                const { error: updateErr } = await supabase
-                  .from('restaurant_cache')
-                  .update({ restaurants: merged })
-                  .eq('id', cell.cellId);
-                if (updateErr) {
-                  console.error(`[page ${page}] Supabase append error for cell ${cell.cellId}:`, updateErr.message);
-                }
-              }
-            }
+          const { error: dbError } = await supabase
+            .from('restaurant_cache')
+            .upsert({
+              id: cell.cellId,
+              restaurants: places,
+              fetched_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+          if (dbError) {
+            console.error(`Supabase upsert error for cell ${cell.cellId}:`, dbError.message);
           }
         }
-
       } catch (error) {
         console.error(`Failed to fetch places for cell ${cell.cellId}:`, error);
         failedCells.push({
@@ -248,20 +215,15 @@ serve(async (req) => {
     const totalPlacesReturned = newlyFetchedRestaurants.reduce(
       (sum, item) => sum + (item.places?.length ?? 0), 0
     );
-    const hasNextPage = Object.keys(returnedPageTokens).length > 0;
 
     console.log(
-      `[fetch-restaurants] Page ${page} (res ${resolution}): ${cells.length} cells → ` +
-      `${totalPlacesReturned} places. Has next page: ${hasNextPage}.`
+      `[fetch-restaurants] Res ${resolution}: ${cells.length} cells → ${totalPlacesReturned} places.`
     );
 
     return new Response(JSON.stringify({
       newlyFetchedRestaurants,
-      pageTokens: returnedPageTokens,   // { cellId: nextPageToken } — empty if no more pages
       failedCells,
-      page,
       totalPlacesReturned,
-      hasNextPage,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

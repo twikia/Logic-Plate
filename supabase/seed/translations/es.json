@@ -175,7 +175,7 @@
     "filters": "Filtros",
     "filtersCount": "Conteo de Filtros",
     "openNow": "Abierto ahora",
-    "vibeFilter": "Ambiente · {{escenario}}",
+    "vibeFilter": "Ambiente · {{scenario}}",
     "price": "Precio",
     "rating": "Valoración",
     "cuisines": "Cocinas",

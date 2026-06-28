@@ -13,15 +13,15 @@
     "openInMaps": "Buka di Peta",
     "openInGoogleMaps": "Buka di Google Maps",
     "openInAppleMaps": "Buka di Apple Maps",
-    "votes": "{{hitungan}} suara",
-    "vote": "{{hitungan}} suara",
+    "votes": "{{count}} suara",
+    "vote": "{{count}} suara",
     "refresh": "Menyegarkan",
     "missingScore": "—",
     "notAvailable": "T/A",
     "selectAll": "Pilih Semua",
     "deselectAll": "Batalkan pilihan Semua",
-    "people": "{{hitung}} orang",
-    "ppl": "{{hitungan}} hal"
+    "people": "{{count}} orang",
+    "ppl": "{{count}} hal"
   },
   "home": {
     "titles": [
@@ -175,7 +175,7 @@
     "filters": "Filter",
     "filtersCount": "Filter ({{count}})",
     "openNow": "Buka sekarang",
-    "vibeFilter": "Suasana · {{skenario}}",
+    "vibeFilter": "Suasana · {{scenario}}",
     "price": "Harga",
     "rating": "Peringkat",
     "cuisines": "Masakan",
@@ -252,7 +252,7 @@
       "needMore": "Perlu {{count}} lagi untuk memulai",
       "ready": "Siap berangkat!",
       "waitingFirst": "Menunggu tanggapan pertama…",
-      "shareMessage": "Bergabunglah dengan pemungutan suara Logic Plate kami! Kode: {{kode}}",
+      "shareMessage": "Bergabunglah dengan pemungutan suara Logic Plate kami! Kode: {{code}}",
       "errors": {
         "locationRequired": "Lokasi diperlukan untuk memulai sesi grup.",
         "appSecret": "EXPO_PUBLIC_APP_SECRET tidak disetel dalam pembuatan aplikasi ini. Itu harus cocok dengan rahasia APP_SECRET di Supabase Edge Functions Anda sehingga sesi pembuatan grup dapat diotorisasi.",
@@ -299,7 +299,7 @@
     "less": "Kurang ▲",
     "details": "Detail ▾",
     "vote": "Memilih",
-    "voterBadge": "Pemilih {{saat ini}} / {{total}}",
+    "voterBadge": "Pemilih {{current}} / {{total}}",
     "voteHint": "Ketuk kartu untuk diperluas, ketuk kotak untuk memilih",
     "voteCasted": "Pilihlah!",
     "passToVoter": "Berikan kepada Pemilih {{n}}",
@@ -353,11 +353,11 @@
     "openInMaps": "Buka di Peta",
     "shareResult": "Bagikan hasil",
     "done": "Selesai",
-    "shareMessage": "Kita akan ke {{name}}! {{alamat}}"
+    "shareMessage": "Kita akan ke {{name}}! {{address}}"
   },
   "profile": {
     "change": "Mengubah",
-    "greeting": "Hai {{nama}}!",
+    "greeting": "Hai {{name}}!",
     "guest": "Tamu",
     "signOut": "Keluar",
     "sessionError": "Tidak dapat memulai sesi. Periksa koneksi Anda dan proses masuk anonim Supabase.",
@@ -587,8 +587,8 @@
     "whoIsItFor": "Untuk siapa ini?",
     "aiScores": "Skor",
     "overallScore": "Pelat Logika Keseluruhan",
-    "overallShort": "{{skor}} secara keseluruhan",
-    "distanceAway": "{{jarak}} jauhnya",
+    "overallShort": "{{score}} secara keseluruhan",
+    "distanceAway": "{{distance}} jauhnya",
     "openStatus": "Membuka",
     "closedStatus": "Tertutup",
     "phone": "Telepon",
