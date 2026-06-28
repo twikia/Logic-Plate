@@ -33,7 +33,7 @@ newArchEnabled=true
 android.packagingOptions.pickFirsts=**/libworklets.so
 ```
 
-Also pass the architecture flag on the Gradle command (belt-and-suspenders):
+Also pass the architecture flag on the Gradle command (belt-and-suspenders). **Bump `app.json` version fields before every export** (see [Version numbers](#version-numbers-required-before-every-export) below).
 
 ```powershell
 .\gradlew.bat bundleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
@@ -51,9 +51,9 @@ Also pass the architecture flag on the Gradle command (belt-and-suspenders):
 
 If the APK contains `x86`, `x86_64`, or `armeabi-v7a` under `lib/`, the build included extra architectures — fix `gradle.properties` and rebuild.
 
-## Version numbers (required before every store build)
+## Version numbers (required before every export)
 
-All version fields live in `app.json`. **Before starting an iOS or Android release build**, bump them so both platforms stay in sync — even if you are only building one platform this time.
+All version fields live in `app.json`. **Always bump these before exporting** — EAS cloud builds, local Gradle APK/AAB exports, and prebuild. Do not start a release build or Gradle export until the version fields are updated, even if you are only building one platform this time.
 
 | Field | `app.json` path | Example | Rule |
 |-------|-----------------|--------|------|
@@ -113,18 +113,17 @@ Uses the `production` profile in `eas.json` (App Store distribution). No device 
 
 **Each release**
 
-1. Bump version fields in `app.json` (see table above).
-2. Start a remote build (does not wait for completion):
+1. **Bump version fields in `app.json` first** (see table above). Required every time before export.
+2. Build and auto-submit to TestFlight (recommended — uses the App Store Connect API key on EAS; no separate login or manual submit step):
+   ```bash
+   eas build --platform ios --profile production --auto-submit --no-wait --non-interactive
+   ```
+   EAS uploads to App Store Connect when the build finishes. Track progress at [expo.dev builds](https://expo.dev/accounts/twikias-organization/projects/platebound/builds).
+
+3. If auto-submit is not configured yet, build only then submit manually:
    ```bash
    eas build --platform ios --profile production --no-wait
-   ```
-3. Submit to TestFlight when the build finishes:
-   ```bash
    eas submit --platform ios --profile production --latest
-   ```
-   Or combine build + submit:
-   ```bash
-   eas build --platform ios --profile production --auto-submit --no-wait
    ```
    Or click **Submit** on the build page at [expo.dev](https://expo.dev/accounts/twikias-organization/projects/platebound/builds).
 
@@ -136,7 +135,7 @@ Track builds: [expo.dev/accounts/twikias-organization/projects/platebound/builds
 
 **Each release**
 
-1. Bump version fields in `app.json` (see table above).
+1. **Bump version fields in `app.json` first** (see table above). Required every time before export.
 2. Start a remote build:
    ```bash
    eas build --platform android --profile production --no-wait
@@ -152,7 +151,7 @@ For a sideload **APK** instead, use the `preview` profile (`buildType: apk` in `
 
 ### Android — local release AAB (Windows)
 
-For a local Gradle AAB without EAS credits, see [AGENTS.md](./AGENTS.md) → **Local production AAB build (Windows)**. Still bump `app.json` versions first, then run `npx expo prebuild` and the `gradle.properties` overrides documented above.
+For a local Gradle APK/AAB without EAS credits, see [AGENTS.md](./AGENTS.md) → **Local production AAB build (Windows)**. **Bump `app.json` versions first** (always, before every export), then run `npx expo prebuild` and the `gradle.properties` overrides documented above. Copy outputs to `builds/` with a versioned name (e.g. `platebound-2.7-v10.apk`).
 
 ### Build profiles
 
