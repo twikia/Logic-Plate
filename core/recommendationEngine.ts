@@ -1,6 +1,7 @@
 import type { AiOverview } from './aiOverviewCache';
 import { ratingConfidenceCurve } from './ratingCalculator';
 import { isOpenNow } from './isOpenNow';
+import { getPlacePrimaryType, getPlacePriceTier } from './placeFields';
 import {
   bestFavoriteCuisineRankIndex,
   cuisineFitScoreForRank,
@@ -102,6 +103,16 @@ function mealModifierForPrimary(primary: string, meal: MealTypeContext): number 
 }
 
 function rawCheapnessScore(place: any): number {
+  const tier = getPlacePriceTier(place);
+  if (tier != null) {
+    switch (tier) {
+      case 1: return 93;
+      case 2: return 58;
+      case 3: return 26;
+      case 4: return 7;
+      default: break;
+    }
+  }
   switch (place?.priceLevel) {
     case 'PRICE_LEVEL_FREE':
     case 'PRICE_LEVEL_INEXPENSIVE':
@@ -225,6 +236,14 @@ function hardExcludeClosed(place: any): boolean {
   return !isOpenNow(place);
 }
 
+function resolveBusinessStatus(place: any): string {
+  if (place?.businessStatus) return String(place.businessStatus);
+  const operatingStatus = String(place?.operating_status || '').toLowerCase();
+  if (operatingStatus === 'permanently_closed') return 'CLOSED_PERMANENTLY';
+  if (operatingStatus === 'temporarily_closed') return 'CLOSED_TEMPORARILY';
+  return 'OPERATIONAL';
+}
+
 function rawDistanceScore(distanceMeters: number, radiusMeters: number): number {
   if (!Number.isFinite(distanceMeters) || radiusMeters <= 0) return 0;
   const t = Math.min(1, Math.max(0, distanceMeters / radiusMeters));
@@ -232,7 +251,7 @@ function rawDistanceScore(distanceMeters: number, radiusMeters: number): number 
 }
 
 function rawHealthScore(place: any): number {
-  const pt = String(place?.primaryType || 'restaurant').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   const base = HEALTH_BASE[pt] ?? 3;
   let score = base * 20;
   if (place?.servesVegetarianFood === true) score += 10;
@@ -243,18 +262,28 @@ function rawHealthScore(place: any): number {
 
 function rawRatingScore(place: any): number {
   const r = typeof place?.rating === 'number' ? place.rating : 0;
-  if (r === 0) return 0;
-  const rawScore = (r / 5) * 100;
-  const conf = ratingConfidenceCurve(place?.userRatingCount);
-  const baseline = 83; // 4.15 / 5 * 100
-  return conf * rawScore + (1 - conf) * baseline;
+  if (r > 0) {
+    const rawScore = (r / 5) * 100;
+    const conf = ratingConfidenceCurve(place?.userRatingCount);
+    const baseline = 83;
+    return conf * rawScore + (1 - conf) * baseline;
+  }
+
+  const ai = aiOf(place);
+  const taste = aiScore0to5(ai, 'tasteScore', NaN);
+  const value = aiScore0to5(ai, 'valueForMoneyScore', NaN);
+  if (Number.isFinite(taste) && Number.isFinite(value)) {
+    return taste * 0.62 + value * 0.38;
+  }
+  if (Number.isFinite(taste)) return taste;
+  return 42;
 }
 
 function rawSpeedScore(place: any): number {
   const ai = aiOf(place);
   const fromAi = aiScore0to5(ai, 'speedScore', NaN);
   if (Number.isFinite(fromAi)) return fromAi;
-  const pt = String(place?.primaryType || '').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   let score = 45;
   if (pt.includes('fast')) score = 85;
   if (place?.takeout === true) score += 12;
@@ -276,7 +305,7 @@ function rawCalorieScore(place: any): number {
   const ai = aiOf(place);
   const fromAi = aiScore0to10(ai, 'calorieScore', NaN);
   if (Number.isFinite(fromAi)) return fromAi;
-  const pt = String(place?.primaryType || '').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   if (LIGHT_MEAL_TYPES.has(pt)) return 25;
   if (HEAVY_TYPES.has(pt)) return 75;
   return 50;
@@ -295,7 +324,7 @@ function rawCuisineFitScore(place: any, favoriteCuisines: string[]): number {
 }
 
 function groupModifier(place: any, group: SessionGroupChip): number {
-  const pt = String(place?.primaryType || '').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   const big = group === 'small_group' || group === 'big_group';
   const solo = group === 'solo';
 
@@ -314,7 +343,7 @@ function groupModifier(place: any, group: SessionGroupChip): number {
 
 function moodModifier(place: any, mood: SessionMood | null, favoriteCuisines: string[]): number {
   if (!mood) return 0;
-  const pt = String(place?.primaryType || '').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   const fav = placeMatchesFavoriteCuisine(place, favoriteCuisines);
 
   switch (mood) {
@@ -370,7 +399,7 @@ function timeFreshnessModifier(place: any, meal: MealTypeContext, weekendDinnerL
 }
 
 export function isCafeOrDrinkPlace(place: any): boolean {
-  const pt = String(place?.primaryType || '').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   const types = Array.isArray(place?.types) ? place.types.map((t: any) => String(t).toLowerCase()) : [];
   const cafeTypes = ['cafe', 'coffee_shop', 'bakery', 'bar', 'night_club', 'tea_house', 'ice_cream_shop', 'juice_shop', 'dessert_shop', 'dessert_restaurant'];
   if (cafeTypes.includes(pt)) return true;
@@ -382,7 +411,7 @@ export function isCafeOrDrinkPlace(place: any): boolean {
 
 function intentModifier(place: any, intent: LaunchIntentCategory | null): number {
   if (!intent) return 0;
-  const pt = String(place?.primaryType || '').toLowerCase();
+  const pt = getPlacePrimaryType(place);
   const isCafe = isCafeOrDrinkPlace(place);
   
   if (intent === 'cafe_drinks') {
@@ -454,7 +483,7 @@ export function applyRerollDiversityQueue(ranked: ScoredRestaurant[], maxSamePri
   const remaining = ranked.slice(1);
   const out: ScoredRestaurant[] = [];
   const typeCount = new Map<string, number>();
-  const typeKey = (s: ScoredRestaurant) => String(s.place?.primaryType || 'unknown');
+  const typeKey = (s: ScoredRestaurant) => getPlacePrimaryType(s.place);
 
   while (out.length < maxLen && remaining.length > 0) {
     let pickIdx = -1;
@@ -494,9 +523,10 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
   const weekendDinner = weekend && (session.mealType === 'dinner' || session.mealType === 'late_night');
 
   const filtered = places.filter(place => {
-    if (String(place?.businessStatus || 'OPERATIONAL') === 'CLOSED_PERMANENTLY') return false;
+    const businessStatus = resolveBusinessStatus(place);
+    if (businessStatus === 'CLOSED_PERMANENTLY') return false;
     if (!ctx.includeClosed) {
-      if (String(place?.businessStatus || 'OPERATIONAL') !== 'OPERATIONAL') return false;
+      if (businessStatus !== 'OPERATIONAL') return false;
       if (hardExcludeClosed(place)) return false;
     }
     const dm = typeof place?.distanceMeters === 'number' ? place.distanceMeters : Infinity;
@@ -519,7 +549,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
 
     const healthBlend = hRaw * 0.7 + calorieRaw * 0.3;
 
-    const mealM = mealModifierForPrimary(String(place?.primaryType || 'restaurant').toLowerCase(), session.mealType);
+    const mealM = mealModifierForPrimary(getPlacePrimaryType(place), session.mealType);
     const groupM = groupModifier(place, session.groupSize);
     const moodM = moodModifier(place, session.sessionMood, prefs.favoriteCuisines);
     const timeM = timeFreshnessModifier(place, session.mealType, weekendDinner);
@@ -527,7 +557,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
 
     let rainM = 0;
     if (rainyWeather && place?.dineIn === true) {
-      const pt = String(place?.primaryType || '').toLowerCase();
+      const pt = getPlacePrimaryType(place);
       if (COMFORT_MOOD_TYPES.has(pt) || pt.includes('italian')) rainM += 8;
     }
 
@@ -584,11 +614,19 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       weightedParts.novelty;
 
     let plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time + (modifiers as any).intent - mismatchPenalty));
-    
-    // Curving function: range from 75 to 98
-    const t = Math.max(0, Math.min(1, plateboundScore / 100));
-    plateboundScore = 75 + Math.pow(t, 0.65) * 23;
-    plateboundScore = Math.max(75, Math.min(98, plateboundScore));
+
+    const ai = aiOf(place);
+    if (!ai) {
+      plateboundScore -= 28;
+    } else {
+      const taste = aiScore0to5(ai, 'tasteScore', 50);
+      const value = aiScore0to5(ai, 'valueForMoneyScore', 50);
+      const qualityBlend = taste * 0.55 + value * 0.45;
+      plateboundScore = plateboundScore * 0.72 + qualityBlend * 0.28;
+      if (qualityBlend < 45) plateboundScore -= (45 - qualityBlend) * 0.35;
+    }
+
+    plateboundScore = Math.max(0, Math.min(100, plateboundScore));
 
     const raw = {
       distance: dRaw,

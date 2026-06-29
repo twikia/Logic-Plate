@@ -11,6 +11,10 @@ export type CachedPlace = {
   address: string | null;
   city: string | null;
   country: string | null;
+  operating_status?: string | null;
+  businessStatus?: string | null;
+  priceTier?: number | null;
+  regularOpeningHours?: { weekdayDescriptions: string[] } | null;
   location: {
     latitude: number;
     longitude: number;

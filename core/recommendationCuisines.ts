@@ -34,7 +34,7 @@ const PT_MATCHERS: Record<string, string[]> = {
 
 function matcherFor(typesList: string[]): (place: any) => boolean {
   return (place: any) => {
-    const pt = (place?.primaryType || '').toLowerCase();
+    const pt = (place?.primaryType || place?.category || '').toLowerCase();
     const types: string[] = (place?.types || []).map((t: string) => String(t).toLowerCase());
     return typesList.some(x => pt === x || types.includes(x));
   };

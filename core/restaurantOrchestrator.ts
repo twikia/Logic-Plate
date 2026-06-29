@@ -2,7 +2,7 @@ import { getSearchCells, getCellCenter, getCellCentersMap } from './h3Utils';
 import { SEARCH_CONFIG } from './searchConfig';
 import { readCacheBulk, writeCache, type CachedPlace } from './cacheManager';
 import { supabase } from './supabaseClient';
-import { logEdgeFunctionFailure } from './supabaseFunctionErrors';
+import { logEdgeFunctionFailureAsync } from './supabaseFunctionErrors';
 import { checkIsPopulatedArea } from './geoRestriction';
 import {
   getCachedAiOverviewsForPlaces,
@@ -37,10 +37,18 @@ export const RESTAURANT_FETCH_USER_MESSAGE =
 
 export class RestaurantFetchError extends Error {
   readonly name = 'RestaurantFetchError';
-  constructor(message = RESTAURANT_FETCH_USER_MESSAGE, readonly cause?: unknown) {
+  constructor(
+    message = RESTAURANT_FETCH_USER_MESSAGE,
+    readonly cause?: unknown,
+    readonly detail?: string,
+  ) {
     super(message);
   }
 }
+
+export const logRestaurantFetchError = (e: RestaurantFetchError): void => {
+  console.warn('[restaurants]', e.message, e.detail ?? e.cause);
+};
 
 export const isRestaurantLoadSupersededError = (e: unknown): boolean =>
   e instanceof RestaurantLoadSupersededError;
@@ -76,8 +84,27 @@ type FetchRestaurantsPayload = {
 type FetchRestaurantsResponse = {
   newlyFetchedRestaurants: { cellId: string; places: CachedPlace[] }[];
   failedCells?: { cellId: string; reason: string }[];
-  totalPlacesReturned: number;
+  totalPlacesReturned?: number;
+  error?: string;
+  code?: string;
+  statusCode?: number;
 };
+
+function formatFetchResponseDetail(
+  data: FetchRestaurantsResponse | null,
+  context?: string,
+): string {
+  const parts: string[] = [];
+  if (context) parts.push(context);
+  if (data?.statusCode != null) parts.push(`HTTP ${data.statusCode}`);
+  if (data?.code) parts.push(data.code);
+  if (data?.error) parts.push(data.error);
+  if (data?.totalPlacesReturned != null) parts.push(`totalPlacesReturned=${data.totalPlacesReturned}`);
+  if (Array.isArray(data?.failedCells) && data.failedCells.length > 0) {
+    parts.push(`failedCells=${JSON.stringify(data.failedCells)}`);
+  }
+  return parts.join(' — ');
+}
 
 async function invokeFetchRestaurants(
   payload: FetchRestaurantsPayload
@@ -102,6 +129,7 @@ const toPlaceSeed = (place: CachedPlace): PlaceSeed => ({
   category: place.category,
   location: place.location,
   phone: place.phone,
+  price_tier: place.priceTier ?? null,
 });
 
 async function loadNearbyRestaurantsInternal(
@@ -155,9 +183,9 @@ async function loadNearbyRestaurantsInternal(
     const { data, error } = await invokeFetchRestaurants({ cells: cellsPayload });
 
     if (error) {
-      logEdgeFunctionFailure('v2-fetch-restaurants', { data, error });
+      const detail = await logEdgeFunctionFailureAsync('v2-fetch-restaurants', { data, error });
       if (allPlaces.length === 0) {
-        throw new RestaurantFetchError(undefined, error);
+        throw new RestaurantFetchError(undefined, error, detail);
       }
     } else if (data && Array.isArray(data.newlyFetchedRestaurants)) {
       const returnedCount = data.totalPlacesReturned ??
@@ -176,10 +204,14 @@ async function loadNearbyRestaurantsInternal(
       }
 
       if (allPlaces.length === 0) {
-        throw new RestaurantFetchError(undefined, 'v2-fetch-restaurants returned zero places');
+        const detail = formatFetchResponseDetail(data, 'v2-fetch-restaurants returned zero places');
+        console.warn(`[Orchestrator] ${detail}`);
+        throw new RestaurantFetchError(undefined, detail, detail);
       }
     } else if (allPlaces.length === 0) {
-      throw new RestaurantFetchError(undefined, 'v2-fetch-restaurants returned no data');
+      const detail = formatFetchResponseDetail(data, 'v2-fetch-restaurants returned no data');
+      console.warn(`[Orchestrator] ${detail}`);
+      throw new RestaurantFetchError(undefined, detail, detail);
     }
   }
 
@@ -190,18 +222,18 @@ async function loadNearbyRestaurantsInternal(
   onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
   const cellCenters = getCellCentersMap(cellIds);
   const withinRadius = placesWithinRadius(allPlaces, userLat, userLng, safeRadius, cellIds);
+  const aiCachePromise = getCachedAiOverviewsForPlaces(withinRadius.map(toPlaceSeed));
   const visibleList = selectSpreadPlaces(
     withinRadius,
     cellIds,
     cellCenters,
     SEARCH_CONFIG.MAX_DISPLAY_RESULTS
   );
+  const cachedAi = await aiCachePromise;
   console.log(
     `[Orchestrator] Cells [${cellIds.join(', ')}] within ${safeRadius}m: ${withinRadius.length} eligible, showing ${visibleList.length}`
   );
-
   const seeds = visibleList.map(toPlaceSeed);
-  const cachedAi = await getCachedAiOverviewsForPlaces(seeds);
   const baseList = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
   console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${visibleList.length} already enriched`);
 
@@ -241,7 +273,6 @@ async function loadNearbyRestaurantsInternal(
     }
     const enriched = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
     onProgress?.({ stage: 'done', progress: 1 });
-    void runBackgroundAi();
     return enriched;
   }
 

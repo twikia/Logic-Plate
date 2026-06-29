@@ -186,6 +186,15 @@ function hasOpeningHoursData(place: any): boolean {
   return googlePeriodSets(place).length > 0 || weekdayDescriptionSets(place).length > 0;
 }
 
+function isExplicitlyClosed(place: any): boolean {
+  const businessStatus = String(place?.businessStatus || '').toUpperCase();
+  if (businessStatus === 'CLOSED_PERMANENTLY' || businessStatus === 'CLOSED_TEMPORARILY') {
+    return true;
+  }
+  const operatingStatus = String(place?.operating_status || '').toLowerCase();
+  return operatingStatus === 'permanently_closed' || operatingStatus === 'temporarily_closed';
+}
+
 function isOpenFromParsedHours(place: any): boolean {
   const { googleWeekday, nowMins, sunDay } = getPlaceLocalTime(place);
 
@@ -200,9 +209,11 @@ function isOpenFromParsedHours(place: any): boolean {
 }
 
 export function isOpenNow(place: any): boolean {
+  if (isExplicitlyClosed(place)) return false;
   if (hasOpeningHoursData(place)) return isOpenFromParsedHours(place);
   const flagged = openNowFromHoursFields(place);
-  return flagged ?? false;
+  if (flagged !== null) return flagged;
+  return true;
 }
 
 export function isPlaceLikelyOpenNow(place: any): boolean {

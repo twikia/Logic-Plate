@@ -6,9 +6,23 @@ type InvokePayload = {
 function bodyDetail(data: unknown): string | null {
   if (data == null || typeof data !== 'object') return null;
   const o = data as Record<string, unknown>;
-  if (typeof o.detail === 'string' && o.detail.trim()) return o.detail.trim();
-  if (typeof o.error === 'string' && o.error.trim()) return o.error.trim();
-  if (typeof o.message === 'string' && o.message.trim()) return o.message.trim();
+  const parts: string[] = [];
+  if (typeof o.statusCode === 'number') parts.push(`HTTP ${o.statusCode}`);
+  if (typeof o.code === 'string' && o.code.trim()) parts.push(o.code.trim());
+  if (typeof o.detail === 'string' && o.detail.trim()) parts.push(o.detail.trim());
+  if (typeof o.error === 'string' && o.error.trim()) parts.push(o.error.trim());
+  if (typeof o.message === 'string' && o.message.trim()) parts.push(o.message.trim());
+  if (Array.isArray(o.failedCells) && o.failedCells.length > 0) {
+    parts.push(`failedCells=${JSON.stringify(o.failedCells)}`);
+  }
+  return parts.length > 0 ? parts.join(' — ') : null;
+}
+
+function httpStatusFromContext(context: unknown): number | null {
+  if (context == null || typeof context !== 'object') return null;
+  const ctx = context as Record<string, unknown>;
+  if (typeof ctx.status === 'number') return ctx.status;
+  if (typeof ctx.statusCode === 'number') return ctx.statusCode;
   return null;
 }
 
@@ -31,6 +45,8 @@ async function readContextBody(context: unknown): Promise<unknown> {
 
 export function formatEdgeFunctionFailure(fnName: string, { data, error }: InvokePayload): string {
   const parts: string[] = [`${fnName}`];
+  const httpStatus = httpStatusFromContext(error?.context);
+  if (httpStatus != null) parts.push(`HTTP ${httpStatus}`);
   if (error?.message) parts.push(error.message);
   const fromBody = bodyDetail(data);
   if (fromBody && fromBody !== error?.message) parts.push(fromBody);
@@ -43,6 +59,8 @@ export async function formatEdgeFunctionFailureAsync(
   { data, error }: InvokePayload,
 ): Promise<string> {
   const parts: string[] = [`${fnName}`];
+  const httpStatus = httpStatusFromContext(error?.context);
+  if (httpStatus != null) parts.push(`HTTP ${httpStatus}`);
   if (error?.message) parts.push(error.message);
   const contextBody = await readContextBody(error?.context);
   const detail = bodyDetail(contextBody) ?? bodyDetail(data);
@@ -65,6 +83,6 @@ export async function logEdgeFunctionFailureAsync(
   payload: InvokePayload,
 ): Promise<string> {
   const msg = await formatEdgeFunctionFailureAsync(fnName, payload);
-  console.warn(`[edge-function] ${msg}`);
+  console.warn(`[edge-function] ${msg}`, { data: payload.data });
   return msg;
 }

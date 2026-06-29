@@ -29,6 +29,7 @@ export type AiOverview = {
   topMenuItems: Array<{ name: string; price: string; overview: string }>;
   priceTier: number;
   cuisineKey: string;
+  weekdayDescriptions?: string[];
 };
 
 export type PlaceSeed = {
@@ -40,6 +41,7 @@ export type PlaceSeed = {
   category?: string | null;
   location?: { latitude?: number; longitude?: number } | null;
   phone?: string | null;
+  price_tier?: number | null;
 };
 
 type AiOverviewRow = {
@@ -69,9 +71,33 @@ type AiOverviewRow = {
   top_menu_items?: unknown | null;
   price_tier?: number | null;
   cuisine_key?: string | null;
+  weekday_descriptions?: unknown | null;
 };
 
 const localMemory = new Map<string, AiOverview>();
+
+const WEEKDAY_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+] as const;
+
+export function normalizeWeekdayDescriptions(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw) || raw.length !== 7) return undefined;
+  const lines = raw.map((value, index) => {
+    const text = String(value ?? '').trim();
+    if (!text) return '';
+    const prefix = `${WEEKDAY_NAMES[index]}:`;
+    if (text.toLowerCase().startsWith(WEEKDAY_NAMES[index].toLowerCase())) return text;
+    return `${prefix} ${text.replace(/^[^:]+:\s*/, '')}`;
+  });
+  if (lines.some(line => line.length === 0)) return undefined;
+  return lines;
+}
 
 const normalizeRow = (row: AiOverviewRow): AiOverview | null => {
   if (!row.summary_good_bad || !row.absolute_macros || !row.who_this_place_is_for) return null;
@@ -116,6 +142,7 @@ const normalizeRow = (row: AiOverviewRow): AiOverview | null => {
     topMenuItems,
     priceTier: row.price_tier ?? 2,
     cuisineKey: row.cuisine_key ?? 'general',
+    weekdayDescriptions: normalizeWeekdayDescriptions(row.weekday_descriptions),
   };
 };
 
@@ -155,6 +182,7 @@ const fromStorageJson = (value: string | null): AiOverview | null => {
       topMenuItems: Array.isArray(parsed.topMenuItems) ? parsed.topMenuItems : [],
       priceTier: typeof parsed.priceTier === 'number' ? parsed.priceTier : 2,
       cuisineKey: typeof parsed.cuisineKey === 'string' ? parsed.cuisineKey : 'general',
+      weekdayDescriptions: normalizeWeekdayDescriptions(parsed.weekdayDescriptions),
     };
   } catch {
     return null;
@@ -212,21 +240,10 @@ export const getCachedAiOverviewsForPlaces = async (
   }
 
   if (needsStorage.length > 0) {
-    const pairs = await AsyncStorage.multiGet(needsStorage.map(id => `v2_ai_overview_${id}`));
-    const needsDb: string[] = [];
-    for (const [key, value] of pairs) {
-      const gersId = key.replace('v2_ai_overview_', '');
-      const overview = fromStorageJson(value);
-      if (overview) {
-        localMemory.set(gersId, overview);
-        result.set(gersId, overview);
-      } else {
-        needsDb.push(gersId);
-      }
-    }
-
-    if (needsDb.length > 0) {
-      const { data, error } = await supabase
+    const storageKeys = needsStorage.map(id => `v2_ai_overview_${id}`);
+    const [pairs, dbResult] = await Promise.all([
+      AsyncStorage.multiGet(storageKeys),
+      supabase
         .from('v2_ai_overview_cache')
         .select(
           'gers_id, summary_good_bad, speed_score, health_score, workout_recovery_score, ' +
@@ -234,26 +251,39 @@ export const getCachedAiOverviewsForPlaces = async (
           'noise_level_estimate, group_size_sweet_spot, absolute_macros, who_this_place_is_for, ' +
           'taste_score, value_for_money_score, hungover_recovery_score, munchy_score, ' +
           'variety_score, macro_friendly_score, solo_diner_score, energy_sustain_score, ' +
-          'work_friendly_score, top_menu_items, price_tier, cuisine_key'
+          'work_friendly_score, top_menu_items, price_tier, cuisine_key, weekday_descriptions'
         )
-        .in('gers_id', needsDb);
+        .in('gers_id', needsStorage),
+    ]);
 
-      if (!error && data) {
-        console.log(`[AI] Supabase v2_ai_overview_cache: ${data.length} rows returned for ${needsDb.length} GERS IDs`);
-        const backfills: [string, string][] = [];
-        for (const row of (data as unknown as AiOverviewRow[])) {
-          const normalized = normalizeRow(row);
-          if (!normalized) continue;
-          localMemory.set(row.gers_id, normalized);
-          result.set(row.gers_id, normalized);
-          backfills.push([`v2_ai_overview_${row.gers_id}`, JSON.stringify(normalized)]);
-        }
-        if (backfills.length > 0) {
-          AsyncStorage.multiSet(backfills).catch(() => undefined);
-        }
-      } else if (error) {
-        console.warn('[AI] Supabase v2_ai_overview_cache read error:', error.message);
+    const needsDb = new Set(needsStorage);
+    for (const [key, value] of pairs) {
+      const gersId = key.replace('v2_ai_overview_', '');
+      const overview = fromStorageJson(value);
+      if (overview) {
+        localMemory.set(gersId, overview);
+        result.set(gersId, overview);
+        needsDb.delete(gersId);
       }
+    }
+
+    const { data, error } = dbResult;
+    if (!error && data) {
+      console.log(`[AI] Supabase v2_ai_overview_cache: ${data.length} rows returned for ${needsStorage.length} GERS IDs`);
+      const backfills: [string, string][] = [];
+      for (const row of (data as unknown as AiOverviewRow[])) {
+        if (!needsDb.has(row.gers_id)) continue;
+        const normalized = normalizeRow(row);
+        if (!normalized) continue;
+        localMemory.set(row.gers_id, normalized);
+        result.set(row.gers_id, normalized);
+        backfills.push([`v2_ai_overview_${row.gers_id}`, JSON.stringify(normalized)]);
+      }
+      if (backfills.length > 0) {
+        AsyncStorage.multiSet(backfills).catch(() => undefined);
+      }
+    } else if (error) {
+      console.warn('[AI] Supabase v2_ai_overview_cache read error:', error.message);
     }
   }
 
@@ -282,6 +312,7 @@ export const invokeGenerateAiOverviewsForPlaces = async (
       category: p!.category ?? null,
       location: p!.location ?? null,
       phone: p!.phone ?? null,
+      price_tier: (p as { priceTier?: number | null }).priceTier ?? null,
     }));
 
   if (payloadPlaces.length === 0) return out;
@@ -313,7 +344,7 @@ export const invokeGenerateAiOverviewsForPlaces = async (
   return out;
 };
 
-export function mergeAiOverviewsOntoPlaces<T extends { id?: string }>(
+export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: number | null; regularOpeningHours?: { weekdayDescriptions?: string[] } | null }>(
   places: T[],
   aiById: Map<string, AiOverview>
 ): T[] {
@@ -321,13 +352,17 @@ export function mergeAiOverviewsOntoPlaces<T extends { id?: string }>(
     const gersId = place.id;
     const ai = gersId ? aiById.get(gersId) : undefined;
     if (!ai) return { ...place };
+    const hasHours = (place.regularOpeningHours?.weekdayDescriptions?.length ?? 0) > 0;
     return {
       ...place,
       aiOverview: ai,
       healthScore: ai.healthScore,
-      priceTier: ai.priceTier,
+      priceTier: place.priceTier ?? ai.priceTier,
       cuisineKey: ai.cuisineKey,
-      topMenuItems: ai.topMenuItems,
+      topMenuItems: [],
+      ...(hasHours || !ai.weekdayDescriptions?.length
+        ? {}
+        : { regularOpeningHours: { weekdayDescriptions: ai.weekdayDescriptions } }),
     };
   });
 }

@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import {
+  extractOsmField,
+  parseOsmOpeningHours,
+  parseOsmPriceRange,
+} from "../_shared/osmOpeningHours.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,6 +87,10 @@ type OvertureFeature = {
   };
   properties: {
     name?: string;
+    names?: {
+      primary?: string;
+      common?: Record<string, string>;
+    };
     categories?: {
       primary?: string;
       alternate?: string[];
@@ -109,6 +118,12 @@ type OvertureFeature = {
       wikidata?: string;
     };
     sources?: Array<{ property?: string; dataset?: string; record_id?: string }>;
+    operating_status?: string;
+    opening_hours?: unknown;
+    hours?: unknown;
+    price_range?: unknown;
+    price_rating?: unknown;
+    tags?: Record<string, unknown>;
   };
 };
 
@@ -116,6 +131,27 @@ type OvertureApiResponse = {
   features?: OvertureFeature[];
   type?: string;
 };
+
+function parseOvertureFeatures(raw: unknown): OvertureFeature[] {
+  if (Array.isArray(raw)) return raw as OvertureFeature[];
+  if (raw && typeof raw === 'object') {
+    const features = (raw as OvertureApiResponse).features;
+    if (Array.isArray(features)) return features;
+  }
+  return [];
+}
+
+function jsonErrorResponse(
+  status: number,
+  code: string,
+  message: string,
+  extra?: Record<string, unknown>,
+): Response {
+  return new Response(
+    JSON.stringify({ error: message, code, statusCode: status, ...extra }),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  );
+}
 
 type NormalizedPlace = {
   id: string;
@@ -126,11 +162,26 @@ type NormalizedPlace = {
   address: string | null;
   city: string | null;
   country: string | null;
+  operating_status: string;
+  businessStatus: string;
+  priceTier: number | null;
+  regularOpeningHours: { weekdayDescriptions: string[] } | null;
   location: {
     latitude: number;
     longitude: number;
   };
 };
+
+function mapOperatingStatus(raw: string | undefined): { operating_status: string; businessStatus: string } {
+  const normalized = String(raw || 'open').toLowerCase();
+  if (normalized === 'permanently_closed') {
+    return { operating_status: 'permanently_closed', businessStatus: 'CLOSED_PERMANENTLY' };
+  }
+  if (normalized === 'temporarily_closed') {
+    return { operating_status: 'temporarily_closed', businessStatus: 'CLOSED_TEMPORARILY' };
+  }
+  return { operating_status: 'open', businessStatus: 'OPERATIONAL' };
+}
 
 // ─── Normalizer helpers ───────────────────────────────────────────────────────
 
@@ -200,6 +251,18 @@ function extractPhone(props: OvertureFeature['properties']): string | null {
   return null;
 }
 
+function extractPlaceName(props: OvertureFeature['properties']): string {
+  if (props.name?.trim()) return props.name.trim();
+  if (props.names?.primary?.trim()) return props.names.primary.trim();
+  const common = props.names?.common;
+  if (common && typeof common === 'object') {
+    for (const value of Object.values(common)) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  }
+  return '';
+}
+
 function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | null {
   if (!feature?.id || !feature?.geometry?.coordinates) return null;
 
@@ -207,7 +270,7 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   if (typeof lat !== 'number' || typeof lng !== 'number') return null;
 
   const props = feature.properties ?? {};
-  const name = props.name?.trim() || '';
+  const name = extractPlaceName(props);
   if (!name) return null;
 
   const category =
@@ -220,6 +283,16 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const address = addr?.freeform?.trim() || null;
   const city = addr?.locality?.trim() || null;
   const country = addr?.country?.trim() || null;
+  const status = mapOperatingStatus(props.operating_status);
+  const propsRecord = props as Record<string, unknown>;
+
+  const priceRaw = extractOsmField(propsRecord, ['price_range', 'price_rating', 'priceRange', 'priceRating']);
+  const priceTier = parseOsmPriceRange(priceRaw);
+
+  const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
+  const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
+  const regularOpeningHours =
+    weekdayDescriptions.length === 7 ? { weekdayDescriptions } : null;
 
   return {
     id: feature.id,
@@ -230,6 +303,10 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
     address,
     city,
     country,
+    operating_status: status.operating_status,
+    businessStatus: status.businessStatus,
+    priceTier,
+    regularOpeningHours,
     location: { latitude: lat, longitude: lng },
   };
 }
@@ -247,6 +324,7 @@ async function fetchOvertureNearby(
   url.searchParams.set('radius', String(OVERTURE_SEARCH_RADIUS_METERS));
   url.searchParams.set('categories', FOOD_CATEGORIES);
   url.searchParams.set('limit', String(MAX_RESULTS_PER_CELL));
+  url.searchParams.set('format', 'json');
 
   let lastRateLimitError: Error | null = null;
 
@@ -287,11 +365,11 @@ async function fetchOvertureNearby(
       if (!response.ok) {
         const errText = await response.text();
         console.error(`[v2-fetch-restaurants] Overture API error ${response.status}: ${errText.slice(0, 300)}`);
-        throw new Error(`Overture API error: ${response.status}`);
+        throw new Error(`Overture API error ${response.status}: ${errText.slice(0, 200)}`);
       }
 
-      const data: OvertureApiResponse = await response.json();
-      const features = data?.features ?? [];
+      const raw = await response.json();
+      const features = parseOvertureFeatures(raw);
       console.log(`[v2-fetch-restaurants] Overture returned ${features.length} raw features at (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
 
       const places: NormalizedPlace[] = [];
@@ -301,11 +379,19 @@ async function fetchOvertureNearby(
       }
 
       const seen = new Set<string>();
-      return places.filter(p => {
+      const deduped = places.filter(p => {
         if (seen.has(p.id)) return false;
         seen.add(p.id);
         return true;
       });
+
+      if (features.length > 0 && deduped.length === 0) {
+        throw new Error(
+          `Overture returned ${features.length} features but none normalized at (${lat.toFixed(4)}, ${lng.toFixed(4)})`
+        );
+      }
+
+      return deduped;
     } catch (err) {
       clearTimeout(timeout);
       if (err instanceof Error && err.name === 'AbortError') {
@@ -328,10 +414,7 @@ serve(async (req) => {
   const expectedSecret = Deno.env.get('APP_SECRET');
   const incomingSecret = req.headers.get('x-app-secret');
   if (!expectedSecret || incomingSecret !== expectedSecret) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonErrorResponse(401, 'UNAUTHORIZED', 'Unauthorized');
   }
 
   try {
@@ -339,10 +422,7 @@ serve(async (req) => {
     const { cells } = body;
 
     if (!cells || !Array.isArray(cells) || cells.length === 0) {
-      return new Response(JSON.stringify({ error: 'cells array is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonErrorResponse(400, 'INVALID_REQUEST', 'cells array is required');
     }
 
     const overtureApiKey = Deno.env.get('OVERTURE_MAPS_KEY');
@@ -419,10 +499,7 @@ serve(async (req) => {
     );
 
     if (newlyFetchedRestaurants.length === 0 && failedCells.length > 0) {
-      return new Response(JSON.stringify({ error: 'All cells failed', failedCells }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonErrorResponse(500, 'ALL_CELLS_FAILED', 'All cells failed', { failedCells });
     }
 
     const totalPlacesReturned = newlyFetchedRestaurants.reduce(
@@ -439,10 +516,8 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('[v2-fetch-restaurants] Unhandled error:', error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonErrorResponse(500, 'INTERNAL_ERROR', message);
   }
 });

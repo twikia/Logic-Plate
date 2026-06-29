@@ -45,6 +45,7 @@ import {
   getNearbyRestaurants,
   isRestaurantFetchError,
   isRestaurantLoadSupersededError,
+  logRestaurantFetchError,
 } from '../../../core/restaurantOrchestrator';
 import {
   DEFAULT_SEARCH_RADIUS_METERS,
@@ -607,7 +608,7 @@ export default function RandomScreen() {
         return;
       }
       if (isRestaurantFetchError(e)) {
-        if (__DEV__) console.warn('[restaurants]', e.message, e.cause);
+        logRestaurantFetchError(e);
         setErrorMsg(e.message);
         return;
       }

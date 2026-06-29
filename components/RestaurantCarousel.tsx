@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { RestaurantImage, fetchRestaurantPhotoUrls, resolvePhotoUri } from '@/core/images';
+import {
+  getPlaceAddress,
+  getPlaceCuisineKey,
+  getPlaceName,
+  getPlaceWebsiteUrl,
+} from '@/core/placeFields';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 interface Props {
@@ -92,12 +98,12 @@ function RestaurantCarouselInner({ place, width, height, borderRadius = 0, start
   const [currentIndex, setCurrentIndex] = useState(startIndex);
 
   const placeId = place?.id ?? '';
-  const name = place?.displayName?.text;
+  const name = getPlaceName(place);
   const latitude = place?.location?.latitude;
   const longitude = place?.location?.longitude;
-  const websiteUrl = place?.websiteUri;
-  const formattedAddress = place?.formattedAddress;
-  const cuisineKey = place?.primaryType?.replace(/_restaurant$/, '');
+  const websiteUrl = getPlaceWebsiteUrl(place);
+  const formattedAddress = getPlaceAddress(place);
+  const cuisineKey = getPlaceCuisineKey(place);
 
   useEffect(() => {
     let cancelled = false;

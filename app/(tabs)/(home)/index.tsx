@@ -34,6 +34,7 @@ import {
   getNearbyRestaurants,
   isRestaurantFetchError,
   isRestaurantLoadSupersededError,
+  logRestaurantFetchError,
 } from '@/core/restaurantOrchestrator';
 import { fetchRestaurantPhotoUrls } from '@/core/images';
 import {
@@ -44,6 +45,8 @@ import {
 } from '@/core/homeSpotlightState';
 import { pickFunHomeTitle, onHomeTitleReroll } from '@/core/homeTitle';
 import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
+import { calculatePlateboundScore } from '@/core/ratingCalculator';
+import { getPlaceName, getPlaceAddress, getPlaceCuisineKey, getPlaceWebsiteUrl } from '@/core/placeFields';
 import { appendVisit } from '@/core/recommendationVisitHistory';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -654,15 +657,16 @@ function SpotlightCard({
   const { t } = useTranslation();
   const place = scored.place;
   // v2 (Overture) fields with v1 (Google) fallbacks
-  const name = place.name || place.displayName?.text || t('common.unknown');
+  const name = getPlaceName(place) || t('common.unknown');
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
   const { formatDistance, formatWalkingTime, formatDrivingTime } = useDistanceFormatter();
-  const rating = (place.rating != null && place.rating > 0) ? Number(place.rating).toFixed(1) : null;
-  const reviews = place.userRatingCount ?? null;
-  const costLabel = formatRestaurantCostLabel(place); // cascades priceRange → priceLevel → priceTier → '-'
   const ai = place.aiOverview as AiOverview | null | undefined;
+  const overallScore = ai
+    ? calculatePlateboundScore(ai, place.rating, place.priceLevel, place.userRatingCount, place.priceTier ?? ai.priceTier)
+    : null;
+  const costLabel = formatRestaurantCostLabel(place);
   const neonUi = Boolean(theme.neonColors);
   const radarVar = theme.radarVariant ?? 'solid';
 
@@ -829,7 +833,7 @@ function SpotlightCard({
               </Text>
             </View>
           ) : null}
-          {rating ? (
+          {overallScore != null ? (
             <View
               style={[
                 styles.spotlightMetaPill,
@@ -838,10 +842,9 @@ function SpotlightCard({
                   : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
               ]}
             >
-              <Ionicons name="star" size={11} color="#FBBF24" />
-              <Text style={[styles.spotlightMetaText, styles.spotlightMetaRating]}>
-                {rating}
-                {reviews ? ` (${formatReviewCount(reviews)})` : ''}
+              <Ionicons name="ribbon-outline" size={11} color="#C9A0FF" />
+              <Text style={[styles.spotlightMetaText, { color: '#C9A0FF', fontWeight: '800' }]}>
+                {overallScore.toFixed(1)}
               </Text>
             </View>
           ) : null}
@@ -1233,6 +1236,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
       if (!coords) {
         setErrorMsg(i18n.t('home.locationError'));
         setRawPlaces([]);
+        setRanked([]);
         return;
       }
       coordsRef.current = coords;
@@ -1242,24 +1246,23 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
       if (cached && cached.length > 0) {
         hadCachedPlaces = true;
         setRawPlaces(cached);
-        if (!skipLoader) {
-          setIsLoading(false);
-        }
-        snapProgressComplete();
       }
       startFetchPhase();
-      
+
       let all: any[] = [];
       let currentRad = rad;
       let finalCacheKey = cacheKey;
-      
+      const currentPrefs = prefs;
+      const currentSession = session;
+
       while (currentRad <= MAX_SEARCH_RADIUS_METERS) {
         all = await getNearbyRestaurants(
           coords.latitude,
           coords.longitude,
           currentRad,
-          hadCachedPlaces ? undefined : onOrchestratorProgress,
+          skipLoader ? undefined : onOrchestratorProgress,
           {
+            waitForAi: true,
             onAiReady: enriched => {
               void setCachedResults(finalCacheKey, enriched);
               setRawPlaces(enriched);
@@ -1267,38 +1270,53 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
           }
         );
         if (all.length > 0 || currentRad >= MAX_SEARCH_RADIUS_METERS) break;
-        
+
         currentRad = Math.min(currentRad * 2, MAX_SEARCH_RADIUS_METERS);
         finalCacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(currentRad)}`;
         console.log(`[Auto-fallback] No restaurants found, stepping up radius to ${currentRad}m...`);
-        // Force hadCachedPlaces false so progress bar runs for next pass
         hadCachedPlaces = false;
       }
 
       await setCachedResults(finalCacheKey, all);
       setRawPlaces(all);
+
+      if (currentPrefs && currentSession && all.length > 0) {
+        const rainy = await fetchIsLikelyRainNow(coords.latitude, coords.longitude);
+        const scored = scoreRestaurantPool(all, {
+          prefs: currentPrefs,
+          session: currentSession,
+          userLat: coords.latitude,
+          userLng: coords.longitude,
+          rainyWeather: rainy === true ? true : undefined,
+        });
+        const randomizedFeed = applyHomeFeedRandomness(scored);
+        setRanked(randomizedFeed);
+        setRejectedIds(new Set());
+      } else if (all.length === 0) {
+        setRanked([]);
+      }
     } catch (e) {
       if (isRestaurantLoadSupersededError(e)) {
         return;
       }
       if (isRestaurantFetchError(e)) {
-        if (__DEV__) console.warn('[restaurants]', e.message, e.cause);
+        logRestaurantFetchError(e);
       } else {
         if (__DEV__) console.warn('[home load]', e);
       }
       if (!hadCachedPlaces) {
         setErrorMsg(i18n.t('home.loadError'));
         setRawPlaces([]);
+        setRanked([]);
       }
     } finally {
       spotlightLoadingRef.current = false;
       snapProgressComplete();
       if (!skipLoader) {
-        // Small delay to allow state to flush to UI before hiding loader
         setTimeout(() => setIsLoading(false), 50);
       }
     }
-  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase]);
+  }, [onOrchestratorProgress, snapProgressComplete, startFetchPhase, startGpsPhase, prefs, session, i18n]);
 
   loadSpotlightRef.current = loadSpotlight;
 
@@ -1383,16 +1401,16 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
   useEffect(() => {
     for (const item of visibleList) {
       const place = item.place;
-      if (!place?.id || !(place.name || place.displayName?.text) || !place.location) continue;
-      const placeName = place.name || place.displayName?.text;
-      const cuisineKey = place.cuisineKey || place.aiOverview?.cuisineKey || place.category?.replace(/_restaurant$/, '') || place.primaryType?.replace(/_restaurant$/, '') || undefined;
+      if (!place?.id || !getPlaceName(place) || !place.location) continue;
+      const placeName = getPlaceName(place);
+      const cuisineKey = getPlaceCuisineKey(place);
       void fetchRestaurantPhotoUrls({
         placeId: String(place.id),
         name: placeName,
         latitude: place.location.latitude,
         longitude: place.location.longitude,
-        websiteUrl: place.website_url || place.websiteUri || undefined,
-        formattedAddress: place.address || place.formattedAddress || undefined,
+        websiteUrl: getPlaceWebsiteUrl(place),
+        formattedAddress: getPlaceAddress(place),
         cuisineKey,
       });
     }

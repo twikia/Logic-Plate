@@ -12,8 +12,26 @@ const BATCH_SIZE = 5;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/2.0 (v2-ai-overview; contact: support@platebound.app)';
 const MENU_KEYWORDS = ['menu', 'food', 'drink', 'dining', 'eat'];
-const MAX_TEXT_CHARS = 60_000;
+const HOURS_KEYWORDS = ['hours', 'hour', 'opening', 'open-hours', 'schedule', 'contact', 'visit-us', 'location'];
+const MAX_RELEVANT_TEXT_CHARS = 4_000;
+const MAX_HOURS_TEXT_CHARS = 2_500;
 const FETCH_TIMEOUT_MS = 7000;
+const WEEKDAY_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+const MENU_SIGNAL_RE = /\$\d{1,3}(?:\.\d{2})?|\b\d{1,2}\.\d{2}\b|\b\d{1,3}\s*(?:USD|usd)\b/i;
+const MENU_KEYWORD_RE = /\b(menu|appetizer|entree|entrée|dessert|salad|soup|sandwich|burger|pizza|pasta|steak|chicken|fish|seafood|taco|bowl|wrap|brunch|lunch|dinner|special|vegan|vegetarian|gluten|cocktail|wine|beer|beverage|side|platter|combo|sushi|ramen|bbq|grill|bistro|cafe|bakery)\b/i;
+const HOURS_SIGNAL_RE = /\b(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)|midnight|noon|\b24\s*hours?\b|open\s+daily)\b/i;
+const DAY_NAME_RE = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i;
+const BOILERPLATE_RE = /\b(cookie|privacy policy|terms of (use|service)|subscribe|newsletter|follow us|all rights reserved|powered by|accessibility|sitemap|careers|press kit|opt.?out|gdpr|consent|manage preferences|sign up for|join our mailing)\b|©/i;
+const SOCIAL_RE = /\b(instagram|facebook|twitter|tiktok|youtube|linkedin)\b/i;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +44,7 @@ type InputPlace = {
   category?: string | null;
   location?: { latitude?: number; longitude?: number } | null;
   phone?: string | null;
+  price_tier?: number | null;
 };
 
 type AiOverview = {
@@ -55,6 +74,13 @@ type AiOverview = {
   topMenuItems: Array<{ name: string; price: string; overview: string }>;
   priceTier: number;
   cuisineKey: string;
+  weekdayDescriptions: string[];
+};
+
+type ScrapeResult = {
+  menuText: string;
+  hoursText: string;
+  jsonLdWeekdayDescriptions: string[];
 };
 
 // ─── Gemini JSON Schema ───────────────────────────────────────────────────────
@@ -99,6 +125,10 @@ const overviewItemSchema = {
     },
     priceTier: { type: 'INTEGER' },
     cuisineKey: { type: 'STRING' },
+    weekdayDescriptions: {
+      type: 'ARRAY',
+      items: { type: 'STRING' },
+    },
   },
   required: [
     'gersId', 'summaryGoodBad', 'speedScore', 'healthScore', 'workoutRecoveryScore',
@@ -106,7 +136,7 @@ const overviewItemSchema = {
     'noiseLevelEstimate', 'groupSizeSweetSpot', 'absoluteMacros', 'whoThisPlaceIsFor',
     'tasteScore', 'valueForMoneyScore', 'hungoverRecoveryScore', 'munchyScore',
     'varietyScore', 'macroFriendlyScore', 'soloDinerScore', 'energySustainScore',
-    'workFriendlyScore', 'topMenuItems', 'priceTier', 'cuisineKey',
+    'workFriendlyScore', 'priceTier', 'cuisineKey',
   ],
 } as const;
 
@@ -121,10 +151,10 @@ const batchResponseSchema = {
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_INSTRUCTION = `You are generating restaurant AI overviews for Platebound, a restaurant discovery app.
-You will receive up to 5 restaurants per call, each with optional scraped website/menu text.
+You will receive up to 5 restaurants per call with name, category, address, and phone metadata only.
 Return JSON only at the root: an object with a single key "overviews" whose value is an array.
 The array must contain exactly one object per restaurant provided, in the same order.
-Each object must have "gersId" matching that restaurant's GERS ID and all required fields.
+Each object must have "gersId" matching that restaurant's GERS ID and all required score fields.
 
 SCORE RULES:
 1) summaryGoodBad: concise balanced pros and cons, max 320 chars. No marketing fluff.
@@ -149,34 +179,287 @@ SCORE RULES:
 20) soloDinerScore: integer 0-5 (5=most welcoming for solo dining).
 21) energySustainScore: integer 0-5 (5=slow sustained fullness, 0=spike and crash).
 22) workFriendlyScore: integer 0-5 (5=best for laptop work — wifi/seating vibe).
-
-MENU EXTRACTION (from website text if provided):
-23) topMenuItems: array of up to 4 signature dishes found in the website text.
-    Each item: name (exact as on menu), price (exact printed price like "$18.00" or "" if unknown), overview (1-sentence description).
-    CRITICAL: If no actual food items found in website text, return empty array []. DO NOT hallucinate dishes.
-    If website text is empty/unavailable, infer 2-3 typical dishes for this category/cuisine as placeholders (mark price as "").
-24) priceTier: integer 1-4 (1=budget <$15/person, 2=moderate $15-30, 3=pricey $30-60, 4=fine dining $60+).
-    Infer from website text prices if available, else from category and location context.
-25) cuisineKey: single lowercase string from: italian, mexican, american, japanese, chinese, thai, indian,
+23) priceTier: integer 1-4 (1=budget, 2=moderate, 3=pricey, 4=fine dining). Infer from category and any provided price tier hint.
+24) cuisineKey: single lowercase string from: italian, mexican, american, japanese, chinese, thai, indian,
     mediterranean, korean, vietnamese, french, greek, middle_eastern, caribbean, african, latin,
     cafe, bar, pizza, burger, sandwich, seafood, steak, sushi, ramen, bbq, vegan, vegetarian,
     dessert, bakery, fast_food, breakfast, brunch, or "general" if unclear.
 
-IMPORTANT: Use website menu text as primary signal for menu items and pricing. Fall back to category-level knowledge when text is absent. Keep uncertainty explicit.`;
+Do not invent menu items or opening hours. Base scores on category, name, and location context. Keep uncertainty explicit.`;
 
 // ─── Website Scraper (1-Depth) ─────────────────────────────────────────────────
 
-function extractTextFromHtml(html: string): string {
-  // Strip scripts, styles, nav, and footer which are noise
-  const noScript = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
-  const noStyle = noScript.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
-  const noNav = noStyle.replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ');
-  const noFooter = noNav.replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ');
-  const stripped = noFooter.replace(/<[^>]+>/g, ' ');
-  return stripped.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT_CHARS);
+function stripNoisyHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, ' ')
+    .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ')
+    .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ')
+    .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ')
+    .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, ' ')
+    .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, ' ');
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<string> {
+function htmlToLines(html: string): string[] {
+  const withBreaks = stripNoisyHtml(html)
+    .replace(/<(br|hr)\b[^>]*>/gi, '\n')
+    .replace(/<\/(p|div|li|ul|ol|section|article|main|table|tr|td|th|h[1-6])\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
+
+  return withBreaks
+    .split('\n')
+    .map(line => line.replace(/\s+/g, ' ').trim())
+    .filter(line => line.length >= 2);
+}
+
+function scoreHoursLine(line: string): number {
+  let score = 0;
+  if (DAY_NAME_RE.test(line)) score += 5;
+  if (HOURS_SIGNAL_RE.test(line)) score += 4;
+  if (/\bhours?\b|\bopen(?:ing)?\b|\bschedule\b|\bclosed\b/i.test(line)) score += 2;
+  if (BOILERPLATE_RE.test(line)) score -= 8;
+  if (SOCIAL_RE.test(line)) score -= 4;
+  if (MENU_SIGNAL_RE.test(line) && !HOURS_SIGNAL_RE.test(line)) score -= 3;
+  if (line.length > 180 && !DAY_NAME_RE.test(line)) score -= 2;
+  return score;
+}
+
+function scoreMenuLine(line: string): number {
+  let score = 0;
+  if (MENU_SIGNAL_RE.test(line)) score += 5;
+  if (MENU_KEYWORD_RE.test(line)) score += 2;
+  if (BOILERPLATE_RE.test(line)) score -= 8;
+  if (SOCIAL_RE.test(line)) score -= 4;
+  if (line.length > 220 && !MENU_SIGNAL_RE.test(line)) score -= 2;
+  if (/^(home|about|contact|locations?|hours?|gallery|events?)$/i.test(line)) score -= 3;
+  return score;
+}
+
+function selectRelevantLines(lines: string[], maxChars: number, scoreLine: (line: string) => number): string {
+  const deduped: { line: string; score: number }[] = [];
+  const seen = new Set<string>();
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.length < 2) continue;
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const score = scoreLine(line);
+    if (score <= -5) continue;
+    deduped.push({ line, score });
+  }
+
+  if (deduped.length === 0) return '';
+
+  const appendLines = (items: { line: string }[]) => {
+    let text = '';
+    for (const item of items) {
+      const next = text ? `${text}\n${item.line}` : item.line;
+      if (next.length > maxChars) break;
+      text = next;
+    }
+    return text;
+  };
+
+  const strong = deduped.filter(item => item.score >= 4);
+  if (strong.length > 0) {
+    const strongText = appendLines(strong);
+    if (strongText.length >= Math.min(maxChars, 400)) return strongText;
+
+    let text = strongText;
+    for (const item of deduped) {
+      if (item.score >= 4) continue;
+      if (item.score < 1) continue;
+      const next = text ? `${text}\n${item.line}` : item.line;
+      if (next.length > maxChars) break;
+      text = next;
+    }
+    if (text.length > 0) return text;
+  }
+
+  return appendLines(deduped.filter(item => item.score >= 0));
+}
+
+function extractRelevantMenuText(html: string, maxChars = MAX_RELEVANT_TEXT_CHARS): string {
+  if (!html) return '';
+  return selectRelevantLines(htmlToLines(html), maxChars, scoreMenuLine);
+}
+
+function extractRelevantHoursText(html: string, maxChars = MAX_HOURS_TEXT_CHARS): string {
+  if (!html) return '';
+  return selectRelevantLines(htmlToLines(html), maxChars, scoreHoursLine);
+}
+
+function resolveLinkedUrl(href: string, baseUrl: string): string | null {
+  try {
+    const trimmed = href.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('mailto:') || trimmed.startsWith('tel:')) {
+      return null;
+    }
+    return trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).href;
+  } catch {
+    return null;
+  }
+}
+
+function findLinkedPage(homeHtml: string, baseUrl: string, keywords: string[]): string | null {
+  const regex = new RegExp(`href=["']([^"']*(?:${keywords.join('|')})[^"']*)["']`, 'i');
+  const match = regex.exec(homeHtml);
+  if (!match?.[1]) return null;
+  const resolved = resolveLinkedUrl(match[1], baseUrl);
+  if (!resolved || resolved === baseUrl || resolved === `${baseUrl}/`) return null;
+  return resolved;
+}
+
+function dayOfWeekToIndex(value: unknown): number | null {
+  const raw = String(value ?? '').toLowerCase().replace(/.*\//, '').trim();
+  const map: Record<string, number> = {
+    monday: 0, mon: 0,
+    tuesday: 1, tue: 1, tues: 1,
+    wednesday: 2, wed: 2,
+    thursday: 3, thu: 3, thur: 3, thurs: 3,
+    friday: 4, fri: 4,
+    saturday: 5, sat: 5,
+    sunday: 6, sun: 6,
+  };
+  return map[raw] ?? null;
+}
+
+function formatTime12h(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (/^(midnight|12:00\s*am)$/i.test(trimmed)) return '12:00 AM';
+  if (/^noon$/i.test(trimmed)) return '12:00 PM';
+
+  let match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!match) return trimmed;
+
+  let hours = Number.parseInt(match[1], 10);
+  const minutes = match[2];
+  const ampm = match[3]?.toUpperCase();
+
+  if (ampm) {
+    if (ampm === 'PM' && hours !== 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+  }
+
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${hour12}:${minutes} ${suffix}`;
+}
+
+function formatHoursRange(opens: string, closes: string): string {
+  const openText = formatTime12h(opens);
+  const closeText = formatTime12h(closes);
+  if (openText && closeText) return `${openText} – ${closeText}`;
+  if (openText) return `${openText} – Close`;
+  return 'Closed';
+}
+
+function expandDayOfWeek(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(item => expandDayOfWeek(item));
+  }
+  const index = dayOfWeekToIndex(value);
+  return index == null ? [] : [index];
+}
+
+function collectOpeningHoursSpecs(node: unknown, out: Array<{ days: number[]; opens: string; closes: string }>, rawHours: string[]): void {
+  if (!node) return;
+
+  if (Array.isArray(node)) {
+    for (const item of node) collectOpeningHoursSpecs(item, out, rawHours);
+    return;
+  }
+
+  if (typeof node !== 'object') return;
+  const obj = node as Record<string, unknown>;
+
+  if (Array.isArray(obj['@graph'])) {
+    collectOpeningHoursSpecs(obj['@graph'], out, rawHours);
+  }
+
+  const specs = obj.openingHoursSpecification;
+  if (Array.isArray(specs)) {
+    for (const spec of specs) {
+      if (!spec || typeof spec !== 'object') continue;
+      const record = spec as Record<string, unknown>;
+      const days = expandDayOfWeek(record.dayOfWeek);
+      const opens = String(record.opens ?? '').trim();
+      const closes = String(record.closes ?? '').trim();
+      if (days.length === 0) continue;
+      out.push({ days, opens, closes });
+    }
+  }
+
+  const openingHours = obj.openingHours;
+  if (typeof openingHours === 'string' && openingHours.trim()) {
+    rawHours.push(openingHours.trim());
+  } else if (Array.isArray(openingHours)) {
+    for (const entry of openingHours) {
+      if (typeof entry === 'string' && entry.trim()) rawHours.push(entry.trim());
+    }
+  }
+
+  for (const value of Object.values(obj)) {
+    if (value && typeof value === 'object') collectOpeningHoursSpecs(value, out, rawHours);
+  }
+}
+
+function extractJsonLdHoursBundle(html: string): { weekdayDescriptions: string[]; rawHoursText: string } {
+  const regex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const specs: Array<{ days: number[]; opens: string; closes: string }> = [];
+  const rawHours: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(html)) !== null) {
+    try {
+      collectOpeningHoursSpecs(JSON.parse(match[1]), specs, rawHours);
+    } catch {
+      // ignore invalid JSON-LD
+    }
+  }
+
+  const byDay = new Map<number, string[]>();
+  for (const spec of specs) {
+    const range = spec.closes
+      ? formatHoursRange(spec.opens, spec.closes)
+      : spec.opens;
+    for (const day of spec.days) {
+      if (!byDay.has(day)) byDay.set(day, []);
+      const existing = byDay.get(day)!;
+      if (!existing.includes(range)) existing.push(range);
+    }
+  }
+
+  let weekdayDescriptions: string[] = [];
+  if (specs.length > 0) {
+    weekdayDescriptions = WEEKDAY_NAMES.map((dayName, i) => {
+      const ranges = byDay.get(i);
+      return ranges && ranges.length > 0
+        ? `${dayName}: ${ranges.join(', ')}`
+        : `${dayName}: Closed`;
+    });
+    const hasAnyOpen = weekdayDescriptions.some(line => !/:\s*closed$/i.test(line));
+    if (!hasAnyOpen) weekdayDescriptions = [];
+  }
+
+  return {
+    weekdayDescriptions,
+    rawHoursText: rawHours.join('\n'),
+  };
+}
+
+async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -186,69 +469,76 @@ async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Prom
     });
     clearTimeout(timer);
     if (!res.ok) return '';
-    const html = await res.text();
-    return extractTextFromHtml(html);
+    return await res.text();
   } catch {
     clearTimeout(timer);
     return '';
   }
 }
 
-async function scrapeWebsite(websiteUrl: string): Promise<string> {
-  if (!websiteUrl) return '';
+async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
+  const empty: ScrapeResult = { menuText: '', hoursText: '', jsonLdWeekdayDescriptions: [] };
+  if (!websiteUrl) return empty;
 
-  // Fetch 1: Home page
-  let homeText = '';
-  let homeHtml = '';
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(websiteUrl, {
-      headers: { 'User-Agent': FETCH_USER_AGENT, 'Accept': 'text/html' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (res.ok) {
-      homeHtml = await res.text();
-      homeText = extractTextFromHtml(homeHtml);
-    }
-  } catch {
-    clearTimeout(timer);
-    return '';
-  }
+  const homeHtml = await fetchHtmlWithTimeout(websiteUrl);
+  if (!homeHtml) return empty;
 
-  // Fetch 2 (1-depth): Scan home page <a> tags for menu keywords
-  // Only one additional fetch maximum
-  const menuLinkRegex = new RegExp(
-    `href=["']([^"']*(?:${MENU_KEYWORDS.join('|')})[^"']*)["']`,
-    'i'
+  const menuUrl = findLinkedPage(homeHtml, websiteUrl, MENU_KEYWORDS);
+  const hoursUrl = findLinkedPage(homeHtml, websiteUrl, HOURS_KEYWORDS);
+
+  const fetchTargets = new Set<string>();
+  if (menuUrl) fetchTargets.add(menuUrl);
+  if (hoursUrl) fetchTargets.add(hoursUrl);
+
+  const extraHtml = new Map<string, string>();
+  await Promise.all(
+    [...fetchTargets].map(async (url) => {
+      extraHtml.set(url, await fetchHtmlWithTimeout(url, 6000));
+    })
   );
-  const match = menuLinkRegex.exec(homeHtml);
-  let menuText = '';
 
-  if (match?.[1]) {
-    let menuUrl = match[1].trim();
-    // Resolve relative URLs
-    try {
-      if (!menuUrl.startsWith('http')) {
-        menuUrl = new URL(menuUrl, websiteUrl).href;
-      }
-      // Only fetch if it's a different URL than the home page
-      if (menuUrl !== websiteUrl && menuUrl !== websiteUrl + '/') {
-        menuText = await fetchWithTimeout(menuUrl, 6000);
-      }
-    } catch {
-      // ignore invalid URL
-    }
-  }
+  const menuHtml = menuUrl ? extraHtml.get(menuUrl) ?? '' : '';
+  const hoursHtml = hoursUrl ? extraHtml.get(hoursUrl) ?? '' : '';
 
-  const combined = [homeText, menuText].filter(Boolean).join(' ').slice(0, MAX_TEXT_CHARS);
-  return combined;
+  const jsonLdFromAllPages = [homeHtml, menuHtml, hoursHtml].reduce(
+    (acc, html) => {
+      const bundle = extractJsonLdHoursBundle(html);
+      if (acc.weekdayDescriptions.length === 0 && bundle.weekdayDescriptions.length === 7) {
+        acc.weekdayDescriptions = bundle.weekdayDescriptions;
+      }
+      if (bundle.rawHoursText) acc.rawHoursText.push(bundle.rawHoursText);
+      return acc;
+    },
+    { weekdayDescriptions: [] as string[], rawHoursText: [] as string[] }
+  );
+
+  const menuTextFromPage = menuHtml ? extractRelevantMenuText(menuHtml) : '';
+  const menuTextFromHome = extractRelevantMenuText(homeHtml);
+  const menuText = menuTextFromPage.length > 80
+    ? menuTextFromPage
+    : [menuTextFromPage, menuTextFromHome].filter(Boolean).join('\n').slice(0, MAX_RELEVANT_TEXT_CHARS);
+
+  const hoursChunks = [
+    jsonLdFromAllPages.weekdayDescriptions.length === 7
+      ? jsonLdFromAllPages.weekdayDescriptions.join('\n')
+      : '',
+    ...jsonLdFromAllPages.rawHoursText,
+    hoursHtml ? extractRelevantHoursText(hoursHtml) : '',
+    extractRelevantHoursText(homeHtml),
+  ].filter(Boolean);
+
+  const hoursText = [...new Set(hoursChunks)].join('\n').slice(0, MAX_HOURS_TEXT_CHARS);
+
+  return {
+    menuText,
+    hoursText,
+    jsonLdWeekdayDescriptions: jsonLdFromAllPages.weekdayDescriptions,
+  };
 }
 
 // ─── Place Text Block Builder ─────────────────────────────────────────────────
 
-function buildPlaceBlock(place: InputPlace, websiteText: string): string {
+function buildPlaceBlock(place: InputPlace): string {
   return [
     `GERS ID: ${place.gers_id}`,
     `Name: ${place.name}`,
@@ -256,19 +546,14 @@ function buildPlaceBlock(place: InputPlace, websiteText: string): string {
     `Address: ${[place.address, place.city].filter(Boolean).join(', ') || 'Unknown'}`,
     `Phone: ${place.phone || 'Not available'}`,
     `Website: ${place.website_url || 'None'}`,
+    `Price tier hint: ${place.price_tier ?? 'unknown'}`,
     `Lat/Lng: ${place.location?.latitude?.toFixed(5) ?? ''}, ${place.location?.longitude?.toFixed(5) ?? ''}`,
-    `---`,
-    `Website / Menu Text (${websiteText.length} chars):`,
-    websiteText.length > 50 ? websiteText.slice(0, 8000) : '(no website text available)',
   ].join('\n');
 }
 
-function buildBatchPrompt(
-  batch: InputPlace[],
-  texts: string[]
-): string {
+function buildBatchPrompt(batch: InputPlace[]): string {
   const blocks = batch.map((p, i) =>
-    `=== Restaurant ${i + 1} ===\n${buildPlaceBlock(p, texts[i] || '')}`
+    `=== Restaurant ${i + 1} ===\n${buildPlaceBlock(p)}`
   ).join('\n\n');
 
   return `You are given exactly ${batch.length} restaurant(s). Return one JSON object with key "overviews" containing an array of exactly ${batch.length} objects (same order). Each must include "gersId" matching the restaurant's GERS ID and all required score fields.
@@ -278,7 +563,23 @@ ${blocks}`;
 
 // ─── Sanitizer ────────────────────────────────────────────────────────────────
 
-function sanitizeOverview(raw: any): AiOverview | null {
+function sanitizeWeekdayDescriptions(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length !== 7) return [];
+  const lines: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const text = String(raw[i] ?? '').trim();
+    if (!text) return [];
+    const prefix = `${WEEKDAY_NAMES[i]}:`;
+    if (text.toLowerCase().startsWith(WEEKDAY_NAMES[i].toLowerCase())) {
+      lines.push(text.slice(0, 120));
+    } else {
+      lines.push(`${prefix} ${text.replace(/^[^:]+:\s*/, '').slice(0, 100)}`);
+    }
+  }
+  return lines;
+}
+
+function sanitizeOverview(raw: any, priceTierHint?: number | null): AiOverview | null {
   if (!raw || typeof raw !== 'object') return null;
 
   const toInt = (v: any, fallback = 0) => {
@@ -296,15 +597,11 @@ function sanitizeOverview(raw: any): AiOverview | null {
   const whoThisPlaceIsFor = String(raw.whoThisPlaceIsFor ?? '').trim();
   if (!summaryGoodBad || !absoluteMacros || !whoThisPlaceIsFor) return null;
 
-  // Sanitize menu items
-  const rawItems = Array.isArray(raw.topMenuItems) ? raw.topMenuItems : [];
-  const topMenuItems = rawItems.slice(0, 4).map((item: any) => ({
-    name: String(item?.name ?? '').trim().slice(0, 100),
-    price: String(item?.price ?? '').trim().slice(0, 20),
-    overview: String(item?.overview ?? '').trim().slice(0, 200),
-  })).filter((item: { name: string }) => item.name.length > 0);
-
-  const priceTier = clamp(toInt(raw.priceTier, 2), 1, 4);
+  const priceTier = clamp(
+    toInt(raw.priceTier, typeof priceTierHint === 'number' ? priceTierHint : 2),
+    1,
+    4,
+  );
 
   // Validate cuisine key
   const validCuisineKeys = new Set([
@@ -340,17 +637,15 @@ function sanitizeOverview(raw: any): AiOverview | null {
     soloDinerScore: clamp(toInt(raw.soloDinerScore), 0, 5),
     energySustainScore: clamp(toInt(raw.energySustainScore), 0, 5),
     workFriendlyScore: clamp(toInt(raw.workFriendlyScore), 0, 5),
-    topMenuItems,
+    topMenuItems: [],
     priceTier,
     cuisineKey,
+    weekdayDescriptions: [],
   };
 }
 
-// ─── Gemini Batch Call ────────────────────────────────────────────────────────
-
 async function runGeminiBatch(
   batch: InputPlace[],
-  websiteTexts: string[],
   geminiUrl: string
 ): Promise<{ gersId: string; overview: AiOverview }[]> {
   const batchIds = new Set(batch.map(p => p.gers_id));
@@ -361,7 +656,7 @@ async function runGeminiBatch(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch, websiteTexts) }] }],
+      contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch) }] }],
       generationConfig: {
         temperature: 0.2,
         responseMimeType: 'application/json',
@@ -397,7 +692,8 @@ async function runGeminiBatch(
     const gersId = String(item?.gersId ?? '').trim();
     if (!gersId || !batchIds.has(gersId)) continue;
 
-    const overview = sanitizeOverview(item);
+    const place = batch.find(p => p.gers_id === gersId);
+    const overview = sanitizeOverview(item, place?.price_tier ?? null);
     if (!overview) continue;
 
     out.push({ gersId, overview });
@@ -462,30 +758,16 @@ serve(async (req) => {
       });
     }
 
-    // ── Step 2: Scrape websites in parallel (1-depth, timeout-bounded) ────────
-    console.log(`[v2-generate-ai-overview] Scraping websites for ${uncachedPlaces.length} places...`);
-    const websiteTexts = await Promise.all(
-      uncachedPlaces.map(p =>
-        p.website_url ? scrapeWebsite(p.website_url) : Promise.resolve('')
-      )
-    );
-    const scrapedCount = websiteTexts.filter(t => t.length > 50).length;
-    console.log(`[v2-generate-ai-overview] Website scraping done: ${scrapedCount} / ${uncachedPlaces.length} had usable text`);
-
-    // ── Step 3: Batch into groups of 5 and call Gemini ────────────────────────
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-
-    const batches: { places: InputPlace[]; texts: string[] }[] = [];
+    const batches: InputPlace[][] = [];
     for (let i = 0; i < uncachedPlaces.length; i += BATCH_SIZE) {
-      batches.push({
-        places: uncachedPlaces.slice(i, i + BATCH_SIZE),
-        texts: websiteTexts.slice(i, i + BATCH_SIZE),
-      });
+      batches.push(uncachedPlaces.slice(i, i + BATCH_SIZE));
     }
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
 
     console.log(`[v2-generate-ai-overview] Running ${batches.length} Gemini batch(es) of up to ${BATCH_SIZE}...`);
     const perBatch = await Promise.all(
-      batches.map(b => runGeminiBatch(b.places, b.texts, geminiUrl))
+      batches.map(b => runGeminiBatch(b, geminiUrl))
     );
     const generatedOverviews = perBatch.flat();
     console.log(`[v2-generate-ai-overview] Gemini generated ${generatedOverviews.length} overviews`);
@@ -525,6 +807,7 @@ serve(async (req) => {
             top_menu_items: overview.topMenuItems,
             price_tier: overview.priceTier,
             cuisine_key: overview.cuisineKey,
+            weekday_descriptions: overview.weekdayDescriptions.length > 0 ? overview.weekdayDescriptions : null,
             website_url: place?.website_url ?? null,
             updated_at: updatedAt,
           }, { onConflict: 'gers_id' });

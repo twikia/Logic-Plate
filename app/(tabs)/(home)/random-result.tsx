@@ -11,7 +11,6 @@ import {
 } from '@/components/VibeStatsPodium';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { RestaurantImage, fetchRestaurantPhotoUrls } from '@/core/images';
-import { fetchAiMenu } from '@/core/menuCache';
 import { useAppTheme } from '@/context/ThemeContext';
 import { formatWeekdayHours } from '@/core/i18nLabels';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -310,8 +309,6 @@ export default function RandomResultScreen() {
   const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [heroPhotos, setHeroPhotos] = useState<any[]>(place.photos || []);
-  const [menuItems, setMenuItems] = useState<string[]>([]);
-
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
 
   // v2 (Overture) fields with v1 (Google) fallbacks
@@ -378,41 +375,6 @@ export default function RandomResultScreen() {
     loadPhotos();
     return () => { cancelled = true; };
   }, [place]);
-
-  useEffect(() => {
-    // v2: menu items come from aiOverview.topMenuItems (already cached)
-    // v1 fallback: invoke the old generate-ai-menus edge function
-    const aiMenuItems = place.aiOverview?.topMenuItems;
-    if (Array.isArray(aiMenuItems) && aiMenuItems.length > 0) {
-      const formatted = aiMenuItems.map((item: { name: string; price: string; overview: string }) => {
-        const price = item.price && item.price !== '' ? ` - ${item.price}` : '';
-        const desc = item.overview ? `: ${item.overview}` : '';
-        return `${item.name}${price}${desc}`;
-      });
-      setMenuItems(formatted);
-      return;
-    }
-    // v1 fallback
-    let cancelled = false;
-    const loadMenu = async () => {
-      if (!place || !place.id) return;
-      try {
-        const items = await fetchAiMenu(
-          place.id,
-          place.website_url || place.websiteUri || undefined,
-          name,
-          place.category || place.primaryType || undefined
-        );
-        if (!cancelled && Array.isArray(items) && items.length > 0) {
-          setMenuItems(items);
-        }
-      } catch (err) {
-        console.warn('[random-result] Failed to load menu:', err);
-      }
-    };
-    loadMenu();
-    return () => { cancelled = true; };
-  }, [place, name]);
 
   const handleShare = async () => {
     try {
@@ -656,29 +618,6 @@ export default function RandomResultScreen() {
                   </>
                 ) : null}
               </SectionCard>
-            ) : null}
-
-            {menuItems && menuItems.length > 0 ? (
-              <View style={{ marginTop: 12, marginBottom: 4 }}>
-                <SectionCard
-                  title={t('result.top3SignatureItems', { defaultValue: 'Top 3 Signature Items' })}
-                  icon="restaurant-outline"
-                  theme={theme}
-                  accordionKey="menu"
-                  defaultExpanded={true}
-                >
-                  <View style={{ gap: 10 }}>
-                    {menuItems.map((item, idx) => (
-                      <View key={idx} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-                  <Text style={{ fontSize: 14, color: theme.accent, marginTop: 2 }}>
-                    <Text style={styles.emoji3d}>{'\uD83C\uDF7D\uFE0F'}</Text>
-                  </Text>
-                        <TranslatedText text={item} style={[styles.bodyText, { color: theme.text, flex: 1, fontWeight: '600', fontSize: 14 }]} />
-                      </View>
-                    ))}
-                  </View>
-                </SectionCard>
-              </View>
             ) : null}
 
             {!ph ? (

@@ -19,6 +19,7 @@ import {
   getNearbyRestaurants,
   isRestaurantFetchError,
   isRestaurantLoadSupersededError,
+  logRestaurantFetchError,
 } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import {
@@ -32,7 +33,15 @@ import { RestaurantCarousel } from '@/components/RestaurantCarousel';
 import { TranslatedText } from '@/components/ui/TranslatedText';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
-import { formatPlacePriceLabel } from '@/core/placePriceLabel';
+import { formatRestaurantCostLabel, formatPlacePriceLabel } from '@/core/placePriceLabel';
+import {
+  getPlaceAddress,
+  getPlaceName,
+  getPlacePhone,
+  getPlacePrimaryType,
+  getPlaceWebsiteUrl,
+  getPlaceWeekdayDescriptions,
+} from '@/core/placeFields';
 import { isOpenNow } from '@/core/isOpenNow';
 import { RestaurantMapMarker } from '@/components/map/RestaurantMapMarker';
 import { markerIconForPlace } from '@/core/markerIcons';
@@ -53,6 +62,16 @@ function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: 
   if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
   if (sortBy === 'price') return formatPlacePriceLabel(item) || '—';
   if (sortBy === 'rating') {
+    if (item.aiOverview) {
+      const s = calculatePlateboundScore(
+        item.aiOverview,
+        item.rating,
+        item.priceLevel,
+        item.userRatingCount,
+        item.priceTier ?? item.aiOverview?.priceTier,
+      );
+      return s.toFixed(1);
+    }
     return typeof item.rating === 'number' && item.rating > 0 ? item.rating.toFixed(1) : '—';
   }
   if (sortBy === 'overall') {
@@ -369,7 +388,7 @@ export default function MapScreen() {
         return;
       }
       if (isRestaurantFetchError(error)) {
-        if (__DEV__) console.warn('[restaurants]', error.message, error.cause);
+        logRestaurantFetchError(error);
         return;
       }
       console.warn('Error loading restaurants for map:', error);
@@ -627,7 +646,8 @@ export default function MapScreen() {
   const circleCenter = userCoords ?? searchCenter;
 
   void openStatusEpoch;
-  const sheetPriceLabel = selectedRestaurant ? formatPlacePriceLabel(selectedRestaurant) : '';
+  const sheetPriceLabelRaw = selectedRestaurant ? formatRestaurantCostLabel(selectedRestaurant) : '';
+  const sheetPriceLabel = sheetPriceLabelRaw && sheetPriceLabelRaw !== '-' ? sheetPriceLabelRaw : '';
   const sheetOpenNow = selectedRestaurant ? isOpenNow(selectedRestaurant) : false;
   const sheetOverallScore =
     selectedRestaurant?.aiOverview != null
@@ -635,9 +655,18 @@ export default function MapScreen() {
           selectedRestaurant.aiOverview,
           selectedRestaurant.rating,
           selectedRestaurant.priceLevel,
-          selectedRestaurant.userRatingCount
+          selectedRestaurant.userRatingCount,
+          selectedRestaurant.priceTier ?? selectedRestaurant.aiOverview?.priceTier
         )
       : null;
+  const sheetPlaceName = selectedRestaurant ? getPlaceName(selectedRestaurant) : '';
+  const sheetPlaceType = selectedRestaurant
+    ? getPlacePrimaryType(selectedRestaurant).replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    : '';
+  const sheetWebsite = selectedRestaurant ? getPlaceWebsiteUrl(selectedRestaurant) : undefined;
+  const sheetPhone = selectedRestaurant ? getPlacePhone(selectedRestaurant) : undefined;
+  const sheetAddress = selectedRestaurant ? getPlaceAddress(selectedRestaurant) : undefined;
+  const sheetWeekdays = selectedRestaurant ? getPlaceWeekdayDescriptions(selectedRestaurant) : undefined;
   const sheetScrollMaxHeight = sheetSnap === 'full' ? height * 0.72 : height * 0.34;
 
   return (
@@ -885,6 +914,15 @@ export default function MapScreen() {
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
           >
+            <View style={styles.sheetTitleRow}>
+              <Text style={[styles.restaurantName, { color: theme.text, flex: 1, marginBottom: 0 }]}>
+                {sheetPlaceName || t('common.unknown')}
+              </Text>
+              <TouchableOpacity onPress={closeSheet} style={[styles.closeBtn, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.sheetHeader}>
               <View style={{ marginRight: 12 }}>
                 <RestaurantCarousel
@@ -898,19 +936,13 @@ export default function MapScreen() {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.restaurantName, { color: theme.text }]}>
-                  {selectedRestaurant.displayName?.text}
-                </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
                   <Ionicons name={markerIconForPlace(selectedRestaurant)} size={12} color={theme.subtext} />
                   <Text style={[styles.restaurantType, { color: theme.subtext }]}>
-                    {selectedRestaurant.primaryType?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || t('common.restaurant')}
+                    {sheetPlaceType || t('common.restaurant')}
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={closeSheet} style={[styles.closeBtn, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                <Ionicons name="close" size={24} color={theme.text} />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.metaRow}>
@@ -919,10 +951,6 @@ export default function MapScreen() {
                 <Text style={[styles.metaText, { color: theme.text }]}>
                   {sheetOverallScore != null ? t('map.overallShort', { score: sheetOverallScore.toFixed(1) }) : t('common.missingScore')}
                 </Text>
-              </View>
-              <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
-                <Ionicons name="star" size={14} color="#FFD700" />
-                <Text style={[styles.metaText, { color: theme.text }]}>{selectedRestaurant.rating?.toFixed(1) || t('common.notAvailable')}</Text>
               </View>
               <View style={[styles.metaPill, { backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
                 <Ionicons name="navigate-outline" size={14} color="#F9A06F" />
@@ -975,32 +1003,32 @@ export default function MapScreen() {
               overallPh={!selectedRestaurant.aiOverview}
             />
 
-            {selectedRestaurant.websiteUri ? (
-              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(selectedRestaurant.websiteUri)}>
+            {sheetWebsite ? (
+              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(sheetWebsite)}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="globe-outline" size={15} color="#F9A06F" />
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('result.viewWebsite', { defaultValue: 'Website' })}</Text>
                   <Ionicons name="open-outline" size={12} color={theme.subtext} />
                 </View>
-                <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]} numberOfLines={1}>{selectedRestaurant.websiteUri}</Text>
+                <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]} numberOfLines={1}>{sheetWebsite}</Text>
               </TouchableOpacity>
             ) : null}
 
-            {selectedRestaurant.nationalPhoneNumber ? (
-              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(`tel:${selectedRestaurant.nationalPhoneNumber}`)}>
+            {sheetPhone ? (
+              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(`tel:${sheetPhone}`)}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="call-outline" size={15} color="#F9A06F" />
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.phone')}</Text>
                   <Ionicons name="open-outline" size={12} color={theme.subtext} />
                 </View>
-                <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]}>{selectedRestaurant.nationalPhoneNumber}</Text>
+                <Text style={[styles.infoSectionBody, { color: '#F9A06F' }]}>{sheetPhone}</Text>
               </TouchableOpacity>
             ) : null}
 
-            {selectedRestaurant.formattedAddress ? (
+            {sheetAddress ? (
               <TouchableOpacity
                 style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}
-                onPress={() => Clipboard.setStringAsync(selectedRestaurant.formattedAddress)}
+                onPress={() => Clipboard.setStringAsync(sheetAddress)}
                 activeOpacity={0.7}
               >
                 <View style={styles.infoSectionHeader}>
@@ -1008,22 +1036,17 @@ export default function MapScreen() {
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.address')}</Text>
                   <Ionicons name="copy-outline" size={12} color={theme.subtext} />
                 </View>
-                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{selectedRestaurant.formattedAddress}</Text>
+                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{sheetAddress}</Text>
               </TouchableOpacity>
             ) : null}
 
-            {(selectedRestaurant.currentOpeningHours?.weekdayDescriptions?.length
-              ? selectedRestaurant.currentOpeningHours.weekdayDescriptions
-              : selectedRestaurant.regularOpeningHours?.weekdayDescriptions)?.length ? (
+            {sheetWeekdays?.length ? (
               <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="time-outline" size={15} color="#F9A06F" />
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.hours')}</Text>
                 </View>
-                {(selectedRestaurant.currentOpeningHours?.weekdayDescriptions?.length
-                  ? selectedRestaurant.currentOpeningHours.weekdayDescriptions
-                  : selectedRestaurant.regularOpeningHours?.weekdayDescriptions
-                ).map((line: string, i: number) => {
+                {sheetWeekdays.map((line: string, i: number) => {
                   const todayIdx = (new Date().getDay() + 6) % 7;
                   return (
                     <Text key={i} style={[styles.infoSectionBody, { color: i === todayIdx ? '#4CD964' : theme.subtext, fontWeight: i === todayIdx ? '700' : '400' }]}>{formatWeekdayHours(line)}</Text>
@@ -1048,7 +1071,7 @@ export default function MapScreen() {
             },
           ]}
           onPress={() => openMaps(
-            selectedRestaurant.displayName?.text,
+            sheetPlaceName,
             selectedRestaurant.location.latitude,
             selectedRestaurant.location.longitude
           )}
@@ -1131,6 +1154,7 @@ const styles = StyleSheet.create({
   sheetHandle: { width: 60, height: 6, borderRadius: 3 },
   sheetScrollView: { flex: 1 },
   sheetContent: { paddingHorizontal: 24 },
+  sheetTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, gap: 12 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   closeBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   restaurantName: { fontSize: 24, fontWeight: '800', marginBottom: 4 },
