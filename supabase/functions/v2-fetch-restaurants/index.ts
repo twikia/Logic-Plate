@@ -5,6 +5,7 @@ import {
   parseOsmOpeningHours,
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
+import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,34 +25,79 @@ const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
 const MAX_RESULTS_PER_CELL = 350;
 
+// NOTE: core/markerIcons.ts already has icon mappings for dozens of these
+// categories, meaning the app has always expected them to appear — they were
+// just never requested from Overture. Widening this list directly improves
+// perceived coverage (sushi, pubs, wine bars, chains, etc. were being
+// silently excluded from every search).
 const FOOD_CATEGORIES = [
   'restaurant',
   'fast_food_restaurant',
   'cafe',
   'coffee_shop',
+  'tea_house',
   'bar',
+  'cocktail_bar',
+  'lounge',
+  'night_club',
+  'wine_bar',
+  'pub',
+  'beer_garden',
+  'sports_bar',
+  'brewery',
   'pizza_restaurant',
   'hamburger_restaurant',
   'sandwich_shop',
+  'hot_dog_restaurant',
+  'food_court',
+  'food_truck',
+  'deli',
+  'bagel_shop',
   'ice_cream_shop',
   'bakery',
   'dessert_shop',
   'dessert_restaurant',
   'donut_shop',
+  'candy_store',
   'steak_house',
+  'fine_dining_restaurant',
+  'buffet_restaurant',
+  'diner',
   'seafood_restaurant',
   'american_restaurant',
+  'barbecue_restaurant',
   'breakfast_restaurant',
   'brunch_restaurant',
   'italian_restaurant',
   'japanese_restaurant',
+  'sushi_restaurant',
+  'ramen_restaurant',
+  'poke_restaurant',
   'korean_restaurant',
-  'mexican_restaurant',
+  'chinese_restaurant',
+  'vietnamese_restaurant',
   'thai_restaurant',
+  'indian_restaurant',
+  'mexican_restaurant',
+  'mediterranean_restaurant',
+  'greek_restaurant',
+  'middle_eastern_restaurant',
+  'lebanese_restaurant',
+  'turkish_restaurant',
+  'french_restaurant',
+  'spanish_restaurant',
+  'tapas_restaurant',
+  'chicken_restaurant',
+  'health_food_restaurant',
+  'salad_shop',
   'vegetarian_restaurant',
   'vegan_restaurant',
+  'juice_shop',
+  'acai_shop',
+  'smoothie_bar',
   'food_and_drink',
   'meal_takeaway',
+  'meal_delivery',
 ].join(',');
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -161,11 +207,15 @@ type NormalizedPlace = {
   phone: string | null;
   address: string | null;
   city: string | null;
+  region: string | null;
+  postcode: string | null;
   country: string | null;
   operating_status: string;
   businessStatus: string;
   priceTier: number | null;
   regularOpeningHours: { weekdayDescriptions: string[] } | null;
+  /** All non-core Overture facts as prompt-ready lines (names, categories, tags, brand, socials, etc.). */
+  attributes: string[];
   location: {
     latitude: number;
     longitude: number;
@@ -263,6 +313,145 @@ function extractPlaceName(props: OvertureFeature['properties']): string {
   return '';
 }
 
+function formatOvertureValue(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map(item => formatOvertureValue(item))
+      .filter((v): v is string => !!v);
+    return parts.length > 0 ? parts.join(', ') : null;
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function collectStringValues(value: unknown, out: string[]): void {
+  if (typeof value === 'string' && value.trim()) {
+    out.push(value.trim());
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStringValues(item, out);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    for (const key of ['url', 'value', 'uri', 'href', 'phone', 'email']) {
+      if (typeof obj[key] === 'string' && (obj[key] as string).trim()) {
+        out.push((obj[key] as string).trim());
+        return;
+      }
+    }
+    for (const nested of Object.values(obj)) collectStringValues(nested, out);
+  }
+}
+
+/** Dump every useful Overture property as prompt-ready facts (no cherry-picking). */
+function extractAttributes(props: OvertureFeature['properties']): string[] {
+  const attrs: string[] = [];
+  const push = (label: string, value: unknown) => {
+    const formatted = formatOvertureValue(value);
+    if (formatted) attrs.push(`${label}: ${formatted}`);
+  };
+
+  if (props.names?.primary && props.names.primary.trim() !== props.name?.trim()) {
+    push('Primary name', props.names.primary);
+  }
+  if (props.names?.common && typeof props.names.common === 'object') {
+    const commonNames = Object.entries(props.names.common)
+      .map(([lang, value]) => (typeof value === 'string' && value.trim() ? `${value.trim()} (${lang})` : null))
+      .filter((v): v is string => !!v);
+    if (commonNames.length > 0) push('Alternate names', commonNames.join('; '));
+  }
+
+  push('Basic category', props.basic_category);
+  push('Category primary', props.categories?.primary);
+  if (props.categories?.alternate?.length) push('Category alternate', props.categories.alternate);
+  push('Taxonomy primary', props.taxonomy?.primary);
+  if (props.taxonomy?.alternate?.length) push('Taxonomy alternate', props.taxonomy.alternate);
+
+  if (typeof props.confidence === 'number' && Number.isFinite(props.confidence)) {
+    push('Overture confidence', props.confidence);
+  }
+
+  const addr = props.addresses?.[0];
+  if (addr) {
+    push('Address freeform', addr.freeform);
+    push('Locality', addr.locality);
+    push('Region', addr.region);
+    push('Postcode', addr.postcode);
+    push('Country code', addr.country);
+  }
+  if (Array.isArray(props.addresses) && props.addresses.length > 1) {
+    push('Additional addresses', props.addresses.slice(1).map(a =>
+      [a.freeform, a.locality, a.region, a.postcode, a.country].filter(Boolean).join(', ')
+    ).filter(Boolean));
+  }
+
+  const phones: string[] = [];
+  collectStringValues(props.phones, phones);
+  if (phones.length > 1) push('Additional phones', [...new Set(phones)].slice(1));
+
+  const websites: string[] = [];
+  collectStringValues(props.websites, websites);
+  collectStringValues(props.website, websites);
+  const uniqueWebsites = [...new Set(websites)];
+  if (uniqueWebsites.length > 1) push('Additional websites', uniqueWebsites.slice(1));
+
+  const socials: string[] = [];
+  collectStringValues(props.socials, socials);
+  if (socials.length > 0) push('Socials', [...new Set(socials)]);
+
+  if (Array.isArray(props.emails) && props.emails.length > 0) {
+    push('Emails', props.emails.filter(e => typeof e === 'string' && e.trim()));
+  }
+
+  const brandNames = props.brand?.names?.common
+    ?.map(n => n?.value?.trim())
+    .filter((v): v is string => !!v);
+  if (brandNames && brandNames.length > 0) push('Brand', brandNames);
+  if (props.brand?.wikidata) push('Brand Wikidata', props.brand.wikidata);
+
+  push('Operating status raw', props.operating_status);
+  push('Price range raw', props.price_range ?? props.price_rating);
+  push('Opening hours raw', props.opening_hours ?? props.hours);
+
+  if (Array.isArray(props.sources) && props.sources.length > 0) {
+    const datasets = [...new Set(
+      props.sources
+        .map(s => [s.dataset, s.property].filter(Boolean).join(':'))
+        .filter(Boolean)
+    )];
+    if (datasets.length > 0) push('Sources', datasets);
+  }
+
+  if (props.tags && typeof props.tags === 'object') {
+    const tagEntries = Object.entries(props.tags as Record<string, unknown>)
+      .map(([key, value]) => {
+        const formatted = formatOvertureValue(value);
+        return formatted ? `${key}=${formatted}` : null;
+      })
+      .filter((v): v is string => !!v)
+      .sort();
+    if (tagEntries.length > 0) push('OSM tags', tagEntries.join('; '));
+  }
+
+  return attrs;
+}
+
 function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | null {
   if (!feature?.id || !feature?.geometry?.coordinates) return null;
 
@@ -282,12 +471,14 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const addr = props.addresses?.[0];
   const address = addr?.freeform?.trim() || null;
   const city = addr?.locality?.trim() || null;
+  const region = addr?.region?.trim() || null;
+  const postcode = addr?.postcode?.trim() || null;
   const country = addr?.country?.trim() || null;
   const status = mapOperatingStatus(props.operating_status);
   const propsRecord = props as Record<string, unknown>;
 
   const priceRaw = extractOsmField(propsRecord, ['price_range', 'price_rating', 'priceRange', 'priceRating']);
-  const priceTier = parseOsmPriceRange(priceRaw);
+  const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(name);
 
   const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
   const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
@@ -302,11 +493,14 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
     phone: extractPhone(props),
     address,
     city,
+    region,
+    postcode,
     country,
     operating_status: status.operating_status,
     businessStatus: status.businessStatus,
     priceTier,
     regularOpeningHours,
+    attributes: extractAttributes(props),
     location: { latitude: lat, longitude: lng },
   };
 }

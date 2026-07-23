@@ -208,12 +208,27 @@ function isOpenFromParsedHours(place: any): boolean {
   return false;
 }
 
-export function isOpenNow(place: any): boolean {
-  if (isExplicitlyClosed(place)) return false;
-  if (hasOpeningHoursData(place)) return isOpenFromParsedHours(place);
+export type HoursStatus = 'open' | 'closed' | 'unknown';
+
+/**
+ * Tri-state hours read. Use this for UI display so places with no hours data
+ * (very common under v2/Overture) show as "unknown" instead of a misleading
+ * green "Open" badge.
+ */
+export function getHoursStatus(place: any): HoursStatus {
+  if (isExplicitlyClosed(place)) return 'closed';
+  if (hasOpeningHoursData(place)) return isOpenFromParsedHours(place) ? 'open' : 'closed';
   const flagged = openNowFromHoursFields(place);
-  if (flagged !== null) return flagged;
-  return true;
+  if (flagged !== null) return flagged ? 'open' : 'closed';
+  return 'unknown';
+}
+
+/**
+ * Boolean read for filters (e.g. "hide closed"). Places with unknown hours are
+ * treated as open so we don't hide restaurants just because data is missing.
+ */
+export function isOpenNow(place: any): boolean {
+  return getHoursStatus(place) !== 'closed';
 }
 
 export function isPlaceLikelyOpenNow(place: any): boolean {

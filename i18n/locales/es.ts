@@ -593,6 +593,7 @@ const es: Translations = {
     "distanceAway": "A {{distance}}",
     "openStatus": "Abierto",
     "closedStatus": "Cerrado",
+    "hoursUnknownStatus": "Horario desconocido",
     "phone": "Teléfono",
     "address": "Dirección",
     "hours": "Horario",

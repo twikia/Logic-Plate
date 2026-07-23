@@ -41,11 +41,16 @@ export function calculatePlateboundScore(
     noise: 0.025,
   };
 
-  // Normalize Google Rating (0-5) with confidence weighting
+  // Normalize Google Rating (0-5) with confidence weighting.
+  // When no rating exists at all (v2 Overture data has none), fall back to the
+  // same neutral baseline used for low-confidence ratings instead of zeroing
+  // out 25% of the score for every restaurant.
   const rawNormGoogle = (googleRating || 0) * 2;
   const conf = ratingConfidenceCurve(userRatingCount);
   const baselineNormGoogle = 8.3; // 4.15 * 2
-  const normGoogle = googleRating ? (conf * rawNormGoogle + (1 - conf) * baselineNormGoogle) : 0;
+  const normGoogle = googleRating
+    ? (conf * rawNormGoogle + (1 - conf) * baselineNormGoogle)
+    : baselineNormGoogle;
 
   // Map Price Level to 0-10 score (Favoring value)
   // Supports both v1 (Google priceLevel string) and v2 (Overture priceTier integer 1-4)

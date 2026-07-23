@@ -41,10 +41,16 @@ type InputPlace = {
   website_url?: string | null;
   address?: string | null;
   city?: string | null;
+  region?: string | null;
+  postcode?: string | null;
+  country?: string | null;
   category?: string | null;
   location?: { latitude?: number; longitude?: number } | null;
   phone?: string | null;
   price_tier?: number | null;
+  operating_status?: string | null;
+  regular_opening_hours?: { weekdayDescriptions: string[] } | null;
+  attributes?: string[] | null;
 };
 
 type AiOverview = {
@@ -151,7 +157,8 @@ const batchResponseSchema = {
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_INSTRUCTION = `You are generating restaurant AI overviews for Platebound, a restaurant discovery app.
-You will receive up to 5 restaurants per call with name, category, address, and phone metadata only.
+You will receive up to 5 restaurants per call with Overture Maps metadata (name, category, address parts,
+price tier hint, operating status, and a full "Overture fields" block of map/OSM facts when available).
 Return JSON only at the root: an object with a single key "overviews" whose value is an array.
 The array must contain exactly one object per restaurant provided, in the same order.
 Each object must have "gersId" matching that restaurant's GERS ID and all required score fields.
@@ -185,7 +192,20 @@ SCORE RULES:
     cafe, bar, pizza, burger, sandwich, seafood, steak, sushi, ramen, bbq, vegan, vegetarian,
     dessert, bakery, fast_food, breakfast, brunch, or "general" if unclear.
 
-Do not invent menu items or opening hours. Base scores on category, name, and location context. Keep uncertainty explicit.`;
+Some restaurants include an "Overture fields" block (verified facts from Overture/OSM map data: alternate names,
+categories, cuisine and diet tags, brand, socials, emails, confidence, sources, raw hours/price, etc.)
+and/or a "Status" line (e.g. temporarily/permanently closed).
+Treat these as ground truth and factor them into the relevant scores (cuisineKey, varietyScore, macroFriendlyScore,
+workFriendlyScore, dateWorthiness, groupSizeSweetSpot, whoThisPlaceIsFor, summaryGoodBad) — do not contradict them,
+and do not just repeat them verbatim as if you inferred them yourself. If "Status" indicates the place is closed,
+reflect that plainly in summaryGoodBad.
+
+Some restaurants include a "Menu info from website" and/or "Hours info from website" block scraped from their real site,
+and/or a "Hours from map data" block (context only, may be outdated).
+- If a "Hours info from website" block is present, transcribe it into "weekdayDescriptions": an array of exactly 7 strings, one per day starting with Monday, each formatted like "Monday: 9:00 AM \u2013 5:00 PM" or "Monday: Closed". Only use hours explicitly present in that block — never invent or estimate hours. If the block is missing, ambiguous, or does not clearly cover all 7 days, return an empty array for weekdayDescriptions ("Hours from map data" is supplied separately and does not need to be transcribed).
+- If a "Menu info from website" block is present, extract up to 4 real menu items with their listed prices into "topMenuItems" (name, price as shown e.g. "$12.99", and a one-sentence overview). Only use items explicitly present in that block — never invent items or prices. If the block is missing or has no clear items/prices, return an empty array for topMenuItems.
+
+Do not invent menu items or opening hours that are not explicitly present in the provided website text. Base scores on category, name, known attributes, and location context. Keep uncertainty explicit.`;
 
 // ─── Website Scraper (1-Depth) ─────────────────────────────────────────────────
 
@@ -538,22 +558,46 @@ async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
 
 // ─── Place Text Block Builder ─────────────────────────────────────────────────
 
-function buildPlaceBlock(place: InputPlace): string {
-  return [
+function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
+  const addressParts = [
+    place.address,
+    place.city,
+    place.region,
+    place.postcode,
+    place.country,
+  ].filter(Boolean);
+  const lines = [
     `GERS ID: ${place.gers_id}`,
     `Name: ${place.name}`,
     `Category: ${place.category || 'restaurant'}`,
-    `Address: ${[place.address, place.city].filter(Boolean).join(', ') || 'Unknown'}`,
+    `Address: ${addressParts.join(', ') || 'Unknown'}`,
     `Phone: ${place.phone || 'Not available'}`,
     `Website: ${place.website_url || 'None'}`,
     `Price tier hint: ${place.price_tier ?? 'unknown'}`,
     `Lat/Lng: ${place.location?.latitude?.toFixed(5) ?? ''}, ${place.location?.longitude?.toFixed(5) ?? ''}`,
-  ].join('\n');
+  ];
+  if (place.operating_status && place.operating_status !== 'open') {
+    lines.push(`Status: ${place.operating_status.replace(/_/g, ' ')}`);
+  }
+  if (place.attributes && place.attributes.length > 0) {
+    lines.push(`Overture fields (from map data, treat as reliable):\n${place.attributes.join('\n')}`);
+  }
+  const mapHours = place.regular_opening_hours?.weekdayDescriptions;
+  if (mapHours?.length === 7 && !scrape?.hoursText) {
+    lines.push(`Hours from map data (for context only, may be outdated):\n${mapHours.join('\n')}`);
+  }
+  if (scrape?.hoursText) {
+    lines.push(`Hours info from website:\n${scrape.hoursText}`);
+  }
+  if (scrape?.menuText) {
+    lines.push(`Menu info from website:\n${scrape.menuText}`);
+  }
+  return lines.join('\n');
 }
 
-function buildBatchPrompt(batch: InputPlace[]): string {
+function buildBatchPrompt(batch: InputPlace[], scrapeByGersId: Map<string, ScrapeResult>): string {
   const blocks = batch.map((p, i) =>
-    `=== Restaurant ${i + 1} ===\n${buildPlaceBlock(p)}`
+    `=== Restaurant ${i + 1} ===\n${buildPlaceBlock(p, scrapeByGersId.get(p.gers_id))}`
   ).join('\n\n');
 
   return `You are given exactly ${batch.length} restaurant(s). Return one JSON object with key "overviews" containing an array of exactly ${batch.length} objects (same order). Each must include "gersId" matching the restaurant's GERS ID and all required score fields.
@@ -579,7 +623,26 @@ function sanitizeWeekdayDescriptions(raw: unknown): string[] {
   return lines;
 }
 
-function sanitizeOverview(raw: any, priceTierHint?: number | null): AiOverview | null {
+function sanitizeTopMenuItems(raw: unknown): Array<{ name: string; price: string; overview: string }> {
+  if (!Array.isArray(raw)) return [];
+  const out: Array<{ name: string; price: string; overview: string }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const name = String((item as any).name ?? '').trim().slice(0, 80);
+    const price = String((item as any).price ?? '').trim().slice(0, 20);
+    const overview = String((item as any).overview ?? '').trim().slice(0, 160);
+    if (!name) continue;
+    out.push({ name, price, overview });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+function sanitizeOverview(
+  raw: any,
+  priceTierHint?: number | null,
+  scrapedWeekdayDescriptions?: string[],
+): AiOverview | null {
   if (!raw || typeof raw !== 'object') return null;
 
   const toInt = (v: any, fallback = 0) => {
@@ -637,10 +700,14 @@ function sanitizeOverview(raw: any, priceTierHint?: number | null): AiOverview |
     soloDinerScore: clamp(toInt(raw.soloDinerScore), 0, 5),
     energySustainScore: clamp(toInt(raw.energySustainScore), 0, 5),
     workFriendlyScore: clamp(toInt(raw.workFriendlyScore), 0, 5),
-    topMenuItems: [],
+    topMenuItems: sanitizeTopMenuItems(raw.topMenuItems),
     priceTier,
     cuisineKey,
-    weekdayDescriptions: [],
+    // Prefer deterministic JSON-LD hours scraped directly from the site over
+    // the model's transcription of freeform hours text.
+    weekdayDescriptions: scrapedWeekdayDescriptions?.length === 7
+      ? scrapedWeekdayDescriptions
+      : sanitizeWeekdayDescriptions(raw.weekdayDescriptions),
   };
 }
 
@@ -651,12 +718,28 @@ async function runGeminiBatch(
   const batchIds = new Set(batch.map(p => p.gers_id));
   const out: { gersId: string; overview: AiOverview }[] = [];
 
+  // Free enrichment: scrape each restaurant's own website (JSON-LD hours +
+  // menu page text) before asking Gemini. This is the source of real hours
+  // and menu prices — Overture alone rarely has them.
+  const scrapeByGersId = new Map<string, ScrapeResult>();
+  await Promise.all(
+    batch.map(async (p) => {
+      if (!p.website_url) return;
+      try {
+        const result = await scrapeWebsite(p.website_url);
+        scrapeByGersId.set(p.gers_id, result);
+      } catch {
+        // best-effort — leave unscraped on failure
+      }
+    })
+  );
+
   const response = await fetch(geminiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch) }] }],
+      contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch, scrapeByGersId) }] }],
       generationConfig: {
         temperature: 0.2,
         responseMimeType: 'application/json',
@@ -693,7 +776,13 @@ async function runGeminiBatch(
     if (!gersId || !batchIds.has(gersId)) continue;
 
     const place = batch.find(p => p.gers_id === gersId);
-    const overview = sanitizeOverview(item, place?.price_tier ?? null);
+    const scraped = scrapeByGersId.get(gersId);
+    // Prefer deterministic hours: scraped website JSON-LD first, then the
+    // already-parsed OSM/Overture hours on the place, then the model's guess.
+    const deterministicHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
+      ? scraped.jsonLdWeekdayDescriptions
+      : place?.regular_opening_hours?.weekdayDescriptions;
+    const overview = sanitizeOverview(item, place?.price_tier ?? null, deterministicHours);
     if (!overview) continue;
 
     out.push({ gersId, overview });

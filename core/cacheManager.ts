@@ -10,11 +10,14 @@ export type CachedPlace = {
   phone: string | null;
   address: string | null;
   city: string | null;
+  region?: string | null;
+  postcode?: string | null;
   country: string | null;
   operating_status?: string | null;
   businessStatus?: string | null;
   priceTier?: number | null;
   regularOpeningHours?: { weekdayDescriptions: string[] } | null;
+  attributes?: string[] | null;
   location: {
     latitude: number;
     longitude: number;

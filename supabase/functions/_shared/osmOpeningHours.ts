@@ -108,6 +108,11 @@ export function parseOsmOpeningHours(raw: unknown): string[] {
     for (const day of days) byDay.set(day, [line]);
   }
 
+  // If nothing parsed successfully despite non-empty input, the string is in an
+  // unsupported format — treat as unknown rather than falsely reporting "closed"
+  // every day of the week.
+  if (byDay.size === 0) return [];
+
   const lines: string[] = [];
   for (let i = 0; i < 7; i++) {
     const hours = byDay.get(i);

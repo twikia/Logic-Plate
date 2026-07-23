@@ -42,7 +42,7 @@ import {
   setMapFocusRestaurant,
   subscribeCurrentRestaurant,
 } from '../../../core/currentSelection';
-import { isOpenNow } from '../../../core/isOpenNow';
+import { getHoursStatus } from '../../../core/isOpenNow';
 import { formatRestaurantCostLabel } from '../../../core/placePriceLabel';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -327,7 +327,7 @@ export default function RandomResultScreen() {
   const distM = Math.round(place.distanceMeters ?? 0);
   const dist = formatDistance(distM);
   void liveOpenEpoch;
-  const isOpen = isOpenNow(place);
+  const hoursStatus = getHoursStatus(place);
   const weekdays: string[] =
     place.currentOpeningHours?.weekdayDescriptions ??
     place.regularOpeningHours?.weekdayDescriptions ??
@@ -529,11 +529,11 @@ export default function RandomResultScreen() {
                   <View
                     style={[
                       styles.openDot,
-                      { backgroundColor: isOpen ? '#4CD964' : '#FF6B6B' },
+                      { backgroundColor: hoursStatus === 'open' ? '#4CD964' : hoursStatus === 'closed' ? '#FF6B6B' : '#9CA3AF' },
                     ]}
                   />
-                  <Text style={{ color: isOpen ? '#4CD964' : '#FF6B6B', fontSize: 11, fontWeight: '700' }}>
-                    {isOpen ? t('map.openStatus') : t('map.closedStatus')}
+                  <Text style={{ color: hoursStatus === 'open' ? '#4CD964' : hoursStatus === 'closed' ? '#FF6B6B' : '#9CA3AF', fontSize: 11, fontWeight: '700' }}>
+                    {hoursStatus === 'open' ? t('map.openStatus') : hoursStatus === 'closed' ? t('map.closedStatus') : t('map.hoursUnknownStatus')}
                   </Text>
                 </View>
               </View>

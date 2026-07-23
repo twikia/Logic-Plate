@@ -42,7 +42,7 @@ import {
   getPlaceWebsiteUrl,
   getPlaceWeekdayDescriptions,
 } from '@/core/placeFields';
-import { isOpenNow } from '@/core/isOpenNow';
+import { isOpenNow, getHoursStatus } from '@/core/isOpenNow';
 import { RestaurantMapMarker } from '@/components/map/RestaurantMapMarker';
 import { markerIconForPlace } from '@/core/markerIcons';
 import * as Clipboard from 'expo-clipboard';
@@ -648,7 +648,7 @@ export default function MapScreen() {
   void openStatusEpoch;
   const sheetPriceLabelRaw = selectedRestaurant ? formatRestaurantCostLabel(selectedRestaurant) : '';
   const sheetPriceLabel = sheetPriceLabelRaw && sheetPriceLabelRaw !== '-' ? sheetPriceLabelRaw : '';
-  const sheetOpenNow = selectedRestaurant ? isOpenNow(selectedRestaurant) : false;
+  const sheetHoursStatus = selectedRestaurant ? getHoursStatus(selectedRestaurant) : 'unknown';
   const sheetOverallScore =
     selectedRestaurant?.aiOverview != null
       ? calculatePlateboundScore(
@@ -961,9 +961,15 @@ export default function MapScreen() {
                   <Text style={[styles.metaText, { color: '#F9A06F' }]}>{sheetPriceLabel}</Text>
                 </View>
               ) : null}
-              <View style={[styles.metaPill, { borderColor: sheetOpenNow ? 'rgba(76,217,100,0.3)' : 'rgba(255,107,107,0.3)', backgroundColor: 'transparent' }]}>
-                <Ionicons name={sheetOpenNow ? 'checkmark-circle-outline' : 'close-circle-outline'} size={14} color={sheetOpenNow ? '#4CD964' : '#FF6B6B'} />
-                <Text style={[styles.metaText, { color: sheetOpenNow ? '#4CD964' : '#FF6B6B' }]}>{sheetOpenNow ? t('map.openStatus') : t('map.closedStatus')}</Text>
+              <View style={[styles.metaPill, { borderColor: sheetHoursStatus === 'open' ? 'rgba(76,217,100,0.3)' : sheetHoursStatus === 'closed' ? 'rgba(255,107,107,0.3)' : 'rgba(156,163,175,0.3)', backgroundColor: 'transparent' }]}>
+                <Ionicons
+                  name={sheetHoursStatus === 'open' ? 'checkmark-circle-outline' : sheetHoursStatus === 'closed' ? 'close-circle-outline' : 'help-circle-outline'}
+                  size={14}
+                  color={sheetHoursStatus === 'open' ? '#4CD964' : sheetHoursStatus === 'closed' ? '#FF6B6B' : '#9CA3AF'}
+                />
+                <Text style={[styles.metaText, { color: sheetHoursStatus === 'open' ? '#4CD964' : sheetHoursStatus === 'closed' ? '#FF6B6B' : '#9CA3AF' }]}>
+                  {sheetHoursStatus === 'open' ? t('map.openStatus') : sheetHoursStatus === 'closed' ? t('map.closedStatus') : t('map.hoursUnknownStatus')}
+                </Text>
               </View>
             </View>
 

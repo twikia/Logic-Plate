@@ -126,10 +126,16 @@ const toPlaceSeed = (place: CachedPlace): PlaceSeed => ({
   website_url: place.website_url,
   address: place.address,
   city: place.city,
+  region: place.region,
+  postcode: place.postcode,
+  country: place.country,
   category: place.category,
   location: place.location,
   phone: place.phone,
   price_tier: place.priceTier ?? null,
+  operating_status: place.operating_status ?? null,
+  regular_opening_hours: place.regularOpeningHours ?? null,
+  attributes: place.attributes ?? null,
 });
 
 async function loadNearbyRestaurantsInternal(

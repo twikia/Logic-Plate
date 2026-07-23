@@ -623,6 +623,7 @@ const en = {
     distanceAway: '{{distance}} away',
     openStatus: 'Open',
     closedStatus: 'Closed',
+    hoursUnknownStatus: 'Hours unknown',
     phone: 'Phone',
     address: 'Address',
     hours: 'Hours',

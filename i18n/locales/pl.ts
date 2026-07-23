@@ -593,6 +593,7 @@ const pl: Translations = {
     "distanceAway": "{{distance}} dalej",
     "openStatus": "Otwarte",
     "closedStatus": "Zamknięte",
+    "hoursUnknownStatus": "Godziny nieznane",
     "phone": "Telefon",
     "address": "Adres",
     "hours": "Godziny",

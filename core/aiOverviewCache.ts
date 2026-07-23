@@ -38,10 +38,16 @@ export type PlaceSeed = {
   website_url?: string | null;
   address?: string | null;
   city?: string | null;
+  region?: string | null;
+  postcode?: string | null;
+  country?: string | null;
   category?: string | null;
   location?: { latitude?: number; longitude?: number } | null;
   phone?: string | null;
   price_tier?: number | null;
+  operating_status?: string | null;
+  regular_opening_hours?: { weekdayDescriptions: string[] } | null;
+  attributes?: string[] | null;
 };
 
 type AiOverviewRow = {
@@ -309,10 +315,16 @@ export const invokeGenerateAiOverviewsForPlaces = async (
       website_url: p!.website_url ?? null,
       address: p!.address ?? null,
       city: p!.city ?? null,
+      region: p!.region ?? null,
+      postcode: p!.postcode ?? null,
+      country: p!.country ?? null,
       category: p!.category ?? null,
       location: p!.location ?? null,
       phone: p!.phone ?? null,
-      price_tier: (p as { priceTier?: number | null }).priceTier ?? null,
+      price_tier: p!.price_tier ?? null,
+      operating_status: p!.operating_status ?? null,
+      regular_opening_hours: p!.regular_opening_hours ?? null,
+      attributes: p!.attributes ?? null,
     }));
 
   if (payloadPlaces.length === 0) return out;
