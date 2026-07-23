@@ -38,7 +38,7 @@ export const SEARCH_CONFIG = {
   // Max restaurants that get AI overviews eagerly (closest first) on filtered pages.
   MAX_AI_OVERVIEWS: 60,
   // Gemini call size — map click prefetch and filtered-page generation use this.
-  AI_GENERATION_BATCH_SIZE: 5,
+  AI_GENERATION_BATCH_SIZE: 15,
 
   // Polar grid for deterministic geographic spread (rings × sectors around the user).
   SPREAD_NUM_RINGS: 6,

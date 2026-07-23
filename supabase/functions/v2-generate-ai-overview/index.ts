@@ -8,14 +8,14 @@ const corsHeaders = {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 15;
 const MAX_PLACES_PER_REQUEST = 60;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/2.0 (v2-ai-overview; contact: support@platebound.app)';
 const MENU_KEYWORDS = ['menu', 'food', 'drink', 'dining', 'eat'];
 const HOURS_KEYWORDS = ['hours', 'hour', 'opening', 'open-hours', 'schedule', 'contact', 'visit-us', 'location'];
 // Keep scrape snippets short — only enough signal for scores / price tier.
-const MAX_RELEVANT_TEXT_CHARS = 1_600;
+const MAX_RELEVANT_TEXT_CHARS = 600;
 const MAX_HOURS_TEXT_CHARS = 600;
 const MAX_ATTR_CHARS = 700;
 const FETCH_TIMEOUT_MS = 7000;
@@ -48,14 +48,7 @@ type InputPlace = {
   gers_id: string;
   name: string;
   website_url?: string | null;
-  address?: string | null;
-  city?: string | null;
-  region?: string | null;
-  postcode?: string | null;
-  country?: string | null;
   category?: string | null;
-  location?: { latitude?: number; longitude?: number } | null;
-  phone?: string | null;
   price_tier?: number | null;
   operating_status?: string | null;
   regular_opening_hours?: { weekdayDescriptions: string[] } | null;
@@ -556,13 +549,11 @@ function inferPriceTierFromMenuText(menuText: string): number | null {
 }
 
 function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
-  const cityLine = [place.city, place.region].filter(Boolean).join(', ');
   const lines = [
     `GERS ID: ${place.gers_id}`,
     `Name: ${place.name}`,
     `Category: ${place.category || 'restaurant'}`,
   ];
-  if (cityLine) lines.push(`Area: ${cityLine}`);
   if (place.price_tier != null) lines.push(`Price tier hint: ${place.price_tier}`);
   if (place.operating_status && place.operating_status !== 'open') {
     lines.push(`Status: ${place.operating_status.replace(/_/g, ' ')}`);
@@ -703,7 +694,7 @@ async function runGeminiBatch(
       contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch, scrapeByGersId) }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 6144,
         responseMimeType: 'application/json',
         responseSchema: batchResponseSchema,
         thinkingConfig: { thinkingBudget: 0 },
@@ -835,11 +826,12 @@ serve(async (req) => {
     }
     console.log(`[v2-generate-ai-overview] Gemini generated ${generatedOverviews.length} overviews`);
 
-    // ── Step 4: Upsert to v2_ai_overview_cache ────────────────────────────────
+    // ── Step 4: Upsert to v2_ai_overview_cache + v2_ai_overview_details ───────
     const updatedAt = new Date().toISOString();
     const placeMap = new Map(uncachedPlaces.map(p => [p.gers_id, p]));
 
     if (generatedOverviews.length > 0) {
+      // Cache row must exist before the details row (FK on gers_id).
       await Promise.all(
         generatedOverviews.map(({ gersId, overview }) => {
           const place = placeMap.get(gersId);
@@ -856,8 +848,6 @@ serve(async (req) => {
             date_worthiness: overview.dateWorthiness,
             noise_level_estimate: overview.noiseLevelEstimate,
             group_size_sweet_spot: overview.groupSizeSweetSpot,
-            absolute_macros: overview.absoluteMacros,
-            who_this_place_is_for: overview.whoThisPlaceIsFor,
             taste_score: overview.tasteScore,
             value_for_money_score: overview.valueForMoneyScore,
             hungover_recovery_score: overview.hungoverRecoveryScore,
@@ -876,7 +866,17 @@ serve(async (req) => {
           }, { onConflict: 'gers_id' });
         })
       );
-      console.log(`[v2-generate-ai-overview] Supabase upsert complete: ${generatedOverviews.length} rows written to v2_ai_overview_cache`);
+      await Promise.all(
+        generatedOverviews.map(({ gersId, overview }) =>
+          supabase.from('v2_ai_overview_details').upsert({
+            gers_id: gersId,
+            absolute_macros: overview.absoluteMacros,
+            who_this_place_is_for: overview.whoThisPlaceIsFor,
+            updated_at: updatedAt,
+          }, { onConflict: 'gers_id' })
+        )
+      );
+      console.log(`[v2-generate-ai-overview] Supabase upsert complete: ${generatedOverviews.length} rows written to v2_ai_overview_cache + v2_ai_overview_details`);
     }
 
     return new Response(JSON.stringify({ generatedOverviews }), {

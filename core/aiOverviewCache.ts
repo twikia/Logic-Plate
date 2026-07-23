@@ -63,8 +63,6 @@ type AiOverviewRow = {
   date_worthiness: number | null;
   noise_level_estimate: number | null;
   group_size_sweet_spot: number | null;
-  absolute_macros: string | null;
-  who_this_place_is_for: string | null;
   taste_score?: number | null;
   value_for_money_score?: number | null;
   hungover_recovery_score?: number | null;
@@ -78,6 +76,12 @@ type AiOverviewRow = {
   price_tier?: number | null;
   cuisine_key?: string | null;
   weekday_descriptions?: unknown | null;
+};
+
+type AiOverviewDetailsRow = {
+  gers_id: string;
+  absolute_macros: string | null;
+  who_this_place_is_for: string | null;
 };
 
 const localMemory = new Map<string, AiOverview>();
@@ -105,8 +109,8 @@ export function normalizeWeekdayDescriptions(raw: unknown): string[] | undefined
   return lines;
 }
 
-const normalizeRow = (row: AiOverviewRow): AiOverview | null => {
-  if (!row.summary_good_bad || !row.absolute_macros || !row.who_this_place_is_for) return null;
+const normalizeRow = (row: AiOverviewRow, details?: AiOverviewDetailsRow | null): AiOverview | null => {
+  if (!row.summary_good_bad || !details?.absolute_macros || !details?.who_this_place_is_for) return null;
   if (
     row.speed_score === null || row.health_score === null ||
     row.workout_recovery_score === null || row.processed_score === null ||
@@ -134,8 +138,8 @@ const normalizeRow = (row: AiOverviewRow): AiOverview | null => {
     dateWorthiness: row.date_worthiness,
     noiseLevelEstimate: row.noise_level_estimate,
     groupSizeSweetSpot: row.group_size_sweet_spot,
-    absoluteMacros: row.absolute_macros,
-    whoThisPlaceIsFor: row.who_this_place_is_for,
+    absoluteMacros: details.absolute_macros,
+    whoThisPlaceIsFor: details.who_this_place_is_for,
     tasteScore: row.taste_score ?? 0,
     valueForMoneyScore: row.value_for_money_score ?? 0,
     hungoverRecoveryScore: row.hungover_recovery_score ?? 0,
@@ -247,18 +251,22 @@ export const getCachedAiOverviewsForPlaces = async (
 
   if (needsStorage.length > 0) {
     const storageKeys = needsStorage.map(id => `v2_ai_overview_${id}`);
-    const [pairs, dbResult] = await Promise.all([
+    const [pairs, dbResult, detailsResult] = await Promise.all([
       AsyncStorage.multiGet(storageKeys),
       supabase
         .from('v2_ai_overview_cache')
         .select(
           'gers_id, summary_good_bad, speed_score, health_score, workout_recovery_score, ' +
           'processed_score, calorie_score, protein_score, carb_score, date_worthiness, ' +
-          'noise_level_estimate, group_size_sweet_spot, absolute_macros, who_this_place_is_for, ' +
+          'noise_level_estimate, group_size_sweet_spot, ' +
           'taste_score, value_for_money_score, hungover_recovery_score, munchy_score, ' +
           'variety_score, macro_friendly_score, solo_diner_score, energy_sustain_score, ' +
           'work_friendly_score, top_menu_items, price_tier, cuisine_key, weekday_descriptions'
         )
+        .in('gers_id', needsStorage),
+      supabase
+        .from('v2_ai_overview_details')
+        .select('gers_id, absolute_macros, who_this_place_is_for')
         .in('gers_id', needsStorage),
     ]);
 
@@ -274,12 +282,19 @@ export const getCachedAiOverviewsForPlaces = async (
     }
 
     const { data, error } = dbResult;
+    const { data: detailsData, error: detailsError } = detailsResult;
+    if (detailsError) {
+      console.warn('[AI] Supabase v2_ai_overview_details read error:', detailsError.message);
+    }
+    const detailsById = new Map(
+      ((detailsData ?? []) as unknown as AiOverviewDetailsRow[]).map(d => [d.gers_id, d])
+    );
     if (!error && data) {
       console.log(`[AI] Supabase v2_ai_overview_cache: ${data.length} rows returned for ${needsStorage.length} GERS IDs`);
       const backfills: [string, string][] = [];
       for (const row of (data as unknown as AiOverviewRow[])) {
         if (!needsDb.has(row.gers_id)) continue;
-        const normalized = normalizeRow(row);
+        const normalized = normalizeRow(row, detailsById.get(row.gers_id));
         if (!normalized) continue;
         localMemory.set(row.gers_id, normalized);
         result.set(row.gers_id, normalized);
@@ -313,8 +328,6 @@ export const invokeGenerateAiOverviewsForPlaces = async (
       gers_id: p!.id,
       name: p!.name,
       website_url: p!.website_url ?? null,
-      city: p!.city ?? null,
-      region: p!.region ?? null,
       category: p!.category ?? null,
       price_tier: p!.price_tier ?? null,
       operating_status: p!.operating_status ?? null,
