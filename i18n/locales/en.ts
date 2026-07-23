@@ -74,6 +74,7 @@ const en = {
     saturday: 'Saturday',
     sunday: 'Sunday',
     closed: 'Closed',
+    hoursNotListed: 'Hours not listed',
     open24Hours: 'Open 24 hours',
     daily: 'Daily',
   },

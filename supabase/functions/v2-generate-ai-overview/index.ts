@@ -205,7 +205,7 @@ and/or a "Hours from map data" block (context only, may be outdated).
 - If a "Hours info from website" block is present, transcribe it into "weekdayDescriptions": an array of exactly 7 strings, one per day starting with Monday, each formatted like "Monday: 9:00 AM \u2013 5:00 PM" or "Monday: Closed". Only use hours explicitly present in that block — never invent or estimate hours. If the block is missing, ambiguous, or does not clearly cover all 7 days, return an empty array for weekdayDescriptions ("Hours from map data" is supplied separately and does not need to be transcribed).
 - If a "Menu info from website" block is present, extract up to 4 real menu items with their listed prices into "topMenuItems" (name, price as shown e.g. "$12.99", and a one-sentence overview). Only use items explicitly present in that block — never invent items or prices. If the block is missing or has no clear items/prices, return an empty array for topMenuItems.
 
-Do not invent menu items or opening hours that are not explicitly present in the provided website text. Base scores on category, name, known attributes, and location context. Keep uncertainty explicit.`;
+Do not invent menu items or opening hours that are not explicitly present in the provided website text. Base scores on category, name, Overture fields, and location context. Keep uncertainty explicit.`;
 
 // ─── Website Scraper (1-Depth) ─────────────────────────────────────────────────
 
@@ -638,6 +638,25 @@ function sanitizeTopMenuItems(raw: unknown): Array<{ name: string; price: string
   return out;
 }
 
+/** Infer price tier 1–4 from scraped menu item prices (USD-ish). */
+function inferPriceTierFromMenuItems(
+  items: Array<{ price: string }>,
+): number | null {
+  const amounts: number[] = [];
+  for (const item of items) {
+    const match = String(item.price ?? '').match(/(\d+(?:\.\d{1,2})?)/);
+    if (!match) continue;
+    const n = Number.parseFloat(match[1]);
+    if (Number.isFinite(n) && n > 0 && n < 500) amounts.push(n);
+  }
+  if (amounts.length === 0) return null;
+  const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+  if (avg < 12) return 1;
+  if (avg < 22) return 2;
+  if (avg < 40) return 3;
+  return 4;
+}
+
 function sanitizeOverview(
   raw: any,
   priceTierHint?: number | null,
@@ -660,11 +679,14 @@ function sanitizeOverview(
   const whoThisPlaceIsFor = String(raw.whoThisPlaceIsFor ?? '').trim();
   if (!summaryGoodBad || !absoluteMacros || !whoThisPlaceIsFor) return null;
 
-  const priceTier = clamp(
-    toInt(raw.priceTier, typeof priceTierHint === 'number' ? priceTierHint : 2),
-    1,
-    4,
+  const topMenuItems = sanitizeTopMenuItems(raw.topMenuItems);
+  const menuPriceTier = inferPriceTierFromMenuItems(topMenuItems);
+  const modelPriceTier = toInt(
+    raw.priceTier,
+    typeof priceTierHint === 'number' ? priceTierHint : 2,
   );
+  // Prefer menu-derived tier when we have real scraped prices; otherwise model/hint.
+  const priceTier = clamp(menuPriceTier ?? modelPriceTier, 1, 4);
 
   // Validate cuisine key
   const validCuisineKeys = new Set([
@@ -700,7 +722,7 @@ function sanitizeOverview(
     soloDinerScore: clamp(toInt(raw.soloDinerScore), 0, 5),
     energySustainScore: clamp(toInt(raw.energySustainScore), 0, 5),
     workFriendlyScore: clamp(toInt(raw.workFriendlyScore), 0, 5),
-    topMenuItems: sanitizeTopMenuItems(raw.topMenuItems),
+    topMenuItems,
     priceTier,
     cuisineKey,
     // Prefer deterministic JSON-LD hours scraped directly from the site over

@@ -50,6 +50,8 @@ function formatTime24h(raw: string): string {
   let hours = Number.parseInt(m[1], 10);
   const mins = m[2];
   if (!Number.isFinite(hours)) return raw.trim();
+  // OSM uses 24:00 for end-of-day midnight.
+  if (hours === 24) return mins === '00' ? '12:00 AM' : raw.trim();
   const suffix = hours >= 12 ? 'PM' : 'AM';
   if (hours === 0) hours = 12;
   else if (hours > 12) hours -= 12;
@@ -113,10 +115,15 @@ export function parseOsmOpeningHours(raw: unknown): string[] {
   // every day of the week.
   if (byDay.size === 0) return [];
 
+  // Partial OSM tags (e.g. only Mo-Fr) used to force missing days to "Closed",
+  // which made weekends look shut when they were simply unlisted. Keep known
+  // days and mark gaps as "Hours not listed" so open-now can stay honest.
   const lines: string[] = [];
   for (let i = 0; i < 7; i++) {
     const hours = byDay.get(i);
-    lines.push(`${WEEKDAY_NAMES[i]}: ${hours?.length ? hours.join(', ') : 'Closed'}`);
+    lines.push(
+      `${WEEKDAY_NAMES[i]}: ${hours?.length ? hours.join(', ') : 'Hours not listed'}`,
+    );
   }
   return lines;
 }

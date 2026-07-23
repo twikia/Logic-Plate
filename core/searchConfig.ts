@@ -31,11 +31,12 @@ export const SEARCH_CONFIG = {
 
   // ── Overture Maps API ──────────────────────────────────────────────────────
   // High per-cell fetch so partial-cell searches (e.g. 0.6 mi) still fill the radius.
-  MAX_RESULTS_PER_CELL: 350,
+  // Raised after widening food categories — dense downtown cells were truncating.
+  MAX_RESULTS_PER_CELL: 500,
   // Max restaurants shown to the user and sent to AI enrichment per search.
-  MAX_DISPLAY_RESULTS: 150,
+  MAX_DISPLAY_RESULTS: 250,
 
   // Polar grid for deterministic geographic spread (rings × sectors around the user).
-  SPREAD_NUM_RINGS: 5,
-  SPREAD_NUM_SECTORS: 10,
+  SPREAD_NUM_RINGS: 6,
+  SPREAD_NUM_SECTORS: 12,
 } as const;

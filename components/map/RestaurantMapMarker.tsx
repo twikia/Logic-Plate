@@ -4,6 +4,7 @@ import { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { markerIconForPlace } from '@/core/markerIcons';
 import { playTap } from '@/core/audioService';
+import type { HoursStatus } from '@/core/isOpenNow';
 
 const RADIUS = 14;
 const GLOW = 4;
@@ -31,7 +32,7 @@ type RestaurantMapMarkerProps = {
   item: any;
   markerColor: string;
   displayScore: string | number;
-  isOpen: boolean;
+  hoursStatus: HoursStatus;
   isSelected: boolean;
   onPress: () => void;
 };
@@ -39,7 +40,7 @@ type RestaurantMapMarkerProps = {
 export function RestaurantMapMarker({
   item,
   markerColor,
-  isOpen,
+  hoursStatus,
   isSelected,
   onPress,
 }: RestaurantMapMarkerProps) {
@@ -55,11 +56,12 @@ export function RestaurantMapMarker({
 
   useEffect(() => {
     setTracksViewChanges(true);
-  }, [iconName, isOpen, isSelected, markerColor]);
+  }, [iconName, hoursStatus, isSelected, markerColor]);
 
   const accent = isSelected ? ACCENT_SELECTED : markerColor;
   const glowColor = accent + (isSelected ? '66' : '40');
-  const markerOpacity = isOpen ? 1 : 0.4;
+  const markerOpacity =
+    hoursStatus === 'open' ? 1 : hoursStatus === 'unknown' ? 0.7 : 0.4;
 
   return (
     <Marker
@@ -76,7 +78,6 @@ export function RestaurantMapMarker({
         style={{ width: TOTAL_W, height: TOTAL_H, opacity: markerOpacity }}
         collapsable={false}
       >
-        {/* Glow halo — plain View, no transform, renders fine in software canvas */}
         <View
           style={{
             position: 'absolute',
@@ -89,7 +90,6 @@ export function RestaurantMapMarker({
           }}
         />
 
-        {/* ▼ pointer — Text rendered by TextPaint (software), same path as Ionicons */}
         <Text
           allowFontScaling={false}
           style={{
@@ -107,7 +107,6 @@ export function RestaurantMapMarker({
           {'▼'}
         </Text>
 
-        {/* Main disc — rendered after ▼ so it covers the TIP_OVERLAP portion */}
         <View
           style={{
             position: 'absolute',
@@ -122,7 +121,6 @@ export function RestaurantMapMarker({
           }}
         />
 
-        {/* Icon centered in disc */}
         <View
           pointerEvents="none"
           style={{

@@ -51,11 +51,12 @@ function parseTime(t: string): number | null {
   return null;
 }
 
-function parsePeriods(line: string): Period[] | 'open24' | 'closed' {
+function parsePeriods(line: string): Period[] | 'open24' | 'closed' | 'unknown' {
   const afterColon = line.split(/:\s(.+)/)[1] ?? '';
   if (!afterColon) return 'closed';
   if (/open 24 hours/i.test(afterColon)) return 'open24';
   if (/^\s*closed\s*$/i.test(afterColon)) return 'closed';
+  if (/hours not listed/i.test(afterColon)) return 'unknown';
 
   const periods: Period[] = [];
   const segments = afterColon.split(/,\s*/);
@@ -85,11 +86,12 @@ function isOpenFromWeekdayDescriptions(
   descriptions: string[],
   googleWeekday: number,
   nowMins: number
-): boolean {
+): boolean | null {
   const todayLine = descriptions[googleWeekday];
-  if (!todayLine) return false;
+  if (!todayLine) return null;
 
   const result = parsePeriods(todayLine);
+  if (result === 'unknown') return null;
   if (result === 'open24') return true;
   if (result === 'closed') return false;
   return isOpenForMins(result, nowMins);
@@ -195,17 +197,23 @@ function isExplicitlyClosed(place: any): boolean {
   return operatingStatus === 'permanently_closed' || operatingStatus === 'temporarily_closed';
 }
 
-function isOpenFromParsedHours(place: any): boolean {
+function isOpenFromParsedHours(place: any): boolean | null {
   const { googleWeekday, nowMins, sunDay } = getPlaceLocalTime(place);
 
   for (const periods of googlePeriodSets(place)) {
     if (isOpenFromGooglePeriods(periods, sunDay, nowMins)) return true;
   }
 
+  let sawKnownDay = false;
   for (const descriptions of weekdayDescriptionSets(place)) {
-    if (isOpenFromWeekdayDescriptions(descriptions, googleWeekday, nowMins)) return true;
+    const open = isOpenFromWeekdayDescriptions(descriptions, googleWeekday, nowMins);
+    if (open === true) return true;
+    if (open === false) sawKnownDay = true;
+    if (open === null) continue;
   }
-  return false;
+  if (sawKnownDay) return false;
+  // Had weekdayDescriptions but today's line was "Hours not listed" / missing.
+  return null;
 }
 
 export type HoursStatus = 'open' | 'closed' | 'unknown';
@@ -217,7 +225,12 @@ export type HoursStatus = 'open' | 'closed' | 'unknown';
  */
 export function getHoursStatus(place: any): HoursStatus {
   if (isExplicitlyClosed(place)) return 'closed';
-  if (hasOpeningHoursData(place)) return isOpenFromParsedHours(place) ? 'open' : 'closed';
+  if (hasOpeningHoursData(place)) {
+    const open = isOpenFromParsedHours(place);
+    if (open === true) return 'open';
+    if (open === false) return 'closed';
+    return 'unknown';
+  }
   const flagged = openNowFromHoursFields(place);
   if (flagged !== null) return flagged ? 'open' : 'closed';
   return 'unknown';

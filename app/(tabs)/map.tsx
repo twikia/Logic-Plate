@@ -707,7 +707,7 @@ export default function MapScreen() {
               item={item}
               markerColor={sortColor}
               displayScore={displayScore}
-              isOpen={isOpenNow(item)}
+              hoursStatus={getHoursStatus(item)}
               isSelected={selectedRestaurant?.id === item.id}
               onPress={() => handleMarkerPress(item)}
             />

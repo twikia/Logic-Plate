@@ -50,6 +50,7 @@ export function formatWeekdayHours(line: string): string {
   formatted = formatted.replace(/\bSun\b/gi, sun.slice(0, 3));
 
   formatted = formatted.replace(/\bClosed\b/gi, i18n.t('days.closed', { defaultValue: 'Closed' }));
+  formatted = formatted.replace(/\bHours not listed\b/gi, i18n.t('days.hoursNotListed', { defaultValue: 'Hours not listed' }));
   formatted = formatted.replace(/\bOpen 24 hours\b/gi, i18n.t('days.open24Hours', { defaultValue: 'Open 24 hours' }));
   formatted = formatted.replace(/\bDaily\b/gi, i18n.t('days.daily', { defaultValue: 'Daily' }));
   return formatted;

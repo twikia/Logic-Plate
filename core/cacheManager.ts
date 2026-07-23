@@ -17,6 +17,9 @@ export type CachedPlace = {
   businessStatus?: string | null;
   priceTier?: number | null;
   regularOpeningHours?: { weekdayDescriptions: string[] } | null;
+  brand?: string | null;
+  wikidata?: string | null;
+  sources?: Array<{ property?: string; dataset?: string; record_id?: string }> | null;
   attributes?: string[] | null;
   location: {
     latitude: number;

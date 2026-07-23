@@ -13,6 +13,8 @@
     "generate-translation-seed": "node scripts/generate-translation-seed.mjs",
     "generate-all-language-seeds": "node scripts/generate-all-language-seeds.mjs",
     "sync-all-translations": "node scripts/sync-all-translations.mjs",
+    "ingest:overture-bbox": "node scripts/ingest-overture-bbox.mjs",
+    "enrich:atp-hours": "node scripts/enrich-atp-hours-index.mjs",
     "deploy:supabase": "npx supabase db push && npx supabase functions deploy --no-verify-jwt",
     "android:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Action all",
     "android:logcat": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Action logcat",

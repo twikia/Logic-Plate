@@ -371,7 +371,7 @@ export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: 
       healthScore: ai.healthScore,
       priceTier: place.priceTier ?? ai.priceTier,
       cuisineKey: ai.cuisineKey,
-      topMenuItems: [],
+      topMenuItems: Array.isArray(ai.topMenuItems) ? ai.topMenuItems : [],
       ...(hasHours || !ai.weekdayDescriptions?.length
         ? {}
         : { regularOpeningHours: { weekdayDescriptions: ai.weekdayDescriptions } }),

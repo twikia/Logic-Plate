@@ -6,6 +6,7 @@ import {
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
 import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
+import { lookupChainOpeningHours } from "../_shared/allThePlacesHours.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +24,7 @@ const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 // H3 res-7 inscribed radius (apothem) = edge × √3/2 — mirrors core/searchConfig.ts
 const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
-const MAX_RESULTS_PER_CELL = 350;
+const MAX_RESULTS_PER_CELL = 500;
 
 // NOTE: core/markerIcons.ts already has icon mappings for dozens of these
 // categories, meaning the app has always expected them to appear — they were
@@ -214,6 +215,9 @@ type NormalizedPlace = {
   businessStatus: string;
   priceTier: number | null;
   regularOpeningHours: { weekdayDescriptions: string[] } | null;
+  brand: string | null;
+  wikidata: string | null;
+  sources: Array<{ property?: string; dataset?: string; record_id?: string }> | null;
   /** All non-core Overture facts as prompt-ready lines (names, categories, tags, brand, socials, etc.). */
   attributes: string[];
   location: {
@@ -452,6 +456,16 @@ function extractAttributes(props: OvertureFeature['properties']): string[] {
   return attrs;
 }
 
+function extractBrandName(props: OvertureFeature['properties']): string | null {
+  const common = props.brand?.names?.common;
+  if (Array.isArray(common)) {
+    for (const entry of common) {
+      if (typeof entry?.value === 'string' && entry.value.trim()) return entry.value.trim();
+    }
+  }
+  return null;
+}
+
 function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | null {
   if (!feature?.id || !feature?.geometry?.coordinates) return null;
 
@@ -476,12 +490,27 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const country = addr?.country?.trim() || null;
   const status = mapOperatingStatus(props.operating_status);
   const propsRecord = props as Record<string, unknown>;
+  const brand = extractBrandName(props);
+  const wikidata = props.brand?.wikidata?.trim() || null;
+  const sources = Array.isArray(props.sources) && props.sources.length > 0
+    ? props.sources.map(s => ({
+        property: s.property,
+        dataset: s.dataset,
+        record_id: s.record_id,
+      }))
+    : null;
 
   const priceRaw = extractOsmField(propsRecord, ['price_range', 'price_rating', 'priceRange', 'priceRating']);
-  const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(name);
+  const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(brand ?? name);
 
   const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
-  const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
+  let weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
+  // Free chain-hours fallback (AllThePlaces / first-party locator patterns)
+  // when Overture has no usable OSM opening_hours tag.
+  if (weekdayDescriptions.length !== 7) {
+    const chainHours = lookupChainOpeningHours(name, brand);
+    if (chainHours.length === 7) weekdayDescriptions = chainHours;
+  }
   const regularOpeningHours =
     weekdayDescriptions.length === 7 ? { weekdayDescriptions } : null;
 
@@ -500,6 +529,9 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
     businessStatus: status.businessStatus,
     priceTier,
     regularOpeningHours,
+    brand,
+    wikidata,
+    sources,
     attributes: extractAttributes(props),
     location: { latitude: lat, longitude: lng },
   };

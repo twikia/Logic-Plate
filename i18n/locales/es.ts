@@ -74,6 +74,7 @@ const es: Translations = {
     "saturday": "Sábado",
     "sunday": "Domingo",
     "closed": "Cerrado",
+    "hoursNotListed": "Horario no indicado",
     "open24Hours": "Abierto las 24 horas",
     "daily": "Diario"
   },
