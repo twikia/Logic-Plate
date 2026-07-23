@@ -316,8 +316,6 @@ export default function RandomResultScreen() {
   const address = place.address || place.formattedAddress || '';
   const phone = place.phone || place.nationalPhoneNumber || '';
   const website = place.website_url || place.websiteUri || '';
-  const rating = place.rating ?? null; // null for v2 Overture (no ratings)
-  const reviews = place.userRatingCount ?? null; // null for v2
   const price = formatRestaurantCostLabel(place); // cascades: priceRange → priceLevel → priceTier → '-'
   const type = (place.category || place.primaryType || '').replace(/_/g, ' ');
   const cuisineKey = place.cuisineKey || place.aiOverview?.cuisineKey || place.category?.replace(/_restaurant$/, '') || place.primaryType?.replace(/_restaurant$/, '') || undefined;
@@ -541,17 +539,6 @@ export default function RandomResultScreen() {
                 {name}
               </Text>
               <View style={styles.heroMeta}>
-                {typeof rating === 'number' && rating > 0 ? (
-                  <View style={styles.heroMetaItem}>
-                    <Ionicons name="star" size={12} color="#FFD700" />
-                    <Text style={styles.heroMetaText}>{rating.toFixed(1)}</Text>
-                    {reviews ? (
-                      <Text style={styles.heroMetaSub}>
-                        ({reviews >= 1000 ? `${(reviews / 1000).toFixed(1)}k` : reviews})
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : null}
                 <View style={styles.heroMetaItem}>
                   <Ionicons name="navigate-outline" size={12} color="#F9A06F" />
                   <Text style={styles.heroMetaText}>{dist}</Text>

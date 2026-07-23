@@ -405,7 +405,7 @@ const pl: Translations = {
     "pushNotifications": "Powiadomienia push",
     "pushNotificationsDesc": "Otrzymuj aktualizacje i alerty",
     "aboutSection": "O",
-    "version": "Wersja 1.0.4 (faza 2)",
+    "version": "Wersja 3.0",
     "credits": "Wykonane z ❤️ dla smakoszy",
     "userId": "Identyfikator użytkownika",
     "deleteAccount": "Usuń konto",

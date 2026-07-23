@@ -65,10 +65,29 @@ export type RestaurantSortInput = {
   aiOverview?: AiOverview | null;
   rating?: number;
   priceLevel?: string;
+  priceTier?: number | null;
   distanceMeters?: number;
   matchScore?: number;
   userRatingCount?: number | null;
 };
+
+function resolvePriceSortIndex(r: RestaurantSortInput): number {
+  const priceLevels = [
+    'PRICE_LEVEL_INEXPENSIVE',
+    'PRICE_LEVEL_MODERATE',
+    'PRICE_LEVEL_EXPENSIVE',
+    'PRICE_LEVEL_VERY_EXPENSIVE',
+  ];
+  if (r.priceLevel) {
+    const idx = priceLevels.indexOf(r.priceLevel);
+    if (idx !== -1) return idx;
+  }
+  const tier = r.priceTier ?? r.aiOverview?.priceTier;
+  if (typeof tier === 'number' && tier >= 1 && tier <= 4) {
+    return tier - 1;
+  }
+  return 999;
+}
 
 export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): number {
   if (sortBy === 'matchScore') {
@@ -76,7 +95,13 @@ export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): numb
   }
   const ai = r.aiOverview ?? null;
   if (sortBy === 'overall') {
-    return calculatePlateboundScore(ai, r.rating, r.priceLevel, r.userRatingCount);
+    return calculatePlateboundScore(
+      ai,
+      r.rating,
+      r.priceLevel,
+      r.userRatingCount,
+      r.priceTier ?? ai?.priceTier
+    );
   }
   if (sortBy === 'distance') {
     return r.distanceMeters ?? 0;
@@ -85,14 +110,7 @@ export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): numb
     return r.rating ?? -1;
   }
   if (sortBy === 'price') {
-    const priceLevels = [
-      'PRICE_LEVEL_INEXPENSIVE',
-      'PRICE_LEVEL_MODERATE',
-      'PRICE_LEVEL_EXPENSIVE',
-      'PRICE_LEVEL_VERY_EXPENSIVE',
-    ];
-    const idx = r.priceLevel ? priceLevels.indexOf(r.priceLevel) : -1;
-    return idx === -1 ? 999 : idx;
+    return resolvePriceSortIndex(r);
   }
   if (sortBy === 'health' || (sortBy as string) in DEFAULT_RANDOM_AI_CUTOFFS) {
     return getOverviewMetric(ai, sortBy === 'health' ? 'health' : (sortBy as RandomAiCutoffKey));
@@ -170,7 +188,13 @@ export function sortGoodness01(
     return Math.max(0, Math.min(1, v / 5));
   }
   if (sortBy === 'overall') {
-    const o = calculatePlateboundScore(r.aiOverview ?? null, r.rating, r.priceLevel, r.userRatingCount);
+    const o = calculatePlateboundScore(
+      r.aiOverview ?? null,
+      r.rating,
+      r.priceLevel,
+      r.userRatingCount,
+      r.priceTier ?? r.aiOverview?.priceTier
+    );
     return Math.max(0, Math.min(1, o / 10));
   }
   if (sortBy === 'health' || sortBy === 'workoutRecovery') {

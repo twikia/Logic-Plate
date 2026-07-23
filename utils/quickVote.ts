@@ -2,12 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCachedAiOverviewsForPlaces, mergeAiOverviewsOntoPlaces } from '@/core/aiOverviewCache';
 import { isOpenNow } from '@/core/isOpenNow';
 import { getLocation } from '@/core/locationCache';
+import { getPlacePrimaryType } from '@/core/placeFields';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface QuickVoteRestaurant {
   id: string;
+  name?: string;
   displayName?: { text?: string };
+  category?: string;
   primaryType?: string;
   currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
   currentSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
@@ -15,15 +18,18 @@ export interface QuickVoteRestaurant {
   regularSecondaryOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
   photo_url?: string;
   photos?: unknown[];
+  website_url?: string;
   websiteUri?: string;
   gemini_summary?: string;
   healthScore?: number;
-  aiOverview?: { summaryGoodBad?: string; healthScore?: number };
+  aiOverview?: { summaryGoodBad?: string; healthScore?: number; priceTier?: number };
   rating?: number;
+  address?: string;
   formattedAddress?: string;
   location?: { latitude?: number; longitude?: number };
   priceRange?: unknown;
   priceLevel?: string;
+  priceTier?: number;
   distanceMeters?: number;
   editorialSummary?: { text?: string };
 }
@@ -126,7 +132,7 @@ export function pickQuickVoteRestaurants(all: QuickVoteRestaurant[]): QuickVoteR
   const overflow: QuickVoteRestaurant[] = [];
 
   for (const r of shuffled) {
-    const pt = r.primaryType ?? 'unknown';
+    const pt = getPlacePrimaryType(r) || 'unknown';
     if (!seenTypes.has(pt) && picks.length < 5) {
       picks.push(r);
       seenTypes.add(pt);

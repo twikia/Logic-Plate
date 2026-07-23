@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import {
@@ -14,6 +15,7 @@ import {
   cacheImageUrl,
   fetchRestaurantPhotoUrls,
   getCachedImageUrl,
+  isStockImageUrl,
   peekCachedImageUrl,
 } from './imageCache';
 
@@ -320,6 +322,8 @@ function RestaurantImageInner({
     );
   }
 
+  const showStockBadge = isStockImageUrl(activeUri) && Math.min(width, height) >= 44;
+
   // Loading or Loaded — render image
   return (
     <ImageFrame {...frameProps}>
@@ -338,6 +342,25 @@ function RestaurantImageInner({
         cachePolicy="memory-disk"
         recyclingKey={restaurantId}
       />
+      {showStockBadge && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.stockBadge,
+            {
+              paddingHorizontal: Math.max(4, Math.round(Math.min(width, height) * 0.05)),
+              paddingVertical: Math.max(2, Math.round(Math.min(width, height) * 0.02)),
+            },
+          ]}>
+          <Text
+            style={[
+              styles.stockBadgeText,
+              { fontSize: Math.max(8, Math.min(10, Math.round(Math.min(width, height) * 0.12))) },
+            ]}>
+            Stock
+          </Text>
+        </View>
+      )}
     </ImageFrame>
   );
 }
@@ -351,5 +374,17 @@ const styles = StyleSheet.create({
   placeholder: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  stockBadge: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  stockBadgeText: {
+    color: 'rgba(255, 255, 255, 0.92)',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });

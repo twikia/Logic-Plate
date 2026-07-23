@@ -276,10 +276,6 @@ const RestaurantRow = React.memo(function RestaurantRow({
     item.priceTier ?? item.aiOverview?.priceTier
   );
   const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
-  const ratingColor =
-    typeof item.rating === 'number' && item.rating > 0
-      ? lerpRedGreen(Math.max(0, Math.min(1, item.rating / 5)))
-      : theme.subtext;
   const healthColor =
     healthNum != null ? lerpRedGreen(Math.max(0, Math.min(1, healthNum / 10))) : theme.subtext;
   const lat = item.location?.latitude;
@@ -322,14 +318,6 @@ const RestaurantRow = React.memo(function RestaurantRow({
         <View style={styles.rowTextCol}>
           <Text style={[styles.rowName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
           <View style={styles.rowMeta}>
-            {typeof item.rating === 'number' && item.rating > 0 ? (
-              <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
-                <Ionicons name="star" size={9} color={ratingColor} />
-                <Text style={[styles.metaText, { color: ratingColor, fontWeight: '700' }]}>
-                  {item.rating.toFixed(1)}
-                </Text>
-              </View>
-            ) : null}
             <View style={[styles.metaPill, { backgroundColor: tc.metaPillBg, borderColor: tc.metaPillBorder }]}>
               <Ionicons name="ribbon-outline" size={9} color={neonUi ? NEON_MAGENTA : theme.tint} />
               <Text style={[styles.rowPlateboundScore, { color: neonUi ? NEON_MAGENTA : theme.tint }]}>

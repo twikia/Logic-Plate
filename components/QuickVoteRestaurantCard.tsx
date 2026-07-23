@@ -4,6 +4,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { RestaurantImage } from '@/core/images';
+import {
+  getPlaceAddress,
+  getPlaceCuisineKey,
+  getPlaceName,
+  getPlacePrimaryType,
+  getPlaceWebsiteUrl,
+} from '@/core/placeFields';
 import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import type { ThemeColors } from '@/constants/Themes';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -18,7 +25,7 @@ function healthScoreOf(r: QuickVoteRestaurant): number | null {
   if (typeof fromAi === 'number' && Number.isFinite(fromAi)) return fromAi;
   const top = (r as { healthScore?: unknown }).healthScore;
   if (typeof top === 'number' && Number.isFinite(top)) return top;
-  return healthTierFromPrimaryType(r.primaryType);
+  return healthTierFromPrimaryType(getPlacePrimaryType(r));
 }
 
 function aiOverviewBody(r: QuickVoteRestaurant): string {
@@ -57,12 +64,19 @@ export function QuickVoteRestaurantCard({
   const healthPct = health != null ? Math.max(0, Math.min(100, (health / 10) * 100)) : 0;
   const overview = aiOverviewBody(r);
   const vibeLine = oneLineVibe(r);
-  const cost = formatRestaurantCostLabel(r as never);
-  const name = r.displayName?.text ?? t('common.restaurant');
+  const costRaw = formatRestaurantCostLabel({
+    priceRange: (r as { priceRange?: never }).priceRange,
+    priceLevel: r.priceLevel,
+    priceTier: r.priceTier ?? r.aiOverview?.priceTier,
+  });
+  const cost = costRaw && costRaw !== '-' ? costRaw : '';
+  const name = getPlaceName(r) || t('common.restaurant');
+  const address = getPlaceAddress(r);
+  const websiteUrl = getPlaceWebsiteUrl(r);
+  const cuisineKey = getPlaceCuisineKey(r);
   const lat = r.location?.latitude;
   const lng = r.location?.longitude;
   const metaParts: string[] = [];
-  if (typeof r.rating === 'number') metaParts.push(`${r.rating.toFixed(1)} ★`);
   if (cost) metaParts.push(cost);
   if (typeof r.distanceMeters === 'number') metaParts.push(formatDistance(r.distanceMeters));
 
@@ -86,9 +100,9 @@ export function QuickVoteRestaurantCard({
             name={name}
             latitude={lat}
             longitude={lng}
-            websiteUrl={(r as { websiteUri?: string }).websiteUri}
-            formattedAddress={r.formattedAddress}
-            cuisineKey={r.primaryType?.replace(/_restaurant$/, '')}
+            websiteUrl={websiteUrl}
+            formattedAddress={address}
+            cuisineKey={cuisineKey}
             width={68}
             height={68}
             borderRadius={12}

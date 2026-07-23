@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
 import { RestaurantImage } from '@/core/images';
+import { getPlaceAddress, getPlaceCuisineKey, getPlaceName, getPlaceWebsiteUrl } from '@/core/placeFields';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
   determineWinner,
@@ -121,18 +122,18 @@ export default function QuickVoteWinnerScreen() {
               restaurantId={winner.id}
               photos={(winner as { photos?: unknown[] }).photos ?? []}
               photoUrl={winner.photo_url}
-              name={winner.displayName?.text ?? t('common.unknown')}
+              name={getPlaceName(winner) || t('common.unknown')}
               latitude={winner.location?.latitude}
               longitude={winner.location?.longitude}
-              websiteUrl={(winner as { websiteUri?: string }).websiteUri}
-              formattedAddress={winner.formattedAddress}
-              cuisineKey={winner.primaryType?.replace(/_restaurant$/, '')}
+              websiteUrl={getPlaceWebsiteUrl(winner)}
+              formattedAddress={getPlaceAddress(winner)}
+              cuisineKey={getPlaceCuisineKey(winner)}
               width={imgW}
               height={Math.round(imgW * 0.55)}
               borderRadius={16}
             />
             <Text style={[styles.title, { color: theme.text }]}>
-              {winner.displayName?.text ?? t('common.unknown')}
+              {getPlaceName(winner) || t('common.unknown')}
             </Text>
             <View style={{ marginTop: 12 }}>
               <QuickVoteRestaurantCard
@@ -157,7 +158,7 @@ export default function QuickVoteWinnerScreen() {
           <Text style={[styles.summary, { color: theme.subtext }]}>{t('quickVote.noVotesYet')}</Text>
         ) : (
           breakdown.map((row, i) => {
-            const label = row.r.displayName?.text ?? t('common.unknown');
+            const label = getPlaceName(row.r) || t('common.unknown');
             const w = Math.round((row.c / maxVotes) * 100);
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
             return (

@@ -33,7 +33,7 @@ import { RestaurantCarousel } from '@/components/RestaurantCarousel';
 import { TranslatedText } from '@/components/ui/TranslatedText';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
-import { formatRestaurantCostLabel, formatPlacePriceLabel } from '@/core/placePriceLabel';
+import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import {
   getPlaceAddress,
   getPlaceName,
@@ -60,7 +60,10 @@ import { scoreWithLoadedPrefs } from '@/core/recommendationEngine';
 function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: (meters: number) => string): string {
   if (sortBy === 'matchScore') return item.matchScore != null ? `${Math.round(item.matchScore)}%` : '—';
   if (sortBy === 'distance') return formatDistance(item.distanceMeters ?? 0);
-  if (sortBy === 'price') return formatPlacePriceLabel(item) || '—';
+  if (sortBy === 'price') {
+    const label = formatRestaurantCostLabel(item);
+    return label && label !== '-' ? label : '—';
+  }
   if (sortBy === 'rating') {
     if (item.aiOverview) {
       const s = calculatePlateboundScore(
@@ -76,7 +79,13 @@ function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: 
   }
   if (sortBy === 'overall') {
     if (!item.aiOverview) return '—';
-    const s = calculatePlateboundScore(item.aiOverview, item.rating, item.priceLevel, item.userRatingCount);
+    const s = calculatePlateboundScore(
+      item.aiOverview,
+      item.rating,
+      item.priceLevel,
+      item.userRatingCount,
+      item.priceTier ?? item.aiOverview?.priceTier,
+    );
     return s.toFixed(1);
   }
   const raw = getSortValue(item, sortBy);

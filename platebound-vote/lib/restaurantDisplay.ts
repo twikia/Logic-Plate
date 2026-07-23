@@ -2,17 +2,24 @@ type Money = { units?: string | number; nanos?: number; currencyCode?: string };
 
 type RestaurantPick = {
   id: string;
+  name?: string;
   displayName?: { text?: string };
+  address?: string;
   formattedAddress?: string;
+  website_url?: string;
+  websiteUri?: string;
+  category?: string;
+  primaryType?: string;
   location?: { latitude?: number; longitude?: number };
   rating?: number;
   distanceMeters?: number;
   priceLevel?: string | null;
+  priceTier?: number | null;
   priceRange?: { startPrice?: Money; endPrice?: Money };
   photos?: unknown[];
   photo_url?: string;
   gemini_summary?: string;
-  aiOverview?: { summaryGoodBad?: string; healthScore?: number };
+  aiOverview?: { summaryGoodBad?: string; healthScore?: number; priceTier?: number };
   healthScore?: number;
   groupScore?: number;
   editorialSummary?: { text?: string };
@@ -63,6 +70,14 @@ function formatMoneyAmount(amount: number, currencyCode: string): string {
   return fmt.format(amount);
 }
 
+export function getPlaceName(place: RestaurantPick): string {
+  return place.name || place.displayName?.text || '';
+}
+
+export function getPlaceAddress(place: RestaurantPick): string {
+  return place.address || place.formattedAddress || '';
+}
+
 export function formatPlacePriceLabel(place: {
   priceRange?: { startPrice?: Money; endPrice?: Money } | unknown;
 }): string {
@@ -101,8 +116,29 @@ export function formatPriceLevelLabel(priceLevel?: string | null): string {
   }
 }
 
+export function formatPriceTierLabel(priceTier?: number | null): string {
+  switch (priceTier) {
+    case 1:
+      return '$';
+    case 2:
+      return '$$';
+    case 3:
+      return '$$$';
+    case 4:
+      return '$$$$';
+    default:
+      return '';
+  }
+}
+
 export function formatRestaurantCostLabel(place: RestaurantPick): string {
-  return formatPlacePriceLabel(place) || formatPriceLevelLabel(place.priceLevel);
+  const tier = place.priceTier ?? place.aiOverview?.priceTier;
+  return (
+    formatPlacePriceLabel(place) ||
+    formatPriceLevelLabel(place.priceLevel) ||
+    formatPriceTierLabel(tier) ||
+    ''
+  );
 }
 
 export function formatDistance(meters: number): string {

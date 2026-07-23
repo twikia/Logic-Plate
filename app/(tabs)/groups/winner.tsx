@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import { RestaurantImage } from '@/core/images';
+import { getPlaceAddress, getPlaceCuisineKey, getPlaceName, getPlaceWebsiteUrl } from '@/core/placeFields';
 import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { supabase } from '@/core/supabaseClient';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -88,11 +89,12 @@ export default function GroupWinnerScreen() {
   };
 
   const shareResult = async () => {
-    if (!winner?.displayName?.text) return;
-    const addr = winner.formattedAddress ?? '';
+    const name = getPlaceName(winner);
+    if (!name) return;
+    const addr = getPlaceAddress(winner) ?? '';
     hapticMedium();
     await Share.share({
-      message: t('groupWinner.shareMessage', { name: winner.displayName.text, address: addr }),
+      message: t('groupWinner.shareMessage', { name, address: addr }),
     });
   };
 
@@ -112,7 +114,16 @@ export default function GroupWinnerScreen() {
   }
 
   const vibe = oneLineVibe(winner);
-  const price = formatRestaurantCostLabel(winner as never);
+  const winnerName = getPlaceName(winner) || t('common.unknown');
+  const winnerAddress = getPlaceAddress(winner);
+  const winnerWebsite = getPlaceWebsiteUrl(winner);
+  const winnerCuisine = getPlaceCuisineKey(winner);
+  const priceRaw = formatRestaurantCostLabel({
+    priceRange: winner.priceRange as never,
+    priceLevel: winner.priceLevel,
+    priceTier: winner.priceTier ?? winner.aiOverview?.priceTier,
+  });
+  const price = priceRaw && priceRaw !== '-' ? priceRaw : '';
   const dist =
     typeof winner.distanceMeters === 'number'
       ? formatDistance(winner.distanceMeters)
@@ -130,18 +141,18 @@ export default function GroupWinnerScreen() {
             restaurantId={winner.id}
             photos={(winner as { photos?: unknown[] }).photos ?? []}
             photoUrl={winner.photo_url}
-            name={winner.displayName?.text ?? t('common.unknown')}
+            name={winnerName}
             latitude={winner.location?.latitude}
             longitude={winner.location?.longitude}
-            websiteUrl={(winner as { websiteUri?: string }).websiteUri}
-            formattedAddress={winner.formattedAddress}
-            cuisineKey={winner.primaryType?.replace(/_restaurant$/, '')}
+            websiteUrl={winnerWebsite}
+            formattedAddress={winnerAddress}
+            cuisineKey={winnerCuisine}
             width={imgW - 40}
             height={Math.round((imgW - 40) * 0.52)}
             borderRadius={14}
           />
           <Text style={[styles.name, { color: theme.text }]}>
-            {winner.displayName?.text ?? t('common.unknown')}
+            {winnerName}
           </Text>
           {vibe ? (
             <Text style={[styles.summary, { color: theme.subtext }]}>{vibe}</Text>
@@ -151,10 +162,10 @@ export default function GroupWinnerScreen() {
               <View style={[styles.pill, { backgroundColor: theme.gradient[0] }]}>
                 <Text style={[styles.pillText, { color: theme.subtext }]}>📍 {dist}</Text>
               </View>
-            ) : winner.formattedAddress ? (
+            ) : winnerAddress ? (
               <View style={[styles.pill, { backgroundColor: theme.gradient[0] }]}>
                 <Text style={[styles.pillText, { color: theme.subtext }]} numberOfLines={1}>
-                  📍 {winner.formattedAddress}
+                  📍 {winnerAddress}
                 </Text>
               </View>
             ) : null}

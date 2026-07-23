@@ -5,6 +5,7 @@ import {
   aiOverviewBody,
   formatDistance,
   formatRestaurantCostLabel,
+  getPlaceName,
   oneLineSummary,
   pickPhotoUrl,
   type RestaurantPick,
@@ -601,11 +602,7 @@ export default function VoteByCodePage() {
               const cost = formatRestaurantCostLabel(r);
               const dist =
                 typeof r.distanceMeters === 'number' ? formatDistance(r.distanceMeters) : '';
-              const metaParts = [
-                typeof r.rating === 'number' ? `${r.rating.toFixed(1)} ★` : '',
-                dist,
-                cost,
-              ].filter(Boolean);
+              const metaParts = [dist, cost].filter(Boolean);
               const isExpanded = expandedCards.has(r.id);
               const isVotedFor = votedForId === r.id;
               const overview = aiOverviewBody(r);
@@ -628,7 +625,7 @@ export default function VoteByCodePage() {
                       <div className="w-16 h-16 rounded-xl bg-[#CCFBF1] shrink-0" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-base leading-snug">{r.displayName?.text ?? 'Restaurant'}</div>
+                      <div className="font-bold text-base leading-snug">{getPlaceName(r) || 'Restaurant'}</div>
                       {metaParts.length > 0 ? (
                         <p className="text-zinc-400 text-sm mt-0.5">{metaParts.join('  ·  ')}</p>
                       ) : null}
@@ -712,7 +709,7 @@ export default function VoteByCodePage() {
                 className="w-full rounded-xl object-cover aspect-[16/9] bg-[#CCFBF1]"
               />
             ) : null}
-            <h2 className="text-2xl font-bold">{winnerPlace.displayName?.text}</h2>
+            <h2 className="text-2xl font-bold">{getPlaceName(winnerPlace) || 'Restaurant'}</h2>
             {oneLineSummary(winnerPlace) ? (
               <p className="text-zinc-400 text-sm">{oneLineSummary(winnerPlace)}</p>
             ) : null}

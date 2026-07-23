@@ -45,6 +45,7 @@ const HEALTH_SCORES: Record<string, number> = {
   chinese_restaurant: 3,
   american_restaurant: 2,
   burger_restaurant: 1,
+  hamburger_restaurant: 1,
   pizza_restaurant: 2,
   fast_food_restaurant: 1,
 };
@@ -52,13 +53,56 @@ const HEALTH_SCORES: Record<string, number> = {
 const MOOD_CUISINE_MAP: Record<string, string[]> = {
   warm: ["japanese_restaurant", "ramen_restaurant", "korean_restaurant"],
   fresh: ["sushi_restaurant", "salad_shop", "mediterranean_restaurant", "vietnamese_restaurant"],
-  comfort: ["american_restaurant", "pizza_restaurant", "burger_restaurant", "italian_restaurant"],
+  comfort: ["american_restaurant", "pizza_restaurant", "burger_restaurant", "hamburger_restaurant", "italian_restaurant"],
   bold: ["mexican_restaurant", "indian_restaurant", "thai_restaurant", "ethiopian_restaurant"],
   surprise: [],
 };
 
 function placeCategory(r: { category?: string; primaryType?: string; cuisineKey?: string }): string {
   return String(r.category ?? r.primaryType ?? r.cuisineKey ?? "");
+}
+
+function resolvePriceTier(r: Record<string, unknown>): number | null {
+  const direct = r.priceTier;
+  if (typeof direct === "number" && direct >= 1 && direct <= 4) return direct;
+  const ai = r.aiOverview as { priceTier?: number } | undefined;
+  if (typeof ai?.priceTier === "number" && ai.priceTier >= 1 && ai.priceTier <= 4) {
+    return ai.priceTier;
+  }
+  return null;
+}
+
+function toClientPick(
+  r: Record<string, unknown>,
+  ai?: { summaryGoodBad: string; healthScore: number; priceTier?: number | null },
+): Record<string, unknown> {
+  const name = String(r.name ?? (r.displayName as { text?: string } | undefined)?.text ?? "");
+  const address = String(r.address ?? r.formattedAddress ?? "");
+  const website = String(r.website_url ?? r.websiteUri ?? "");
+  const category = placeCategory(r as { category?: string; primaryType?: string; cuisineKey?: string });
+  const priceTier = resolvePriceTier(r) ?? (typeof ai?.priceTier === "number" ? ai.priceTier : null);
+  const base: Record<string, unknown> = {
+    ...r,
+    name,
+    displayName: { text: name },
+    address,
+    formattedAddress: address,
+    website_url: website || undefined,
+    websiteUri: website || undefined,
+    category,
+    primaryType: category || r.primaryType,
+  };
+  if (priceTier != null) base.priceTier = priceTier;
+  if (!ai) return base;
+  return {
+    ...base,
+    aiOverview: {
+      summaryGoodBad: ai.summaryGoodBad,
+      healthScore: ai.healthScore,
+      ...(typeof ai.priceTier === "number" ? { priceTier: ai.priceTier } : {}),
+    },
+    healthScore: ai.healthScore,
+  };
 }
 
 serve(async (req) => {
@@ -263,12 +307,28 @@ serve(async (req) => {
 
   const scored = eligible.map((r: Record<string, unknown>) => {
     let score = 0;
-    const aiHealth = typeof (r.aiOverview as { healthScore?: number } | undefined)?.healthScore === "number"
-      ? (r.aiOverview as { healthScore: number }).healthScore
-      : null;
+    const ai = r.aiOverview as {
+      healthScore?: number;
+      tasteScore?: number;
+      valueForMoneyScore?: number;
+      groupSizeSweetSpot?: number;
+      noiseLevelEstimate?: number;
+    } | undefined;
+    const aiHealth = typeof ai?.healthScore === "number" ? ai.healthScore : null;
     const rating = typeof r.rating === "number" ? r.rating : null;
-    const ratingScore = rating != null ? ((rating - 1) / 4) * 100 : 50;
-    score += ratingScore * weights.rating;
+    const taste = typeof ai?.tasteScore === "number" ? ai.tasteScore : null;
+    const qualityScore = rating != null
+      ? ((rating - 1) / 4) * 100
+      : taste != null
+        ? (taste / 5) * 100
+        : 50;
+    score += qualityScore * weights.rating;
+
+    const priceTier = resolvePriceTier(r);
+    if (priceTier != null) {
+      const priceScore = ((5 - priceTier) / 4) * 100;
+      score += priceScore * weights.price;
+    }
 
     const primaryType = placeCategory(r as { category?: string; primaryType?: string; cuisineKey?: string });
     const healthScore = aiHealth != null
@@ -281,10 +341,11 @@ serve(async (req) => {
     if (dominantEnergy === "low_key") {
       if (["cafe", "salad_shop"].includes(primaryType)) score += 15;
       if (["bar"].includes(primaryType)) score -= 20;
+      if (typeof ai?.noiseLevelEstimate === "number" && ai.noiseLevelEstimate <= 2) score += 10;
     }
     if (dominantEnergy === "lets_go") {
-      if (r.goodForGroups) score += 15;
-      if (r.liveMusic) score += 10;
+      if (typeof ai?.groupSizeSweetSpot === "number" && ai.groupSizeSweetSpot >= 4) score += 15;
+      if (typeof ai?.noiseLevelEstimate === "number" && ai.noiseLevelEstimate >= 3) score += 10;
     }
 
     return { ...r, groupScore: Math.min(100, Math.max(0, Math.round(score))) };
@@ -333,27 +394,35 @@ serve(async (req) => {
 
   const { data: aiRows } = await supabase
     .from("v2_ai_overview_cache")
-    .select("gers_id, summary_good_bad, health_score")
+    .select("gers_id, summary_good_bad, health_score, price_tier, taste_score")
     .in("gers_id", top5Ids);
 
-  const aiMap = new Map<string, { summaryGoodBad: string; healthScore: number }>();
+  const aiMap = new Map<string, {
+    summaryGoodBad: string;
+    healthScore: number;
+    priceTier?: number | null;
+    tasteScore?: number | null;
+  }>();
   for (const row of (aiRows ?? []) as {
     gers_id: string;
     summary_good_bad: string | null;
     health_score: number | null;
+    price_tier: number | null;
+    taste_score: number | null;
   }[]) {
     if (row.summary_good_bad && row.health_score != null) {
       aiMap.set(row.gers_id, {
         summaryGoodBad: row.summary_good_bad,
         healthScore: row.health_score,
+        priceTier: row.price_tier,
+        tasteScore: row.taste_score,
       });
     }
   }
 
   const top5WithAi = top5.map((r: Record<string, unknown>) => {
     const ai = aiMap.get(String(r.id ?? ""));
-    if (!ai) return r;
-    return { ...r, aiOverview: ai, healthScore: ai.healthScore };
+    return toClientPick(r, ai);
   });
 
   const { error: upErr } = await supabase

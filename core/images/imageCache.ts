@@ -94,6 +94,19 @@ export const adjustQuality = (uri: string, maxPx: number): string => {
   return uri;
 };
 
+/**
+ * True for Unsplash / Wikimedia fallbacks (not from the restaurant's own site).
+ */
+export const isStockImageUrl = (uri: string | null | undefined): boolean => {
+  if (!uri) return false;
+  return (
+    uri.includes('images.unsplash.com') ||
+    uri.includes('unsplash.com/') ||
+    uri.includes('upload.wikimedia.org') ||
+    uri.includes('wikimedia.org/')
+  );
+};
+
 // ─── Per-image URL Cache (for RestaurantImage component) ─────────────────────
 
 /**

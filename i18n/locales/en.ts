@@ -420,7 +420,7 @@ const en = {
     pushNotifications: 'Push Notifications',
     pushNotificationsDesc: 'Get updates and alerts',
     aboutSection: 'About',
-    version: 'Version 1.0.4 (Phase 2)',
+    version: 'Version 3.0',
     credits: 'Made with \u2764\uFE0F for foodies',
     userId: 'User ID',
     deleteAccount: 'Delete account',

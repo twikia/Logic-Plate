@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
 import { useAppTheme } from '@/context/ThemeContext';
+import { getPlaceName } from '@/core/placeFields';
 import { type QuickVoteRestaurant } from '@/utils/quickVote';
 
 function parseVoteParams(raw: Record<string, string | string[] | undefined>) {
@@ -41,7 +42,7 @@ export default function QuickVoteVoteScreen() {
     (restaurant: QuickVoteRestaurant) => {
       if (!parsed || votedForId) return;
       setVotedForId(restaurant.id);
-      const name = restaurant.displayName?.text ?? t('common.restaurant');
+      const name = getPlaceName(restaurant) || t('common.restaurant');
       const newVotes = {
         ...parsed.votes,
         [restaurant.id]: (parsed.votes[restaurant.id] ?? 0) + 1,
