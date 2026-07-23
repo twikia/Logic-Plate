@@ -60,6 +60,10 @@ export type GetNearbyRestaurantsOptions = {
   onAiReady?: (places: any[]) => void;
   onPlacesUpdated?: (places: any[]) => void;
   waitForAi?: boolean;
+  /** Skip background AI (map loads markers first; AI is fetched on marker press). */
+  deferAi?: boolean;
+  /** Cap eager AI generation to this many closest places. Defaults to MAX_AI_OVERVIEWS. */
+  aiLimit?: number;
 };
 
 let latestJobSeq = 0;
@@ -137,6 +141,122 @@ const toPlaceSeed = (place: CachedPlace): PlaceSeed => ({
   regular_opening_hours: place.regularOpeningHours ?? null,
   attributes: place.attributes ?? null,
 });
+
+function pickClosestPlaces<T extends { id?: string; distanceMeters?: number }>(
+  places: T[],
+  limit: number,
+): T[] {
+  return [...places]
+    .filter((p) => !!p?.id)
+    .sort((a, b) => (a.distanceMeters ?? Number.POSITIVE_INFINITY) - (b.distanceMeters ?? Number.POSITIVE_INFINITY))
+    .slice(0, Math.max(0, limit));
+}
+
+async function generateAiInBatches(
+  seeds: PlaceSeed[],
+  missingIds: string[],
+  onBatch?: (generatedSoFar: Map<string, import('./aiOverviewCache').AiOverview>) => void,
+): Promise<Map<string, import('./aiOverviewCache').AiOverview>> {
+  const all = new Map<string, import('./aiOverviewCache').AiOverview>();
+  const batchSize = SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE;
+  for (let i = 0; i < missingIds.length; i += batchSize) {
+    const chunk = missingIds.slice(i, i + batchSize);
+    const generated = await invokeGenerateAiOverviewsForPlaces(seeds, chunk);
+    for (const [k, v] of generated) all.set(k, v);
+    onBatch?.(all);
+  }
+  return all;
+}
+
+const mapAiInflight = new Map<string, Promise<Map<string, import('./aiOverviewCache').AiOverview>>>();
+
+/**
+ * On map marker press: generate AI for the clicked place plus nearby missing
+ * places to fill one Gemini batch (AI_GENERATION_BATCH_SIZE).
+ * Returns the merged candidate list with any newly generated overviews applied.
+ */
+export async function ensureAiOverviewsAroundPlace<T extends {
+  id?: string;
+  name?: string;
+  aiOverview?: unknown;
+  location?: { latitude?: number; longitude?: number } | null;
+  distanceMeters?: number;
+  website_url?: string | null;
+  address?: string | null;
+  city?: string | null;
+  region?: string | null;
+  postcode?: string | null;
+  country?: string | null;
+  category?: string | null;
+  phone?: string | null;
+  priceTier?: number | null;
+  operating_status?: string | null;
+  regularOpeningHours?: { weekdayDescriptions: string[] } | null;
+  attributes?: string[] | null;
+}>(
+  target: T,
+  candidates: T[],
+): Promise<T[]> {
+  const targetId = target?.id;
+  if (!targetId) return candidates;
+
+  const pool = candidates.length > 0 ? candidates : [target];
+  const seeds = pool.map((p) => toPlaceSeed(p as CachedPlace)).filter((s) => !!s.id);
+  const cachedAi = await getCachedAiOverviewsForPlaces(seeds);
+
+  const tLat = target.location?.latitude;
+  const tLng = target.location?.longitude;
+  const distToTarget = (p: T): number => {
+    if (p.id === targetId) return -1;
+    const lat = p.location?.latitude;
+    const lng = p.location?.longitude;
+    if (
+      typeof tLat !== 'number' ||
+      typeof tLng !== 'number' ||
+      typeof lat !== 'number' ||
+      typeof lng !== 'number'
+    ) {
+      return p.distanceMeters ?? Number.POSITIVE_INFINITY;
+    }
+    const dLat = ((lat - tLat) * Math.PI) / 180;
+    const dLon = ((lng - tLng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((tLat * Math.PI) / 180) *
+        Math.cos((lat * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const missingSorted = pool
+    .filter((p) => !!p?.id && !cachedAi.has(p.id!))
+    .sort((a, b) => distToTarget(a) - distToTarget(b))
+    .slice(0, SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE);
+
+  if (missingSorted.length === 0) {
+    return mergeAiOverviewsOntoPlaces(pool, cachedAi);
+  }
+
+  const inflightKey = missingSorted.map((p) => p.id).sort().join(',');
+  let pending = mapAiInflight.get(inflightKey);
+  if (!pending) {
+    const missingIds = missingSorted.map((p) => p.id!);
+    const batchSeeds = missingSorted.map((p) => toPlaceSeed(p as CachedPlace));
+    pending = invokeGenerateAiOverviewsForPlaces(batchSeeds, missingIds).finally(() => {
+      mapAiInflight.delete(inflightKey);
+    });
+    mapAiInflight.set(inflightKey, pending);
+  }
+
+  try {
+    const generated = await pending;
+    for (const [k, v] of generated) cachedAi.set(k, v);
+  } catch (err) {
+    console.warn('[Orchestrator] Map on-demand AI batch failed:', err);
+  }
+
+  return mergeAiOverviewsOntoPlaces(pool, cachedAi);
+}
 
 async function loadNearbyRestaurantsInternal(
   userLat: number,
@@ -248,21 +368,26 @@ async function loadNearbyRestaurantsInternal(
     options?.onAiReady?.(enriched);
   };
 
+  const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
+  const aiTargets = pickClosestPlaces(visibleList, aiLimit);
+  const aiTargetIds = new Set(aiTargets.map((p) => p.id).filter(Boolean));
+  const missingAiIds = aiTargets.map((p) => p.id).filter((id) => !!id && !cachedAi.has(id));
+
   const runBackgroundAi = async () => {
-    const missingIds = visibleList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
-    if (missingIds.length === 0) {
+    if (missingAiIds.length === 0) {
       if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: 1 });
       return;
     }
     onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
-    console.log(`[Orchestrator] Generating AI overviews for ${missingIds.length} uncached places...`);
+    console.log(
+      `[Orchestrator] Generating AI overviews for ${missingAiIds.length}/${aiTargets.length} closest places (cap ${aiLimit}) in batches of ${SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE}...`
+    );
     try {
-      const generated = await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
-      if (jobSeq !== latestJobSeq) return;
-      for (const [k, v] of generated) cachedAi.set(k, v);
-      if (generated.size > 0) {
+      await generateAiInBatches(seeds.filter((s) => aiTargetIds.has(s.id)), missingAiIds, (generated) => {
+        if (jobSeq !== latestJobSeq) return;
+        for (const [k, v] of generated) cachedAi.set(k, v);
         triggerUpdates(mergeAiOverviewsOntoPlaces(visibleList, cachedAi));
-      }
+      });
     } catch (err) {
       console.warn('[Orchestrator] Background AI overview generation failed:', err);
     } finally {
@@ -270,12 +395,18 @@ async function loadNearbyRestaurantsInternal(
     }
   };
 
+  if (options?.deferAi) {
+    onProgress?.({ stage: 'done', progress: 1 });
+    return baseList;
+  }
+
   if (options?.waitForAi) {
-    const missingIds = visibleList.map(p => p.id).filter(id => !!id && !cachedAi.has(id));
-    if (missingIds.length > 0) {
+    if (missingAiIds.length > 0) {
       onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
-      const generated = await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
-      for (const [k, v] of generated) cachedAi.set(k, v);
+      await generateAiInBatches(seeds.filter((s) => aiTargetIds.has(s.id)), missingAiIds, (generated) => {
+        for (const [k, v] of generated) cachedAi.set(k, v);
+        triggerUpdates(mergeAiOverviewsOntoPlaces(visibleList, cachedAi));
+      });
     }
     const enriched = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
     onProgress?.({ stage: 'done', progress: 1 });

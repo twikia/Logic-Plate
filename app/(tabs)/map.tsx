@@ -20,6 +20,7 @@ import {
   isRestaurantFetchError,
   isRestaurantLoadSupersededError,
   logRestaurantFetchError,
+  ensureAiOverviewsAroundPlace,
 } from '@/core/restaurantOrchestrator';
 import { AI_OVERVIEW_FIELD_PLACEHOLDER, type AiOverview } from '@/core/aiOverviewCache';
 import {
@@ -376,6 +377,7 @@ export default function MapScreen() {
     setSearchCenter({ latitude: lat, longitude: lng });
     try {
       const results = await getNearbyRestaurants(lat, lng, fetchRadius, undefined, {
+        deferAi: true,
         onAiReady: async (enriched) => {
           mapSessionFetchedRadius = fetchRadius;
           const scored = await scoreWithLoadedPrefs(enriched, { radiusMeters: fetchRadius } as any, lat, lng, undefined, true);
@@ -598,7 +600,23 @@ export default function MapScreen() {
       tension: 120,
       friction: 10,
     }).start();
-  }, [region, sheetAnim]);
+
+    const targetId = restaurant.id;
+    void (async () => {
+      try {
+        const pool = restaurantsRef.current.length > 0 ? restaurantsRef.current : [restaurant];
+        const enriched = await ensureAiOverviewsAroundPlace(restaurant, pool);
+        commitAllRestaurants(enriched);
+        const next = enriched.find((x) => x.id === targetId);
+        if (next && selectedRestaurantRef.current?.id === targetId) {
+          selectedRestaurantRef.current = next;
+          setSelectedRestaurant(next);
+        }
+      } catch (err) {
+        console.warn('[map] On-demand AI overview failed:', err);
+      }
+    })();
+  }, [commitAllRestaurants, region, sheetAnim]);
 
   const applyMapFocusRestaurant = useCallback((focus: any, list: any[]) => {
     if (!focus?.id || typeof focus?.location?.latitude !== 'number' || typeof focus?.location?.longitude !== 'number') {

@@ -9,12 +9,15 @@ const corsHeaders = {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 5;
+const MAX_PLACES_PER_REQUEST = 60;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/2.0 (v2-ai-overview; contact: support@platebound.app)';
 const MENU_KEYWORDS = ['menu', 'food', 'drink', 'dining', 'eat'];
 const HOURS_KEYWORDS = ['hours', 'hour', 'opening', 'open-hours', 'schedule', 'contact', 'visit-us', 'location'];
-const MAX_RELEVANT_TEXT_CHARS = 4_000;
-const MAX_HOURS_TEXT_CHARS = 2_500;
+// Keep scrape snippets short — only enough signal for scores / price tier.
+const MAX_RELEVANT_TEXT_CHARS = 1_600;
+const MAX_HOURS_TEXT_CHARS = 600;
+const MAX_ATTR_CHARS = 700;
 const FETCH_TIMEOUT_MS = 7000;
 const WEEKDAY_NAMES = [
   'Monday',
@@ -32,6 +35,12 @@ const HOURS_SIGNAL_RE = /\b(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)|midnight|noon|\
 const DAY_NAME_RE = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i;
 const BOILERPLATE_RE = /\b(cookie|privacy policy|terms of (use|service)|subscribe|newsletter|follow us|all rights reserved|powered by|accessibility|sitemap|careers|press kit|opt.?out|gdpr|consent|manage preferences|sign up for|join our mailing)\b|©/i;
 const SOCIAL_RE = /\b(instagram|facebook|twitter|tiktok|youtube|linkedin)\b/i;
+
+// Only map/OSM facts that affect cuisine, diet, vibe, or price scoring.
+const ATTR_KEEP_RE =
+  /^(Brand|Basic category|Category primary|Category alternate|Taxonomy primary|Taxonomy alternate|Price range raw|OSM tags):/i;
+const OSM_TAG_KEEP_RE =
+  /\b(cuisine|diet|organic|vegan|vegetarian|halal|kosher|gluten|outdoor|takeaway|delivery|drive.?through|wifi|internet|wheelchair|breakfast|brunch|lunch|dinner|bar|pub|cafe|coffee|fast.?food|seafood|steak|pizza|burger|ramen|sushi|bbq|barbecue|microbrewery|craft.?beer|wine|cocktails?|reservation|capacity|smoking|air.?conditioning)\b/i;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,24 +126,8 @@ const overviewItemSchema = {
     soloDinerScore: { type: 'INTEGER' },
     energySustainScore: { type: 'INTEGER' },
     workFriendlyScore: { type: 'INTEGER' },
-    topMenuItems: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          name: { type: 'STRING' },
-          price: { type: 'STRING' },
-          overview: { type: 'STRING' },
-        },
-        required: ['name', 'price', 'overview'],
-      },
-    },
     priceTier: { type: 'INTEGER' },
     cuisineKey: { type: 'STRING' },
-    weekdayDescriptions: {
-      type: 'ARRAY',
-      items: { type: 'STRING' },
-    },
   },
   required: [
     'gersId', 'summaryGoodBad', 'speedScore', 'healthScore', 'workoutRecoveryScore',
@@ -156,56 +149,19 @@ const batchResponseSchema = {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_INSTRUCTION = `You are generating restaurant AI overviews for Platebound, a restaurant discovery app.
-You will receive up to 5 restaurants per call with Overture Maps metadata (name, category, address parts,
-price tier hint, operating status, and a full "Overture fields" block of map/OSM facts when available).
-Return JSON only at the root: an object with a single key "overviews" whose value is an array.
-The array must contain exactly one object per restaurant provided, in the same order.
-Each object must have "gersId" matching that restaurant's GERS ID and all required score fields.
+const SYSTEM_INSTRUCTION = `Score restaurants for Platebound. Return JSON only: {"overviews":[...]} with exactly one object per input restaurant, same order. Each object needs gersId plus the score fields listed in the schema.
 
-SCORE RULES:
-1) summaryGoodBad: concise balanced pros and cons, max 320 chars. No marketing fluff.
-2) speedScore: integer 0-5 (0=slowest, 5=fastest counter-service).
-3) healthScore: decimal 0-10 (10=healthiest), one decimal place.
-4) workoutRecoveryScore: integer 0-10 (10=best for gym recovery).
-5) processedScore: integer 0-10 (10=least processed ingredients).
-6) calorieScore: integer 0-5 (5=most calorie-dense typical order).
-7) proteinScore: integer 0-5 (5=highest protein typical order).
-8) carbScore: integer 0-5 (5=highest carb typical order).
-9) dateWorthiness: integer 0-5 (5=excellent date spot).
-10) noiseLevelEstimate: integer 0-5 (5=very loud).
-11) groupSizeSweetSpot: integer 1-6 (ideal party size).
-12) absoluteMacros: estimated calories/protein/carbs/fat for a typical order with AI uncertainty caveat.
-13) whoThisPlaceIsFor: single concise string describing the target customer.
-14) tasteScore: integer 0-5 (5=best flavor execution for this concept).
-15) valueForMoneyScore: integer 0-5 (5=best value, weigh price vs. portion/quality).
-16) hungoverRecoveryScore: integer 0-5 (5=best for hangover recovery).
-17) munchyScore: integer 0-5 (5=most satisfying late-night craving).
-18) varietyScore: integer 0-5 (5=broadest menu variety).
-19) macroFriendlyScore: integer 0-5 (5=easiest to track macros/calories).
-20) soloDinerScore: integer 0-5 (5=most welcoming for solo dining).
-21) energySustainScore: integer 0-5 (5=slow sustained fullness, 0=spike and crash).
-22) workFriendlyScore: integer 0-5 (5=best for laptop work — wifi/seating vibe).
-23) priceTier: integer 1-4 (1=budget, 2=moderate, 3=pricey, 4=fine dining). Infer from category and any provided price tier hint.
-24) cuisineKey: single lowercase string from: italian, mexican, american, japanese, chinese, thai, indian,
-    mediterranean, korean, vietnamese, french, greek, middle_eastern, caribbean, african, latin,
-    cafe, bar, pizza, burger, sandwich, seafood, steak, sushi, ramen, bbq, vegan, vegetarian,
-    dessert, bakery, fast_food, breakfast, brunch, or "general" if unclear.
+Scores (integers unless noted):
+- summaryGoodBad: pros/cons, max 180 chars
+- speedScore 0-5, healthScore 0-10 (1 decimal), workoutRecoveryScore 0-10, processedScore 0-10 (10=least processed)
+- calorieScore/proteinScore/carbScore 0-5, dateWorthiness 0-5, noiseLevelEstimate 0-5 (5=loud), groupSizeSweetSpot 1-6
+- absoluteMacros: short typical-order estimate + uncertainty, max 100 chars
+- whoThisPlaceIsFor: max 80 chars
+- tasteScore/valueForMoneyScore/hungoverRecoveryScore/munchyScore/varietyScore/macroFriendlyScore/soloDinerScore/energySustainScore/workFriendlyScore: 0-5
+- priceTier 1-4 (1=budget … 4=fine dining); prefer menu prices / price hint over guessing
+- cuisineKey: one of italian,mexican,american,japanese,chinese,thai,indian,mediterranean,korean,vietnamese,french,greek,middle_eastern,caribbean,african,latin,cafe,bar,pizza,burger,sandwich,seafood,steak,sushi,ramen,bbq,vegan,vegetarian,dessert,bakery,fast_food,breakfast,brunch,general
 
-Some restaurants include an "Overture fields" block (verified facts from Overture/OSM map data: alternate names,
-categories, cuisine and diet tags, brand, socials, emails, confidence, sources, raw hours/price, etc.)
-and/or a "Status" line (e.g. temporarily/permanently closed).
-Treat these as ground truth and factor them into the relevant scores (cuisineKey, varietyScore, macroFriendlyScore,
-workFriendlyScore, dateWorthiness, groupSizeSweetSpot, whoThisPlaceIsFor, summaryGoodBad) — do not contradict them,
-and do not just repeat them verbatim as if you inferred them yourself. If "Status" indicates the place is closed,
-reflect that plainly in summaryGoodBad.
-
-Some restaurants include a "Menu info from website" and/or "Hours info from website" block scraped from their real site,
-and/or a "Hours from map data" block (context only, may be outdated).
-- If a "Hours info from website" block is present, transcribe it into "weekdayDescriptions": an array of exactly 7 strings, one per day starting with Monday, each formatted like "Monday: 9:00 AM \u2013 5:00 PM" or "Monday: Closed". Only use hours explicitly present in that block — never invent or estimate hours. If the block is missing, ambiguous, or does not clearly cover all 7 days, return an empty array for weekdayDescriptions ("Hours from map data" is supplied separately and does not need to be transcribed).
-- If a "Menu info from website" block is present, extract up to 4 real menu items with their listed prices into "topMenuItems" (name, price as shown e.g. "$12.99", and a one-sentence overview). Only use items explicitly present in that block — never invent items or prices. If the block is missing or has no clear items/prices, return an empty array for topMenuItems.
-
-Do not invent menu items or opening hours that are not explicitly present in the provided website text. Base scores on category, name, Overture fields, and location context. Keep uncertainty explicit.`;
+Use only provided facts (category, brand/cuisine tags, closed status, menu snippet). Do not invent menu items or hours. If Status is closed, say so in summaryGoodBad.`;
 
 // ─── Website Scraper (1-Depth) ─────────────────────────────────────────────────
 
@@ -558,51 +514,76 @@ async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
 
 // ─── Place Text Block Builder ─────────────────────────────────────────────────
 
+function selectRelevantAttributes(attrs: string[] | null | undefined): string[] {
+  if (!attrs?.length) return [];
+  const out: string[] = [];
+  let used = 0;
+  for (const raw of attrs) {
+    const line = String(raw ?? '').trim();
+    if (!line || !ATTR_KEEP_RE.test(line)) continue;
+    let next = line;
+    if (/^OSM tags:/i.test(line)) {
+      const body = line.replace(/^OSM tags:\s*/i, '');
+      const kept = body
+        .split(';')
+        .map((p) => p.trim())
+        .filter((p) => p && OSM_TAG_KEEP_RE.test(p));
+      if (kept.length === 0) continue;
+      next = `OSM tags: ${kept.slice(0, 12).join('; ')}`;
+    }
+    if (used + next.length + 1 > MAX_ATTR_CHARS) break;
+    out.push(next);
+    used += next.length + 1;
+  }
+  return out;
+}
+
+function inferPriceTierFromMenuText(menuText: string): number | null {
+  const amounts: number[] = [];
+  const re = /\$\s*(\d{1,3}(?:\.\d{1,2})?)|(\d{1,2}\.\d{2})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(menuText)) !== null) {
+    const n = Number.parseFloat(m[1] || m[2] || '');
+    if (Number.isFinite(n) && n > 0 && n < 500) amounts.push(n);
+    if (amounts.length >= 24) break;
+  }
+  if (amounts.length < 2) return null;
+  const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+  if (avg < 12) return 1;
+  if (avg < 22) return 2;
+  if (avg < 40) return 3;
+  return 4;
+}
+
 function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
-  const addressParts = [
-    place.address,
-    place.city,
-    place.region,
-    place.postcode,
-    place.country,
-  ].filter(Boolean);
+  const cityLine = [place.city, place.region].filter(Boolean).join(', ');
   const lines = [
     `GERS ID: ${place.gers_id}`,
     `Name: ${place.name}`,
     `Category: ${place.category || 'restaurant'}`,
-    `Address: ${addressParts.join(', ') || 'Unknown'}`,
-    `Phone: ${place.phone || 'Not available'}`,
-    `Website: ${place.website_url || 'None'}`,
-    `Price tier hint: ${place.price_tier ?? 'unknown'}`,
-    `Lat/Lng: ${place.location?.latitude?.toFixed(5) ?? ''}, ${place.location?.longitude?.toFixed(5) ?? ''}`,
   ];
+  if (cityLine) lines.push(`Area: ${cityLine}`);
+  if (place.price_tier != null) lines.push(`Price tier hint: ${place.price_tier}`);
   if (place.operating_status && place.operating_status !== 'open') {
     lines.push(`Status: ${place.operating_status.replace(/_/g, ' ')}`);
   }
-  if (place.attributes && place.attributes.length > 0) {
-    lines.push(`Overture fields (from map data, treat as reliable):\n${place.attributes.join('\n')}`);
+  const attrs = selectRelevantAttributes(place.attributes);
+  if (attrs.length > 0) {
+    lines.push(`Map facts:\n${attrs.join('\n')}`);
   }
-  const mapHours = place.regular_opening_hours?.weekdayDescriptions;
-  if (mapHours?.length === 7 && !scrape?.hoursText) {
-    lines.push(`Hours from map data (for context only, may be outdated):\n${mapHours.join('\n')}`);
-  }
-  if (scrape?.hoursText) {
-    lines.push(`Hours info from website:\n${scrape.hoursText}`);
-  }
-  if (scrape?.menuText) {
-    lines.push(`Menu info from website:\n${scrape.menuText}`);
+  // Menu snippet for scoring only — hours come from JSON-LD / Overture, not Gemini.
+  if (scrape?.menuText && scrape.menuText.length > 40) {
+    lines.push(`Menu snippet:\n${scrape.menuText}`);
   }
   return lines.join('\n');
 }
 
 function buildBatchPrompt(batch: InputPlace[], scrapeByGersId: Map<string, ScrapeResult>): string {
   const blocks = batch.map((p, i) =>
-    `=== Restaurant ${i + 1} ===\n${buildPlaceBlock(p, scrapeByGersId.get(p.gers_id))}`
+    `=== ${i + 1} ===\n${buildPlaceBlock(p, scrapeByGersId.get(p.gers_id))}`
   ).join('\n\n');
 
-  return `You are given exactly ${batch.length} restaurant(s). Return one JSON object with key "overviews" containing an array of exactly ${batch.length} objects (same order). Each must include "gersId" matching the restaurant's GERS ID and all required score fields.
-
-${blocks}`;
+  return `Score these ${batch.length} restaurant(s). Return {"overviews":[...]} with ${batch.length} objects in the same order.\n\n${blocks}`;
 }
 
 // ─── Sanitizer ────────────────────────────────────────────────────────────────
@@ -623,44 +604,11 @@ function sanitizeWeekdayDescriptions(raw: unknown): string[] {
   return lines;
 }
 
-function sanitizeTopMenuItems(raw: unknown): Array<{ name: string; price: string; overview: string }> {
-  if (!Array.isArray(raw)) return [];
-  const out: Array<{ name: string; price: string; overview: string }> = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const name = String((item as any).name ?? '').trim().slice(0, 80);
-    const price = String((item as any).price ?? '').trim().slice(0, 20);
-    const overview = String((item as any).overview ?? '').trim().slice(0, 160);
-    if (!name) continue;
-    out.push({ name, price, overview });
-    if (out.length >= 4) break;
-  }
-  return out;
-}
-
-/** Infer price tier 1–4 from scraped menu item prices (USD-ish). */
-function inferPriceTierFromMenuItems(
-  items: Array<{ price: string }>,
-): number | null {
-  const amounts: number[] = [];
-  for (const item of items) {
-    const match = String(item.price ?? '').match(/(\d+(?:\.\d{1,2})?)/);
-    if (!match) continue;
-    const n = Number.parseFloat(match[1]);
-    if (Number.isFinite(n) && n > 0 && n < 500) amounts.push(n);
-  }
-  if (amounts.length === 0) return null;
-  const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-  if (avg < 12) return 1;
-  if (avg < 22) return 2;
-  if (avg < 40) return 3;
-  return 4;
-}
-
 function sanitizeOverview(
   raw: any,
   priceTierHint?: number | null,
-  scrapedWeekdayDescriptions?: string[],
+  weekdayDescriptions: string[] = [],
+  menuPriceTier: number | null = null,
 ): AiOverview | null {
   if (!raw || typeof raw !== 'object') return null;
 
@@ -674,21 +622,17 @@ function sanitizeOverview(
   };
   const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-  const summaryGoodBad = String(raw.summaryGoodBad ?? '').trim().slice(0, 400);
-  const absoluteMacros = String(raw.absoluteMacros ?? '').trim();
-  const whoThisPlaceIsFor = String(raw.whoThisPlaceIsFor ?? '').trim();
+  const summaryGoodBad = String(raw.summaryGoodBad ?? '').trim().slice(0, 200);
+  const absoluteMacros = String(raw.absoluteMacros ?? '').trim().slice(0, 120);
+  const whoThisPlaceIsFor = String(raw.whoThisPlaceIsFor ?? '').trim().slice(0, 100);
   if (!summaryGoodBad || !absoluteMacros || !whoThisPlaceIsFor) return null;
 
-  const topMenuItems = sanitizeTopMenuItems(raw.topMenuItems);
-  const menuPriceTier = inferPriceTierFromMenuItems(topMenuItems);
   const modelPriceTier = toInt(
     raw.priceTier,
     typeof priceTierHint === 'number' ? priceTierHint : 2,
   );
-  // Prefer menu-derived tier when we have real scraped prices; otherwise model/hint.
   const priceTier = clamp(menuPriceTier ?? modelPriceTier, 1, 4);
 
-  // Validate cuisine key
   const validCuisineKeys = new Set([
     'italian', 'mexican', 'american', 'japanese', 'chinese', 'thai', 'indian',
     'mediterranean', 'korean', 'vietnamese', 'french', 'greek', 'middle_eastern',
@@ -722,13 +666,11 @@ function sanitizeOverview(
     soloDinerScore: clamp(toInt(raw.soloDinerScore), 0, 5),
     energySustainScore: clamp(toInt(raw.energySustainScore), 0, 5),
     workFriendlyScore: clamp(toInt(raw.workFriendlyScore), 0, 5),
-    topMenuItems,
+    topMenuItems: [],
     priceTier,
     cuisineKey,
-    // Prefer deterministic JSON-LD hours scraped directly from the site over
-    // the model's transcription of freeform hours text.
-    weekdayDescriptions: scrapedWeekdayDescriptions?.length === 7
-      ? scrapedWeekdayDescriptions
+    weekdayDescriptions: weekdayDescriptions.length === 7
+      ? weekdayDescriptions
       : sanitizeWeekdayDescriptions(raw.weekdayDescriptions),
   };
 }
@@ -740,9 +682,6 @@ async function runGeminiBatch(
   const batchIds = new Set(batch.map(p => p.gers_id));
   const out: { gersId: string; overview: AiOverview }[] = [];
 
-  // Free enrichment: scrape each restaurant's own website (JSON-LD hours +
-  // menu page text) before asking Gemini. This is the source of real hours
-  // and menu prices — Overture alone rarely has them.
   const scrapeByGersId = new Map<string, ScrapeResult>();
   await Promise.all(
     batch.map(async (p) => {
@@ -751,7 +690,7 @@ async function runGeminiBatch(
         const result = await scrapeWebsite(p.website_url);
         scrapeByGersId.set(p.gers_id, result);
       } catch {
-        // best-effort — leave unscraped on failure
+        // best-effort
       }
     })
   );
@@ -764,8 +703,10 @@ async function runGeminiBatch(
       contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch, scrapeByGersId) }] }],
       generationConfig: {
         temperature: 0.2,
+        maxOutputTokens: 2048,
         responseMimeType: 'application/json',
         responseSchema: batchResponseSchema,
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   });
@@ -799,12 +740,20 @@ async function runGeminiBatch(
 
     const place = batch.find(p => p.gers_id === gersId);
     const scraped = scrapeByGersId.get(gersId);
-    // Prefer deterministic hours: scraped website JSON-LD first, then the
-    // already-parsed OSM/Overture hours on the place, then the model's guess.
     const deterministicHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
       ? scraped.jsonLdWeekdayDescriptions
-      : place?.regular_opening_hours?.weekdayDescriptions;
-    const overview = sanitizeOverview(item, place?.price_tier ?? null, deterministicHours);
+      : place?.regular_opening_hours?.weekdayDescriptions?.length === 7
+        ? place.regular_opening_hours.weekdayDescriptions
+        : [];
+    const menuPriceTier = scraped?.menuText
+      ? inferPriceTierFromMenuText(scraped.menuText)
+      : null;
+    const overview = sanitizeOverview(
+      item,
+      place?.price_tier ?? null,
+      deterministicHours,
+      menuPriceTier,
+    );
     if (!overview) continue;
 
     out.push({ gersId, overview });
@@ -845,7 +794,9 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const validPlaces = (places as InputPlace[]).filter(p => p?.gers_id);
+    const validPlaces = (places as InputPlace[])
+      .filter(p => p?.gers_id)
+      .slice(0, MAX_PLACES_PER_REQUEST);
 
     // ── Step 1: Check which GERS IDs are already cached ───────────────────────
     const gersIds = validPlaces.map(p => p.gers_id);
@@ -877,10 +828,11 @@ serve(async (req) => {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
 
     console.log(`[v2-generate-ai-overview] Running ${batches.length} Gemini batch(es) of up to ${BATCH_SIZE}...`);
-    const perBatch = await Promise.all(
-      batches.map(b => runGeminiBatch(b, geminiUrl))
-    );
-    const generatedOverviews = perBatch.flat();
+    const generatedOverviews: { gersId: string; overview: AiOverview }[] = [];
+    for (const batch of batches) {
+      const batchResults = await runGeminiBatch(batch, geminiUrl);
+      generatedOverviews.push(...batchResults);
+    }
     console.log(`[v2-generate-ai-overview] Gemini generated ${generatedOverviews.length} overviews`);
 
     // ── Step 4: Upsert to v2_ai_overview_cache ────────────────────────────────
