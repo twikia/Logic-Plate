@@ -63,7 +63,12 @@ const fr: Translations = {
     "driveLess1Min": "< 1 min en voiture",
     "driveMin": "{{count}} min en voiture",
     "driveShort": "en voiture",
-    "more": "Plus"
+    "more": "Plus",
+    "favorites": "Favoris"
+  },
+  "favorites": {
+    "title": "Favoris",
+    "empty": "Pas encore de favoris. Touchez le cœur sur un restaurant pour l’enregistrer."
   },
   "days": {
     "monday": "Lundi",
@@ -87,7 +92,10 @@ const fr: Translations = {
     "finalizingHealth": "Finalisation des classements santé…",
     "finalizingResults": "Finalisation des résultats…",
     "organizing": "Organisation des restaurants…",
-    "done": "Terminé"
+    "done": "Terminé",
+    "overviewsProgress": "Aperçus IA : {{done}} sur {{total}}",
+    "cellsProgress": "Cellules : {{done}} sur {{total}}",
+    "progressDetail": "{{done}} sur {{total}}"
   },
   "scenarios": {
     "top_rated": "Mieux notés",

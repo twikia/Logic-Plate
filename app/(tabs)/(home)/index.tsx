@@ -1092,6 +1092,7 @@ export default function HomeScreen() {
 
   const {
     loadingStage,
+    loadingDetail,
     loadingProgress,
     startGpsPhase,
     startFetchPhase,
@@ -1458,7 +1459,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
             )}
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4, marginBottom: 12, flexWrap: 'wrap' }}>
             <TouchableOpacity 
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
               onPress={() => {
@@ -1472,6 +1473,19 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
               <Ionicons name={sessionRadiusRef.current <= 1000 ? "walk" : "car"} size={16} color={theme.accent} />
               <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
                 {sessionRadiusRef.current <= 1000 ? t('home.walk', { defaultValue: 'Walk' }) : t('home.drive', { defaultValue: 'Drive' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.glassBackground, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.cardBorderColor, gap: 6 }}
+              onPress={() => {
+                hapticMedium();
+                router.push('/favorites' as any);
+              }}
+            >
+              <Ionicons name="heart" size={15} color={theme.accent} />
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
+                {t('home.favorites', { defaultValue: 'Favorites' })}
               </Text>
             </TouchableOpacity>
 
@@ -1492,6 +1506,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
             <RestaurantLoadingProgressBar
               stageLabel={loadingStage}
               progress={loadingProgress}
+              detailLabel={loadingDetail}
               style={styles.loadingBox}
             />
           ) : errorMsg ? (

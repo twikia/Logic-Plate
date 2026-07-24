@@ -23,16 +23,34 @@ function getLabels(flavor: RestaurantLoadProgressFlavor): Record<Exclude<Restaur
   };
 }
 
+function formatDetail(
+  detail: RestaurantLoadProgress['detail']
+): string | null {
+  if (!detail || detail.total <= 0) return null;
+  const t = i18n.t.bind(i18n);
+  if (detail.unit === 'overviews') {
+    return t('loading.overviewsProgress', { done: detail.done, total: detail.total });
+  }
+  if (detail.unit === 'cells') {
+    return t('loading.cellsProgress', { done: detail.done, total: detail.total });
+  }
+  return t('loading.progressDetail', { done: detail.done, total: detail.total });
+}
+
 export function useRestaurantLoadProgress(
   isLoading: boolean,
   flavor: RestaurantLoadProgressFlavor
 ) {
   const [loadingStage, setLoadingStage] = useState(i18n.t('loading.preparing'));
+  const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const progressCeilingRef = useRef(0);
 
   useEffect(() => {
-    if (!isLoading) return;
+    if (!isLoading) {
+      setLoadingDetail(null);
+      return;
+    }
 
     const interval = setInterval(() => {
       setLoadingProgress((prev) => {
@@ -40,7 +58,7 @@ export function useRestaurantLoadProgress(
         if (prev >= ceiling) return prev;
 
         const remaining = ceiling - prev;
-        const step = Math.min(0.015, Math.max(0.003, remaining * 0.18));
+        const step = Math.min(0.02, Math.max(0.004, remaining * 0.22));
         return Math.min(ceiling, prev + step);
       });
     }, 250);
@@ -50,46 +68,44 @@ export function useRestaurantLoadProgress(
 
   const startGpsPhase = useCallback(() => {
     setLoadingStage(i18n.t('loading.acquiringGps'));
-    progressCeilingRef.current = 0.22;
-    setLoadingProgress(0.08);
+    setLoadingDetail(null);
+    progressCeilingRef.current = 0.05;
+    setLoadingProgress(0.02);
   }, []);
 
   const startFetchPhase = useCallback(() => {
     setLoadingStage(i18n.t('loading.loadingRestaurants'));
-    progressCeilingRef.current = 0.32;
-    setLoadingProgress((prev) => Math.max(prev, 0.2));
+    setLoadingDetail(null);
+    progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.1);
+    setLoadingProgress((prev) => Math.max(prev, 0.06));
   }, []);
 
   const onOrchestratorProgress = useCallback(
-    ({ stage, progress }: RestaurantLoadProgress) => {
+    ({ stage, progress, detail }: RestaurantLoadProgress) => {
       const labels = getLabels(flavor);
-      if (stage === 'reading-cache') {
-        setLoadingStage(labels['reading-cache']);
-        progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.38);
-      } else if (stage === 'fetching-restaurants') {
-        setLoadingStage(labels['fetching-restaurants']);
-        progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.72);
-      } else if (stage === 'parsing-restaurants') {
-        setLoadingStage(labels['parsing-restaurants']);
-        progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.84);
-      } else if (stage === 'loading-overviews') {
-        setLoadingStage(labels['loading-overviews']);
-        progressCeilingRef.current = Math.max(progressCeilingRef.current, 0.97);
-      } else if (stage === 'done') {
+      if (stage === 'done') {
         setLoadingStage(i18n.t('loading.done'));
+        setLoadingDetail(null);
         progressCeilingRef.current = 1;
+      } else {
+        setLoadingStage(labels[stage]);
+        setLoadingDetail(formatDetail(detail));
+        progressCeilingRef.current = Math.max(progressCeilingRef.current, progress);
       }
-      setLoadingProgress((prev) => Math.max(prev, progress));
+      setLoadingProgress((prev) => Math.max(prev, Math.min(progress, progressCeilingRef.current)));
     },
     [flavor]
   );
 
   const snapProgressComplete = useCallback(() => {
+    progressCeilingRef.current = 1;
     setLoadingProgress(1);
+    setLoadingDetail(null);
   }, []);
 
   return {
     loadingStage,
+    loadingDetail,
     loadingProgress,
     startGpsPhase,
     startFetchPhase,
@@ -101,10 +117,12 @@ export function useRestaurantLoadProgress(
 export function RestaurantLoadingProgressBar({
   stageLabel,
   progress,
+  detailLabel,
   style,
 }: {
   stageLabel: string;
   progress: number;
+  detailLabel?: string | null;
   style?: StyleProp<ViewStyle>;
 }) {
   const pct = Math.round(progress * 100);
@@ -115,6 +133,7 @@ export function RestaurantLoadingProgressBar({
         <View style={[styles.progressFill, { width: `${pct}%` }]} />
       </View>
       <Text style={styles.progressText}>{pct}%</Text>
+      {detailLabel ? <Text style={styles.detailText}>{detailLabel}</Text> : null}
     </View>
   );
 }
@@ -136,6 +155,11 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
+    marginBottom: 4,
+  },
+  detailText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
     marginBottom: 10,
   },
 });

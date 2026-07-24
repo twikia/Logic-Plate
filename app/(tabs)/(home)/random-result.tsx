@@ -44,6 +44,8 @@ import {
 } from '../../../core/currentSelection';
 import { getHoursStatus } from '../../../core/isOpenNow';
 import { formatRestaurantCostLabel } from '../../../core/placePriceLabel';
+import { isFavorite, subscribeFavorites, toggleFavorite } from '../../../core/favorites';
+import { hapticMedium } from '@/core/haptics';
 
 const SCREEN_W = Dimensions.get('window').width;
 const HERO_H = 340;
@@ -309,7 +311,20 @@ export default function RandomResultScreen() {
   const [liveOpenEpoch, setLiveOpenEpoch] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [heroPhotos, setHeroPhotos] = useState<any[]>(place.photos || []);
+  const [favorited, setFavorited] = useState(false);
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
+
+  useEffect(() => {
+    const placeId = typeof place?.id === 'string' ? place.id : '';
+    if (!placeId) {
+      setFavorited(false);
+      return;
+    }
+    void isFavorite(placeId).then(setFavorited);
+    return subscribeFavorites(() => {
+      void isFavorite(placeId).then(setFavorited);
+    });
+  }, [place?.id]);
 
   // v2 (Overture) fields with v1 (Google) fallbacks
   const name = place.name || place.displayName?.text || t('common.unknown');
@@ -383,6 +398,13 @@ export default function RandomResultScreen() {
     } catch { }
   };
 
+  const handleToggleFavorite = async () => {
+    if (!place?.id) return;
+    hapticMedium();
+    const next = await toggleFavorite(place);
+    setFavorited(next);
+  };
+
   const mapsReady = typeof lat === 'number' && typeof lng === 'number';
   const stickyBottom = insets.bottom + 10;
 
@@ -453,13 +475,26 @@ export default function RandomResultScreen() {
           >
             <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </AnimatedPressable>
-          <TouchableOpacity
-            style={[styles.headerBtn, styles.headerBtnGlass]}
-            onPress={handleShare}
-            activeOpacity={0.82}
-          >
-            <Ionicons name="share-outline" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={[styles.headerBtn, styles.headerBtnGlass]}
+              onPress={handleToggleFavorite}
+              activeOpacity={0.82}
+            >
+              <Ionicons
+                name={favorited ? 'heart' : 'heart-outline'}
+                size={20}
+                color={favorited ? '#FF6B6B' : '#FFFFFF'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.headerBtn, styles.headerBtnGlass]}
+              onPress={handleShare}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -852,6 +887,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerBtn: {
     width: 38,
     height: 38,

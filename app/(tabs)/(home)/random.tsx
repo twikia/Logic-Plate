@@ -421,6 +421,7 @@ export default function RandomScreen() {
   const isResettingRef = useRef(false);
   const {
     loadingStage,
+    loadingDetail,
     loadingProgress,
     startGpsPhase,
     startFetchPhase,
@@ -1149,7 +1150,11 @@ export default function RandomScreen() {
         {/* Content */}
         {isLoading ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <RestaurantLoadingProgressBar stageLabel={loadingStage} progress={loadingProgress} />
+            <RestaurantLoadingProgressBar
+              stageLabel={loadingStage}
+              progress={loadingProgress}
+              detailLabel={loadingDetail}
+            />
             {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
           </View>
         ) : errorMsg ? (

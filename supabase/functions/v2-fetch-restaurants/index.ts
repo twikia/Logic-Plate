@@ -6,7 +6,6 @@ import {
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
 import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
-import { lookupChainOpeningHours } from "../_shared/allThePlacesHours.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +24,8 @@ const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
 const MAX_RESULTS_PER_CELL = 500;
+// Mirrors core/searchConfig.ts MIN_OVERTURE_CONFIDENCE — existence confidence cutoff.
+const MIN_OVERTURE_CONFIDENCE = 0.6;
 
 // NOTE: core/markerIcons.ts already has icon mappings for dozens of these
 // categories, meaning the app has always expected them to appear — they were
@@ -220,6 +221,7 @@ type NormalizedPlace = {
   sources: Array<{ property?: string; dataset?: string; record_id?: string }> | null;
   /** All non-core Overture facts as prompt-ready lines (names, categories, tags, brand, socials, etc.). */
   attributes: string[];
+  confidence: number | null;
   location: {
     latitude: number;
     longitude: number;
@@ -476,6 +478,15 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const name = extractPlaceName(props);
   if (!name) return null;
 
+  const status = mapOperatingStatus(props.operating_status);
+  if (status.operating_status === 'permanently_closed') return null;
+
+  const confidence =
+    typeof props.confidence === 'number' && Number.isFinite(props.confidence)
+      ? props.confidence
+      : null;
+  if (confidence != null && confidence < MIN_OVERTURE_CONFIDENCE) return null;
+
   const category =
     props.basic_category ||
     props.taxonomy?.primary ||
@@ -488,7 +499,6 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const region = addr?.region?.trim() || null;
   const postcode = addr?.postcode?.trim() || null;
   const country = addr?.country?.trim() || null;
-  const status = mapOperatingStatus(props.operating_status);
   const propsRecord = props as Record<string, unknown>;
   const brand = extractBrandName(props);
   const wikidata = props.brand?.wikidata?.trim() || null;
@@ -504,13 +514,7 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(brand ?? name);
 
   const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
-  let weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
-  // Free chain-hours fallback (AllThePlaces / first-party locator patterns)
-  // when Overture has no usable OSM opening_hours tag.
-  if (weekdayDescriptions.length !== 7) {
-    const chainHours = lookupChainOpeningHours(name, brand);
-    if (chainHours.length === 7) weekdayDescriptions = chainHours;
-  }
+  const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
   const regularOpeningHours =
     weekdayDescriptions.length === 7 ? { weekdayDescriptions } : null;
 
@@ -533,6 +537,7 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
     wikidata,
     sources,
     attributes: extractAttributes(props),
+    confidence,
     location: { latitude: lat, longitude: lng },
   };
 }

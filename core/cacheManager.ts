@@ -21,6 +21,8 @@ export type CachedPlace = {
   wikidata?: string | null;
   sources?: Array<{ property?: string; dataset?: string; record_id?: string }> | null;
   attributes?: string[] | null;
+  /** Overture existence confidence (0–1), when provided by the source. */
+  confidence?: number | null;
   location: {
     latitude: number;
     longitude: number;

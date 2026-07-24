@@ -14,6 +14,8 @@ import {
   placesWithinRadius,
   selectSpreadPlaces,
 } from './restaurantSpreadSelection';
+import { filterUsablePlaces } from './placeQuality';
+import { loadRejectedPlaceIds, markRejectedPlaceIds } from './rejectedPlaces';
 
 export type RestaurantLoadStage =
   | 'reading-cache'
@@ -22,10 +24,35 @@ export type RestaurantLoadStage =
   | 'loading-overviews'
   | 'done';
 
+export type RestaurantLoadProgressDetail = {
+  done: number;
+  total: number;
+  unit: 'cells' | 'overviews';
+};
+
 export type RestaurantLoadProgress = {
   stage: RestaurantLoadStage;
   progress: number;
+  detail?: RestaurantLoadProgressDetail;
 };
+
+const PROGRESS = {
+  cacheStart: 0.05,
+  cacheEnd: 0.15,
+  fetchStart: 0.15,
+  fetchEnd: 0.45,
+  parseStart: 0.45,
+  parseEnd: 0.55,
+  aiStart: 0.55,
+  aiEnd: 0.98,
+  done: 1,
+} as const;
+
+function lerpProgress(start: number, end: number, done: number, total: number): number {
+  if (total <= 0) return end;
+  const t = Math.min(1, Math.max(0, done / total));
+  return start + (end - start) * t;
+}
 
 export class RestaurantLoadSupersededError extends Error {
   readonly name = 'RestaurantLoadSupersededError';
@@ -155,17 +182,35 @@ function pickClosestPlaces<T extends { id?: string; distanceMeters?: number }>(
 async function generateAiInBatches(
   seeds: PlaceSeed[],
   missingIds: string[],
-  onBatch?: (generatedSoFar: Map<string, import('./aiOverviewCache').AiOverview>) => void,
-): Promise<Map<string, import('./aiOverviewCache').AiOverview>> {
+  onBatch?: (update: {
+    generatedSoFar: Map<string, import('./aiOverviewCache').AiOverview>;
+    excludedPlaceIds: string[];
+    done: number;
+    total: number;
+  }) => void | Promise<void>,
+): Promise<{
+  overviews: Map<string, import('./aiOverviewCache').AiOverview>;
+  excludedPlaceIds: string[];
+}> {
   const all = new Map<string, import('./aiOverviewCache').AiOverview>();
+  const excludedPlaceIds: string[] = [];
   const batchSize = SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE;
+  const total = missingIds.length;
   for (let i = 0; i < missingIds.length; i += batchSize) {
     const chunk = missingIds.slice(i, i + batchSize);
-    const generated = await invokeGenerateAiOverviewsForPlaces(seeds, chunk);
+    const { overviews: generated, excludedPlaceIds: excluded } =
+      await invokeGenerateAiOverviewsForPlaces(seeds, chunk);
     for (const [k, v] of generated) all.set(k, v);
-    onBatch?.(all);
+    excludedPlaceIds.push(...excluded);
+    const done = Math.min(i + chunk.length, total);
+    await onBatch?.({
+      generatedSoFar: all,
+      excludedPlaceIds: [...excludedPlaceIds],
+      done,
+      total,
+    });
   }
-  return all;
+  return { overviews: all, excludedPlaceIds };
 }
 
 const mapAiInflight = new Map<string, Promise<Map<string, import('./aiOverviewCache').AiOverview>>>();
@@ -242,9 +287,16 @@ export async function ensureAiOverviewsAroundPlace<T extends {
   if (!pending) {
     const missingIds = missingSorted.map((p) => p.id!);
     const batchSeeds = missingSorted.map((p) => toPlaceSeed(p as CachedPlace));
-    pending = invokeGenerateAiOverviewsForPlaces(batchSeeds, missingIds).finally(() => {
-      mapAiInflight.delete(inflightKey);
-    });
+    pending = invokeGenerateAiOverviewsForPlaces(batchSeeds, missingIds)
+      .then(async (result) => {
+        if (result.excludedPlaceIds.length > 0) {
+          await markRejectedPlaceIds(result.excludedPlaceIds);
+        }
+        return result.overviews;
+      })
+      .finally(() => {
+        mapAiInflight.delete(inflightKey);
+      });
     mapAiInflight.set(inflightKey, pending);
   }
 
@@ -255,7 +307,9 @@ export async function ensureAiOverviewsAroundPlace<T extends {
     console.warn('[Orchestrator] Map on-demand AI batch failed:', err);
   }
 
-  return mergeAiOverviewsOntoPlaces(pool, cachedAi);
+  const rejected = await loadRejectedPlaceIds();
+  const merged = mergeAiOverviewsOntoPlaces(pool, cachedAi);
+  return filterUsablePlaces(merged, rejected) as T[];
 }
 
 async function loadNearbyRestaurantsInternal(
@@ -278,30 +332,36 @@ async function loadNearbyRestaurantsInternal(
     console.log(
       `[GeoRestriction] Location (${userLat}, ${userLng}) identified as 0 population / middle of nowhere. Skipping searches.`
     );
-    onProgress?.({ stage: 'done', progress: 1.0 });
+    onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return [];
   }
 
   console.log(`[Orchestrator] Starting restaurant load: ${cellIds.length} res-7 cells`);
 
-  onProgress?.({ stage: 'reading-cache', progress: 0.2 });
+  onProgress?.({ stage: 'reading-cache', progress: PROGRESS.cacheStart });
+  const rejectedIds = await loadRejectedPlaceIds();
   const { hits: rawHits, misses: uncachedCells } = await readCacheBulk(cellIds);
+  onProgress?.({ stage: 'reading-cache', progress: PROGRESS.cacheEnd });
 
   console.log(`[Orchestrator] Cell cache check: ${rawHits.size}/${cellIds.length} cells hit, ${uncachedCells.length} cells missing`);
 
   let allPlaces: Array<CachedPlace & { sourceCellId?: string }> = [];
   rawHits.forEach((places, cellId) => {
-    for (const place of places) {
+    for (const place of filterUsablePlaces(places, rejectedIds)) {
       allPlaces.push({ ...place, sourceCellId: cellId });
     }
   });
 
   if (uncachedCells.length > 0) {
-    onProgress?.({ stage: 'fetching-restaurants', progress: 0.45 });
-
     const cellsPayload = uncachedCells.map(cellId => {
       const [lat, lng] = getCellCenter(cellId);
       return { cellId, lat, lng };
+    });
+
+    onProgress?.({
+      stage: 'fetching-restaurants',
+      progress: PROGRESS.fetchStart,
+      detail: { done: 0, total: cellsPayload.length, unit: 'cells' },
     });
 
     console.log(`[Orchestrator] Invoking v2-fetch-restaurants for ${cellsPayload.length} uncached cells...`);
@@ -322,11 +382,19 @@ async function loadNearbyRestaurantsInternal(
         console.warn('[Orchestrator] Edge function reported failed cells:', data.failedCells);
       }
 
+      let cellsDone = 0;
       for (const result of data.newlyFetchedRestaurants) {
-        await writeCache(result.cellId, result.places);
-        for (const place of result.places) {
+        const usable = filterUsablePlaces(result.places, rejectedIds);
+        await writeCache(result.cellId, usable);
+        for (const place of usable) {
           allPlaces.push({ ...place, sourceCellId: result.cellId });
         }
+        cellsDone += 1;
+        onProgress?.({
+          stage: 'fetching-restaurants',
+          progress: lerpProgress(PROGRESS.fetchStart, PROGRESS.fetchEnd, cellsDone, cellsPayload.length),
+          detail: { done: cellsDone, total: cellsPayload.length, unit: 'cells' },
+        });
       }
 
       if (allPlaces.length === 0) {
@@ -338,6 +406,12 @@ async function loadNearbyRestaurantsInternal(
       const detail = formatFetchResponseDetail(data, 'v2-fetch-restaurants returned no data');
       console.warn(`[Orchestrator] ${detail}`);
       throw new RestaurantFetchError(undefined, detail, detail);
+    } else {
+      onProgress?.({
+        stage: 'fetching-restaurants',
+        progress: PROGRESS.fetchEnd,
+        detail: { done: cellsPayload.length, total: cellsPayload.length, unit: 'cells' },
+      });
     }
   }
 
@@ -345,7 +419,7 @@ async function loadNearbyRestaurantsInternal(
     throw new RestaurantFetchError(undefined, 'no restaurant data available');
   }
 
-  onProgress?.({ stage: 'parsing-restaurants', progress: 0.75 });
+  onProgress?.({ stage: 'parsing-restaurants', progress: PROGRESS.parseStart });
   const cellCenters = getCellCentersMap(cellIds);
   const withinRadius = placesWithinRadius(allPlaces, userLat, userLng, safeRadius, cellIds);
   const aiCachePromise = getCachedAiOverviewsForPlaces(withinRadius.map(toPlaceSeed));
@@ -359,57 +433,87 @@ async function loadNearbyRestaurantsInternal(
   console.log(
     `[Orchestrator] Cells [${cellIds.join(', ')}] within ${safeRadius}m: ${withinRadius.length} eligible, showing ${visibleList.length}`
   );
-  const seeds = visibleList.map(toPlaceSeed);
-  const baseList = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
-  console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${visibleList.length} already enriched`);
+  onProgress?.({ stage: 'parsing-restaurants', progress: PROGRESS.parseEnd });
+
+  let workingList = [...visibleList];
+  const seeds = () => workingList.map(toPlaceSeed);
+  const baseList = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
+  console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${workingList.length} already enriched`);
 
   const triggerUpdates = (enriched: any[]) => {
     options?.onPlacesUpdated?.(enriched);
     options?.onAiReady?.(enriched);
   };
 
+  const applyExclusions = async (excluded: string[]) => {
+    if (excluded.length === 0) return;
+    await markRejectedPlaceIds(excluded);
+    for (const id of excluded) rejectedIds.add(id);
+    workingList = filterUsablePlaces(workingList, rejectedIds);
+  };
+
   const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
-  const aiTargets = pickClosestPlaces(visibleList, aiLimit);
+  const aiTargets = pickClosestPlaces(workingList, aiLimit);
   const aiTargetIds = new Set(aiTargets.map((p) => p.id).filter(Boolean));
   const missingAiIds = aiTargets.map((p) => p.id).filter((id) => !!id && !cachedAi.has(id));
 
+  const emitAiProgress = (done: number, total: number) => {
+    onProgress?.({
+      stage: 'loading-overviews',
+      progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, done, total),
+      detail: { done, total, unit: 'overviews' },
+    });
+  };
+
   const runBackgroundAi = async () => {
     if (missingAiIds.length === 0) {
-      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: 1 });
+      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
       return;
     }
-    onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
+    emitAiProgress(0, missingAiIds.length);
     console.log(
       `[Orchestrator] Generating AI overviews for ${missingAiIds.length}/${aiTargets.length} closest places (cap ${aiLimit}) in batches of ${SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE}...`
     );
     try {
-      await generateAiInBatches(seeds.filter((s) => aiTargetIds.has(s.id)), missingAiIds, (generated) => {
-        if (jobSeq !== latestJobSeq) return;
-        for (const [k, v] of generated) cachedAi.set(k, v);
-        triggerUpdates(mergeAiOverviewsOntoPlaces(visibleList, cachedAi));
-      });
+      await generateAiInBatches(
+        seeds().filter((s) => aiTargetIds.has(s.id)),
+        missingAiIds,
+        async ({ generatedSoFar, excludedPlaceIds, done, total }) => {
+          if (jobSeq !== latestJobSeq) return;
+          for (const [k, v] of generatedSoFar) cachedAi.set(k, v);
+          await applyExclusions(excludedPlaceIds);
+          emitAiProgress(done, total);
+          triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+        }
+      );
     } catch (err) {
       console.warn('[Orchestrator] Background AI overview generation failed:', err);
     } finally {
-      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: 1 });
+      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
     }
   };
 
   if (options?.deferAi) {
-    onProgress?.({ stage: 'done', progress: 1 });
+    onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return baseList;
   }
 
   if (options?.waitForAi) {
     if (missingAiIds.length > 0) {
-      onProgress?.({ stage: 'loading-overviews', progress: 0.9 });
-      await generateAiInBatches(seeds.filter((s) => aiTargetIds.has(s.id)), missingAiIds, (generated) => {
-        for (const [k, v] of generated) cachedAi.set(k, v);
-        triggerUpdates(mergeAiOverviewsOntoPlaces(visibleList, cachedAi));
-      });
+      emitAiProgress(0, missingAiIds.length);
+      await generateAiInBatches(
+        seeds().filter((s) => aiTargetIds.has(s.id)),
+        missingAiIds,
+        async ({ generatedSoFar, excludedPlaceIds, done, total }) => {
+          for (const [k, v] of generatedSoFar) cachedAi.set(k, v);
+          await applyExclusions(excludedPlaceIds);
+          emitAiProgress(done, total);
+          triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+        }
+      );
     }
-    const enriched = mergeAiOverviewsOntoPlaces(visibleList, cachedAi);
-    onProgress?.({ stage: 'done', progress: 1 });
+    const enriched = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
+    onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return enriched;
   }
 

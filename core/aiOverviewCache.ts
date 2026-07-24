@@ -311,10 +311,15 @@ export const getCachedAiOverviewsForPlaces = async (
   return result;
 };
 
+export type AiGenerationBatchResult = {
+  overviews: Map<string, AiOverview>;
+  excludedPlaceIds: string[];
+};
+
 export const invokeGenerateAiOverviewsForPlaces = async (
   places: PlaceSeed[],
   missingGersIds: string[]
-): Promise<Map<string, AiOverview>> => {
+): Promise<AiGenerationBatchResult> => {
   const out = new Map<string, AiOverview>();
   const uniquePlaces = Array.from(
     new Map(places.filter(p => p?.id).map(p => [p.id, p])).values()
@@ -335,7 +340,9 @@ export const invokeGenerateAiOverviewsForPlaces = async (
       attributes: p!.attributes ?? null,
     }));
 
-  if (payloadPlaces.length === 0) return out;
+  if (payloadPlaces.length === 0) {
+    return { overviews: out, excludedPlaceIds: [] };
+  }
 
   const { data: generatedData, error: invokeError } = await supabase.functions.invoke(
     'v2-generate-ai-overview',
@@ -347,7 +354,7 @@ export const invokeGenerateAiOverviewsForPlaces = async (
 
   if (invokeError || !generatedData?.generatedOverviews) {
     console.warn('[AI] v2-generate-ai-overview invoke error:', invokeError?.message ?? 'no data');
-    return out;
+    return { overviews: out, excludedPlaceIds: [] };
   }
 
   const backfills: [string, string][] = [];
@@ -361,10 +368,10 @@ export const invokeGenerateAiOverviewsForPlaces = async (
     AsyncStorage.multiSet(backfills).catch(() => undefined);
   }
 
-  return out;
+  return { overviews: out, excludedPlaceIds: [] };
 };
 
-export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: number | null; regularOpeningHours?: { weekdayDescriptions?: string[] } | null }>(
+export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: number | null }>(
   places: T[],
   aiById: Map<string, AiOverview>
 ): T[] {
@@ -372,7 +379,6 @@ export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: 
     const gersId = place.id;
     const ai = gersId ? aiById.get(gersId) : undefined;
     if (!ai) return { ...place };
-    const hasHours = (place.regularOpeningHours?.weekdayDescriptions?.length ?? 0) > 0;
     return {
       ...place,
       aiOverview: ai,
@@ -380,9 +386,6 @@ export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: 
       priceTier: place.priceTier ?? ai.priceTier,
       cuisineKey: ai.cuisineKey,
       topMenuItems: Array.isArray(ai.topMenuItems) ? ai.topMenuItems : [],
-      ...(hasHours || !ai.weekdayDescriptions?.length
-        ? {}
-        : { regularOpeningHours: { weekdayDescriptions: ai.weekdayDescriptions } }),
     };
   });
 }

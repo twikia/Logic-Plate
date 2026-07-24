@@ -63,7 +63,12 @@ const es: Translations = {
     "driveLess1Min": "< 1 min en auto",
     "driveMin": "{{count}} min en auto",
     "driveShort": "en auto",
-    "more": "Más"
+    "more": "Más",
+    "favorites": "Favoritos"
+  },
+  "favorites": {
+    "title": "Favoritos",
+    "empty": "Aún no hay favoritos. Toca el corazón en un restaurante para guardarlo."
   },
   "days": {
     "monday": "Lunes",
@@ -87,7 +92,10 @@ const es: Translations = {
     "finalizingHealth": "Finalizando rankings de salud...",
     "finalizingResults": "Finalizando resultados...",
     "organizing": "Organizando restaurantes...",
-    "done": "Listo"
+    "done": "Listo",
+    "overviewsProgress": "Resúmenes IA: {{done}} de {{total}}",
+    "cellsProgress": "Celdas: {{done}} de {{total}}",
+    "progressDetail": "{{done}} de {{total}}"
   },
   "scenarios": {
     "top_rated": "Mejor calificados",

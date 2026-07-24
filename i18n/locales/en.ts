@@ -63,6 +63,12 @@ const en = {
     driveMin: '{{count}} min drive',
     driveShort: 'drive',
     more: 'More',
+    favorites: 'Favorites',
+  },
+
+  favorites: {
+    title: 'Favorites',
+    empty: 'No favorites yet. Tap the heart on a restaurant to save it.',
   },
 
   days: {
@@ -89,6 +95,9 @@ const en = {
     finalizingResults: 'Finalizing results...',
     organizing: 'Organizing restaurants...',
     done: 'Done',
+    overviewsProgress: 'AI overviews: {{done}} of {{total}}',
+    cellsProgress: 'Cells: {{done}} of {{total}}',
+    progressDetail: '{{done}} of {{total}}',
   },
 
   scenarios: {
