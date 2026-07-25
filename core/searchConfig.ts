@@ -41,7 +41,7 @@ export const SEARCH_CONFIG = {
   AI_GENERATION_BATCH_SIZE: 15,
 
   // Overture existence confidence (0–1). Drop places below this when confidence is present.
-  MIN_OVERTURE_CONFIDENCE: 0.6,
+  MIN_OVERTURE_CONFIDENCE: 0.9,
 
   // Polar grid for deterministic geographic spread (rings × sectors around the user).
   SPREAD_NUM_RINGS: 6,

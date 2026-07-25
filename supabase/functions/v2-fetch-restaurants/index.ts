@@ -6,6 +6,7 @@ import {
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
 import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
+import { scrapeWebsiteHours } from "../_shared/websiteHours.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,7 +26,15 @@ const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
 const MAX_RESULTS_PER_CELL = 500;
 // Mirrors core/searchConfig.ts MIN_OVERTURE_CONFIDENCE — existence confidence cutoff.
-const MIN_OVERTURE_CONFIDENCE = 0.6;
+const MIN_OVERTURE_CONFIDENCE = 0.9;
+const WEBSITE_PING_TIMEOUT_MS = 1500;
+const WEBSITE_WORK_CONCURRENCY = 40;
+const WEBSITE_HOURS_TIMEOUT_MS = 4000;
+const DEAD_WEBSITE_STATUSES = new Set([404, 410]);
+const WEBSITE_PING_UA = 'Platebound/2.0 (website-liveness; contact: support@platebound.app)';
+
+type RejectReason = 'no_website' | 'dead_website' | 'low_confidence' | 'permanently_closed';
+type RejectedPlace = { gers_id: string; reason: RejectReason };
 
 // NOTE: core/markerIcons.ts already has icon mappings for dozens of these
 // categories, meaning the app has always expected them to appear — they were
@@ -237,6 +246,203 @@ function mapOperatingStatus(raw: string | undefined): { operating_status: string
     return { operating_status: 'temporarily_closed', businessStatus: 'CLOSED_TEMPORARILY' };
   }
   return { operating_status: 'open', businessStatus: 'OPERATIONAL' };
+}
+
+type WebsitePingResult = 'alive' | 'dead' | 'unknown';
+
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (true) {
+        const idx = next++;
+        if (idx >= items.length) return;
+        out[idx] = await fn(items[idx]);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
+}
+
+/**
+ * Fast liveness probe — not a full scrape.
+ * Drop only clear deaths: invalid DNS / connection failure / 404 / 410.
+ * Timeouts and ambiguous network errors keep the place (don't over-filter).
+ */
+async function pingWebsite(url: string): Promise<WebsitePingResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WEBSITE_PING_TIMEOUT_MS);
+  const headers = { 'User-Agent': WEBSITE_PING_UA, Accept: '*/*' };
+
+  try {
+    let res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers,
+    });
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers,
+      });
+    }
+    clearTimeout(timer);
+    if (DEAD_WEBSITE_STATUSES.has(res.status)) return 'dead';
+    return 'alive';
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === 'AbortError') return 'unknown';
+    if (err instanceof Error && err.name === 'AbortError') return 'unknown';
+    const msg = String(err instanceof Error ? err.message : err).toLowerCase();
+    if (
+      msg.includes('dns') ||
+      msg.includes('getaddrinfo') ||
+      msg.includes('name or service not known') ||
+      msg.includes('no such host') ||
+      msg.includes('nxdomain') ||
+      msg.includes('enotfound') ||
+      msg.includes('econnrefused') ||
+      msg.includes('connection refused') ||
+      msg.includes('failed to lookup') ||
+      msg.includes('nodename nor servname')
+    ) {
+      return 'dead';
+    }
+    // Deno often wraps DNS/connect failures as generic TypeError("error sending request...")
+    if (err instanceof TypeError) return 'dead';
+    return 'unknown';
+  }
+}
+
+async function upsertRejectedPlaces(
+  supabase: ReturnType<typeof createClient>,
+  rejected: RejectedPlace[],
+): Promise<void> {
+  if (rejected.length === 0) return;
+  const { error } = await supabase.from('v2_rejected_places').upsert(
+    rejected.map((r) => ({ gers_id: r.gers_id, reason: r.reason })),
+    { onConflict: 'gers_id', ignoreDuplicates: true },
+  );
+  if (error) {
+    console.warn(`[v2-fetch-restaurants] Rejected-places upsert error: ${error.message}`);
+  }
+}
+
+async function loadRejectedIds(
+  supabase: ReturnType<typeof createClient>,
+  ids: string[],
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (ids.length === 0) return out;
+  const chunkSize = 200;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from('v2_rejected_places')
+      .select('gers_id')
+      .in('gers_id', chunk);
+    if (error) {
+      console.warn(`[v2-fetch-restaurants] Rejected-places read error: ${error.message}`);
+      break;
+    }
+    for (const row of data ?? []) {
+      if (typeof row?.gers_id === 'string') out.add(row.gers_id);
+    }
+  }
+  return out;
+}
+
+/**
+ * Require a website, ping in parallel, then fill missing OSM hours from website JSON-LD.
+ * Returns kept places + tombstones for no/dead websites.
+ */
+async function filterEnrichAndRejectPlaces(
+  places: NormalizedPlace[],
+): Promise<{ kept: NormalizedPlace[]; rejected: RejectedPlace[] }> {
+  const rejected: RejectedPlace[] = [];
+  const withSites: NormalizedPlace[] = [];
+
+  for (const place of places) {
+    if (!place.website_url) {
+      rejected.push({ gers_id: place.id, reason: 'no_website' });
+    } else {
+      withSites.push(place);
+    }
+  }
+
+  if (withSites.length === 0) {
+    return { kept: [], rejected };
+  }
+
+  const pingResults = await mapPool(withSites, WEBSITE_WORK_CONCURRENCY, async (place) => ({
+    place,
+    result: await pingWebsite(place.website_url!),
+  }));
+
+  const alive: NormalizedPlace[] = [];
+  for (const { place, result } of pingResults) {
+    if (result === 'dead') {
+      rejected.push({ gers_id: place.id, reason: 'dead_website' });
+    } else {
+      alive.push(place);
+    }
+  }
+
+  const needsHours = alive.filter(
+    (p) => (p.regularOpeningHours?.weekdayDescriptions?.length ?? 0) !== 7
+  );
+
+  if (needsHours.length > 0) {
+    const hourResults = await mapPool(needsHours, WEBSITE_WORK_CONCURRENCY, async (place) => {
+      const scraped = await scrapeWebsiteHours(place.website_url!, WEBSITE_HOURS_TIMEOUT_MS);
+      return { id: place.id, scraped };
+    });
+
+    const hoursById = new Map(hourResults.map((r) => [r.id, r.scraped]));
+    const kept: NormalizedPlace[] = [];
+    for (const place of alive) {
+      const scraped = hoursById.get(place.id);
+      if (scraped?.deadWebsite) {
+        rejected.push({ gers_id: place.id, reason: 'dead_website' });
+        continue;
+      }
+      if (
+        scraped?.weekdayDescriptions?.length === 7 &&
+        (place.regularOpeningHours?.weekdayDescriptions?.length ?? 0) !== 7
+      ) {
+        kept.push({
+          ...place,
+          regularOpeningHours: { weekdayDescriptions: scraped.weekdayDescriptions },
+        });
+      } else {
+        kept.push(place);
+      }
+    }
+
+    console.log(
+      `[v2-fetch-restaurants] Website pipeline: ${withSites.length} with sites, ` +
+      `${alive.length} alive, ${needsHours.length} hours-scraped, ` +
+      `${rejected.length} rejected, ${kept.length} kept`
+    );
+    return { kept, rejected };
+  }
+
+  console.log(
+    `[v2-fetch-restaurants] Website pipeline: ${withSites.length} with sites, ` +
+    `${alive.length} alive (all had OSM hours), ${rejected.length} rejected`
+  );
+  return { kept: alive, rejected };
 }
 
 // ─── Normalizer helpers ───────────────────────────────────────────────────────
@@ -468,24 +674,33 @@ function extractBrandName(props: OvertureFeature['properties']): string | null {
   return null;
 }
 
-function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | null {
-  if (!feature?.id || !feature?.geometry?.coordinates) return null;
+type NormalizeOutcome =
+  | { kind: 'place'; place: NormalizedPlace }
+  | { kind: 'reject'; gers_id: string; reason: RejectReason }
+  | { kind: 'skip' };
+
+function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
+  if (!feature?.id || !feature?.geometry?.coordinates) return { kind: 'skip' };
 
   const [lng, lat] = feature.geometry.coordinates;
-  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+  if (typeof lat !== 'number' || typeof lng !== 'number') return { kind: 'skip' };
 
   const props = feature.properties ?? {};
   const name = extractPlaceName(props);
-  if (!name) return null;
+  if (!name) return { kind: 'skip' };
 
   const status = mapOperatingStatus(props.operating_status);
-  if (status.operating_status === 'permanently_closed') return null;
+  if (status.operating_status === 'permanently_closed') {
+    return { kind: 'reject', gers_id: feature.id, reason: 'permanently_closed' };
+  }
 
   const confidence =
     typeof props.confidence === 'number' && Number.isFinite(props.confidence)
       ? props.confidence
       : null;
-  if (confidence != null && confidence < MIN_OVERTURE_CONFIDENCE) return null;
+  if (confidence != null && confidence < MIN_OVERTURE_CONFIDENCE) {
+    return { kind: 'reject', gers_id: feature.id, reason: 'low_confidence' };
+  }
 
   const category =
     props.basic_category ||
@@ -513,32 +728,39 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizedPlace | n
   const priceRaw = extractOsmField(propsRecord, ['price_range', 'price_rating', 'priceRange', 'priceRating']);
   const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(brand ?? name);
 
+  // Hours cascade: OSM/Overture tags only here. Missing/placeholder hours are filled later
+  // from website JSON-LD (never invent / never use chain averages).
   const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
   const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
-  const regularOpeningHours =
-    weekdayDescriptions.length === 7 ? { weekdayDescriptions } : null;
+  const hasRealOsmHours =
+    weekdayDescriptions.length === 7 &&
+    weekdayDescriptions.some((line) => !/:\s*hours not listed\s*$/i.test(line));
+  const regularOpeningHours = hasRealOsmHours ? { weekdayDescriptions } : null;
 
   return {
-    id: feature.id,
-    name,
-    category,
-    website_url: extractWebsiteUrl(props),
-    phone: extractPhone(props),
-    address,
-    city,
-    region,
-    postcode,
-    country,
-    operating_status: status.operating_status,
-    businessStatus: status.businessStatus,
-    priceTier,
-    regularOpeningHours,
-    brand,
-    wikidata,
-    sources,
-    attributes: extractAttributes(props),
-    confidence,
-    location: { latitude: lat, longitude: lng },
+    kind: 'place',
+    place: {
+      id: feature.id,
+      name,
+      category,
+      website_url: extractWebsiteUrl(props),
+      phone: extractPhone(props),
+      address,
+      city,
+      region,
+      postcode,
+      country,
+      operating_status: status.operating_status,
+      businessStatus: status.businessStatus,
+      priceTier,
+      regularOpeningHours,
+      brand,
+      wikidata,
+      sources,
+      attributes: extractAttributes(props),
+      confidence,
+      location: { latitude: lat, longitude: lng },
+    },
   };
 }
 
@@ -548,7 +770,7 @@ async function fetchOvertureNearby(
   lat: number,
   lng: number,
   apiKey: string,
-): Promise<NormalizedPlace[]> {
+): Promise<{ places: NormalizedPlace[]; rejected: RejectedPlace[] }> {
   const url = new URL(OVERTURE_API_BASE);
   url.searchParams.set('lat', String(lat));
   url.searchParams.set('lng', String(lng));
@@ -604,9 +826,11 @@ async function fetchOvertureNearby(
       console.log(`[v2-fetch-restaurants] Overture returned ${features.length} raw features at (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
 
       const places: NormalizedPlace[] = [];
+      const rejected: RejectedPlace[] = [];
       for (const feature of features) {
-        const normalized = normalizeOvertureFeature(feature);
-        if (normalized) places.push(normalized);
+        const outcome = normalizeOvertureFeature(feature);
+        if (outcome.kind === 'place') places.push(outcome.place);
+        else if (outcome.kind === 'reject') rejected.push({ gers_id: outcome.gers_id, reason: outcome.reason });
       }
 
       const seen = new Set<string>();
@@ -616,13 +840,13 @@ async function fetchOvertureNearby(
         return true;
       });
 
-      if (features.length > 0 && deduped.length === 0) {
+      if (features.length > 0 && deduped.length === 0 && rejected.length === 0) {
         throw new Error(
           `Overture returned ${features.length} features but none normalized at (${lat.toFixed(4)}, ${lng.toFixed(4)})`
         );
       }
 
-      return deduped;
+      return { places: deduped, rejected };
     } catch (err) {
       clearTimeout(timeout);
       if (err instanceof Error && err.name === 'AbortError') {
@@ -691,7 +915,8 @@ serve(async (req) => {
     const failedCells: { cellId: string; reason: string }[] = [];
 
     for (const [cellId, places] of cachedMap) {
-      newlyFetchedRestaurants.push({ cellId, places });
+      const usable = places.filter((p) => !!p.website_url);
+      newlyFetchedRestaurants.push({ cellId, places: usable });
     }
 
     const missingCells = cells.filter((c: { cellId: string }) => !cachedMap.has(c.cellId));
@@ -703,23 +928,44 @@ serve(async (req) => {
             throw new Error(`Cell ${cell.cellId} is missing lat/lng`);
           }
 
-          const places = await fetchOvertureNearby(cell.lat, cell.lng, overtureApiKey);
-          newlyFetchedRestaurants.push({ cellId: cell.cellId, places });
+          const { places, rejected: normalizeRejected } = await fetchOvertureNearby(
+            cell.lat,
+            cell.lng,
+            overtureApiKey,
+          );
 
-          if (places.length > 0) {
+          const alreadyRejected = await loadRejectedIds(
+            supabase,
+            places.map((p) => p.id),
+          );
+          const freshPlaces = places.filter((p) => !alreadyRejected.has(p.id));
+
+          const { kept, rejected: websiteRejected } = await filterEnrichAndRejectPlaces(freshPlaces);
+          const allRejected = [...normalizeRejected, ...websiteRejected];
+          await upsertRejectedPlaces(supabase, allRejected);
+
+          newlyFetchedRestaurants.push({ cellId: cell.cellId, places: kept });
+
+          if (kept.length > 0) {
             const { error: upsertError } = await supabase
               .from('v2_restaurant_cell_cache')
               .upsert(
-                { id: cell.cellId, restaurants: places, fetched_at: new Date().toISOString() },
+                { id: cell.cellId, restaurants: kept, fetched_at: new Date().toISOString() },
                 { onConflict: 'id' }
               );
             if (upsertError) {
               console.error(`[v2-fetch-restaurants] Supabase upsert error for cell ${cell.cellId}: ${upsertError.message}`);
             } else {
-              console.log(`[v2-fetch-restaurants] Supabase upsert OK: cell ${cell.cellId} → ${places.length} places`);
+              console.log(
+                `[v2-fetch-restaurants] Supabase upsert OK: cell ${cell.cellId} → ${kept.length} places ` +
+                `(${allRejected.length} rejected tombstones)`
+              );
             }
           } else {
-            console.log(`[v2-fetch-restaurants] No places found for cell ${cell.cellId} — skipping upsert`);
+            console.log(
+              `[v2-fetch-restaurants] No usable places for cell ${cell.cellId} — ` +
+              `skipping cell upsert (${allRejected.length} rejected)`
+            );
           }
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);

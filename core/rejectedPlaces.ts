@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './supabaseClient';
 
 const KEY = 'rejected_dead_website_places_v1';
-const MAX = 500;
+const MAX = 2000;
 
 type Stored = { v: 1; ids: string[] };
 
@@ -33,10 +34,28 @@ async function persist(ids: Set<string>): Promise<void> {
 }
 
 export async function loadRejectedPlaceIds(): Promise<Set<string>> {
-  return new Set(await loadRaw());
+  const local = await loadRaw();
+  try {
+    const { data, error } = await supabase
+      .from('v2_rejected_places')
+      .select('gers_id')
+      .limit(5000);
+    if (!error && Array.isArray(data)) {
+      for (const row of data) {
+        if (typeof row?.gers_id === 'string') local.add(row.gers_id);
+      }
+      memory = local;
+    }
+  } catch {
+    /* offline / table not ready */
+  }
+  return new Set(local);
 }
 
-export async function markRejectedPlaceIds(ids: string[]): Promise<void> {
+export async function markRejectedPlaceIds(
+  ids: string[],
+  reason: string = 'dead_website',
+): Promise<void> {
   const valid = ids.filter((id) => typeof id === 'string' && id.length > 0);
   if (valid.length === 0) return;
   const current = await loadRaw();
@@ -48,4 +67,13 @@ export async function markRejectedPlaceIds(ids: string[]): Promise<void> {
     }
   }
   if (changed) await persist(current);
+
+  try {
+    await supabase.from('v2_rejected_places').upsert(
+      valid.map((gers_id) => ({ gers_id, reason })),
+      { onConflict: 'gers_id', ignoreDuplicates: true },
+    );
+  } catch {
+    /* best-effort */
+  }
 }

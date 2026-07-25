@@ -1,5 +1,6 @@
 import { SEARCH_CONFIG } from './searchConfig';
 import type { CachedPlace } from './cacheManager';
+import { getPlaceWebsiteUrl } from './placeFields';
 
 const CONFIDENCE_ATTR_RE = /^Overture confidence:\s*([0-9]*\.?[0-9]+)\s*$/i;
 
@@ -38,6 +39,7 @@ export function isPermanentlyClosedPlace(place: {
 export function isUsablePlace(place: CachedPlace | any): boolean {
   if (!place?.id || !place?.name || place?.location?.latitude == null) return false;
   if (isPermanentlyClosedPlace(place)) return false;
+  if (!getPlaceWebsiteUrl(place)) return false;
   const confidence = getPlaceConfidence(place);
   if (
     typeof confidence === 'number' &&

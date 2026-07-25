@@ -368,10 +368,14 @@ export const invokeGenerateAiOverviewsForPlaces = async (
     AsyncStorage.multiSet(backfills).catch(() => undefined);
   }
 
-  return { overviews: out, excludedPlaceIds: [] };
+  const excludedPlaceIds = Array.isArray(generatedData.excludedPlaceIds)
+    ? (generatedData.excludedPlaceIds as unknown[]).filter((id): id is string => typeof id === 'string')
+    : [];
+
+  return { overviews: out, excludedPlaceIds };
 };
 
-export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: number | null }>(
+export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: number | null; regularOpeningHours?: { weekdayDescriptions?: string[] } | null }>(
   places: T[],
   aiById: Map<string, AiOverview>
 ): T[] {
@@ -379,6 +383,7 @@ export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: 
     const gersId = place.id;
     const ai = gersId ? aiById.get(gersId) : undefined;
     if (!ai) return { ...place };
+    const hasHours = (place.regularOpeningHours?.weekdayDescriptions?.length ?? 0) > 0;
     return {
       ...place,
       aiOverview: ai,
@@ -386,6 +391,9 @@ export function mergeAiOverviewsOntoPlaces<T extends { id?: string; priceTier?: 
       priceTier: place.priceTier ?? ai.priceTier,
       cuisineKey: ai.cuisineKey,
       topMenuItems: Array.isArray(ai.topMenuItems) ? ai.topMenuItems : [],
+      ...(hasHours || !ai.weekdayDescriptions?.length
+        ? {}
+        : { regularOpeningHours: { weekdayDescriptions: ai.weekdayDescriptions } }),
     };
   });
 }
