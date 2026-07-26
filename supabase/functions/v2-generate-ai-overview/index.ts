@@ -12,6 +12,10 @@ const BATCH_SIZE = 15;
 const MAX_PLACES_PER_REQUEST = 60;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/2.0 (v2-ai-overview; contact: support@platebound.app)';
+const PING_TIMEOUT_MS = 1500;
+const PING_CONCURRENCY = 40;
+const DEAD_PING_STATUSES = new Set([404, 410]);
+const PING_UA = 'Platebound/2.0 (website-liveness; contact: support@platebound.app)';
 const MENU_KEYWORDS = ['menu', 'food', 'drink', 'dining', 'eat'];
 const HOURS_KEYWORDS = ['hours', 'hour', 'opening', 'open-hours', 'schedule', 'contact', 'visit-us', 'location'];
 // Keep scrape snippets short — only enough signal for scores / price tier.
@@ -50,7 +54,6 @@ type InputPlace = {
   website_url?: string | null;
   category?: string | null;
   price_tier?: number | null;
-  operating_status?: string | null;
   regular_opening_hours?: { weekdayDescriptions: string[] } | null;
   attributes?: string[] | null;
 };
@@ -429,6 +432,63 @@ function extractJsonLdHoursBundle(html: string): { weekdayDescriptions: string[]
   };
 }
 
+// ─── Ping + Concurrency Helpers ───────────────────────────────────────────────
+
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (true) {
+        const idx = next++;
+        if (idx >= items.length) return;
+        out[idx] = await fn(items[idx]);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
+}
+
+type PingResult = 'alive' | 'dead' | 'unknown';
+
+async function pingWebsite(url: string): Promise<PingResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
+  const headers = { 'User-Agent': PING_UA, Accept: '*/*' };
+  try {
+    let res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal, headers });
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal, headers });
+    }
+    clearTimeout(timer);
+    if (DEAD_PING_STATUSES.has(res.status)) return 'dead';
+    return 'alive';
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === 'AbortError') return 'unknown';
+    if (err instanceof Error && err.name === 'AbortError') return 'unknown';
+    const msg = String(err instanceof Error ? err.message : err).toLowerCase();
+    if (
+      msg.includes('dns') || msg.includes('getaddrinfo') ||
+      msg.includes('name or service not known') || msg.includes('no such host') ||
+      msg.includes('nxdomain') || msg.includes('enotfound') ||
+      msg.includes('econnrefused') || msg.includes('connection refused') ||
+      msg.includes('failed to lookup') || msg.includes('nodename nor servname')
+    ) return 'dead';
+    if (err instanceof TypeError) return 'dead';
+    return 'unknown';
+  }
+}
+
+// ─── Website Scraper ──────────────────────────────────────────────────────────
+
 type FetchHtmlResult = { html: string; status: number | null };
 
 const DEAD_WEBSITE_STATUSES = new Set([404, 410]);
@@ -571,9 +631,6 @@ function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
     `Category: ${place.category || 'restaurant'}`,
   ];
   if (place.price_tier != null) lines.push(`Price tier hint: ${place.price_tier}`);
-  if (place.operating_status && place.operating_status !== 'open') {
-    lines.push(`Status: ${place.operating_status.replace(/_/g, ' ')}`);
-  }
   const attrs = selectRelevantAttributes(place.attributes);
   if (attrs.length > 0) {
     lines.push(`Map facts:\n${attrs.join('\n')}`);
@@ -684,36 +741,15 @@ function sanitizeOverview(
 
 async function runGeminiBatch(
   batch: InputPlace[],
-  geminiUrl: string
-): Promise<{ overviews: { gersId: string; overview: AiOverview }[]; excludedPlaceIds: string[] }> {
+  geminiUrl: string,
+  scrapeByGersId: Map<string, ScrapeResult>,
+): Promise<{ overviews: { gersId: string; overview: AiOverview }[] }> {
   const out: { gersId: string; overview: AiOverview }[] = [];
-  const excludedPlaceIds: string[] = [];
 
-  const scrapeByGersId = new Map<string, ScrapeResult>();
-  await Promise.all(
-    batch.map(async (p) => {
-      if (!p.website_url) return;
-      try {
-        const result = await scrapeWebsite(p.website_url);
-        scrapeByGersId.set(p.gers_id, result);
-      } catch {
-        // best-effort
-      }
-    })
-  );
+  const batchIds = new Set(batch.map(p => p.gers_id));
 
-  const aliveBatch = batch.filter((p) => {
-    const scraped = scrapeByGersId.get(p.gers_id);
-    if (scraped?.deadWebsite) {
-      excludedPlaceIds.push(p.gers_id);
-      return false;
-    }
-    return true;
-  });
-  const batchIds = new Set(aliveBatch.map(p => p.gers_id));
-
-  if (aliveBatch.length === 0) {
-    return { overviews: out, excludedPlaceIds };
+  if (batch.length === 0) {
+    return { overviews: out };
   }
 
   const response = await fetch(geminiUrl, {
@@ -721,7 +757,7 @@ async function runGeminiBatch(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(aliveBatch, scrapeByGersId) }] }],
+      contents: [{ role: 'user', parts: [{ text: buildBatchPrompt(batch, scrapeByGersId) }] }],
       generationConfig: {
         temperature: 0.2,
         maxOutputTokens: 6144,
@@ -734,14 +770,14 @@ async function runGeminiBatch(
 
   if (!response.ok) {
     console.error(`[v2-generate-ai-overview] Gemini API error: ${response.status}`);
-    return { overviews: out, excludedPlaceIds };
+    return { overviews: out };
   }
 
   const modelData = await response.json();
   const rawText = modelData?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) {
     console.error('[v2-generate-ai-overview] Gemini returned empty response');
-    return { overviews: out, excludedPlaceIds };
+    return { overviews: out };
   }
 
   let parsed: any;
@@ -749,17 +785,17 @@ async function runGeminiBatch(
     parsed = JSON.parse(rawText);
   } catch {
     console.error('[v2-generate-ai-overview] Failed to parse Gemini JSON');
-    return { overviews: out, excludedPlaceIds };
+    return { overviews: out };
   }
 
   const items = parsed?.overviews;
-  if (!Array.isArray(items)) return { overviews: out, excludedPlaceIds };
+  if (!Array.isArray(items)) return { overviews: out };
 
   for (const item of items) {
     const gersId = String(item?.gersId ?? '').trim();
     if (!gersId || !batchIds.has(gersId)) continue;
 
-    const place = aliveBatch.find(p => p.gers_id === gersId);
+    const place = batch.find(p => p.gers_id === gersId);
     const scraped = scrapeByGersId.get(gersId);
     const deterministicHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
       ? scraped.jsonLdWeekdayDescriptions
@@ -780,7 +816,7 @@ async function runGeminiBatch(
     out.push({ gersId, overview });
   }
 
-  return { overviews: out, excludedPlaceIds };
+  return { overviews: out };
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -833,7 +869,10 @@ serve(async (req) => {
     const cachedIds = new Set((cachedRows ?? []).map((r: { gers_id: string }) => r.gers_id));
     console.log(`[v2-generate-ai-overview] Supabase v2 AI cache: ${cachedIds.size} / ${gersIds.length} already cached`);
 
-    const uncachedPlaces = validPlaces.filter(p => !cachedIds.has(p.gers_id));
+    // Skip temporarily_closed places — they still appear in the app but won't get AI overviews.
+    const uncachedPlaces = validPlaces.filter(
+      p => !cachedIds.has(p.gers_id)
+    );
     if (uncachedPlaces.length === 0) {
       console.log('[v2-generate-ai-overview] All places already cached, nothing to generate');
       return new Response(JSON.stringify({ generatedOverviews: [], excludedPlaceIds: [] }), {
@@ -841,24 +880,67 @@ serve(async (req) => {
       });
     }
 
-    const batches: InputPlace[][] = [];
-    for (let i = 0; i < uncachedPlaces.length; i += BATCH_SIZE) {
-      batches.push(uncachedPlaces.slice(i, i + BATCH_SIZE));
-    }
-
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
 
-    console.log(`[v2-generate-ai-overview] Running ${batches.length} Gemini batch(es) of up to ${BATCH_SIZE}...`);
-    const generatedOverviews: { gersId: string; overview: AiOverview }[] = [];
+    // ── Step 2: Ping all candidates in parallel ────────────────────────────────
+    const pingResults = await mapPool(uncachedPlaces, PING_CONCURRENCY, async (place) => {
+      if (!place.website_url) return { place, alive: false };
+      const result = await pingWebsite(place.website_url);
+      return { place, alive: result !== 'dead' };
+    });
+
     const excludedPlaceIds: string[] = [];
-    for (const batch of batches) {
-      const batchResults = await runGeminiBatch(batch, geminiUrl);
-      generatedOverviews.push(...batchResults.overviews);
-      excludedPlaceIds.push(...batchResults.excludedPlaceIds);
+    const alivePlaces: InputPlace[] = [];
+    for (const { place, alive } of pingResults) {
+      if (!alive) {
+        excludedPlaceIds.push(place.gers_id);
+      } else {
+        alivePlaces.push(place);
+      }
+    }
+    console.log(
+      `[v2-generate-ai-overview] Ping: ${alivePlaces.length} alive, ${excludedPlaceIds.length} dead`
+    );
+
+    // Tombstone dead sites immediately so future queries skip them.
+    if (excludedPlaceIds.length > 0) {
+      await supabase.from('v2_rejected_places').upsert(
+        excludedPlaceIds.map(gers_id => ({ gers_id, reason: 'dead_website' })),
+        { onConflict: 'gers_id', ignoreDuplicates: true },
+      );
+    }
+
+    // ── Step 3: Scrape all alive places in parallel ────────────────────────────
+    const scrapeByGersId = new Map<string, ScrapeResult>();
+    await Promise.all(
+      alivePlaces.map(async (p) => {
+        if (!p.website_url) return;
+        try {
+          const result = await scrapeWebsite(p.website_url);
+          scrapeByGersId.set(p.gers_id, result);
+        } catch {
+          // best-effort; place stays in batch without menu text
+        }
+      })
+    );
+
+    // ── Step 4: Pack into full batches of BATCH_SIZE, run all in parallel ──────
+    const batches: InputPlace[][] = [];
+    for (let i = 0; i < alivePlaces.length; i += BATCH_SIZE) {
+      batches.push(alivePlaces.slice(i, i + BATCH_SIZE));
+    }
+
+    console.log(`[v2-generate-ai-overview] Running ${batches.length} Gemini batch(es) in parallel...`);
+    const batchResultsAll = await Promise.all(
+      batches.map(batch => runGeminiBatch(batch, geminiUrl, scrapeByGersId))
+    );
+    const generatedOverviews: { gersId: string; overview: AiOverview }[] = [];
+    for (const result of batchResultsAll) {
+      generatedOverviews.push(...result.overviews);
     }
     console.log(
       `[v2-generate-ai-overview] Gemini generated ${generatedOverviews.length} overviews; ` +
-      `excluded ${excludedPlaceIds.length} dead-website places`
+      `excluded ${excludedPlaceIds.length} dead/no-website places`
     );
 
     // ── Step 4: Upsert to v2_ai_overview_cache + v2_ai_overview_details ───────
@@ -912,16 +994,6 @@ serve(async (req) => {
         )
       );
       console.log(`[v2-generate-ai-overview] Supabase upsert complete: ${generatedOverviews.length} rows written to v2_ai_overview_cache + v2_ai_overview_details`);
-    }
-
-    if (excludedPlaceIds.length > 0) {
-      const { error: rejectError } = await supabase.from('v2_rejected_places').upsert(
-        excludedPlaceIds.map((gers_id) => ({ gers_id, reason: 'dead_website' })),
-        { onConflict: 'gers_id', ignoreDuplicates: true },
-      );
-      if (rejectError) {
-        console.warn(`[v2-generate-ai-overview] Rejected-places upsert error: ${rejectError.message}`);
-      }
     }
 
     return new Response(JSON.stringify({ generatedOverviews, excludedPlaceIds }), {

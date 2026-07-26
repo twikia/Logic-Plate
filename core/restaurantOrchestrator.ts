@@ -192,25 +192,16 @@ async function generateAiInBatches(
   overviews: Map<string, import('./aiOverviewCache').AiOverview>;
   excludedPlaceIds: string[];
 }> {
-  const all = new Map<string, import('./aiOverviewCache').AiOverview>();
-  const excludedPlaceIds: string[] = [];
-  const batchSize = SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE;
   const total = missingIds.length;
-  for (let i = 0; i < missingIds.length; i += batchSize) {
-    const chunk = missingIds.slice(i, i + batchSize);
-    const { overviews: generated, excludedPlaceIds: excluded } =
-      await invokeGenerateAiOverviewsForPlaces(seeds, chunk);
-    for (const [k, v] of generated) all.set(k, v);
-    excludedPlaceIds.push(...excluded);
-    const done = Math.min(i + chunk.length, total);
-    await onBatch?.({
-      generatedSoFar: all,
-      excludedPlaceIds: [...excludedPlaceIds],
-      done,
-      total,
-    });
-  }
-  return { overviews: all, excludedPlaceIds };
+  const { overviews: generated, excludedPlaceIds } =
+    await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
+  await onBatch?.({
+    generatedSoFar: generated,
+    excludedPlaceIds: [...excludedPlaceIds],
+    done: total,
+    total,
+  });
+  return { overviews: generated, excludedPlaceIds };
 }
 
 const mapAiInflight = new Map<string, Promise<Map<string, import('./aiOverviewCache').AiOverview>>>();

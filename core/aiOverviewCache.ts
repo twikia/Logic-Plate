@@ -329,13 +329,13 @@ export const invokeGenerateAiOverviewsForPlaces = async (
   const payloadPlaces = missingGersIds
     .map(id => placeMap.get(id))
     .filter(Boolean)
+    .filter(p => p!.operating_status !== 'temporarily_closed')
     .map(p => ({
       gers_id: p!.id,
       name: p!.name,
       website_url: p!.website_url ?? null,
       category: p!.category ?? null,
       price_tier: p!.price_tier ?? null,
-      operating_status: p!.operating_status ?? null,
       regular_opening_hours: p!.regular_opening_hours ?? null,
       attributes: p!.attributes ?? null,
     }));

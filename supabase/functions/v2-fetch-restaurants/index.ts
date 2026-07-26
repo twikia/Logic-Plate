@@ -6,7 +6,6 @@ import {
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
 import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
-import { scrapeWebsiteHours } from "../_shared/websiteHours.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,13 +26,8 @@ const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 const MAX_RESULTS_PER_CELL = 500;
 // Mirrors core/searchConfig.ts MIN_OVERTURE_CONFIDENCE — existence confidence cutoff.
 const MIN_OVERTURE_CONFIDENCE = 0.9;
-const WEBSITE_PING_TIMEOUT_MS = 1500;
-const WEBSITE_WORK_CONCURRENCY = 40;
-const WEBSITE_HOURS_TIMEOUT_MS = 4000;
-const DEAD_WEBSITE_STATUSES = new Set([404, 410]);
-const WEBSITE_PING_UA = 'Platebound/2.0 (website-liveness; contact: support@platebound.app)';
 
-type RejectReason = 'no_website' | 'dead_website' | 'low_confidence' | 'permanently_closed';
+type RejectReason = 'no_website' | 'low_confidence' | 'permanently_closed';
 type RejectedPlace = { gers_id: string; reason: RejectReason };
 
 // NOTE: core/markerIcons.ts already has icon mappings for dozens of these
@@ -248,83 +242,6 @@ function mapOperatingStatus(raw: string | undefined): { operating_status: string
   return { operating_status: 'open', businessStatus: 'OPERATIONAL' };
 }
 
-type WebsitePingResult = 'alive' | 'dead' | 'unknown';
-
-async function mapPool<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  if (items.length === 0) return [];
-  const out = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => {
-      while (true) {
-        const idx = next++;
-        if (idx >= items.length) return;
-        out[idx] = await fn(items[idx]);
-      }
-    },
-  );
-  await Promise.all(workers);
-  return out;
-}
-
-/**
- * Fast liveness probe — not a full scrape.
- * Drop only clear deaths: invalid DNS / connection failure / 404 / 410.
- * Timeouts and ambiguous network errors keep the place (don't over-filter).
- */
-async function pingWebsite(url: string): Promise<WebsitePingResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), WEBSITE_PING_TIMEOUT_MS);
-  const headers = { 'User-Agent': WEBSITE_PING_UA, Accept: '*/*' };
-
-  try {
-    let res = await fetch(url, {
-      method: 'HEAD',
-      redirect: 'follow',
-      signal: controller.signal,
-      headers,
-    });
-    if (res.status === 405 || res.status === 501) {
-      res = await fetch(url, {
-        method: 'GET',
-        redirect: 'follow',
-        signal: controller.signal,
-        headers,
-      });
-    }
-    clearTimeout(timer);
-    if (DEAD_WEBSITE_STATUSES.has(res.status)) return 'dead';
-    return 'alive';
-  } catch (err) {
-    clearTimeout(timer);
-    if (err instanceof DOMException && err.name === 'AbortError') return 'unknown';
-    if (err instanceof Error && err.name === 'AbortError') return 'unknown';
-    const msg = String(err instanceof Error ? err.message : err).toLowerCase();
-    if (
-      msg.includes('dns') ||
-      msg.includes('getaddrinfo') ||
-      msg.includes('name or service not known') ||
-      msg.includes('no such host') ||
-      msg.includes('nxdomain') ||
-      msg.includes('enotfound') ||
-      msg.includes('econnrefused') ||
-      msg.includes('connection refused') ||
-      msg.includes('failed to lookup') ||
-      msg.includes('nodename nor servname')
-    ) {
-      return 'dead';
-    }
-    // Deno often wraps DNS/connect failures as generic TypeError("error sending request...")
-    if (err instanceof TypeError) return 'dead';
-    return 'unknown';
-  }
-}
-
 async function upsertRejectedPlaces(
   supabase: ReturnType<typeof createClient>,
   rejected: RejectedPlace[],
@@ -363,86 +280,23 @@ async function loadRejectedIds(
   return out;
 }
 
-/**
- * Require a website, ping in parallel, then fill missing OSM hours from website JSON-LD.
- * Returns kept places + tombstones for no/dead websites.
- */
-async function filterEnrichAndRejectPlaces(
+/** Filter places with no website; all others pass through for AI-side ping/scrape. */
+function filterEnrichAndRejectPlaces(
   places: NormalizedPlace[],
-): Promise<{ kept: NormalizedPlace[]; rejected: RejectedPlace[] }> {
+): { kept: NormalizedPlace[]; rejected: RejectedPlace[] } {
   const rejected: RejectedPlace[] = [];
-  const withSites: NormalizedPlace[] = [];
-
+  const kept: NormalizedPlace[] = [];
   for (const place of places) {
     if (!place.website_url) {
       rejected.push({ gers_id: place.id, reason: 'no_website' });
     } else {
-      withSites.push(place);
+      kept.push(place);
     }
   }
-
-  if (withSites.length === 0) {
-    return { kept: [], rejected };
-  }
-
-  const pingResults = await mapPool(withSites, WEBSITE_WORK_CONCURRENCY, async (place) => ({
-    place,
-    result: await pingWebsite(place.website_url!),
-  }));
-
-  const alive: NormalizedPlace[] = [];
-  for (const { place, result } of pingResults) {
-    if (result === 'dead') {
-      rejected.push({ gers_id: place.id, reason: 'dead_website' });
-    } else {
-      alive.push(place);
-    }
-  }
-
-  const needsHours = alive.filter(
-    (p) => (p.regularOpeningHours?.weekdayDescriptions?.length ?? 0) !== 7
-  );
-
-  if (needsHours.length > 0) {
-    const hourResults = await mapPool(needsHours, WEBSITE_WORK_CONCURRENCY, async (place) => {
-      const scraped = await scrapeWebsiteHours(place.website_url!, WEBSITE_HOURS_TIMEOUT_MS);
-      return { id: place.id, scraped };
-    });
-
-    const hoursById = new Map(hourResults.map((r) => [r.id, r.scraped]));
-    const kept: NormalizedPlace[] = [];
-    for (const place of alive) {
-      const scraped = hoursById.get(place.id);
-      if (scraped?.deadWebsite) {
-        rejected.push({ gers_id: place.id, reason: 'dead_website' });
-        continue;
-      }
-      if (
-        scraped?.weekdayDescriptions?.length === 7 &&
-        (place.regularOpeningHours?.weekdayDescriptions?.length ?? 0) !== 7
-      ) {
-        kept.push({
-          ...place,
-          regularOpeningHours: { weekdayDescriptions: scraped.weekdayDescriptions },
-        });
-      } else {
-        kept.push(place);
-      }
-    }
-
-    console.log(
-      `[v2-fetch-restaurants] Website pipeline: ${withSites.length} with sites, ` +
-      `${alive.length} alive, ${needsHours.length} hours-scraped, ` +
-      `${rejected.length} rejected, ${kept.length} kept`
-    );
-    return { kept, rejected };
-  }
-
   console.log(
-    `[v2-fetch-restaurants] Website pipeline: ${withSites.length} with sites, ` +
-    `${alive.length} alive (all had OSM hours), ${rejected.length} rejected`
+    `[v2-fetch-restaurants] Website filter: ${kept.length} kept, ${rejected.length} no-website rejected`
   );
-  return { kept: alive, rejected };
+  return { kept, rejected };
 }
 
 // ─── Normalizer helpers ───────────────────────────────────────────────────────
@@ -732,9 +586,10 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
   // from website JSON-LD (never invent / never use chain averages).
   const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
   const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
-  const hasRealOsmHours =
-    weekdayDescriptions.length === 7 &&
-    weekdayDescriptions.some((line) => !/:\s*hours not listed\s*$/i.test(line));
+  const realDayCount = weekdayDescriptions.filter(
+    (line) => !/:\s*hours not listed\s*$/i.test(line)
+  ).length;
+  const hasRealOsmHours = weekdayDescriptions.length === 7 && realDayCount >= 3;
   const regularOpeningHours = hasRealOsmHours ? { weekdayDescriptions } : null;
 
   return {
@@ -940,7 +795,7 @@ serve(async (req) => {
           );
           const freshPlaces = places.filter((p) => !alreadyRejected.has(p.id));
 
-          const { kept, rejected: websiteRejected } = await filterEnrichAndRejectPlaces(freshPlaces);
+          const { kept, rejected: websiteRejected } = filterEnrichAndRejectPlaces(freshPlaces);
           const allRejected = [...normalizeRejected, ...websiteRejected];
           await upsertRejectedPlaces(supabase, allRejected);
 
