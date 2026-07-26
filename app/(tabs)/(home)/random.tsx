@@ -572,10 +572,15 @@ export default function RandomScreen() {
         coords.longitude,
         searchRadius,
         onOrchestratorProgress,
-        { onAiReady: (enriched) => {
-          setAllResults(enriched);
-          replaceCurrentRestaurantIfInList(enriched);
-        } }
+        {
+          onPlacesUpdated: (places) => {
+            setAllResults(places);
+          },
+          onAiReady: (enriched) => {
+            setAllResults(enriched);
+            replaceCurrentRestaurantIfInList(enriched);
+          },
+        }
       );
       setAllResults(all);
 

@@ -1405,6 +1405,9 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
           skipLoader ? undefined : onOrchestratorProgress,
           {
             waitForAi: true,
+            onPlacesUpdated: places => {
+              setRawPlaces(places);
+            },
             onAiReady: enriched => {
               void setCachedResults(finalCacheKey, enriched);
               setRawPlaces(enriched);

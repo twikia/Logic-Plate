@@ -16,6 +16,7 @@ import {
 } from './restaurantSpreadSelection';
 import { filterUsablePlaces } from './placeQuality';
 import { loadRejectedPlaceIds, markRejectedPlaceIds } from './rejectedPlaces';
+import { ensureWebsiteScrapes } from './websiteScrapeCache';
 
 export type RestaurantLoadStage =
   | 'reading-cache'
@@ -278,6 +279,9 @@ export async function ensureAiOverviewsAroundPlace<T extends {
   if (!pending) {
     const missingIds = missingSorted.map((p) => p.id!);
     const batchSeeds = missingSorted.map((p) => toPlaceSeed(p as CachedPlace));
+    await ensureWebsiteScrapes(
+      batchSeeds.map((s) => ({ id: s.id, website_url: s.website_url })),
+    );
     pending = invokeGenerateAiOverviewsForPlaces(batchSeeds, missingIds)
       .then(async (result) => {
         if (result.excludedPlaceIds.length > 0) {
@@ -448,6 +452,30 @@ async function loadNearbyRestaurantsInternal(
   const aiTargetIds = new Set(aiTargets.map((p) => p.id).filter(Boolean));
   const missingAiIds = aiTargets.map((p) => p.id).filter((id) => !!id && !cachedAi.has(id));
 
+  // Warm scrapes for up to MAX_WEBSITE_SCRAPES closest in-radius places (async extras).
+  const scrapePool = pickClosestPlaces(withinRadius, SEARCH_CONFIG.MAX_WEBSITE_SCRAPES)
+    .filter((p) => !!p.id && !!p.website_url)
+    .map((p) => ({ id: p.id!, website_url: p.website_url }));
+  const priorityScrapes = scrapePool.filter((p) => aiTargetIds.has(p.id));
+  const restScrapes = scrapePool.filter((p) => !aiTargetIds.has(p.id));
+
+  const warmPriorityScrapes = async () => {
+    const excluded = await ensureWebsiteScrapes(priorityScrapes);
+    if (jobSeq !== latestJobSeq) return;
+    await applyExclusions(excluded);
+  };
+
+  const warmRestScrapesInBackground = () => {
+    void ensureWebsiteScrapes(restScrapes).then(async (excluded) => {
+      if (jobSeq !== latestJobSeq || excluded.length === 0) return;
+      await applyExclusions(excluded);
+      triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+    });
+  };
+
+  // Show restaurants immediately; photos load async via RestaurantImage.
+  options?.onPlacesUpdated?.(baseList);
+
   const emitAiProgress = (done: number, total: number) => {
     onProgress?.({
       stage: 'loading-overviews',
@@ -457,6 +485,13 @@ async function loadNearbyRestaurantsInternal(
   };
 
   const runBackgroundAi = async () => {
+    try {
+      await warmPriorityScrapes();
+      warmRestScrapesInBackground();
+    } catch (err) {
+      console.warn('[Orchestrator] Priority website scrape failed:', err);
+      warmRestScrapesInBackground();
+    }
     if (missingAiIds.length === 0) {
       if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
       return;
@@ -485,11 +520,18 @@ async function loadNearbyRestaurantsInternal(
   };
 
   if (options?.deferAi) {
+    void warmPriorityScrapes().then(() => warmRestScrapesInBackground());
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return baseList;
   }
 
   if (options?.waitForAi) {
+    try {
+      await warmPriorityScrapes();
+    } catch (err) {
+      console.warn('[Orchestrator] Priority website scrape failed:', err);
+    }
+    warmRestScrapesInBackground();
     if (missingAiIds.length > 0) {
       emitAiProgress(0, missingAiIds.length);
       await generateAiInBatches(
