@@ -23,7 +23,7 @@ const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 // H3 res-7 inscribed radius (apothem) = edge × √3/2 — mirrors core/searchConfig.ts
 const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
-const MAX_RESULTS_PER_CELL = 500;
+const MAX_RESULTS_PER_CELL = 1500;
 // Mirrors core/searchConfig.ts MIN_OVERTURE_CONFIDENCE — existence confidence cutoff.
 const MIN_OVERTURE_CONFIDENCE = 0.9;
 

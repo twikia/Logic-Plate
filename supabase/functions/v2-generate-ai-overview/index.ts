@@ -14,12 +14,11 @@ const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const FETCH_USER_AGENT = 'Platebound/2.0 (v2-ai-overview; contact: support@platebound.app)';
 const PING_TIMEOUT_MS = 1500;
 const PING_CONCURRENCY = 40;
-const DEAD_PING_STATUSES = new Set([404, 410]);
+const DEAD_PING_STATUSES = new Set([404, 410, 521, 522, 523, 525, 526, 530]);
 const PING_UA = 'Platebound/2.0 (website-liveness; contact: support@platebound.app)';
 const MENU_KEYWORDS = ['menu', 'food', 'drink', 'dining', 'eat'];
 const HOURS_KEYWORDS = ['hours', 'hour', 'opening', 'open-hours', 'schedule', 'contact', 'visit-us', 'location'];
-// Keep scrape snippets short — only enough signal for scores / price tier.
-const MAX_RELEVANT_TEXT_CHARS = 600;
+const MAX_RELEVANT_TEXT_CHARS = 800;
 const MAX_HOURS_TEXT_CHARS = 600;
 const MAX_ATTR_CHARS = 700;
 const FETCH_TIMEOUT_MS = 7000;
@@ -36,6 +35,8 @@ const WEEKDAY_NAMES = [
 const MENU_SIGNAL_RE = /\$\d{1,3}(?:\.\d{2})?|\b\d{1,2}\.\d{2}\b|\b\d{1,3}\s*(?:USD|usd)\b/i;
 const MENU_KEYWORD_RE = /\b(menu|appetizer|entree|entrée|dessert|salad|soup|sandwich|burger|pizza|pasta|steak|chicken|fish|seafood|taco|bowl|wrap|brunch|lunch|dinner|special|vegan|vegetarian|gluten|cocktail|wine|beer|beverage|side|platter|combo|sushi|ramen|bbq|grill|bistro|cafe|bakery)\b/i;
 const HOURS_SIGNAL_RE = /\b(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)|midnight|noon|\b24\s*hours?\b|open\s+daily)\b/i;
+const TIME_RANGE_RE = /\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\s*[-–—to]+\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\b/i;
+const DAILY_HOURS_RE = /\b(daily|every\s+day|7\s*days(?:\s*a\s*week)?|open\s+daily)\b/i;
 const DAY_NAME_RE = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i;
 const BOILERPLATE_RE = /\b(cookie|privacy policy|terms of (use|service)|subscribe|newsletter|follow us|all rights reserved|powered by|accessibility|sitemap|careers|press kit|opt.?out|gdpr|consent|manage preferences|sign up for|join our mailing)\b|©/i;
 const SOCIAL_RE = /\b(instagram|facebook|twitter|tiktok|youtube|linkedin)\b/i;
@@ -125,6 +126,7 @@ const overviewItemSchema = {
     workFriendlyScore: { type: 'INTEGER' },
     priceTier: { type: 'INTEGER' },
     cuisineKey: { type: 'STRING' },
+    weekdayDescriptions: { type: 'ARRAY', items: { type: 'STRING' } },
   },
   required: [
     'gersId', 'summaryGoodBad', 'speedScore', 'healthScore', 'workoutRecoveryScore',
@@ -158,7 +160,11 @@ Scores (integers unless noted):
 - priceTier 1-4 (1=budget … 4=fine dining); prefer menu prices / price hint over guessing
 - cuisineKey: one of italian,mexican,american,japanese,chinese,thai,indian,mediterranean,korean,vietnamese,french,greek,middle_eastern,caribbean,african,latin,cafe,bar,pizza,burger,sandwich,seafood,steak,sushi,ramen,bbq,vegan,vegetarian,dessert,bakery,fast_food,breakfast,brunch,general
 
-Use only provided facts (category, brand/cuisine tags, closed status, menu snippet). Do not invent menu items or hours. If Status is closed, say so in summaryGoodBad.`;
+Use only provided facts (category, brand/cuisine tags, menu snippet, hours text when present). Do not invent menu items or hours.
+
+Hours:
+- If a place includes "Hours text", parse it into weekdayDescriptions: exactly 7 strings, Monday through Sunday, each like "Monday: 11:00 AM – 10:00 PM" or "Monday: Closed". Expand "daily" / "every day" across all 7 days. If the text is incomplete for some days, use "Hours not listed" for those days only.
+- If there is no Hours text, omit weekdayDescriptions (or return []). Never invent hours from category, brand, or typical restaurant schedules.`;
 
 // ─── Website Scraper (1-Depth) ─────────────────────────────────────────────────
 
@@ -270,6 +276,19 @@ function extractRelevantMenuText(html: string, maxChars = MAX_RELEVANT_TEXT_CHAR
 function extractRelevantHoursText(html: string, maxChars = MAX_HOURS_TEXT_CHARS): string {
   if (!html) return '';
   return selectRelevantLines(htmlToLines(html), maxChars, scoreHoursLine);
+}
+
+/** Only pass hours prose to Gemini when it looks like a real schedule, not random AM/PM noise. */
+function hoursTextLooksParseable(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 12) return false;
+  const hasTime = HOURS_SIGNAL_RE.test(t) || TIME_RANGE_RE.test(t);
+  if (!hasTime) return false;
+  if (DAY_NAME_RE.test(t)) return true;
+  if (DAILY_HOURS_RE.test(t) && (TIME_RANGE_RE.test(t) || HOURS_SIGNAL_RE.test(t))) return true;
+  if (/\bopen\b/i.test(t) && TIME_RANGE_RE.test(t)) return true;
+  const ampmHits = t.match(/\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\b/g)?.length ?? 0;
+  return ampmHits >= 2 && (DAILY_HOURS_RE.test(t) || /\bclosed\b/i.test(t));
 }
 
 function resolveLinkedUrl(href: string, baseUrl: string): string | null {
@@ -458,6 +477,34 @@ async function mapPool<T, R>(
 
 type PingResult = 'alive' | 'dead' | 'unknown';
 
+function isDeadTransportError(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes('dns') ||
+    m.includes('getaddrinfo') ||
+    m.includes('name or service not known') ||
+    m.includes('no such host') ||
+    m.includes('nxdomain') ||
+    m.includes('enotfound') ||
+    m.includes('failed to lookup') ||
+    m.includes('nodename nor servname') ||
+    m.includes('econnrefused') ||
+    m.includes('connection refused') ||
+    m.includes('econnreset') ||
+    m.includes('connection reset') ||
+    m.includes('forcibly closed') ||
+    m.includes('remote end closed') ||
+    m.includes('ssl') ||
+    m.includes('tls') ||
+    m.includes('certificate') ||
+    m.includes('cert_') ||
+    m.includes('err_cert') ||
+    m.includes('wrong version number') ||
+    m.includes('hostname mismatch') ||
+    m.includes('handshake')
+  );
+}
+
 async function pingWebsite(url: string): Promise<PingResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
@@ -474,14 +521,8 @@ async function pingWebsite(url: string): Promise<PingResult> {
     clearTimeout(timer);
     if (err instanceof DOMException && err.name === 'AbortError') return 'unknown';
     if (err instanceof Error && err.name === 'AbortError') return 'unknown';
-    const msg = String(err instanceof Error ? err.message : err).toLowerCase();
-    if (
-      msg.includes('dns') || msg.includes('getaddrinfo') ||
-      msg.includes('name or service not known') || msg.includes('no such host') ||
-      msg.includes('nxdomain') || msg.includes('enotfound') ||
-      msg.includes('econnrefused') || msg.includes('connection refused') ||
-      msg.includes('failed to lookup') || msg.includes('nodename nor servname')
-    ) return 'dead';
+    const msg = String(err instanceof Error ? err.message : err);
+    if (isDeadTransportError(msg)) return 'dead';
     if (err instanceof TypeError) return 'dead';
     return 'unknown';
   }
@@ -489,9 +530,7 @@ async function pingWebsite(url: string): Promise<PingResult> {
 
 // ─── Website Scraper ──────────────────────────────────────────────────────────
 
-type FetchHtmlResult = { html: string; status: number | null };
-
-const DEAD_WEBSITE_STATUSES = new Set([404, 410]);
+type FetchHtmlResult = { html: string; status: number | null; deadTransport?: boolean };
 
 async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<FetchHtmlResult> {
   const controller = new AbortController();
@@ -504,8 +543,18 @@ async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): 
     clearTimeout(timer);
     if (!res.ok) return { html: '', status: res.status };
     return { html: await res.text(), status: res.status };
-  } catch {
+  } catch (err) {
     clearTimeout(timer);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { html: '', status: null };
+    }
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { html: '', status: null };
+    }
+    const msg = String(err instanceof Error ? err.message : err);
+    if (isDeadTransportError(msg) || err instanceof TypeError) {
+      return { html: '', status: null, deadTransport: true };
+    }
     return { html: '', status: null };
   }
 }
@@ -520,7 +569,7 @@ async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   if (!websiteUrl) return empty;
 
   const home = await fetchHtmlWithTimeout(websiteUrl);
-  if (home.status != null && DEAD_WEBSITE_STATUSES.has(home.status)) {
+  if (home.deadTransport || (home.status != null && DEAD_PING_STATUSES.has(home.status))) {
     return { ...empty, deadWebsite: true };
   }
   const homeHtml = home.html;
@@ -635,9 +684,18 @@ function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
   if (attrs.length > 0) {
     lines.push(`Map facts:\n${attrs.join('\n')}`);
   }
-  // Menu snippet for scoring only — hours come from JSON-LD / Overture, not Gemini.
   if (scrape?.menuText && scrape.menuText.length > 40) {
     lines.push(`Menu snippet:\n${scrape.menuText}`);
+  }
+  const hasJsonLdHours = (scrape?.jsonLdWeekdayDescriptions?.length ?? 0) === 7;
+  const hasOsmHours = (place.regular_opening_hours?.weekdayDescriptions?.length ?? 0) === 7;
+  if (
+    !hasJsonLdHours &&
+    !hasOsmHours &&
+    scrape?.hoursText &&
+    hoursTextLooksParseable(scrape.hoursText)
+  ) {
+    lines.push(`Hours text:\n${scrape.hoursText}`);
   }
   return lines.join('\n');
 }
@@ -733,9 +791,7 @@ function sanitizeOverview(
     topMenuItems: [],
     priceTier,
     cuisineKey,
-    weekdayDescriptions: weekdayDescriptions.length === 7
-      ? weekdayDescriptions
-      : sanitizeWeekdayDescriptions(raw.weekdayDescriptions),
+    weekdayDescriptions: weekdayDescriptions.length === 7 ? weekdayDescriptions : [],
   };
 }
 
@@ -797,18 +853,33 @@ async function runGeminiBatch(
 
     const place = batch.find(p => p.gers_id === gersId);
     const scraped = scrapeByGersId.get(gersId);
-    const deterministicHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
+    const jsonLdHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
       ? scraped.jsonLdWeekdayDescriptions
-      : place?.regular_opening_hours?.weekdayDescriptions?.length === 7
-        ? place.regular_opening_hours.weekdayDescriptions
-        : [];
+      : [];
+    const osmHours = place?.regular_opening_hours?.weekdayDescriptions?.length === 7
+      ? place.regular_opening_hours.weekdayDescriptions
+      : [];
+    const allowGeminiHours =
+      jsonLdHours.length === 0 &&
+      osmHours.length === 0 &&
+      !!scraped?.hoursText &&
+      hoursTextLooksParseable(scraped.hoursText);
+    const geminiHours = allowGeminiHours
+      ? sanitizeWeekdayDescriptions(item?.weekdayDescriptions)
+      : [];
+    const weekdayDescriptions =
+      jsonLdHours.length === 7
+        ? jsonLdHours
+        : osmHours.length === 7
+          ? osmHours
+          : geminiHours;
     const menuPriceTier = scraped?.menuText
       ? inferPriceTierFromMenuText(scraped.menuText)
       : null;
     const overview = sanitizeOverview(
       item,
       place?.price_tier ?? null,
-      deterministicHours,
+      weekdayDescriptions,
       menuPriceTier,
     );
     if (!overview) continue;
@@ -918,16 +989,45 @@ serve(async (req) => {
         try {
           const result = await scrapeWebsite(p.website_url);
           scrapeByGersId.set(p.gers_id, result);
-        } catch {
-          // best-effort; place stays in batch without menu text
+        } catch (err) {
+          const msg = String(err instanceof Error ? err.message : err);
+          if (isDeadTransportError(msg) || err instanceof TypeError) {
+            scrapeByGersId.set(p.gers_id, {
+              menuText: '',
+              hoursText: '',
+              jsonLdWeekdayDescriptions: [],
+              deadWebsite: true,
+            });
+          }
         }
       })
     );
 
+    // Tombstone DNS/CDN/TLS/dead hosts discovered during scrape (not just ping).
+    const geminiPlaces: InputPlace[] = [];
+    const scrapeDeadIds: string[] = [];
+    for (const place of alivePlaces) {
+      if (scrapeByGersId.get(place.gers_id)?.deadWebsite) {
+        scrapeDeadIds.push(place.gers_id);
+        excludedPlaceIds.push(place.gers_id);
+      } else {
+        geminiPlaces.push(place);
+      }
+    }
+    if (scrapeDeadIds.length > 0) {
+      await supabase.from('v2_rejected_places').upsert(
+        scrapeDeadIds.map(gers_id => ({ gers_id, reason: 'dead_website' })),
+        { onConflict: 'gers_id', ignoreDuplicates: true },
+      );
+      console.log(
+        `[v2-generate-ai-overview] Scrape tombstoned ${scrapeDeadIds.length} dead websites`
+      );
+    }
+
     // ── Step 4: Pack into full batches of BATCH_SIZE, run all in parallel ──────
     const batches: InputPlace[][] = [];
-    for (let i = 0; i < alivePlaces.length; i += BATCH_SIZE) {
-      batches.push(alivePlaces.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < geminiPlaces.length; i += BATCH_SIZE) {
+      batches.push(geminiPlaces.slice(i, i + BATCH_SIZE));
     }
 
     console.log(`[v2-generate-ai-overview] Running ${batches.length} Gemini batch(es) in parallel...`);
