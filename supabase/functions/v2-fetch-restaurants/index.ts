@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import {
   extractOsmField,
-  parseOsmOpeningHours,
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
 import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
@@ -493,7 +492,6 @@ function extractAttributes(props: OvertureFeature['properties']): string[] {
 
   push('Operating status raw', props.operating_status);
   push('Price range raw', props.price_range ?? props.price_rating);
-  push('Opening hours raw', props.opening_hours ?? props.hours);
 
   if (Array.isArray(props.sources) && props.sources.length > 0) {
     const datasets = [...new Set(
@@ -582,16 +580,6 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
   const priceRaw = extractOsmField(propsRecord, ['price_range', 'price_rating', 'priceRange', 'priceRating']);
   const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(brand ?? name);
 
-  // Hours cascade: OSM/Overture tags only here. Missing/placeholder hours are filled later
-  // from website JSON-LD (never invent / never use chain averages).
-  const hoursRaw = extractOsmField(propsRecord, ['opening_hours', 'hours', 'openingHours']);
-  const weekdayDescriptions = parseOsmOpeningHours(hoursRaw);
-  const realDayCount = weekdayDescriptions.filter(
-    (line) => !/:\s*hours not listed\s*$/i.test(line)
-  ).length;
-  const hasRealOsmHours = weekdayDescriptions.length === 7 && realDayCount >= 3;
-  const regularOpeningHours = hasRealOsmHours ? { weekdayDescriptions } : null;
-
   return {
     kind: 'place',
     place: {
@@ -608,7 +596,7 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
       operating_status: status.operating_status,
       businessStatus: status.businessStatus,
       priceTier,
-      regularOpeningHours,
+      regularOpeningHours: null,
       brand,
       wikidata,
       sources,

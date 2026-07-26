@@ -168,10 +168,8 @@ function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
     lines.push(`Menu snippet:\n${scrape.menuText}`);
   }
   const hasJsonLdHours = (scrape?.jsonLdWeekdayDescriptions?.length ?? 0) === 7;
-  const hasOsmHours = (place.regular_opening_hours?.weekdayDescriptions?.length ?? 0) === 7;
   if (
     !hasJsonLdHours &&
-    !hasOsmHours &&
     scrape?.hoursText &&
     hoursTextLooksParseable(scrape.hoursText)
   ) {
@@ -336,23 +334,14 @@ async function runGeminiBatch(
     const jsonLdHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
       ? scraped.jsonLdWeekdayDescriptions
       : [];
-    const osmHours = place?.regular_opening_hours?.weekdayDescriptions?.length === 7
-      ? place.regular_opening_hours.weekdayDescriptions
-      : [];
     const allowGeminiHours =
       jsonLdHours.length === 0 &&
-      osmHours.length === 0 &&
       !!scraped?.hoursText &&
       hoursTextLooksParseable(scraped.hoursText);
     const geminiHours = allowGeminiHours
       ? sanitizeWeekdayDescriptions(item?.weekdayDescriptions)
       : [];
-    const weekdayDescriptions =
-      jsonLdHours.length === 7
-        ? jsonLdHours
-        : osmHours.length === 7
-          ? osmHours
-          : geminiHours;
+    const weekdayDescriptions = jsonLdHours.length === 7 ? jsonLdHours : geminiHours;
     const menuPriceTier = scraped?.menuText
       ? inferPriceTierFromMenuText(scraped.menuText)
       : null;
