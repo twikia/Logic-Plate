@@ -48,6 +48,7 @@ import { formatRestaurantCostLabel } from '@/core/placePriceLabel';
 import { calculatePlateboundScore } from '@/core/ratingCalculator';
 import { getPlaceName, getPlaceAddress, getPlaceCuisineKey, getPlaceWebsiteUrl } from '@/core/placeFields';
 import { appendVisit } from '@/core/recommendationVisitHistory';
+import { SCENARIO_EMOJIS, SCENARIO_ORDER } from '@/core/scenarioFilters';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import { Ionicons } from '@expo/vector-icons';
@@ -115,6 +116,12 @@ function formatReviewCount(count: number): string {
 }
 const CAROUSEL_PAGE = WINDOW_WIDTH;
 const SPOTLIGHT_RESULTS_CACHE_PREFIX = 'map_results';
+const MORE_FILTERS_CARD_ID = '__more_filters__';
+const MORE_CARD_PREVIEW_EMOJIS = SCENARIO_ORDER.slice(0, 8).map(k => SCENARIO_EMOJIS[k]);
+
+type HomeCarouselItem =
+  | { kind: 'restaurant'; scored: ScoredRestaurant }
+  | { kind: 'more' };
 
 const NEON_CYAN = '#00FFFF';
 const NEON_MAGENTA = '#FF00FF';
@@ -975,6 +982,122 @@ const MemoHomeCarouselCard = React.memo(HomeCarouselCard, (prev, next) => (
   prev.onPress === next.onPress
 ));
 
+function MoreFiltersCarouselCard({ onPress }: { onPress: () => void }) {
+  const { theme } = useAppTheme();
+  const { t } = useTranslation();
+  const neonUi = Boolean(theme.neonColors);
+  const pressScale = useSharedValue(1);
+  const chevronY = useSharedValue(0);
+
+  useEffect(() => {
+    chevronY.value = withRepeat(
+      withSequence(
+        withTiming(4, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    );
+  }, [chevronY]);
+
+  const firePress = useCallback(() => {
+    if (!registerGlobalPress(500)) return;
+    playSuccess();
+    onPress();
+  }, [onPress]);
+
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDistance(14)
+        .maxDuration(280)
+        .onBegin(() => {
+          pressScale.value = withTiming(0.98, { duration: 80 });
+        })
+        .onFinalize((_e, success) => {
+          pressScale.value = withSpring(1, { damping: 20, stiffness: 300 });
+          if (success) runOnJS(firePress)();
+        }),
+    [firePress, pressScale]
+  );
+
+  const cardAnim = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
+  const chevronAnim = useAnimatedStyle(() => ({
+    transform: [{ translateY: chevronY.value }],
+  }));
+
+  return (
+    <View style={styles.carouselPage}>
+      <Animated.View style={[styles.spotlightCardOuter, cardAnim]}>
+        <NeonBorderCard borderRadius={26}>
+          <GestureDetector gesture={tapGesture}>
+            <View style={styles.moreFiltersCardInner}>
+              <View style={styles.moreFiltersHeaderRow}>
+                <View
+                  style={[
+                    styles.moreFiltersIconWrap,
+                    neonUi
+                      ? { backgroundColor: 'rgba(0,255,255,0.12)', borderColor: 'rgba(0,255,255,0.28)' }
+                      : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+                  ]}
+                >
+                  <Ionicons name="grid-outline" size={22} color={neonUi ? NEON_CYAN : theme.accent} />
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={[styles.spotlightTitle, { color: theme.text, fontFamily: theme.fontFamily }]} numberOfLines={2}>
+                    {t('home.moreOptionsTitle', { defaultValue: 'More options' })}
+                  </Text>
+                  <Text style={[styles.moreFiltersSubtitle, { color: theme.subtext }]} numberOfLines={2}>
+                    {t('home.moreOptionsSubtitle', { defaultValue: 'Browse vibes, cuisines & filters' })}
+                  </Text>
+                </View>
+                <Animated.View style={chevronAnim}>
+                  <Ionicons name="chevron-forward" size={26} color={neonUi ? NEON_CYAN : theme.accent} />
+                </Animated.View>
+              </View>
+
+              <View
+                style={[
+                  styles.moreFiltersPreview,
+                  neonUi
+                    ? { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(0,255,255,0.18)' }
+                    : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+                ]}
+              >
+                <View style={styles.moreFiltersEmojiGrid}>
+                  {MORE_CARD_PREVIEW_EMOJIS.map((emoji, i) => (
+                    <View
+                      key={`${emoji}-${i}`}
+                      style={[
+                        styles.moreFiltersEmojiTile,
+                        neonUi
+                          ? { backgroundColor: 'rgba(0,255,255,0.08)', borderColor: 'rgba(0,255,255,0.2)' }
+                          : { backgroundColor: theme.cardBackground, borderColor: theme.cardBorderColor },
+                      ]}
+                    >
+                      <Text style={styles.moreFiltersEmoji}>{emoji}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.moreFiltersExpandHint}>
+                  <Text style={[styles.moreFiltersExpandText, { color: neonUi ? NEON_CYAN : theme.accent }]}>
+                    {t('home.moreOptionsExpand', { defaultValue: 'Tap to explore categories' })}
+                  </Text>
+                  <Ionicons name="expand-outline" size={16} color={neonUi ? NEON_CYAN : theme.accent} />
+                </View>
+              </View>
+            </View>
+          </GestureDetector>
+        </NeonBorderCard>
+      </Animated.View>
+    </View>
+  );
+}
+
+const MemoMoreFiltersCarouselCard = React.memo(MoreFiltersCarouselCard);
+
 function AnimatedDot({ active, accentColor, inactiveColor }: { active: boolean; accentColor: string; inactiveColor: string }) {
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
@@ -1052,7 +1175,7 @@ export default function HomeScreen() {
   const hasFocusedOnceRef = useRef(false);
   const skipNextFocusReloadRef = useRef(false);
   const lastPrefsRevisionRef = useRef<number | null>(null);
-  const carouselRef = useRef<FlatList<ScoredRestaurant>>(null);
+  const carouselRef = useRef<FlatList<HomeCarouselItem>>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -1104,6 +1227,16 @@ export default function HomeScreen() {
     return ranked.slice(0, 5).filter(r => !rejectedIds.has(String(r.place?.id ?? '')));
   }, [ranked, rejectedIds]);
 
+  const carouselItems = useMemo((): HomeCarouselItem[] => {
+    if (visibleList.length === 0) return [];
+    return [
+      ...visibleList.map(scored => ({ kind: 'restaurant' as const, scored })),
+      { kind: 'more' },
+    ];
+  }, [visibleList]);
+
+  const carouselLen = carouselItems.length;
+
   const rejectPickAt = useCallback(
     (placeId: string) => {
       setRejectedIds(prev => {
@@ -1112,9 +1245,16 @@ export default function HomeScreen() {
         const idx = curList.findIndex(r => String(r.place?.id ?? '') === placeId);
         if (idx < 0) return prev;
         const p = pickIndexRef.current;
-        if (idx < p) setPickIndex(p - 1);
-        else if (idx > p) setPickIndex(p);
-        else setPickIndex(Math.min(p, curList.length - 2));
+        const moreIdx = curList.length;
+        if (p >= moreIdx) {
+          setPickIndex(Math.max(0, moreIdx - 1));
+        } else if (idx < p) {
+          setPickIndex(p - 1);
+        } else if (idx > p) {
+          setPickIndex(p);
+        } else {
+          setPickIndex(Math.min(p, curList.length - 2));
+        }
         return new Set(prev).add(placeId);
       });
     },
@@ -1191,8 +1331,9 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
     const randomizedFeed = applyHomeFeedRandomness(scored);
     setRanked(randomizedFeed);
     setRejectedIds(new Set());
-    const nextVisibleLen = Math.max(0, randomizedFeed.slice(0, 5).length - 1);
-    const nextPick = Math.min(pickIndexRef.current, nextVisibleLen);
+    const restCount = randomizedFeed.slice(0, 5).length;
+    const maxIdx = restCount > 0 ? restCount : 0;
+    const nextPick = Math.min(pickIndexRef.current, maxIdx);
     setPickIndex(nextPick);
     carouselRef.current?.scrollToOffset({ offset: nextPick * CAROUSEL_PAGE, animated: false });
   }, [prefs, session, rawPlaces]);
@@ -1208,16 +1349,16 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
   }, [recompute]);
 
   useEffect(() => {
-    setPickIndex(i => Math.min(i, Math.max(0, visibleList.length - 1)));
-  }, [visibleList.length]);
+    setPickIndex(i => Math.min(i, Math.max(0, carouselLen - 1)));
+  }, [carouselLen]);
 
   useLayoutEffect(() => {
-    if (visibleList.length !== visibleLenRef.current) {
-      visibleLenRef.current = visibleList.length;
-      const i = Math.min(Math.max(0, pickIndex), Math.max(0, visibleList.length - 1));
+    if (carouselLen !== visibleLenRef.current) {
+      visibleLenRef.current = carouselLen;
+      const i = Math.min(Math.max(0, pickIndex), Math.max(0, carouselLen - 1));
       carouselRef.current?.scrollToOffset({ offset: i * CAROUSEL_PAGE, animated: false });
     }
-  }, [visibleList.length, pickIndex]);
+  }, [carouselLen, pickIndex]);
 
   const spotlightLoadingRef = useRef(false);
   const loadSpotlightRef = useRef<(opts?: { skipFullScreenLoader?: boolean }) => Promise<void>>(async () => {});
@@ -1357,20 +1498,20 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
   );
 
   const goToPick = useCallback((i: number) => {
-    const max = Math.max(0, visibleList.length - 1);
+    const max = Math.max(0, carouselLen - 1);
     const next = Math.min(Math.max(0, i), max);
     setPickIndex(next);
     carouselRef.current?.scrollToOffset({ offset: next * CAROUSEL_PAGE, animated: true });
-  }, [visibleList.length]);
+  }, [carouselLen]);
 
   const onCarouselMomentumEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const x = e.nativeEvent.contentOffset.x;
       const i = Math.round(x / CAROUSEL_PAGE);
-      const max = Math.max(0, visibleList.length - 1);
+      const max = Math.max(0, carouselLen - 1);
       setPickIndex(Math.min(Math.max(0, i), max));
     },
-    [visibleList.length]
+    [carouselLen]
   );
 
   const openDetails = useCallback(async (item: ScoredRestaurant) => {
@@ -1385,18 +1526,29 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
     }, 0);
   }, [router]);
 
+  const openMoreFilters = useCallback(() => {
+    hapticMedium();
+    Image.clearMemoryCache();
+    router.push('/scenarios' as any);
+  }, [router]);
+
   const isDriveMode = (session?.radiusMeters ?? DEFAULT_SEARCH_RADIUS_METERS) > 1000;
 
   const renderCarouselItem = useCallback(
-    ({ item }: { item: ScoredRestaurant }) => (
-      <MemoHomeCarouselCard
-        item={item}
-        isDriveMode={isDriveMode}
-        onReject={rejectPickAt}
-        onPress={openDetails}
-      />
-    ),
-    [isDriveMode, rejectPickAt, openDetails]
+    ({ item }: { item: HomeCarouselItem }) => {
+      if (item.kind === 'more') {
+        return <MemoMoreFiltersCarouselCard onPress={openMoreFilters} />;
+      }
+      return (
+        <MemoHomeCarouselCard
+          item={item.scored}
+          isDriveMode={isDriveMode}
+          onReject={rejectPickAt}
+          onPress={openDetails}
+        />
+      );
+    },
+    [isDriveMode, rejectPickAt, openDetails, openMoreFilters]
   );
 
   useEffect(() => {
@@ -1523,12 +1675,14 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
                 <Text style={styles.retryText}>{t('common.refresh')}</Text>
               </TouchableOpacity>
             </View>
-          ) : visibleList.length > 0 ? (
+          ) : carouselItems.length > 0 ? (
             <View style={styles.galleryBlock}>
               <FlatList
                 ref={carouselRef}
-                data={visibleList}
-                keyExtractor={item => String(item.place?.id ?? '')}
+                data={carouselItems}
+                keyExtractor={item =>
+                  item.kind === 'more' ? MORE_FILTERS_CARD_ID : String(item.scored.place?.id ?? '')
+                }
                 horizontal
                 pagingEnabled
                 bounces={false}
@@ -1538,9 +1692,9 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
                 onMomentumScrollEnd={onCarouselMomentumEnd}
                 renderItem={renderCarouselItem}
                 removeClippedSubviews={false}
-                initialNumToRender={5}
-                maxToRenderPerBatch={5}
-                windowSize={5}
+                initialNumToRender={6}
+                maxToRenderPerBatch={6}
+                windowSize={6}
                 getItemLayout={(_, index) => ({
                   length: CAROUSEL_PAGE,
                   offset: CAROUSEL_PAGE * index,
@@ -1548,9 +1702,9 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
                 })}
               />
               <View style={styles.dotsBar}>
-                {visibleList.map((_, i) => (
+                {carouselItems.map((item, i) => (
                   <TouchableOpacity
-                    key={i}
+                    key={item.kind === 'more' ? MORE_FILTERS_CARD_ID : String(item.scored.place?.id ?? i)}
                     onPress={() => goToPick(i)}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   >
@@ -1779,6 +1933,62 @@ const styles = StyleSheet.create({
   },
   spotlightMapsBtnDisabled: { opacity: 0.45 },
   spotlightMapsBtnText: { fontSize: 17, fontWeight: '800' },
+  moreFiltersCardInner: {
+    padding: SPOTLIGHT_CARD_INSET,
+    gap: 16,
+    minHeight: SPOTLIGHT_THUMB_SIZE + SPOTLIGHT_RADAR_CARD_HEIGHT + 80,
+  },
+  moreFiltersHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  moreFiltersIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreFiltersSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  moreFiltersPreview: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    gap: 14,
+  },
+  moreFiltersEmojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  moreFiltersEmojiTile: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreFiltersEmoji: {
+    fontSize: 24,
+  },
+  moreFiltersExpandHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  moreFiltersExpandText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   dotsBar: {
     flexDirection: 'row',
     alignItems: 'center',

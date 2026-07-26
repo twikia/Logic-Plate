@@ -64,6 +64,9 @@ const en = {
     driveShort: 'drive',
     more: 'More',
     favorites: 'Favorites',
+    moreOptionsTitle: 'More options',
+    moreOptionsSubtitle: 'Browse vibes, cuisines & filters',
+    moreOptionsExpand: 'Tap to explore categories',
   },
 
   favorites: {
@@ -113,6 +116,9 @@ const en = {
     munchies: 'Munchie Mode',
     recovery_protein: 'Recover & Fuel',
     moreFilters: 'More Filters',
+    selectByCuisine: 'Select by Cuisine',
+    selectByCuisineHint: 'Tap a cuisine to filter nearby spots',
+    vibesSection: 'Vibes & moods',
   },
 
   sort: {
@@ -612,6 +618,11 @@ const en = {
     vegan: 'Vegan',
     bakery: 'Bakery',
     dessert: 'Dessert',
+    breakfast: 'Breakfast',
+    healthy: 'Healthy',
+    fast_casual: 'Fast casual',
+    spanish: 'Spanish / tapas',
+    bar: 'Bars',
   },
 
   languages: {

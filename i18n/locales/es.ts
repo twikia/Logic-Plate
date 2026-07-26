@@ -64,7 +64,10 @@ const es: Translations = {
     "driveMin": "{{count}} min en auto",
     "driveShort": "en auto",
     "more": "Más",
-    "favorites": "Favoritos"
+    "favorites": "Favoritos",
+    "moreOptionsTitle": "Más opciones",
+    "moreOptionsSubtitle": "Explora vibes, cocinas y filtros",
+    "moreOptionsExpand": "Toca para ver categorías"
   },
   "favorites": {
     "title": "Favoritos",
@@ -109,7 +112,10 @@ const es: Translations = {
     "date": "Noche de cita",
     "munchies": "Modo antojo",
     "recovery_protein": "Recuperación",
-    "moreFilters": "Más filtros"
+    "moreFilters": "Más filtros",
+    "selectByCuisine": "Elegir por cocina",
+    "selectByCuisineHint": "Toca una cocina para filtrar cerca",
+    "vibesSection": "Vibes y moods"
   },
   "sort": {
     "matchScore": "Puntuación del partido",
@@ -582,7 +588,12 @@ const es: Translations = {
     "sushi": "sushi",
     "vegan": "Vegano",
     "bakery": "Panadería",
-    "dessert": "el postre"
+    "dessert": "el postre",
+    "breakfast": "Desayuno",
+    "healthy": "Saludable",
+    "fast_casual": "Fast casual",
+    "spanish": "Española / tapas",
+    "bar": "Bares"
   },
   "languages": {
     "en": "Inglés",

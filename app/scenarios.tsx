@@ -10,9 +10,10 @@ import { hapticLight } from '@/core/haptics';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/ui/BackButton';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ScenariosScreen() {
-  const { theme, themeName } = useAppTheme();
+  const { theme } = useAppTheme();
   const { t } = useTranslation();
   const router = useRouter();
   const neon = Boolean(theme.neonColors);
@@ -27,6 +28,37 @@ export default function ScenariosScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={[
+              styles.cuisineEntry,
+              neon
+                ? { backgroundColor: 'rgba(0,255,255,0.08)', borderColor: 'rgba(0,255,255,0.28)' }
+                : { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
+            ]}
+            onPress={() => {
+              hapticLight();
+              router.push('/cuisine-select' as any);
+            }}
+          >
+            <View style={styles.cuisineEntryLeft}>
+              <Text style={styles.cuisineEntryEmoji}>🍜</Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.cuisineEntryTitle, { color: theme.text }]}>
+                  {t('scenarios.selectByCuisine', { defaultValue: 'Select by Cuisine' })}
+                </Text>
+                <Text style={[styles.cuisineEntryHint, { color: theme.subtext }]}>
+                  {t('scenarios.selectByCuisineHint', { defaultValue: 'Tap a cuisine to filter nearby spots' })}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={neon ? '#00FFFF' : theme.accent} />
+          </TouchableOpacity>
+
+          <Text style={[styles.sectionLabel, { color: theme.subtext }]}>
+            {t('scenarios.vibesSection', { defaultValue: 'Vibes & moods' })}
+          </Text>
+
           <View style={styles.grid}>
             {SCENARIO_ORDER.map(scenario => {
               const gradLayout = scenarioGradientLayout(scenario);
@@ -91,6 +123,42 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 20,
     paddingBottom: 60,
+  },
+  cuisineEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 22,
+    gap: 10,
+  },
+  cuisineEntryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  cuisineEntryEmoji: {
+    fontSize: 30,
+  },
+  cuisineEntryTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  cuisineEntryHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 16,
+    textTransform: 'uppercase',
   },
   grid: {
     flexDirection: 'row',

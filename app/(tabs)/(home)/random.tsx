@@ -83,6 +83,7 @@ import {
 } from '../../../core/restaurantSort';
 import { RestaurantImage } from '../../../core/images';
 import { placeOffersSweets } from '../../../core/placeSweets';
+import { TOP_CUISINE_TILES } from '../../../core/recommendationCuisines';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
 import type { ThemeColors } from '@/themes/types';
 
@@ -132,6 +133,30 @@ const CUISINE_TYPE_MAP: Record<string, string[]> = {
     'acai_shop',
   ],
 };
+
+const CUISINE_TILE_BY_ID = new Map(TOP_CUISINE_TILES.map(t => [t.id, t]));
+const VALID_CUISINE_IDS = new Set([
+  ...Object.keys(CUISINE_TYPE_MAP),
+  ...TOP_CUISINE_TILES.map(t => t.id),
+]);
+
+function normalizeCuisineParam(raw: string | string[] | undefined): string | null {
+  const s = Array.isArray(raw) ? raw[0] : raw;
+  if (!s) return null;
+  const key = String(s).toLowerCase().trim();
+  return VALID_CUISINE_IDS.has(key) ? key : null;
+}
+
+function placeMatchesCuisineKey(place: any, cuisineKey: string): boolean {
+  if (cuisineKey === 'dessert') return placeOffersSweets(place);
+  const tile = CUISINE_TILE_BY_ID.get(cuisineKey);
+  if (tile) return tile.match(place);
+  const mappedTypes = CUISINE_TYPE_MAP[cuisineKey] || [];
+  if (mappedTypes.length === 0) return false;
+  const pType = place.category || place.primaryType;
+  const tTypes = place.types || [];
+  return mappedTypes.some(t => pType === t || tTypes.includes(t));
+}
 
 function themedColors(theme: ThemeColors, neonUi: boolean) {
   const accentOn = theme.accentOnColor ?? '#FFFFFF';
@@ -369,12 +394,16 @@ export default function RandomScreen() {
   const { theme } = useAppTheme();
   const neonUi = Boolean(theme.neonColors);
   const tc = useMemo(() => themedColors(theme, neonUi), [theme, neonUi]);
-  const params = useLocalSearchParams<{ scenario?: string | string[] }>();
+  const params = useLocalSearchParams<{ scenario?: string | string[]; cuisine?: string | string[] }>();
   const paramScenario = useMemo((): ScenarioKey | null => {
     const raw = params.scenario;
     const s = Array.isArray(raw) ? raw[0] : raw;
     return normalizeScenarioKey(s);
   }, [params.scenario]);
+  const paramCuisine = useMemo(
+    () => normalizeCuisineParam(params.cuisine),
+    [params.cuisine]
+  );
 
   const [allResults, setAllResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -454,11 +483,11 @@ export default function RandomScreen() {
     setOpenOnly(true);
     setSelectedPrices(new Set());
     setMinRating(0);
-    setSelectedCuisines(new Set());
+    setSelectedCuisines(paramCuisine ? new Set([paramCuisine]) : new Set());
     setSortBy(paramScenario ? getScenarioPreferredSort(paramScenario) : 'distance');
     setAiSlot1({ key: null, min: 0 });
     setAiSlot2({ key: null, min: 0 });
-    if (paramScenario) {
+    if (paramScenario && !paramCuisine) {
       setScenarioKey(paramScenario);
       setScenarioFilterEnabled(true);
     } else {
@@ -468,7 +497,7 @@ export default function RandomScreen() {
     const openIds = all.filter((x: any) => isOpenNow(x)).map((x: any) => x.id);
     setSelected(new Set(openIds));
     setShowFilters(false);
-  }, [paramScenario]);
+  }, [paramScenario, paramCuisine]);
 
   const resetFilters = useCallback(async () => {
     if (isResettingRef.current) return;
@@ -556,11 +585,17 @@ export default function RandomScreen() {
           setOpenOnly(saved.openOnly);
           setSelectedPrices(new Set(saved.selectedPrices));
           setMinRating(saved.minRating);
-          setSelectedCuisines(new Set(saved.selectedCuisines));
+          setSelectedCuisines(
+            paramCuisine ? new Set([paramCuisine]) : new Set(saved.selectedCuisines)
+          );
           const [s1, s2] = cutoffsToSlots(mergeRandomAiCutoffs(saved.minAiCutoffs));
           setAiSlot1(s1);
           setAiSlot2(s2);
-          if (paramScenario) {
+          if (paramCuisine) {
+            setScenarioKey(null);
+            setScenarioFilterEnabled(false);
+            setSortBy(isRandomSortBy(saved.sortBy) ? saved.sortBy : 'distance');
+          } else if (paramScenario) {
             setScenarioKey(paramScenario);
             if (saved.scenarioKey === paramScenario && saved.scenarioFilterEnabled !== undefined) {
               setScenarioFilterEnabled(saved.scenarioFilterEnabled);
@@ -577,6 +612,10 @@ export default function RandomScreen() {
               setScenarioFilterEnabled(saved.scenarioFilterEnabled !== false);
             }
           }
+        } else if (paramCuisine) {
+          setSelectedCuisines(new Set([paramCuisine]));
+          setScenarioKey(null);
+          setScenarioFilterEnabled(false);
         }
 
         const allowed = new Set(all.map((x: any) => x.id));
@@ -609,7 +648,7 @@ export default function RandomScreen() {
       hydratedRef.current = true;
       setOpenCheckEpoch((e) => e + 1);
     }
-  }, [onOrchestratorProgress, paramScenario, startFetchPhase, startGpsPhase, snapProgressComplete, t]);
+  }, [onOrchestratorProgress, paramScenario, paramCuisine, startFetchPhase, startGpsPhase, snapProgressComplete, t]);
 
   useEffect(() => {
     void loadResults(DEFAULT_SEARCH_RADIUS_METERS);
@@ -629,6 +668,12 @@ export default function RandomScreen() {
   );
 
   useEffect(() => {
+    if (paramCuisine) {
+      setSelectedCuisines(new Set([paramCuisine]));
+      setScenarioKey(null);
+      setScenarioFilterEnabled(false);
+      return;
+    }
     if (!paramScenario) return;
     void getRandomPickerState().then(saved => {
       setScenarioKey(paramScenario);
@@ -640,7 +685,7 @@ export default function RandomScreen() {
         setSortBy(getScenarioPreferredSort(paramScenario));
       }
     });
-  }, [paramScenario]);
+  }, [paramScenario, paramCuisine]);
 
   useEffect(() => {
     return onRandomPickerReset(() => {
@@ -679,6 +724,12 @@ export default function RandomScreen() {
     loadResults(val);
   };
 
+  const cuisineChipKeys = useMemo(() => {
+    const keys = Object.keys(CUISINE_TYPE_MAP);
+    const extras = Array.from(selectedCuisines).filter(k => !keys.includes(k));
+    return extras.length ? [...extras, ...keys] : keys;
+  }, [selectedCuisines]);
+
   const filtered = useMemo(() => {
     return allResults.filter(r => {
       if (!((r.name || r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
@@ -697,13 +748,9 @@ export default function RandomScreen() {
       }
       if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
       if (selectedCuisines.size > 0) {
-        const pType = r.category || r.primaryType;
-        const tTypes = r.types || [];
-        const hasMatch = Array.from(selectedCuisines).some(cuisineKey => {
-          if (cuisineKey === 'dessert') return placeOffersSweets(r);
-          const mappedTypes = CUISINE_TYPE_MAP[cuisineKey] || [];
-          return mappedTypes.some(t => pType === t || tTypes.includes(t));
-        });
+        const hasMatch = Array.from(selectedCuisines).some(cuisineKey =>
+          placeMatchesCuisineKey(r, cuisineKey)
+        );
         if (!hasMatch) return false;
       }
       if (scenarioFilterEnabled && scenarioKey && !restaurantMatchesScenario(r, scenarioKey)) {
@@ -1030,7 +1077,7 @@ export default function RandomScreen() {
 
             <Text style={[styles.filterSubLabel, { color: theme.subtext }]}>{t('random.cuisines')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
-              {Object.keys(CUISINE_TYPE_MAP).map(key => (
+              {cuisineChipKeys.map(key => (
                 <TouchableOpacity
                   key={key}
                   style={[

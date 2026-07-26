@@ -64,7 +64,10 @@ const fr: Translations = {
     "driveMin": "{{count}} min en voiture",
     "driveShort": "en voiture",
     "more": "Plus",
-    "favorites": "Favoris"
+    "favorites": "Favoris",
+    "moreOptionsTitle": "Plus d'options",
+    "moreOptionsSubtitle": "Ambiances, cuisines et filtres",
+    "moreOptionsExpand": "Touchez pour explorer"
   },
   "favorites": {
     "title": "Favoris",
@@ -109,7 +112,10 @@ const fr: Translations = {
     "date": "Soirée romantique",
     "munchies": "Mode grignotage",
     "recovery_protein": "Récupération",
-    "moreFilters": "Plus de filtres"
+    "moreFilters": "Plus de filtres",
+    "selectByCuisine": "Choisir par cuisine",
+    "selectByCuisineHint": "Touchez une cuisine pour filtrer",
+    "vibesSection": "Ambiances"
   },
   "sort": {
     "matchScore": "Score du match",
@@ -582,7 +588,12 @@ const fr: Translations = {
     "sushi": "Sushis",
     "vegan": "Végétalienne",
     "bakery": "Boulangerie",
-    "dessert": "Desserts"
+    "dessert": "Desserts",
+    "breakfast": "Petit-déjeuner",
+    "healthy": "Santé",
+    "fast_casual": "Fast casual",
+    "spanish": "Espagnole / tapas",
+    "bar": "Bars"
   },
   "languages": {
     "en": "Anglais",

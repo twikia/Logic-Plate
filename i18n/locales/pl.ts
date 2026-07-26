@@ -64,7 +64,10 @@ const pl: Translations = {
     "driveMin": "{{count}} min samochodem",
     "driveShort": "samochodem",
     "more": "Więcej",
-    "favorites": "Ulubione"
+    "favorites": "Ulubione",
+    "moreOptionsTitle": "Więcej opcji",
+    "moreOptionsSubtitle": "Klimaty, kuchnie i filtry",
+    "moreOptionsExpand": "Dotknij, by zobaczyć kategorie"
   },
   "favorites": {
     "title": "Ulubione",
@@ -109,7 +112,10 @@ const pl: Translations = {
     "date": "Nocna randka",
     "munchies": "Tryb Munchiego",
     "recovery_protein": "Odzyskaj i zatankuj",
-    "moreFilters": "Więcej filtrów"
+    "moreFilters": "Więcej filtrów",
+    "selectByCuisine": "Wybierz kuchnię",
+    "selectByCuisineHint": "Dotknij kuchni, by przefiltrować",
+    "vibesSection": "Klimaty i nastroje"
   },
   "sort": {
     "matchScore": "Wynik meczu",
@@ -582,7 +588,12 @@ const pl: Translations = {
     "sushi": "Sushi",
     "vegan": "Wegańskie",
     "bakery": "Piekarnia",
-    "dessert": "Deser"
+    "dessert": "Deser",
+    "breakfast": "Śniadanie",
+    "healthy": "Zdrowo",
+    "fast_casual": "Fast casual",
+    "spanish": "Hiszpańska / tapas",
+    "bar": "Bary"
   },
   "languages": {
     "en": "angielski",
