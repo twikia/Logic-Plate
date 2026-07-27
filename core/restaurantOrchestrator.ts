@@ -204,7 +204,7 @@ async function generateAiInBatches(
     idChunks.push(missingIds.slice(i, i + batchSize));
   }
 
-  let done = 0;
+  let finishedCount = 0;
   // One edge invoke per Gemini batch of 15 — each returns independently and streams into UI.
   await Promise.all(
     idChunks.map(async (chunkIds) => {
@@ -212,23 +212,17 @@ async function generateAiInBatches(
         const result = await invokeGenerateAiOverviewsForPlaces(seeds, chunkIds);
         for (const [k, v] of result.overviews) generated.set(k, v);
         excludedPlaceIds.push(...result.excludedPlaceIds);
-        done += chunkIds.length;
-        await onBatch?.({
-          generatedSoFar: new Map(generated),
-          excludedPlaceIds: [...excludedPlaceIds],
-          done: Math.min(done, total),
-          total,
-        });
       } catch (err) {
         console.warn('[Orchestrator] AI batch invoke failed:', err);
-        done += chunkIds.length;
-        await onBatch?.({
-          generatedSoFar: new Map(generated),
-          excludedPlaceIds: [...excludedPlaceIds],
-          done: Math.min(done, total),
-          total,
-        });
       }
+      finishedCount += chunkIds.length;
+      const done = Math.min(finishedCount, total);
+      await onBatch?.({
+        generatedSoFar: new Map(generated),
+        excludedPlaceIds: [...excludedPlaceIds],
+        done,
+        total,
+      });
     }),
   );
 
@@ -497,6 +491,11 @@ async function loadNearbyRestaurantsInternal(
   };
 
   const runScrapeRace = async (): Promise<string[]> => {
+    onProgress?.({
+      stage: 'loading-overviews',
+      progress: PROGRESS.aiStart,
+      detail: { done: 0, total: aiLimit, unit: 'overviews' },
+    });
     const { readyIds, excludedPlaceIds } = await raceWebsiteScrapesForAi(raceQueue, {
       queueSize: SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE,
       targetUsable: aiLimit,
@@ -504,6 +503,11 @@ async function loadNearbyRestaurantsInternal(
     });
     if (jobSeq !== latestJobSeq) return [];
     await applyExclusions(excludedPlaceIds);
+    onProgress?.({
+      stage: 'loading-overviews',
+      progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, 0.15, 1),
+      detail: { done: 0, total: Math.max(readyIds.length, 1), unit: 'overviews' },
+    });
     return readyIds;
   };
 
@@ -511,9 +515,11 @@ async function loadNearbyRestaurantsInternal(
   options?.onPlacesUpdated?.(baseList);
 
   const emitAiProgress = (done: number, total: number) => {
+    // Scrape race used the first ~15% of the AI band; batches fill the rest.
+    const t = total <= 0 ? 1 : 0.15 + 0.85 * Math.min(1, done / total);
     onProgress?.({
       stage: 'loading-overviews',
-      progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, done, total),
+      progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, t, 1),
       detail: { done, total, unit: 'overviews' },
     });
   };

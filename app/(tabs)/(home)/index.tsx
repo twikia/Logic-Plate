@@ -1328,14 +1328,25 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
       return;
     }
 
-    const randomizedFeed = applyHomeFeedRandomness(scored);
-    setRanked(randomizedFeed);
-    setRejectedIds(new Set());
-    const restCount = randomizedFeed.slice(0, 5).length;
+    setRanked(prev => {
+      // First paint: allow feed randomness. Later AI streams: keep card order stable.
+      if (prev.length === 0) {
+        return applyHomeFeedRandomness(scored);
+      }
+      const byId = new Map(
+        scored.map(s => [String(s.place?.id ?? ''), s] as const).filter(([id]) => !!id)
+      );
+      const kept = prev
+        .map(r => byId.get(String(r.place?.id ?? '')))
+        .filter((r): r is ScoredRestaurant => !!r);
+      const seen = new Set(kept.map(r => String(r.place?.id ?? '')));
+      const extras = scored.filter(s => !seen.has(String(s.place?.id ?? '')));
+      return [...kept, ...extras];
+    });
+    const restCount = Math.min(5, scored.length);
     const maxIdx = restCount > 0 ? restCount : 0;
     const nextPick = Math.min(pickIndexRef.current, maxIdx);
     setPickIndex(nextPick);
-    carouselRef.current?.scrollToOffset({ offset: nextPick * CAROUSEL_PAGE, animated: false });
   }, [prefs, session, rawPlaces]);
 
   useEffect(() => {
@@ -1369,6 +1380,8 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
     const skipLoader = opts?.skipFullScreenLoader === true;
     if (!skipLoader) {
       setIsLoading(true);
+      setRanked([]);
+      setRejectedIds(new Set());
     }
     setErrorMsg(null);
     startGpsPhase();
@@ -1404,6 +1417,8 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
           currentRad,
           skipLoader ? undefined : onOrchestratorProgress,
           {
+            // Keep waitForAi so the progress bar tracks scrape + overview batches.
+            // onPlacesUpdated / onAiReady stream into rawPlaces → recompute refreshes cards under the bar.
             waitForAi: true,
             onPlacesUpdated: places => {
               setRawPlaces(places);
@@ -1424,20 +1439,7 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
 
       await setCachedResults(finalCacheKey, all);
       setRawPlaces(all);
-
-      if (currentPrefs && currentSession && all.length > 0) {
-        const rainy = await fetchIsLikelyRainNow(coords.latitude, coords.longitude);
-        const scored = scoreRestaurantPool(all, {
-          prefs: currentPrefs,
-          session: currentSession,
-          userLat: coords.latitude,
-          userLng: coords.longitude,
-          rainyWeather: rainy === true ? true : undefined,
-        });
-        const randomizedFeed = applyHomeFeedRandomness(scored);
-        setRanked(randomizedFeed);
-        setRejectedIds(new Set());
-      } else if (all.length === 0) {
+      if (all.length === 0) {
         setRanked([]);
       }
     } catch (e) {
@@ -1664,21 +1666,24 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
               detailLabel={loadingDetail}
               style={styles.loadingBox}
             />
-          ) : errorMsg ? (
+          ) : null}
+          {!isLoading && errorMsg ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>{errorMsg}</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={() => { hapticMedium(); void loadSpotlight(); }}>
                 <Text style={styles.retryText}>{t('common.tryAgain')}</Text>
               </TouchableOpacity>
             </View>
-          ) : noPlacesAtAll ? (
+          ) : null}
+          {!isLoading && !errorMsg && noPlacesAtAll ? (
             <View style={styles.messageBox}>
               <Text style={styles.messageText}>{t('home.noResults')}</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={() => { hapticMedium(); void loadSpotlight(); }}>
                 <Text style={styles.retryText}>{t('common.refresh')}</Text>
               </TouchableOpacity>
             </View>
-          ) : carouselItems.length > 0 ? (
+          ) : null}
+          {!errorMsg && carouselItems.length > 0 ? (
             <View style={styles.galleryBlock}>
               <FlatList
                 ref={carouselRef}
