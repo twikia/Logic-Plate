@@ -16,7 +16,10 @@ export const DEAD_PING_STATUSES = new Set([404, 410, 521, 522, 523, 525, 526, 53
 const MENU_KEYWORDS = ["menu", "food", "drink", "dining", "eat"];
 const HOURS_KEYWORDS = ["hours", "hour", "opening", "open-hours", "schedule", "contact", "visit-us", "location"];
 const MAX_RELEVANT_TEXT_CHARS = 800;
-const MAX_HOURS_TEXT_CHARS = 600;
+const MAX_HOURS_TEXT_CHARS = 150;
+const MAX_FOOD_HINT_CHARS = 200;
+const FOOD_HINT_RE =
+  /\b(italian|mexican|japanese|chinese|thai|indian|korean|vietnamese|french|greek|mediterranean|middle\s*eastern|caribbean|latin|american|tex[- ]?mex|cajun|creole|southern|soul\s*food|seafood|steakhouse|steak|sushi|sashimi|ramen|pho|dumpling|dim\s*sum|poke|bbq|barbecue|smokehouse|pizza|burger|taco|noodle|pasta|tapas|small\s*plates|comfort\s*food|fusion|vegan|vegetarian|plant[- ]?based|gluten[- ]?free|organic|farm[- ]?to[- ]?table|locally\s+sourced|handcrafted|homemade|wood[- ]?fired|craft\s*beer|cocktail|wine\s*bar|brewery|bakery|brunch|breakfast|cafe|bistro|gastropub|fine\s*dining|family[- ]?owned|authentic|traditional|specialty|specializing|known\s+for|we\s+serve|serving|our\s+(?:menu|kitchen|chefs?))\b/i;
 const FETCH_TIMEOUT_MS = 7000;
 const WEEKDAY_NAMES = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
@@ -82,6 +85,50 @@ function scoreMenuLine(line: string): number {
   if (line.length > 220 && !MENU_SIGNAL_RE.test(line)) score -= 2;
   if (/^(home|about|contact|locations?|hours?|gallery|events?)$/i.test(line)) score -= 3;
   return score;
+}
+
+function scoreFoodHintLine(line: string): number {
+  if (!FOOD_HINT_RE.test(line)) return -10;
+  const hits = line.match(new RegExp(FOOD_HINT_RE.source, 'gi'))?.length ?? 0;
+  let score = Math.min(8, 3 + hits);
+  if (/\b(specializing|known\s+for|we\s+serve|serving|our\s+(?:menu|kitchen|chefs?)|authentic|traditional)\b/i.test(line)) {
+    score += 2;
+  }
+  if (BOILERPLATE_RE.test(line)) score -= 8;
+  if (SOCIAL_RE.test(line)) score -= 4;
+  if (DAY_NAME_RE.test(line) && HOURS_SIGNAL_RE.test(line)) score -= 3;
+  if (line.length > 160) score -= 2;
+  if (line.length < 12) score -= 2;
+  return score;
+}
+
+function extractFoodHintText(html: string, maxChars = MAX_FOOD_HINT_CHARS): string {
+  if (!html) return '';
+  return selectRelevantLines(htmlToLines(html), maxChars, scoreFoodHintLine);
+}
+
+function appendUniqueLines(base: string, extra: string, maxChars: number): string {
+  if (!extra) return base.slice(0, maxChars);
+  if (!base) return extra.slice(0, maxChars);
+
+  const seen = new Set(
+    base
+      .split('\n')
+      .map(line => line.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  let text = base;
+  for (const line of extra.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    const next = `${text}\n${trimmed}`;
+    if (next.length > maxChars) break;
+    seen.add(key);
+    text = next;
+  }
+  return text;
 }
 
 function selectRelevantLines(lines: string[], maxChars: number, scoreLine: (line: string) => number): string {
@@ -468,9 +515,15 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
 
   const menuTextFromPage = menuHtml ? extractRelevantMenuText(menuHtml) : '';
   const menuTextFromHome = extractRelevantMenuText(homeHtml);
-  const menuText = menuTextFromPage.length > 80
+  const menuCore = menuTextFromPage.length > 80
     ? menuTextFromPage
     : [menuTextFromPage, menuTextFromHome].filter(Boolean).join('\n').slice(0, MAX_RELEVANT_TEXT_CHARS);
+
+  const hintHtml = [homeHtml, menuHtml, hoursHtml].filter(Boolean).join('\n');
+  const foodHintText = extractFoodHintText(hintHtml, MAX_FOOD_HINT_CHARS);
+  const menuText = menuCore.length === 0
+    ? foodHintText
+    : appendUniqueLines(menuCore, foodHintText, MAX_RELEVANT_TEXT_CHARS);
 
   const hoursChunks = [
     jsonLdFromAllPages.weekdayDescriptions.length === 7
@@ -481,7 +534,11 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
     extractRelevantHoursText(homeHtml),
   ].filter(Boolean);
 
-  const hoursText = [...new Set(hoursChunks)].join('\n').slice(0, MAX_HOURS_TEXT_CHARS);
+  const hoursText = selectRelevantLines(
+    [...new Set(hoursChunks.join('\n').split('\n').map(line => line.trim()).filter(Boolean))],
+    MAX_HOURS_TEXT_CHARS,
+    scoreHoursLine,
+  );
 
   return {
     menuText,

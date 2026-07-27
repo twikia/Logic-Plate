@@ -32,13 +32,58 @@ const WEEKDAY_NAMES = [
   'Sunday',
 ];
 
-const MENU_SIGNAL_RE = /\$\d{1,3}(?:\.\d{2})?|\b\d{1,2}\.\d{2}\b|\b\d{1,3}\s*(?:USD|usd)\b/i;
+const MENU_SIGNAL_RE = /\$\s*(\d{1,3}(?:\.\d{2})?)|\b(\d{1,2}\.\d{2})\b|\b(\d{1,3})\s*(?:USD|usd)\b/gi;
+const MAX_HOURS_PROMPT_CHARS = 150;
 
 // Only map/OSM facts that affect cuisine, diet, vibe, or price scoring.
 const ATTR_KEEP_RE =
   /^(Brand|Basic category|Category primary|Category alternate|Taxonomy primary|Taxonomy alternate|Price range raw|OSM tags):/i;
 const OSM_TAG_KEEP_RE =
   /\b(cuisine|diet|organic|vegan|vegetarian|halal|kosher|gluten|outdoor|takeaway|delivery|drive.?through|wifi|internet|wheelchair|breakfast|brunch|lunch|dinner|bar|pub|cafe|coffee|fast.?food|seafood|steak|pizza|burger|ramen|sushi|bbq|barbecue|microbrewery|craft.?beer|wine|cocktails?|reservation|capacity|smoking|air.?conditioning)\b/i;
+
+function selectRelevantAttributes(attributes?: string[] | null): string[] {
+  if (!attributes?.length) return [];
+  const kept: string[] = [];
+  let total = 0;
+  for (const raw of attributes) {
+    const line = String(raw ?? '').trim();
+    if (!line || !ATTR_KEEP_RE.test(line)) continue;
+
+    let next = line;
+    if (/^OSM tags:/i.test(line)) {
+      const body = line.replace(/^OSM tags:\s*/i, '');
+      const tags = body
+        .split(/[;,\n|]/)
+        .map(t => t.trim())
+        .filter(t => t.length > 0 && OSM_TAG_KEEP_RE.test(t));
+      if (tags.length === 0) continue;
+      next = `OSM tags: ${tags.join(', ')}`;
+    }
+
+    if (total + next.length + (kept.length > 0 ? 1 : 0) > MAX_ATTR_CHARS) break;
+    kept.push(next);
+    total += next.length + (kept.length > 1 ? 1 : 0);
+  }
+  return kept;
+}
+
+function inferPriceTierFromMenuText(menuText: string): number | null {
+  if (!menuText) return null;
+  const prices: number[] = [];
+  MENU_SIGNAL_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = MENU_SIGNAL_RE.exec(menuText)) !== null) {
+    const n = Number.parseFloat(match[1] ?? match[2] ?? match[3] ?? '');
+    if (Number.isFinite(n) && n >= 1 && n <= 400) prices.push(n);
+  }
+  if (prices.length < 2) return null;
+  prices.sort((a, b) => a - b);
+  const median = prices[Math.floor(prices.length / 2)];
+  if (median < 12) return 1;
+  if (median < 25) return 2;
+  if (median < 50) return 3;
+  return 4;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,7 +191,7 @@ Scores (integers unless noted):
 - priceTier 1-4 (1=budget … 4=fine dining); prefer menu prices / price hint over guessing
 - cuisineKey: one of italian,mexican,american,japanese,chinese,thai,indian,mediterranean,korean,vietnamese,french,greek,middle_eastern,caribbean,african,latin,cafe,bar,pizza,burger,sandwich,seafood,steak,sushi,ramen,bbq,vegan,vegetarian,dessert,bakery,fast_food,breakfast,brunch,general
 
-Use only provided facts (category, brand/cuisine tags, menu snippet, hours text when present). Do not invent menu items or hours.
+Use only provided facts (category, brand/cuisine tags, menu snippet / food cues, hours text when present). Do not invent menu items or hours. Menu snippet may be dish/price lines and/or short about-the-food cues from the website.
 
 Hours:
 - If a place includes "Hours text", parse it into weekdayDescriptions: exactly 7 strings, Monday through Sunday, each like "Monday: 11:00 AM – 10:00 PM" or "Monday: Closed". Expand "daily" / "every day" across all 7 days. If the text is incomplete for some days, use "Hours not listed" for those days only.
@@ -165,16 +210,17 @@ function buildPlaceBlock(place: InputPlace, scrape?: ScrapeResult): string {
   if (attrs.length > 0) {
     lines.push(`Map facts:\n${attrs.join('\n')}`);
   }
-  if (scrape?.menuText && scrape.menuText.length > 40) {
+  if (scrape?.menuText && scrape.menuText.length > 20) {
     lines.push(`Menu snippet:\n${scrape.menuText}`);
   }
   const hasJsonLdHours = (scrape?.jsonLdWeekdayDescriptions?.length ?? 0) === 7;
+  const hoursForPrompt = (scrape?.hoursText ?? '').trim().slice(0, MAX_HOURS_PROMPT_CHARS);
   if (
     !hasJsonLdHours &&
-    scrape?.hoursText &&
-    hoursTextLooksParseable(scrape.hoursText)
+    hoursForPrompt &&
+    hoursTextLooksParseable(hoursForPrompt)
   ) {
-    lines.push(`Hours text:\n${scrape.hoursText}`);
+    lines.push(`Hours text:\n${hoursForPrompt}`);
   }
   return lines.join('\n');
 }
@@ -335,10 +381,11 @@ async function runGeminiBatch(
     const jsonLdHours = scraped?.jsonLdWeekdayDescriptions?.length === 7
       ? scraped.jsonLdWeekdayDescriptions
       : [];
+    const hoursForGemini = (scraped?.hoursText ?? '').trim().slice(0, MAX_HOURS_PROMPT_CHARS);
     const allowGeminiHours =
       jsonLdHours.length === 0 &&
-      !!scraped?.hoursText &&
-      hoursTextLooksParseable(scraped.hoursText);
+      !!hoursForGemini &&
+      hoursTextLooksParseable(hoursForGemini);
     const geminiHours = allowGeminiHours
       ? sanitizeWeekdayDescriptions(item?.weekdayDescriptions)
       : [];
@@ -441,7 +488,9 @@ serve(async (req) => {
         : [];
       scrapeByGersId.set(row.gers_id, {
         menuText: typeof row.menu_text === 'string' ? row.menu_text : '',
-        hoursText: typeof row.hours_text === 'string' ? row.hours_text : '',
+        hoursText: typeof row.hours_text === 'string'
+          ? row.hours_text.slice(0, MAX_HOURS_PROMPT_CHARS)
+          : '',
         jsonLdWeekdayDescriptions: jsonLd.length === 7 ? jsonLd : [],
         deadWebsite: false,
       });
