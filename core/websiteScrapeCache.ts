@@ -15,6 +15,10 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Returns gers_ids that still need a scrape (missing or stale cache). */
 export async function findMissingScrapeIds(ids: string[]): Promise<Set<string>> {
   const unique = [...new Set(ids.filter(Boolean))];
@@ -39,11 +43,13 @@ export async function findMissingScrapeIds(ids: string[]): Promise<Set<string>> 
   return missing;
 }
 
-async function invokeScrapeBatch(places: ScrapeSeed[]): Promise<string[]> {
+async function invokeScrapeBatch(
+  places: ScrapeSeed[],
+): Promise<{ excluded: string[]; finishedIds: string[] }> {
   const payload = places
     .filter((p) => p.id && p.website_url)
     .map((p) => ({ gers_id: p.id, website_url: p.website_url }));
-  if (payload.length === 0) return [];
+  if (payload.length === 0) return { excluded: [], finishedIds: [] };
 
   const { data, error } = await supabase.functions.invoke('v2-scrape-websites', {
     body: { places: payload },
@@ -51,7 +57,7 @@ async function invokeScrapeBatch(places: ScrapeSeed[]): Promise<string[]> {
   });
   if (error) {
     console.warn('[ScrapeCache] v2-scrape-websites error:', error.message);
-    return [];
+    return { excluded: [], finishedIds: [] };
   }
   const excluded = Array.isArray(data?.excludedPlaceIds)
     ? (data.excludedPlaceIds as unknown[]).filter((id): id is string => typeof id === 'string')
@@ -59,7 +65,9 @@ async function invokeScrapeBatch(places: ScrapeSeed[]): Promise<string[]> {
   if (excluded.length > 0) {
     await markRejectedPlaceIds(excluded);
   }
-  return excluded;
+  const excludedSet = new Set(excluded);
+  const finishedIds = payload.map((p) => p.gers_id).filter((id) => !excludedSet.has(id));
+  return { excluded, finishedIds };
 }
 
 /**
@@ -85,12 +93,110 @@ export async function ensureWebsiteScrapes(
   for (let i = 0; i < batches.length; i++) {
     const run = invokeScrapeBatch(batches[i]);
     if (i < awaitCount) {
-      excludedAll.push(...(await run));
+      excludedAll.push(...(await run).excluded);
     } else {
-      void run.then((ids) => {
-        if (ids.length) console.log(`[ScrapeCache] background tombstoned ${ids.length}`);
+      void run.then((r) => {
+        if (r.excluded.length) {
+          console.log(`[ScrapeCache] background tombstoned ${r.excluded.length}`);
+        }
       });
     }
   }
   return excludedAll;
+}
+
+export type ScrapeRaceResult = {
+  /** Closest-first IDs that finished scrape (not dead), capped at targetUsable. */
+  readyIds: string[];
+  excludedPlaceIds: string[];
+};
+
+/**
+ * Queue up to 120 closest sites, scrape in parallel, stop when we have ~60 usable
+ * or the wait budget expires. Remaining work continues in the background.
+ */
+export async function raceWebsiteScrapesForAi(
+  placesClosestFirst: ScrapeSeed[],
+  options?: {
+    queueSize?: number;
+    targetUsable?: number;
+    timeoutMs?: number;
+  },
+): Promise<ScrapeRaceResult> {
+  const queueSize = options?.queueSize ?? SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE;
+  const targetUsable = options?.targetUsable ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
+  const timeoutMs = options?.timeoutMs ?? SEARCH_CONFIG.AI_SCRAPE_WAIT_MS;
+
+  const queue = placesClosestFirst
+    .filter((p) => p.id && p.website_url)
+    .slice(0, queueSize);
+  const order = queue.map((p) => p.id);
+  if (order.length === 0) return { readyIds: [], excludedPlaceIds: [] };
+
+  const ready = new Set<string>();
+  const dead = new Set<string>();
+  const excludedAll: string[] = [];
+
+  const { data: cachedRows, error: cacheErr } = await supabase
+    .from('v2_website_scrape_cache')
+    .select('gers_id, is_dead, scraped_at')
+    .in('gers_id', order);
+  if (cacheErr) {
+    console.warn('[ScrapeCache] race cache read error:', cacheErr.message);
+  } else {
+    const now = Date.now();
+    for (const row of cachedRows ?? []) {
+      const age = now - new Date(row.scraped_at).getTime();
+      if (!Number.isFinite(age) || age >= SCRAPE_TTL_MS) continue;
+      if (row.is_dead) {
+        dead.add(row.gers_id);
+        excludedAll.push(row.gers_id);
+      } else {
+        ready.add(row.gers_id);
+      }
+    }
+  }
+
+  const needFetch = queue.filter((p) => !ready.has(p.id) && !dead.has(p.id));
+  const batches = chunk(needFetch, SEARCH_CONFIG.WEBSITE_SCRAPE_BATCH_SIZE);
+
+  let settled = 0;
+  const inflight = batches.map((batch) =>
+    invokeScrapeBatch(batch).then((result) => {
+      for (const id of result.excluded) {
+        dead.add(id);
+        ready.delete(id);
+        excludedAll.push(id);
+      }
+      for (const id of result.finishedIds) {
+        if (!dead.has(id)) ready.add(id);
+      }
+      settled += 1;
+      return result;
+    }),
+  );
+
+  const deadline = Date.now() + timeoutMs;
+  const usableCount = () => order.filter((id) => ready.has(id)).length;
+
+  while (Date.now() < deadline && usableCount() < targetUsable && settled < inflight.length) {
+    await Promise.race([Promise.allSettled(inflight), sleep(350)]);
+  }
+
+  void Promise.allSettled(inflight).then(() => {
+    console.log(
+      `[ScrapeCache] race background finished; ready=${usableCount()} dead=${dead.size}`,
+    );
+  });
+
+  if (excludedAll.length > 0) {
+    await markRejectedPlaceIds([...new Set(excludedAll)]);
+  }
+
+  const readyIds = order.filter((id) => ready.has(id)).slice(0, targetUsable);
+  console.log(
+    `[ScrapeCache] race: queued=${order.length} ready=${readyIds.length}/${targetUsable} ` +
+      `dead=${dead.size} waitedMs<=${timeoutMs}`,
+  );
+  return { readyIds, excludedPlaceIds: [...new Set(excludedAll)] };
 }

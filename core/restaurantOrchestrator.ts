@@ -16,7 +16,7 @@ import {
 } from './restaurantSpreadSelection';
 import { filterUsablePlaces } from './placeQuality';
 import { loadRejectedPlaceIds, markRejectedPlaceIds } from './rejectedPlaces';
-import { ensureWebsiteScrapes } from './websiteScrapeCache';
+import { ensureWebsiteScrapes, raceWebsiteScrapesForAi } from './websiteScrapeCache';
 
 export type RestaurantLoadStage =
   | 'reading-cache'
@@ -194,14 +194,44 @@ async function generateAiInBatches(
   excludedPlaceIds: string[];
 }> {
   const total = missingIds.length;
-  const { overviews: generated, excludedPlaceIds } =
-    await invokeGenerateAiOverviewsForPlaces(seeds, missingIds);
-  await onBatch?.({
-    generatedSoFar: generated,
-    excludedPlaceIds: [...excludedPlaceIds],
-    done: total,
-    total,
-  });
+  const generated = new Map<string, import('./aiOverviewCache').AiOverview>();
+  const excludedPlaceIds: string[] = [];
+  if (total === 0) return { overviews: generated, excludedPlaceIds };
+
+  const batchSize = SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE;
+  const idChunks: string[][] = [];
+  for (let i = 0; i < missingIds.length; i += batchSize) {
+    idChunks.push(missingIds.slice(i, i + batchSize));
+  }
+
+  let done = 0;
+  // One edge invoke per Gemini batch of 15 — each returns independently and streams into UI.
+  await Promise.all(
+    idChunks.map(async (chunkIds) => {
+      try {
+        const result = await invokeGenerateAiOverviewsForPlaces(seeds, chunkIds);
+        for (const [k, v] of result.overviews) generated.set(k, v);
+        excludedPlaceIds.push(...result.excludedPlaceIds);
+        done += chunkIds.length;
+        await onBatch?.({
+          generatedSoFar: new Map(generated),
+          excludedPlaceIds: [...excludedPlaceIds],
+          done: Math.min(done, total),
+          total,
+        });
+      } catch (err) {
+        console.warn('[Orchestrator] AI batch invoke failed:', err);
+        done += chunkIds.length;
+        await onBatch?.({
+          generatedSoFar: new Map(generated),
+          excludedPlaceIds: [...excludedPlaceIds],
+          done: Math.min(done, total),
+          total,
+        });
+      }
+    }),
+  );
+
   return { overviews: generated, excludedPlaceIds };
 }
 
@@ -431,7 +461,6 @@ async function loadNearbyRestaurantsInternal(
   onProgress?.({ stage: 'parsing-restaurants', progress: PROGRESS.parseEnd });
 
   let workingList = [...visibleList];
-  const seeds = () => workingList.map(toPlaceSeed);
   const baseList = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
   console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${workingList.length} already enriched`);
 
@@ -448,22 +477,16 @@ async function loadNearbyRestaurantsInternal(
   };
 
   const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
-  const aiTargets = pickClosestPlaces(workingList, aiLimit);
-  const aiTargetIds = new Set(aiTargets.map((p) => p.id).filter(Boolean));
-  const missingAiIds = aiTargets.map((p) => p.id).filter((id) => !!id && !cachedAi.has(id));
 
-  // Warm scrapes for up to MAX_WEBSITE_SCRAPES closest in-radius places (async extras).
+  // Closest-first scrape pool: race first 120 for ~60 usable (8s cap), warm the rest async.
   const scrapePool = pickClosestPlaces(withinRadius, SEARCH_CONFIG.MAX_WEBSITE_SCRAPES)
     .filter((p) => !!p.id && !!p.website_url)
     .map((p) => ({ id: p.id!, website_url: p.website_url }));
-  const priorityScrapes = scrapePool.filter((p) => aiTargetIds.has(p.id));
-  const restScrapes = scrapePool.filter((p) => !aiTargetIds.has(p.id));
-
-  const warmPriorityScrapes = async () => {
-    const excluded = await ensureWebsiteScrapes(priorityScrapes);
-    if (jobSeq !== latestJobSeq) return;
-    await applyExclusions(excluded);
-  };
+  const raceQueue = scrapePool.slice(0, SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE);
+  const restScrapes = scrapePool.slice(SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE);
+  const placeById = new Map(
+    withinRadius.filter((p) => !!p.id).map((p) => [p.id!, p]),
+  );
 
   const warmRestScrapesInBackground = () => {
     void ensureWebsiteScrapes(restScrapes).then(async (excluded) => {
@@ -471,6 +494,17 @@ async function loadNearbyRestaurantsInternal(
       await applyExclusions(excluded);
       triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
     });
+  };
+
+  const runScrapeRace = async (): Promise<string[]> => {
+    const { readyIds, excludedPlaceIds } = await raceWebsiteScrapesForAi(raceQueue, {
+      queueSize: SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE,
+      targetUsable: aiLimit,
+      timeoutMs: SEARCH_CONFIG.AI_SCRAPE_WAIT_MS,
+    });
+    if (jobSeq !== latestJobSeq) return [];
+    await applyExclusions(excludedPlaceIds);
+    return readyIds;
   };
 
   // Show restaurants immediately; photos load async via RestaurantImage.
@@ -484,34 +518,46 @@ async function loadNearbyRestaurantsInternal(
     });
   };
 
-  const runBackgroundAi = async () => {
-    try {
-      await warmPriorityScrapes();
-      warmRestScrapesInBackground();
-    } catch (err) {
-      console.warn('[Orchestrator] Priority website scrape failed:', err);
-      warmRestScrapesInBackground();
-    }
-    if (missingAiIds.length === 0) {
-      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
-      return;
-    }
+  const runAiForReadyIds = async (readyIds: string[]) => {
+    const missingAiIds = readyIds.filter((id) => !!id && !cachedAi.has(id));
+    if (missingAiIds.length === 0) return;
+    const aiSeeds = missingAiIds
+      .map((id) => placeById.get(id))
+      .filter(Boolean)
+      .map((p) => toPlaceSeed(p as CachedPlace));
     emitAiProgress(0, missingAiIds.length);
     console.log(
-      `[Orchestrator] Generating AI overviews for ${missingAiIds.length}/${aiTargets.length} closest places (cap ${aiLimit}) in batches of ${SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE}...`
+      `[Orchestrator] Generating AI for ${missingAiIds.length} scrape-ready places ` +
+        `(raced ${raceQueue.length}, cap ${aiLimit}) via ` +
+        `${Math.ceil(missingAiIds.length / SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE)} parallel edge calls of ${SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE}...`,
     );
+    await generateAiInBatches(
+      aiSeeds,
+      missingAiIds,
+      async ({ generatedSoFar, excludedPlaceIds, done, total }) => {
+        if (jobSeq !== latestJobSeq) return;
+        for (const [k, v] of generatedSoFar) cachedAi.set(k, v);
+        await applyExclusions(excludedPlaceIds);
+        emitAiProgress(done, total);
+        triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+      },
+    );
+  };
+
+  const runBackgroundAi = async () => {
+    let readyIds: string[] = [];
     try {
-      await generateAiInBatches(
-        seeds().filter((s) => aiTargetIds.has(s.id)),
-        missingAiIds,
-        async ({ generatedSoFar, excludedPlaceIds, done, total }) => {
-          if (jobSeq !== latestJobSeq) return;
-          for (const [k, v] of generatedSoFar) cachedAi.set(k, v);
-          await applyExclusions(excludedPlaceIds);
-          emitAiProgress(done, total);
-          triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
-        }
-      );
+      readyIds = await runScrapeRace();
+      warmRestScrapesInBackground();
+    } catch (err) {
+      console.warn('[Orchestrator] Scrape race failed:', err);
+      warmRestScrapesInBackground();
+      readyIds = pickClosestPlaces(workingList, aiLimit)
+        .map((p) => p.id!)
+        .filter(Boolean);
+    }
+    try {
+      await runAiForReadyIds(readyIds);
     } catch (err) {
       console.warn('[Orchestrator] Background AI overview generation failed:', err);
     } finally {
@@ -520,30 +566,26 @@ async function loadNearbyRestaurantsInternal(
   };
 
   if (options?.deferAi) {
-    void warmPriorityScrapes().then(() => warmRestScrapesInBackground());
+    void runScrapeRace().then(() => warmRestScrapesInBackground());
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return baseList;
   }
 
   if (options?.waitForAi) {
+    let readyIds: string[] = [];
     try {
-      await warmPriorityScrapes();
+      readyIds = await runScrapeRace();
     } catch (err) {
-      console.warn('[Orchestrator] Priority website scrape failed:', err);
+      console.warn('[Orchestrator] Scrape race failed:', err);
+      readyIds = pickClosestPlaces(workingList, aiLimit)
+        .map((p) => p.id!)
+        .filter(Boolean);
     }
     warmRestScrapesInBackground();
-    if (missingAiIds.length > 0) {
-      emitAiProgress(0, missingAiIds.length);
-      await generateAiInBatches(
-        seeds().filter((s) => aiTargetIds.has(s.id)),
-        missingAiIds,
-        async ({ generatedSoFar, excludedPlaceIds, done, total }) => {
-          for (const [k, v] of generatedSoFar) cachedAi.set(k, v);
-          await applyExclusions(excludedPlaceIds);
-          emitAiProgress(done, total);
-          triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
-        }
-      );
+    try {
+      await runAiForReadyIds(readyIds);
+    } catch (err) {
+      console.warn('[Orchestrator] AI overview generation failed:', err);
     }
     const enriched = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
     onProgress?.({ stage: 'done', progress: PROGRESS.done });

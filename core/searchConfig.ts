@@ -39,6 +39,10 @@ export const SEARCH_CONFIG = {
   MAX_AI_OVERVIEWS: 60,
   // Gemini call size — map click prefetch and filtered-page generation use this.
   AI_GENERATION_BATCH_SIZE: 15,
+  // Race this many closest sites for scrape; take up to MAX_AI_OVERVIEWS usable.
+  AI_SCRAPE_QUEUE_SIZE: 120,
+  // Cap wait for the scrape race before sending whatever usable set we have to AI.
+  AI_SCRAPE_WAIT_MS: 8000,
   // Background website scrape fan-out after cell fetch (closest first).
   MAX_WEBSITE_SCRAPES: 1500,
   WEBSITE_SCRAPE_BATCH_SIZE: 40,

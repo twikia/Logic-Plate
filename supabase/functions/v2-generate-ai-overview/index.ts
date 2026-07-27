@@ -17,7 +17,8 @@ const corsHeaders = {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 15;
-const MAX_PLACES_PER_REQUEST = 60;
+// Client fans out one edge invoke per Gemini batch; keep this aligned with BATCH_SIZE.
+const MAX_PLACES_PER_REQUEST = 15;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const PING_CONCURRENCY = 40;
 const MAX_ATTR_CHARS = 700;
