@@ -28,7 +28,7 @@ export type RestaurantLoadStage =
 export type RestaurantLoadProgressDetail = {
   done: number;
   total: number;
-  unit: 'cells' | 'overviews';
+  unit: 'cells' | 'overviews' | 'restaurants';
 };
 
 export type RestaurantLoadProgress = {
@@ -380,7 +380,7 @@ async function loadNearbyRestaurantsInternal(
     onProgress?.({
       stage: 'fetching-restaurants',
       progress: PROGRESS.fetchStart,
-      detail: { done: 0, total: cellsPayload.length, unit: 'cells' },
+      detail: { done: allPlaces.length, total: Math.max(allPlaces.length, 1), unit: 'restaurants' },
     });
 
     console.log(`[Orchestrator] Invoking v2-fetch-restaurants for ${cellsPayload.length} uncached cells...`);
@@ -412,7 +412,11 @@ async function loadNearbyRestaurantsInternal(
         onProgress?.({
           stage: 'fetching-restaurants',
           progress: lerpProgress(PROGRESS.fetchStart, PROGRESS.fetchEnd, cellsDone, cellsPayload.length),
-          detail: { done: cellsDone, total: cellsPayload.length, unit: 'cells' },
+          detail: {
+            done: allPlaces.length,
+            total: Math.max(allPlaces.length, 1),
+            unit: 'restaurants',
+          },
         });
       }
 
@@ -438,9 +442,22 @@ async function loadNearbyRestaurantsInternal(
     throw new RestaurantFetchError(undefined, 'no restaurant data available');
   }
 
-  onProgress?.({ stage: 'parsing-restaurants', progress: PROGRESS.parseStart });
+  onProgress?.({
+    stage: 'parsing-restaurants',
+    progress: PROGRESS.parseStart,
+    detail: { done: 0, total: Math.max(allPlaces.length, 1), unit: 'restaurants' },
+  });
   const cellCenters = getCellCentersMap(cellIds);
   const withinRadius = placesWithinRadius(allPlaces, userLat, userLng, safeRadius, cellIds);
+  onProgress?.({
+    stage: 'parsing-restaurants',
+    progress: lerpProgress(PROGRESS.parseStart, PROGRESS.parseEnd, 1, 2),
+    detail: {
+      done: Math.min(withinRadius.length, SEARCH_CONFIG.MAX_DISPLAY_RESULTS),
+      total: Math.max(withinRadius.length, 1),
+      unit: 'restaurants',
+    },
+  });
   const aiCachePromise = getCachedAiOverviewsForPlaces(withinRadius.map(toPlaceSeed));
   const visibleList = selectSpreadPlaces(
     withinRadius,
@@ -452,7 +469,15 @@ async function loadNearbyRestaurantsInternal(
   console.log(
     `[Orchestrator] Cells [${cellIds.join(', ')}] within ${safeRadius}m: ${withinRadius.length} eligible, showing ${visibleList.length}`
   );
-  onProgress?.({ stage: 'parsing-restaurants', progress: PROGRESS.parseEnd });
+  onProgress?.({
+    stage: 'parsing-restaurants',
+    progress: PROGRESS.parseEnd,
+    detail: {
+      done: visibleList.length,
+      total: Math.max(withinRadius.length, visibleList.length, 1),
+      unit: 'restaurants',
+    },
+  });
 
   let workingList = [...visibleList];
   const baseList = mergeAiOverviewsOntoPlaces(workingList, cachedAi);

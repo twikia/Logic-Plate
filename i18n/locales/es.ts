@@ -98,6 +98,7 @@ const es: Translations = {
     "done": "Listo",
     "overviewsProgress": "Resúmenes IA: {{done}} de {{total}}",
     "cellsProgress": "Celdas: {{done}} de {{total}}",
+    "restaurantsProgress": "{{done}} de {{total}} restaurantes",
     "progressDetail": "{{done}} de {{total}}"
   },
   "scenarios": {

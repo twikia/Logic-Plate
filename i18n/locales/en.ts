@@ -100,6 +100,7 @@ const en = {
     done: 'Done',
     overviewsProgress: 'AI overviews: {{done}} of {{total}}',
     cellsProgress: 'Cells: {{done}} of {{total}}',
+    restaurantsProgress: '{{done}} of {{total}} restaurants',
     progressDetail: '{{done}} of {{total}}',
   },
 
