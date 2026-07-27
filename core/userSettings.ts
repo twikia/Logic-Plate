@@ -126,3 +126,29 @@ export const getLanguage = async (): Promise<string | null> => {
 export const setLanguage = async (lang: string): Promise<void> => {
   await AsyncStorage.setItem(LANGUAGE_KEY, lang);
 };
+
+const BYPASS_LOCAL_CACHE_KEY = 'dev_bypass_local_cache';
+let bypassLocalCacheMemory: boolean | null = null;
+
+export async function getBypassLocalCache(): Promise<boolean> {
+  if (bypassLocalCacheMemory !== null) return bypassLocalCacheMemory;
+  try {
+    bypassLocalCacheMemory = (await AsyncStorage.getItem(BYPASS_LOCAL_CACHE_KEY)) === 'true';
+  } catch {
+    bypassLocalCacheMemory = false;
+  }
+  return bypassLocalCacheMemory;
+}
+
+export function isBypassLocalCacheEnabled(): boolean {
+  return bypassLocalCacheMemory === true;
+}
+
+export async function setBypassLocalCache(enabled: boolean): Promise<void> {
+  bypassLocalCacheMemory = enabled;
+  await AsyncStorage.setItem(BYPASS_LOCAL_CACHE_KEY, enabled ? 'true' : 'false');
+}
+
+export async function initBypassLocalCache(): Promise<void> {
+  await getBypassLocalCache();
+}

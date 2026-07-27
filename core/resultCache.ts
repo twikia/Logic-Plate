@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getBypassLocalCache } from './userSettings';
 
 const TTL_MS = 5 * 60 * 1000; // 5 minutes
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -245,6 +246,7 @@ export async function safeAsyncStorageMultiSet(pairs: [string, string][]): Promi
 
 export const getCachedResults = async (cuisineKey: string): Promise<any[] | null> => {
   try {
+    if (await getBypassLocalCache()) return null;
     const raw = await AsyncStorage.getItem(`resultscache_${cuisineKey}`);
     if (!raw) return null;
     const { results, timestamp } = JSON.parse(raw);

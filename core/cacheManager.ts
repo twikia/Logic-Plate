@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
 import { pruneStorageCache, safeAsyncStorageMultiSet, safeAsyncStorageSet } from './resultCache';
+import { getBypassLocalCache } from './userSettings';
 
 export type CachedPlace = {
   id: string;
@@ -49,35 +50,40 @@ export const readCacheBulk = async (
 ): Promise<{ hits: Map<string, CachedPlace[]>; misses: string[] }> => {
   const now = Date.now();
   const hits = new Map<string, CachedPlace[]>();
-  const l1MissCells: string[] = [];
+  const bypassLocal = await getBypassLocalCache();
+  const l1MissCells: string[] = bypassLocal ? [...cellIds] : [];
 
-  try {
-    const storageKeys = cellIds.map(id => `v2_cell_${id}`);
-    const pairs = await AsyncStorage.multiGet(storageKeys);
+  if (!bypassLocal) {
+    try {
+      const storageKeys = cellIds.map(id => `v2_cell_${id}`);
+      const pairs = await AsyncStorage.multiGet(storageKeys);
 
-    for (const [key, value] of pairs) {
-      const cellId = key.replace('v2_cell_', '');
-      if (!value) {
-        l1MissCells.push(cellId);
-        continue;
-      }
-      try {
-        const parsed = JSON.parse(value);
-        const fetchedAt = new Date(parsed.fetched_at).getTime();
-        const places = normalizePlaceArray(parsed.restaurants);
-        if (now - fetchedAt < SEVEN_DAYS_MS && places.length > 0) {
-          hits.set(cellId, places);
-        } else {
+      for (const [key, value] of pairs) {
+        const cellId = key.replace('v2_cell_', '');
+        if (!value) {
+          l1MissCells.push(cellId);
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(value);
+          const fetchedAt = new Date(parsed.fetched_at).getTime();
+          const places = normalizePlaceArray(parsed.restaurants);
+          if (now - fetchedAt < SEVEN_DAYS_MS && places.length > 0) {
+            hits.set(cellId, places);
+          } else {
+            l1MissCells.push(cellId);
+          }
+        } catch {
           l1MissCells.push(cellId);
         }
-      } catch {
-        l1MissCells.push(cellId);
       }
+      console.log(`[Cache] AsyncStorage L1: ${hits.size} hits, ${l1MissCells.length} misses out of ${cellIds.length} cells`);
+    } catch (err) {
+      console.error('[Cache] AsyncStorage multiGet error:', err);
+      cellIds.filter(id => !hits.has(id)).forEach(id => l1MissCells.push(id));
     }
-    console.log(`[Cache] AsyncStorage L1: ${hits.size} hits, ${l1MissCells.length} misses out of ${cellIds.length} cells`);
-  } catch (err) {
-    console.error('[Cache] AsyncStorage multiGet error:', err);
-    cellIds.filter(id => !hits.has(id)).forEach(id => l1MissCells.push(id));
+  } else {
+    console.log(`[Cache] Bypass local cache ON — skipping AsyncStorage for ${cellIds.length} cells`);
   }
 
   if (l1MissCells.length > 0) {
@@ -107,7 +113,7 @@ export const readCacheBulk = async (
           }
         }
 
-        if (backfillPairs.length > 0) {
+        if (backfillPairs.length > 0 && !bypassLocal) {
           await safeAsyncStorageMultiSet(backfillPairs);
         }
       } else {

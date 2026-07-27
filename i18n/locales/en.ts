@@ -401,6 +401,9 @@ const en = {
     upgrade: 'Upgrade',
     themePreferences: 'Theme Preferences',
     developer: 'Developer',
+    bypassLocalCache: 'Bypass local cache',
+    bypassLocalCacheDesc:
+      'Skip phone storage for cells, AI overviews, and home results. Supabase can still be used. Off by default.',
     runAllTests: 'Run All Tests',
     clearAllCaches: 'Clear All Caches',
     chooseAvatar: 'Choose an Avatar',

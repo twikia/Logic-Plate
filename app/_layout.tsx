@@ -17,7 +17,7 @@ LogBox.ignoreLogs([
 ]);
 
 import { AuthGate } from '@/components/auth/AuthGate';
-import { initDistanceUnit, getLanguage } from '@/core/userSettings';
+import { initDistanceUnit, getLanguage, initBypassLocalCache } from '@/core/userSettings';
 import { initLocationCache } from '@/core/locationCache';
 import { pruneStorageCache } from '@/core/resultCache';
 import { bootstrapLanguage } from '@/core/translationLoader';
@@ -47,6 +47,7 @@ export default function RootLayout() {
   useEffect(() => {
     initLocationCache();
     void initDistanceUnit();
+    void initBypassLocalCache();
     void initAudio();
     void pruneStorageCache();
     getLanguage().then((saved) => {

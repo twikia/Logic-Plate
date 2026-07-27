@@ -387,6 +387,8 @@ const pl: Translations = {
     "upgrade": "Aktualizacja",
     "themePreferences": "Preferencje tematyczne",
     "developer": "Wywoływacz",
+    "bypassLocalCache": "Pomiń lokalną pamięć podręczną",
+    "bypassLocalCacheDesc": "Pomija pamięć telefonu dla komórek, AI i wyników. Supabase nadal może być używany. Domyślnie wyłączone.",
     "runAllTests": "Uruchom wszystkie testy",
     "clearAllCaches": "Wyczyść wszystkie pamięci podręczne",
     "chooseAvatar": "Wybierz awatara",

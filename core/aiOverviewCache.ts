@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
+import { getBypassLocalCache } from './userSettings';
 
 export const AI_OVERVIEW_FIELD_PLACEHOLDER = '-';
 
@@ -85,6 +86,21 @@ type AiOverviewDetailsRow = {
 };
 
 const localMemory = new Map<string, AiOverview>();
+const LOCAL_AI_KEY_PREFIX = 'v2_ai_overview_';
+
+export async function clearLocalAiOverviewCache(): Promise<void> {
+  localMemory.clear();
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const aiKeys = keys.filter(k => k.startsWith(LOCAL_AI_KEY_PREFIX));
+    if (aiKeys.length > 0) {
+      await AsyncStorage.multiRemove(aiKeys);
+    }
+    console.log(`[AI] Cleared ${aiKeys.length} local AI overview entries`);
+  } catch (err) {
+    console.error('[AI] clearLocalAiOverviewCache error:', err);
+  }
+}
 
 const WEEKDAY_NAMES = [
   'Monday',
@@ -239,20 +255,25 @@ export const getCachedAiOverviewsForPlaces = async (
 
   const gersIds = uniquePlaces.map(p => p.id);
   const needsStorage: string[] = [];
+  const bypassLocal = await getBypassLocalCache();
 
   for (const gersId of gersIds) {
-    const memo = localMemory.get(gersId);
-    if (memo) {
-      result.set(gersId, memo);
-    } else {
-      needsStorage.push(gersId);
+    if (!bypassLocal) {
+      const memo = localMemory.get(gersId);
+      if (memo) {
+        result.set(gersId, memo);
+        continue;
+      }
     }
+    needsStorage.push(gersId);
   }
 
   if (needsStorage.length > 0) {
-    const storageKeys = needsStorage.map(id => `v2_ai_overview_${id}`);
+    const storageKeys = needsStorage.map(id => `${LOCAL_AI_KEY_PREFIX}${id}`);
     const [pairs, dbResult, detailsResult] = await Promise.all([
-      AsyncStorage.multiGet(storageKeys),
+      bypassLocal
+        ? Promise.resolve([] as [string, string | null][])
+        : AsyncStorage.multiGet(storageKeys),
       supabase
         .from('v2_ai_overview_cache')
         .select(
@@ -272,7 +293,7 @@ export const getCachedAiOverviewsForPlaces = async (
 
     const needsDb = new Set(needsStorage);
     for (const [key, value] of pairs) {
-      const gersId = key.replace('v2_ai_overview_', '');
+      const gersId = key.replace(LOCAL_AI_KEY_PREFIX, '');
       const overview = fromStorageJson(value);
       if (overview) {
         localMemory.set(gersId, overview);
@@ -298,7 +319,9 @@ export const getCachedAiOverviewsForPlaces = async (
         if (!normalized) continue;
         localMemory.set(row.gers_id, normalized);
         result.set(row.gers_id, normalized);
-        backfills.push([`v2_ai_overview_${row.gers_id}`, JSON.stringify(normalized)]);
+        if (!bypassLocal) {
+          backfills.push([`${LOCAL_AI_KEY_PREFIX}${row.gers_id}`, JSON.stringify(normalized)]);
+        }
       }
       if (backfills.length > 0) {
         AsyncStorage.multiSet(backfills).catch(() => undefined);
@@ -362,7 +385,7 @@ export const invokeGenerateAiOverviewsForPlaces = async (
     if (!item?.gersId || !item?.overview) continue;
     localMemory.set(item.gersId, item.overview);
     out.set(item.gersId, item.overview);
-    backfills.push([`v2_ai_overview_${item.gersId}`, JSON.stringify(item.overview)]);
+    backfills.push([`${LOCAL_AI_KEY_PREFIX}${item.gersId}`, JSON.stringify(item.overview)]);
   }
   if (backfills.length > 0) {
     AsyncStorage.multiSet(backfills).catch(() => undefined);

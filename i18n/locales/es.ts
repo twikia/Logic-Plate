@@ -387,6 +387,8 @@ const es: Translations = {
     "upgrade": "Mejorar plan",
     "themePreferences": "Preferencias de tema",
     "developer": "Desarrollador",
+    "bypassLocalCache": "Omitir caché local",
+    "bypassLocalCacheDesc": "Omite el almacenamiento del teléfono para celdas, IA y resultados. Supabase aún puede usarse. Desactivado por defecto.",
     "runAllTests": "Ejecutar todas las pruebas",
     "clearAllCaches": "Limpiar todos los cachés",
     "chooseAvatar": "Elige un avatar",

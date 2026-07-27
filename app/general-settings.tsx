@@ -2,6 +2,7 @@ import { Pressable, TouchableOpacity } from '@/components/ui/soundPressable';
 import { StyleSheet, Text, View, ScrollView, Switch, Modal, ActivityIndicator, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { clearLocalCache } from '@/core/cacheManager';
+import { clearLocalAiOverviewCache } from '@/core/aiOverviewCache';
 import { resetAppIntro } from '@/core/appIntro';
 import { clearRandomPickerState } from '@/core/randomPickerState';
 import { resetRecommendationPrefsToOnboarding } from '@/core/recommendationPrefs';
@@ -22,6 +23,7 @@ import {
   getSfxVolume, getMusicVolume,
   getHapticsEnabled, setHapticsEnabled,
   getLanguage, setLanguage,
+  getBypassLocalCache, setBypassLocalCache,
   DistanceUnit 
 } from '@/core/userSettings';
 import { setSfxVolumeLevel, setMusicVolumeLevel } from '@/core/audioService';
@@ -46,6 +48,7 @@ export default function GeneralSettingsScreen() {
   const [musicVolume, setMusicVolumeState] = useState(0.5);
   const [haptics, setHaptics] = useState(true);
   const [notifications, setNotifications] = useState(true);
+  const [bypassLocalCache, setBypassLocalCacheState] = useState(false);
   const [language, setLanguageState] = useState<SupportedLanguage>(BUNDLED_LANGUAGE);
   const [languages, setLanguages] = useState<AppLanguage[]>([]);
   const [langLoading, setLangLoading] = useState(false);
@@ -57,6 +60,7 @@ export default function GeneralSettingsScreen() {
       const savedSfxVolume = await getSfxVolume();
       const savedMusicVolume = await getMusicVolume();
       const savedHaptics = await getHapticsEnabled();
+      const savedBypassLocal = await getBypassLocalCache();
       const catalog = await getLanguageCatalog();
       setLanguages(catalog);
       const savedLang = await getLanguage();
@@ -64,6 +68,7 @@ export default function GeneralSettingsScreen() {
       setSfxVolumeState(savedSfxVolume);
       setMusicVolumeState(savedMusicVolume);
       setHaptics(savedHaptics);
+      setBypassLocalCacheState(savedBypassLocal);
       if (savedLang && catalog.some((row) => row.code === savedLang)) {
         setLanguageState(savedLang);
       } else {
@@ -84,6 +89,12 @@ export default function GeneralSettingsScreen() {
     await setHapticsEnabled(value);
     refreshHapticsCache();
     if (value) hapticSuccess();
+  };
+
+  const handleBypassLocalCacheToggle = async (value: boolean) => {
+    setBypassLocalCacheState(value);
+    await setBypassLocalCache(value);
+    hapticSelection();
   };
 
   const handleSfxVolumeChange = async (level: number) => {
@@ -459,6 +470,41 @@ export default function GeneralSettingsScreen() {
           </View>
 
           <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>{t('profile.developer')}</Text>
+            <View
+              style={[
+                styles.settingCard,
+                theme.depth ? {
+                  borderTopWidth: 1, borderLeftWidth: 1,
+                  borderTopColor: theme.depth.edgeHighlight, borderLeftColor: theme.depth.edgeHighlight,
+                  borderBottomWidth: 1, borderRightWidth: 1,
+                  borderBottomColor: theme.depth.edgeShadow, borderRightColor: theme.depth.edgeShadow,
+                  shadowColor: theme.depth.shadowColor,
+                  shadowOffset: { width: 1, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+                  overflow: 'hidden',
+                } : { backgroundColor: theme.buttonBackground, borderColor: theme.cardBorderColor },
+              ]}
+            >
+              {theme.depth && (
+                <LinearGradient colors={theme.depth.convexGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+              )}
+              <View style={styles.settingInfo}>
+                <Ionicons name="flask-outline" size={24} color={theme.accent} />
+                <View style={styles.textContainer}>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>{t('profile.bypassLocalCache')}</Text>
+                  <Text style={[styles.settingDescription, { color: theme.subtext }]}>
+                    {t('profile.bypassLocalCacheDesc')}
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={bypassLocalCache}
+                onValueChange={handleBypassLocalCacheToggle}
+                trackColor={{ false: theme.buttonBackground, true: theme.accent }}
+                thumbColor={bypassLocalCache ? (theme.accentOnColor ?? '#FFFFFF') : theme.subtext}
+              />
+            </View>
+
             <Pressable
               style={[
                 styles.settingCard,
@@ -475,6 +521,7 @@ export default function GeneralSettingsScreen() {
               onPress={async () => {
                 await Promise.all([
                   clearLocalCache(),
+                  clearLocalAiOverviewCache(),
                   clearResultCache(),
                   clearLocationCache(),
                   clearImageCache(),
