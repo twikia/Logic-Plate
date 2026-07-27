@@ -47,8 +47,12 @@ export const SEARCH_CONFIG = {
   MAX_WEBSITE_SCRAPES: 1500,
   WEBSITE_SCRAPE_BATCH_SIZE: 40,
 
-  // Overture existence confidence (0–1). Drop places below this when confidence is present.
+  // Overture existence confidence (0–1). Missing confidence is rejected.
   MIN_OVERTURE_CONFIDENCE: 0.9,
+  // Meta-only rows need a higher bar (mirrors edge overtureQuality).
+  MIN_OVERTURE_CONFIDENCE_META_ONLY: 0.95,
+  // Cell cache TTL (L1/L2 and edge) — shorter while quality gates evolve.
+  CELL_CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000,
 
   // Polar grid for deterministic geographic spread (rings × sectors around the user).
   SPREAD_NUM_RINGS: 6,

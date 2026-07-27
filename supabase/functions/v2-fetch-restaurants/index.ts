@@ -5,6 +5,13 @@ import {
   parseOsmPriceRange,
 } from "../_shared/osmOpeningHours.ts";
 import { lookupBrandPriceTier } from "../_shared/brandPriceTiers.ts";
+import {
+  CELL_CACHE_TTL_MS,
+  FOOD_CATEGORIES as FOOD_CATEGORY_LIST,
+  evaluatePlaceQuality,
+  isSocialOrDeliveryUrl,
+  type QualityRejectReason,
+} from "../_shared/overtureQuality.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,88 +30,13 @@ const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
 const MAX_RESULTS_PER_CELL = 1500;
-// Mirrors core/searchConfig.ts MIN_OVERTURE_CONFIDENCE — existence confidence cutoff.
-const MIN_OVERTURE_CONFIDENCE = 0.9;
 
-type RejectReason = 'no_website' | 'low_confidence' | 'permanently_closed';
+type RejectReason = QualityRejectReason;
 type RejectedPlace = { gers_id: string; reason: RejectReason };
 
-// NOTE: core/markerIcons.ts already has icon mappings for dozens of these
-// categories, meaning the app has always expected them to appear — they were
-// just never requested from Overture. Widening this list directly improves
-// perceived coverage (sushi, pubs, wine bars, chains, etc. were being
-// silently excluded from every search).
-const FOOD_CATEGORIES = [
-  'restaurant',
-  'fast_food_restaurant',
-  'cafe',
-  'coffee_shop',
-  'tea_house',
-  'bar',
-  'cocktail_bar',
-  'lounge',
-  'night_club',
-  'wine_bar',
-  'pub',
-  'beer_garden',
-  'sports_bar',
-  'brewery',
-  'pizza_restaurant',
-  'hamburger_restaurant',
-  'sandwich_shop',
-  'hot_dog_restaurant',
-  'food_court',
-  'food_truck',
-  'deli',
-  'bagel_shop',
-  'ice_cream_shop',
-  'bakery',
-  'dessert_shop',
-  'dessert_restaurant',
-  'donut_shop',
-  'candy_store',
-  'steak_house',
-  'fine_dining_restaurant',
-  'buffet_restaurant',
-  'diner',
-  'seafood_restaurant',
-  'american_restaurant',
-  'barbecue_restaurant',
-  'breakfast_restaurant',
-  'brunch_restaurant',
-  'italian_restaurant',
-  'japanese_restaurant',
-  'sushi_restaurant',
-  'ramen_restaurant',
-  'poke_restaurant',
-  'korean_restaurant',
-  'chinese_restaurant',
-  'vietnamese_restaurant',
-  'thai_restaurant',
-  'indian_restaurant',
-  'mexican_restaurant',
-  'mediterranean_restaurant',
-  'greek_restaurant',
-  'middle_eastern_restaurant',
-  'lebanese_restaurant',
-  'turkish_restaurant',
-  'french_restaurant',
-  'spanish_restaurant',
-  'tapas_restaurant',
-  'chicken_restaurant',
-  'health_food_restaurant',
-  'salad_shop',
-  'vegetarian_restaurant',
-  'vegan_restaurant',
-  'juice_shop',
-  'acai_shop',
-  'smoothie_bar',
-  'food_and_drink',
-  'meal_takeaway',
-  'meal_delivery',
-].join(',');
+const FOOD_CATEGORIES = FOOD_CATEGORY_LIST.join(',');
 
-const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const CACHE_TTL_MS = CELL_CACHE_TTL_MS;
 
 const OVERTURE_MAX_RETRIES = 3;
 const OVERTURE_RETRY_BASE_DELAY_MS = 2000;
@@ -149,6 +81,7 @@ type OvertureFeature = {
     taxonomy?: {
       primary?: string;
       alternate?: string[];
+      hierarchy?: string[];
     };
     confidence?: number;
     websites?: unknown;
@@ -231,14 +164,20 @@ type NormalizedPlace = {
 };
 
 function mapOperatingStatus(raw: string | undefined): { operating_status: string; businessStatus: string } {
-  const normalized = String(raw || 'open').toLowerCase();
+  if (raw == null || String(raw).trim() === '') {
+    return { operating_status: 'unknown', businessStatus: 'UNKNOWN' };
+  }
+  const normalized = String(raw).toLowerCase().trim();
   if (normalized === 'permanently_closed') {
     return { operating_status: 'permanently_closed', businessStatus: 'CLOSED_PERMANENTLY' };
   }
   if (normalized === 'temporarily_closed') {
     return { operating_status: 'temporarily_closed', businessStatus: 'CLOSED_TEMPORARILY' };
   }
-  return { operating_status: 'open', businessStatus: 'OPERATIONAL' };
+  if (normalized === 'open') {
+    return { operating_status: 'open', businessStatus: 'OPERATIONAL' };
+  }
+  return { operating_status: 'unknown', businessStatus: 'UNKNOWN' };
 }
 
 async function upsertRejectedPlaces(
@@ -279,28 +218,37 @@ async function loadRejectedIds(
   return out;
 }
 
-/** Filter places with no website; all others pass through for AI-side ping/scrape. */
+/** Apply hard quality gates; reject reasons are tombstoned. */
 function filterEnrichAndRejectPlaces(
   places: NormalizedPlace[],
 ): { kept: NormalizedPlace[]; rejected: RejectedPlace[] } {
   const rejected: RejectedPlace[] = [];
   const kept: NormalizedPlace[] = [];
   for (const place of places) {
-    if (!place.website_url) {
-      rejected.push({ gers_id: place.id, reason: 'no_website' });
+    const verdict = evaluatePlaceQuality({
+      name: place.name,
+      category: place.category,
+      website_url: place.website_url,
+      phone: place.phone,
+      address: place.address,
+      operating_status: place.operating_status,
+      businessStatus: place.businessStatus,
+      confidence: place.confidence,
+      sources: place.sources,
+    });
+    if (!verdict.ok) {
+      rejected.push({ gers_id: place.id, reason: verdict.reason });
     } else {
       kept.push(place);
     }
   }
   console.log(
-    `[v2-fetch-restaurants] Website filter: ${kept.length} kept, ${rejected.length} no-website rejected`
+    `[v2-fetch-restaurants] Quality filter: ${kept.length} kept, ${rejected.length} rejected`
   );
   return { kept, rejected };
 }
 
 // ─── Normalizer helpers ───────────────────────────────────────────────────────
-
-const SOCIAL_HOSTS = /(?:facebook|instagram|twitter|x\.com|tiktok|youtube|linkedin|yelp|tripadvisor|doordash|ubereats|grubhub)\./i;
 
 function normalizeWebsiteUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -338,12 +286,7 @@ function extractWebsiteUrl(props: OvertureFeature['properties']): string | null 
 
   for (const entry of candidates) {
     const url = extractUrlFromEntry(entry);
-    if (url && !SOCIAL_HOSTS.test(url)) return url;
-  }
-
-  for (const entry of candidates) {
-    const url = extractUrlFromEntry(entry);
-    if (url) return url;
+    if (url && !isSocialOrDeliveryUrl(url)) return url;
   }
 
   return null;
@@ -542,22 +485,21 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
   if (!name) return { kind: 'skip' };
 
   const status = mapOperatingStatus(props.operating_status);
-  if (status.operating_status === 'permanently_closed') {
-    return { kind: 'reject', gers_id: feature.id, reason: 'permanently_closed' };
-  }
-
   const confidence =
     typeof props.confidence === 'number' && Number.isFinite(props.confidence)
       ? props.confidence
       : null;
-  if (confidence != null && confidence < MIN_OVERTURE_CONFIDENCE) {
-    return { kind: 'reject', gers_id: feature.id, reason: 'low_confidence' };
-  }
 
+  const primaryCategory =
+    props.taxonomy?.primary ||
+    props.categories?.primary ||
+    props.basic_category ||
+    null;
   const category =
     props.basic_category ||
     props.taxonomy?.primary ||
     props.categories?.primary ||
+    primaryCategory ||
     'restaurant';
 
   const addr = props.addresses?.[0];
@@ -577,6 +519,25 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
       }))
     : null;
 
+  const website_url = extractWebsiteUrl(props);
+  const phone = extractPhone(props);
+
+  const verdict = evaluatePlaceQuality({
+    name,
+    category: primaryCategory,
+    categoryLabels: primaryCategory ? [primaryCategory] : [],
+    website_url,
+    phone,
+    address,
+    operating_status: status.operating_status,
+    businessStatus: status.businessStatus,
+    confidence,
+    sources,
+  });
+  if (!verdict.ok) {
+    return { kind: 'reject', gers_id: feature.id, reason: verdict.reason };
+  }
+
   const priceRaw = extractOsmField(propsRecord, ['price_range', 'price_rating', 'priceRange', 'priceRating']);
   const priceTier = parseOsmPriceRange(priceRaw) ?? lookupBrandPriceTier(brand ?? name);
 
@@ -586,8 +547,8 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
       id: feature.id,
       name,
       category,
-      website_url: extractWebsiteUrl(props),
-      phone: extractPhone(props),
+      website_url,
+      phone,
       address,
       city,
       region,
@@ -757,10 +718,13 @@ serve(async (req) => {
     const newlyFetchedRestaurants: { cellId: string; places: NormalizedPlace[] }[] = [];
     const failedCells: { cellId: string; reason: string }[] = [];
 
+    const cacheRejectedAll: RejectedPlace[] = [];
     for (const [cellId, places] of cachedMap) {
-      const usable = places.filter((p) => !!p.website_url);
-      newlyFetchedRestaurants.push({ cellId, places: usable });
+      const { kept, rejected: cacheRejected } = filterEnrichAndRejectPlaces(places);
+      cacheRejectedAll.push(...cacheRejected);
+      newlyFetchedRestaurants.push({ cellId, places: kept });
     }
+    await upsertRejectedPlaces(supabase, cacheRejectedAll);
 
     const missingCells = cells.filter((c: { cellId: string }) => !cachedMap.has(c.cellId));
 

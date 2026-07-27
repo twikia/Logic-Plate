@@ -1,6 +1,9 @@
-import { SEARCH_CONFIG } from './searchConfig';
 import type { CachedPlace } from './cacheManager';
 import { getPlaceWebsiteUrl } from './placeFields';
+import {
+  evaluatePlaceQuality,
+  isSocialOrDeliveryUrl,
+} from './overtureQuality';
 
 const CONFIDENCE_ATTR_RE = /^Overture confidence:\s*([0-9]*\.?[0-9]+)\s*$/i;
 
@@ -38,16 +41,23 @@ export function isPermanentlyClosedPlace(place: {
 /** Drop junk / gone places before they reach map, home, or ranking. */
 export function isUsablePlace(place: CachedPlace | any): boolean {
   if (!place?.id || !place?.name || place?.location?.latitude == null) return false;
-  if (isPermanentlyClosedPlace(place)) return false;
-  if (!getPlaceWebsiteUrl(place)) return false;
+  const website = getPlaceWebsiteUrl(place);
+  if (!website || isSocialOrDeliveryUrl(website)) return false;
+
   const confidence = getPlaceConfidence(place);
-  if (
-    typeof confidence === 'number' &&
-    confidence < SEARCH_CONFIG.MIN_OVERTURE_CONFIDENCE
-  ) {
-    return false;
-  }
-  return true;
+  const verdict = evaluatePlaceQuality({
+    name: place.name,
+    category: place.category,
+    categoryLabels: place.category ? [place.category] : [],
+    website_url: website,
+    phone: place.phone,
+    address: place.address,
+    operating_status: place.operating_status,
+    businessStatus: place.businessStatus,
+    confidence: typeof confidence === 'number' ? confidence : null,
+    sources: place.sources,
+  });
+  return verdict.ok;
 }
 
 export function filterUsablePlaces<T>(

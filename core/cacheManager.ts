@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
 import { pruneStorageCache, safeAsyncStorageMultiSet, safeAsyncStorageSet } from './resultCache';
 import { getBypassLocalCache } from './userSettings';
+import { SEARCH_CONFIG } from './searchConfig';
 
 export type CachedPlace = {
   id: string;
@@ -30,8 +31,7 @@ export type CachedPlace = {
   };
 };
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const CELL_CACHE_TTL_MS = SEARCH_CONFIG.CELL_CACHE_TTL_MS;
 
 function normalizePlaceArray(raw: unknown): CachedPlace[] {
   if (!raw || !Array.isArray(raw)) return [];
@@ -68,7 +68,7 @@ export const readCacheBulk = async (
           const parsed = JSON.parse(value);
           const fetchedAt = new Date(parsed.fetched_at).getTime();
           const places = normalizePlaceArray(parsed.restaurants);
-          if (now - fetchedAt < SEVEN_DAYS_MS && places.length > 0) {
+          if (now - fetchedAt < CELL_CACHE_TTL_MS && places.length > 0) {
             hits.set(cellId, places);
           } else {
             l1MissCells.push(cellId);
@@ -104,7 +104,7 @@ export const readCacheBulk = async (
         for (const row of data) {
           const fetchedAt = new Date(row.fetched_at).getTime();
           const places = normalizePlaceArray(row.restaurants);
-          if (now - fetchedAt < THIRTY_DAYS_MS && places.length > 0) {
+          if (now - fetchedAt < CELL_CACHE_TTL_MS && places.length > 0) {
             hits.set(row.id, places);
             backfillPairs.push([
               `v2_cell_${row.id}`,

@@ -21,6 +21,13 @@ const MAX_FOOD_HINT_CHARS = 200;
 const FOOD_HINT_RE =
   /\b(italian|mexican|japanese|chinese|thai|indian|korean|vietnamese|french|greek|mediterranean|middle\s*eastern|caribbean|latin|american|tex[- ]?mex|cajun|creole|southern|soul\s*food|seafood|steakhouse|steak|sushi|sashimi|ramen|pho|dumpling|dim\s*sum|poke|bbq|barbecue|smokehouse|pizza|burger|taco|noodle|pasta|tapas|small\s*plates|comfort\s*food|fusion|vegan|vegetarian|plant[- ]?based|gluten[- ]?free|organic|farm[- ]?to[- ]?table|locally\s+sourced|handcrafted|homemade|wood[- ]?fired|craft\s*beer|cocktail|wine\s*bar|brewery|bakery|brunch|breakfast|cafe|bistro|gastropub|fine\s*dining|family[- ]?owned|authentic|traditional|specialty|specializing|known\s+for|we\s+serve|serving|our\s+(?:menu|kitchen|chefs?))\b/i;
 const FETCH_TIMEOUT_MS = 7000;
+
+const PARKING_HOST_RE =
+  /(?:^|\.)(?:sedo|sedoparking|godaddy|hugedomains|afternic|dan\.com|parkingcrew|bodis|above\.com|domainmarket|parked\.com)\b/i;
+const PARKING_OR_GAMBLING_CONTENT_RE =
+  /domain\s*(is\s*)?(for\s*sale|parked)|buy\s*this\s*domain|this\s*domain\s*may\s*be\s*for\s*sale|parked\s*domain|domain\s*broker|sedoparking|hugedomains|afternic|online\s*casino|casino\s*bonus|gambling|sports\s*bet(?:ting)?|online\s*bet(?:ting)?|poker\s*online|slots?\s*online|jackpot|roulette|blackjack\s*online|crypto\s*casino/i;
+const FOOD_SCHEMA_RE =
+  /"@type"\s*:\s*(?:\[\s*)?(?:"(?:Restaurant|FastFoodRestaurant|CafeOrCoffeeShop|Bakery|BarOrPub|FoodEstablishment|IceCreamShop|Winery|Brewery)"\s*,?\s*)+/i;
 const WEEKDAY_NAMES = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ];
@@ -424,6 +431,19 @@ export async function pingWebsite(url: string): Promise<PingResult> {
     }
     clearTimeout(timer);
     if (DEAD_PING_STATUSES.has(res.status)) return 'dead';
+    const finalUrl = typeof res.url === 'string' && res.url ? res.url : url;
+    const originalHost = hostnameOf(url);
+    const finalHost = hostnameOf(finalUrl);
+    if (
+      originalHost &&
+      finalHost &&
+      originalHost !== finalHost &&
+      PARKING_HOST_RE.test(finalHost)
+    ) {
+      return 'dead';
+    }
+    if (finalHost && PARKING_HOST_RE.test(finalHost)) return 'dead';
+    if (PARKING_OR_GAMBLING_CONTENT_RE.test(finalUrl)) return 'dead';
     return 'alive';
   } catch (err) {
     clearTimeout(timer);
@@ -438,7 +458,50 @@ export async function pingWebsite(url: string): Promise<PingResult> {
 
 // ─── Website Scraper ──────────────────────────────────────────────────────────
 
-type FetchHtmlResult = { html: string; status: number | null; deadTransport?: boolean };
+type FetchHtmlResult = {
+  html: string;
+  status: number | null;
+  finalUrl?: string | null;
+  deadTransport?: boolean;
+};
+
+function hostnameOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function isParkingOrGamblingPage(html: string, finalUrl?: string | null): boolean {
+  const host = finalUrl ? hostnameOf(finalUrl) : null;
+  if (host && PARKING_HOST_RE.test(host)) return true;
+  if (finalUrl && PARKING_OR_GAMBLING_CONTENT_RE.test(finalUrl)) return true;
+  if (html && PARKING_OR_GAMBLING_CONTENT_RE.test(html.slice(0, 50000))) return true;
+  return false;
+}
+
+function hasFoodWebsiteSignal(html: string, menuText: string, hoursText: string): boolean {
+  if (menuText.trim().length >= 20) return true;
+  const sample = html.slice(0, 80000);
+  if (FOOD_SCHEMA_RE.test(sample)) return true;
+  if (FOOD_HINT_RE.test(sample)) return true;
+  if (MENU_SIGNAL_RE.test(sample)) return true;
+  if (
+    /\b(our\s+menu|food\s+menu|dinner\s+menu|lunch\s+menu|brunch\s+menu|view\s+(?:the\s+)?menu|order\s+online|restaurant|cafe|bistro|eatery|pizzeria|steakhouse)\b/i.test(
+      sample,
+    )
+  ) {
+    return true;
+  }
+  if (
+    hoursText.trim().length >= 12 &&
+    /\b(restaurant|cafe|bistro|kitchen|dining|bar\b|pub\b)\b/i.test(sample)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<FetchHtmlResult> {
   const controller = new AbortController();
@@ -447,23 +510,25 @@ async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): 
     const res = await fetch(url, {
       headers: { 'User-Agent': FETCH_USER_AGENT, 'Accept': 'text/html' },
       signal: controller.signal,
+      redirect: 'follow',
     });
     clearTimeout(timer);
-    if (!res.ok) return { html: '', status: res.status };
-    return { html: await res.text(), status: res.status };
+    const finalUrl = typeof res.url === 'string' && res.url ? res.url : url;
+    if (!res.ok) return { html: '', status: res.status, finalUrl };
+    return { html: await res.text(), status: res.status, finalUrl };
   } catch (err) {
     clearTimeout(timer);
     if (err instanceof DOMException && err.name === 'AbortError') {
-      return { html: '', status: null };
+      return { html: '', status: null, finalUrl: null };
     }
     if (err instanceof Error && err.name === 'AbortError') {
-      return { html: '', status: null };
+      return { html: '', status: null, finalUrl: null };
     }
     const msg = String(err instanceof Error ? err.message : err);
     if (isDeadTransportError(msg) || err instanceof TypeError) {
-      return { html: '', status: null, deadTransport: true };
+      return { html: '', status: null, deadTransport: true, finalUrl: null };
     }
-    return { html: '', status: null };
+    return { html: '', status: null, finalUrl: null };
   }
 }
 
@@ -480,8 +545,23 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   if (home.deadTransport || (home.status != null && DEAD_PING_STATUSES.has(home.status))) {
     return { ...empty, deadWebsite: true };
   }
+
+  const originalHost = hostnameOf(websiteUrl);
+  const finalHost = home.finalUrl ? hostnameOf(home.finalUrl) : null;
+  if (
+    originalHost &&
+    finalHost &&
+    originalHost !== finalHost &&
+    PARKING_HOST_RE.test(finalHost)
+  ) {
+    return { ...empty, deadWebsite: true };
+  }
+  if (isParkingOrGamblingPage(home.html, home.finalUrl)) {
+    return { ...empty, deadWebsite: true };
+  }
+
   const homeHtml = home.html;
-  if (!homeHtml) return empty;
+  if (!homeHtml) return { ...empty, deadWebsite: true };
 
   const menuUrl = findLinkedPage(homeHtml, websiteUrl, MENU_KEYWORDS);
   const hoursUrl = findLinkedPage(homeHtml, websiteUrl, HOURS_KEYWORDS);
@@ -494,6 +574,10 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   await Promise.all(
     [...fetchTargets].map(async (url) => {
       const result = await fetchHtmlWithTimeout(url, 6000);
+      if (isParkingOrGamblingPage(result.html, result.finalUrl)) {
+        extraHtml.set(url, '');
+        return;
+      }
       extraHtml.set(url, result.html);
     })
   );
@@ -539,6 +623,10 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
     MAX_HOURS_TEXT_CHARS,
     scoreHoursLine,
   );
+
+  if (!hasFoodWebsiteSignal(hintHtml || homeHtml, menuText, hoursText)) {
+    return { ...empty, deadWebsite: true };
+  }
 
   return {
     menuText,
