@@ -373,7 +373,10 @@ export default function MapScreen() {
     setAllRestaurants(next ?? []);
   }, []);
 
+  const mapLoadingRef = useRef(false);
   const loadRestaurants = useCallback(async (lat: number, lng: number, fetchRadius: number) => {
+    if (mapLoadingRef.current) return;
+    mapLoadingRef.current = true;
     setIsLoading(true);
     setSearchCenter({ latitude: lat, longitude: lng });
     try {
@@ -405,6 +408,7 @@ export default function MapScreen() {
       }
       console.warn('Error loading restaurants for map:', error);
     } finally {
+      mapLoadingRef.current = false;
       setIsLoading(false);
       setOpenStatusEpoch((e) => e + 1);
     }

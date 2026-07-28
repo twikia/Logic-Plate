@@ -100,6 +100,7 @@ export default function VibeQuestionsScreen() {
   const [energyLevel, setEnergyLevel] = useState<string | null>(null);
   const [foodMood, setFoodMood] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [sessionEnded, setSessionEnded] = useState(false);
 
   useEffect(() => {
@@ -128,7 +129,8 @@ export default function VibeQuestionsScreen() {
 
   const finishWithPriority = useCallback(
     async (priority: string) => {
-      if (!sessionId || !energyLevel || !foodMood) return;
+      if (!sessionId || !energyLevel || !foodMood || submittingRef.current) return;
+      submittingRef.current = true;
       setSubmitting(true);
       hapticMedium();
       const { data, error } = await supabase
@@ -143,6 +145,7 @@ export default function VibeQuestionsScreen() {
         })
         .select('id')
         .single();
+      submittingRef.current = false;
       setSubmitting(false);
       if (error) {
         hapticError();
