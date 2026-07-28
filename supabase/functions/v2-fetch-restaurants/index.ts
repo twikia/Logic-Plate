@@ -17,11 +17,6 @@ import {
   resolveOpeningHours,
   type AtpPlaceHoursRow,
 } from "../_shared/allThePlacesHours.ts";
-import {
-  checkGeocodeDistance,
-  mapPool,
-  MAX_GEOCODE_DISTANCE_METERS,
-} from "../_shared/geocodeDistance.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,7 +35,6 @@ const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
 const MAX_RESULTS_PER_CELL = 1500;
-const GEOCODE_CONCURRENCY = 3;
 
 type RejectReason = QualityRejectReason;
 type RejectedPlace = { gers_id: string; reason: RejectReason };
@@ -255,39 +249,6 @@ function filterEnrichAndRejectPlaces(
   }
   console.log(
     `[v2-fetch-restaurants] Quality filter: ${kept.length} kept, ${rejected.length} rejected`
-  );
-  return { kept, rejected };
-}
-
-/** Reject places whose address geocodes far from the Overture pin. */
-async function filterGeocodeDistance(
-  places: NormalizedPlace[],
-): Promise<{ kept: NormalizedPlace[]; rejected: RejectedPlace[] }> {
-  const rejected: RejectedPlace[] = [];
-  const kept: NormalizedPlace[] = [];
-  const verdicts = await mapPool(places, GEOCODE_CONCURRENCY, async (place) => {
-    const verdict = await checkGeocodeDistance({
-      lat: place.location.latitude,
-      lng: place.location.longitude,
-      address: place.address,
-      city: place.city,
-      region: place.region,
-      postcode: place.postcode,
-      country: place.country,
-      maxDistanceMeters: MAX_GEOCODE_DISTANCE_METERS,
-    });
-    return { place, verdict };
-  });
-  for (const { place, verdict } of verdicts) {
-    if (verdict.kind === 'reject') {
-      rejected.push({ gers_id: place.id, reason: 'bad_location' });
-    } else {
-      kept.push(place);
-    }
-  }
-  console.log(
-    `[v2-fetch-restaurants] Geocode distance gate: ${kept.length} kept, ${rejected.length} bad_location ` +
-      `(max ${MAX_GEOCODE_DISTANCE_METERS}m)`
   );
   return { kept, rejected };
 }
@@ -853,12 +814,10 @@ serve(async (req) => {
 
           const { kept: qualityKept, rejected: qualityRejected } =
             filterEnrichAndRejectPlaces(freshPlaces);
-          const { kept: geoKept, rejected: geoRejected } =
-            await filterGeocodeDistance(qualityKept);
 
           const atpRows = await loadAtpHoursNearby(supabase, cell.lat, cell.lng);
-          const kept = attachOpeningHours(geoKept, atpRows);
-          const allRejected = [...normalizeRejected, ...qualityRejected, ...geoRejected];
+          const kept = attachOpeningHours(qualityKept, atpRows);
+          const allRejected = [...normalizeRejected, ...qualityRejected];
           await upsertRejectedPlaces(supabase, allRejected);
 
           newlyFetchedRestaurants.push({ cellId: cell.cellId, places: kept });
