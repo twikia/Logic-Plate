@@ -12,6 +12,16 @@ import {
   isSocialOrDeliveryUrl,
   type QualityRejectReason,
 } from "../_shared/overtureQuality.ts";
+import {
+  atpBboxDeltaDegrees,
+  resolveOpeningHours,
+  type AtpPlaceHoursRow,
+} from "../_shared/allThePlacesHours.ts";
+import {
+  checkGeocodeDistance,
+  mapPool,
+  MAX_GEOCODE_DISTANCE_METERS,
+} from "../_shared/geocodeDistance.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +40,7 @@ const OVERTURE_API_BASE = 'https://api.overturemapsapi.com/places';
 const OVERTURE_SEARCH_RADIUS_METERS = 1057.052559;
 
 const MAX_RESULTS_PER_CELL = 1500;
+const GEOCODE_CONCURRENCY = 3;
 
 type RejectReason = QualityRejectReason;
 type RejectedPlace = { gers_id: string; reason: RejectReason };
@@ -246,6 +257,90 @@ function filterEnrichAndRejectPlaces(
     `[v2-fetch-restaurants] Quality filter: ${kept.length} kept, ${rejected.length} rejected`
   );
   return { kept, rejected };
+}
+
+/** Reject places whose address geocodes far from the Overture pin. */
+async function filterGeocodeDistance(
+  places: NormalizedPlace[],
+): Promise<{ kept: NormalizedPlace[]; rejected: RejectedPlace[] }> {
+  const rejected: RejectedPlace[] = [];
+  const kept: NormalizedPlace[] = [];
+  const verdicts = await mapPool(places, GEOCODE_CONCURRENCY, async (place) => {
+    const verdict = await checkGeocodeDistance({
+      lat: place.location.latitude,
+      lng: place.location.longitude,
+      address: place.address,
+      city: place.city,
+      region: place.region,
+      postcode: place.postcode,
+      country: place.country,
+      maxDistanceMeters: MAX_GEOCODE_DISTANCE_METERS,
+    });
+    return { place, verdict };
+  });
+  for (const { place, verdict } of verdicts) {
+    if (verdict.kind === 'reject') {
+      rejected.push({ gers_id: place.id, reason: 'bad_location' });
+    } else {
+      kept.push(place);
+    }
+  }
+  console.log(
+    `[v2-fetch-restaurants] Geocode distance gate: ${kept.length} kept, ${rejected.length} bad_location ` +
+      `(max ${MAX_GEOCODE_DISTANCE_METERS}m)`
+  );
+  return { kept, rejected };
+}
+
+function attachOpeningHours(
+  places: NormalizedPlace[],
+  atpRows: AtpPlaceHoursRow[],
+): NormalizedPlace[] {
+  return places.map((place) => {
+    if ((place.regularOpeningHours?.weekdayDescriptions?.length ?? 0) === 7) {
+      return place;
+    }
+    const days = resolveOpeningHours({
+      name: place.name,
+      brand: place.brand,
+      lat: place.location.latitude,
+      lng: place.location.longitude,
+      atpRows,
+    });
+    if (days.length !== 7) return place;
+    return {
+      ...place,
+      regularOpeningHours: { weekdayDescriptions: days },
+    };
+  });
+}
+
+async function loadAtpHoursNearby(
+  supabase: ReturnType<typeof createClient>,
+  lat: number,
+  lng: number,
+  radiusMeters = 1200,
+): Promise<AtpPlaceHoursRow[]> {
+  const delta = atpBboxDeltaDegrees(radiusMeters);
+  const { data, error } = await supabase
+    .from('v2_atp_place_hours')
+    .select('name, brand, lat, lng, opening_hours')
+    .gte('lat', lat - delta)
+    .lte('lat', lat + delta)
+    .gte('lng', lng - delta)
+    .lte('lng', lng + delta)
+    .limit(800);
+  if (error) {
+    console.warn(`[v2-fetch-restaurants] ATP hours lookup skipped: ${error.message}`);
+    return [];
+  }
+  return (data ?? []).filter(
+    (row): row is AtpPlaceHoursRow =>
+      typeof row?.name === 'string' &&
+      typeof row?.opening_hours === 'string' &&
+      typeof row?.lat === 'number' &&
+      typeof row?.lng === 'number',
+  );
 }
 
 // ─── Normalizer helpers ───────────────────────────────────────────────────────
@@ -719,9 +814,18 @@ serve(async (req) => {
     const failedCells: { cellId: string; reason: string }[] = [];
 
     const cacheRejectedAll: RejectedPlace[] = [];
+    const cellMeta = new Map(
+      (cells as Array<{ cellId: string; lat?: number; lng?: number }>).map((c) => [c.cellId, c]),
+    );
     for (const [cellId, places] of cachedMap) {
-      const { kept, rejected: cacheRejected } = filterEnrichAndRejectPlaces(places);
+      const { kept: qualityKept, rejected: cacheRejected } = filterEnrichAndRejectPlaces(places);
       cacheRejectedAll.push(...cacheRejected);
+      const meta = cellMeta.get(cellId);
+      const atpRows =
+        meta?.lat != null && meta?.lng != null
+          ? await loadAtpHoursNearby(supabase, meta.lat, meta.lng)
+          : [];
+      const kept = attachOpeningHours(qualityKept, atpRows);
       newlyFetchedRestaurants.push({ cellId, places: kept });
     }
     await upsertRejectedPlaces(supabase, cacheRejectedAll);
@@ -747,8 +851,14 @@ serve(async (req) => {
           );
           const freshPlaces = places.filter((p) => !alreadyRejected.has(p.id));
 
-          const { kept, rejected: websiteRejected } = filterEnrichAndRejectPlaces(freshPlaces);
-          const allRejected = [...normalizeRejected, ...websiteRejected];
+          const { kept: qualityKept, rejected: qualityRejected } =
+            filterEnrichAndRejectPlaces(freshPlaces);
+          const { kept: geoKept, rejected: geoRejected } =
+            await filterGeocodeDistance(qualityKept);
+
+          const atpRows = await loadAtpHoursNearby(supabase, cell.lat, cell.lng);
+          const kept = attachOpeningHours(geoKept, atpRows);
+          const allRejected = [...normalizeRejected, ...qualityRejected, ...geoRejected];
           await upsertRejectedPlaces(supabase, allRejected);
 
           newlyFetchedRestaurants.push({ cellId: cell.cellId, places: kept });

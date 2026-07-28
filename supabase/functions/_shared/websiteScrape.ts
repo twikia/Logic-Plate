@@ -5,6 +5,7 @@ export type ScrapeResult = {
   hoursText: string;
   jsonLdWeekdayDescriptions: string[];
   deadWebsite: boolean;
+  permanentlyClosed?: boolean;
 };
 
 export type PingResult = "alive" | "dead" | "unknown";
@@ -21,11 +22,15 @@ const MAX_FOOD_HINT_CHARS = 200;
 const FOOD_HINT_RE =
   /\b(italian|mexican|japanese|chinese|thai|indian|korean|vietnamese|french|greek|mediterranean|middle\s*eastern|caribbean|latin|american|tex[- ]?mex|cajun|creole|southern|soul\s*food|seafood|steakhouse|steak|sushi|sashimi|ramen|pho|dumpling|dim\s*sum|poke|bbq|barbecue|smokehouse|pizza|burger|taco|noodle|pasta|tapas|small\s*plates|comfort\s*food|fusion|vegan|vegetarian|plant[- ]?based|gluten[- ]?free|organic|farm[- ]?to[- ]?table|locally\s+sourced|handcrafted|homemade|wood[- ]?fired|craft\s*beer|cocktail|wine\s*bar|brewery|bakery|brunch|breakfast|cafe|bistro|gastropub|fine\s*dining|family[- ]?owned|authentic|traditional|specialty|specializing|known\s+for|we\s+serve|serving|our\s+(?:menu|kitchen|chefs?))\b/i;
 const FETCH_TIMEOUT_MS = 7000;
+/** Cap HTML kept in memory per page — full megabyte pages caused edge OOM. */
+const MAX_HTML_CHARS = 200_000;
 
 const PARKING_HOST_RE =
   /(?:^|\.)(?:sedo|sedoparking|godaddy|hugedomains|afternic|dan\.com|parkingcrew|bodis|above\.com|domainmarket|parked\.com)\b/i;
 const PARKING_OR_GAMBLING_CONTENT_RE =
   /domain\s*(is\s*)?(for\s*sale|parked)|buy\s*this\s*domain|this\s*domain\s*may\s*be\s*for\s*sale|parked\s*domain|domain\s*broker|sedoparking|hugedomains|afternic|online\s*casino|casino\s*bonus|gambling|sports\s*bet(?:ting)?|online\s*bet(?:ting)?|poker\s*online|slots?\s*online|jackpot|roulette|blackjack\s*online|crypto\s*casino/i;
+const PERMANENTLY_CLOSED_CONTENT_RE =
+  /\b(permanently\s+closed|closed\s+permanently|closed\s+for\s+good|we(?:'ve| have)\s+closed|this\s+(?:location|restaurant|business)\s+(?:has\s+)?closed|no\s+longer\s+(?:open|operating|in\s+business)|out\s+of\s+business|ceased\s+operations|thank\s+you\s+for\s+(?:your|the)\s+(?:many\s+)?years|closed\s+its\s+doors)\b/i;
 const FOOD_SCHEMA_RE =
   /"@type"\s*:\s*(?:\[\s*)?(?:"(?:Restaurant|FastFoodRestaurant|CafeOrCoffeeShop|Bakery|BarOrPub|FoodEstablishment|IceCreamShop|Winery|Brewery)"\s*,?\s*)+/i;
 const WEEKDAY_NAMES = [
@@ -481,6 +486,11 @@ function isParkingOrGamblingPage(html: string, finalUrl?: string | null): boolea
   return false;
 }
 
+function isPermanentlyClosedPage(html: string): boolean {
+  if (!html) return false;
+  return PERMANENTLY_CLOSED_CONTENT_RE.test(html.slice(0, 60000));
+}
+
 function hasFoodWebsiteSignal(html: string, menuText: string, hoursText: string): boolean {
   if (menuText.trim().length >= 20) return true;
   const sample = html.slice(0, 80000);
@@ -515,7 +525,13 @@ async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): 
     clearTimeout(timer);
     const finalUrl = typeof res.url === 'string' && res.url ? res.url : url;
     if (!res.ok) return { html: '', status: res.status, finalUrl };
-    return { html: await res.text(), status: res.status, finalUrl };
+    const buf = await res.arrayBuffer();
+    const capped = buf.byteLength > MAX_HTML_CHARS * 2
+      ? buf.slice(0, MAX_HTML_CHARS * 2)
+      : buf;
+    let html = new TextDecoder('utf-8', { fatal: false }).decode(capped);
+    if (html.length > MAX_HTML_CHARS) html = html.slice(0, MAX_HTML_CHARS);
+    return { html, status: res.status, finalUrl };
   } catch (err) {
     clearTimeout(timer);
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -559,9 +575,13 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   if (isParkingOrGamblingPage(home.html, home.finalUrl)) {
     return { ...empty, deadWebsite: true };
   }
+  if (isPermanentlyClosedPage(home.html)) {
+    return { ...empty, deadWebsite: true, permanentlyClosed: true };
+  }
 
   const homeHtml = home.html;
-  if (!homeHtml) return { ...empty, deadWebsite: true };
+  // Timeout / empty / bot challenge — soft-fail, do NOT tombstone (chains like Starbucks).
+  if (!homeHtml) return empty;
 
   const menuUrl = findLinkedPage(homeHtml, websiteUrl, MENU_KEYWORDS);
   const hoursUrl = findLinkedPage(homeHtml, websiteUrl, HOURS_KEYWORDS);
@@ -603,8 +623,10 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
     ? menuTextFromPage
     : [menuTextFromPage, menuTextFromHome].filter(Boolean).join('\n').slice(0, MAX_RELEVANT_TEXT_CHARS);
 
-  const hintHtml = [homeHtml, menuHtml, hoursHtml].filter(Boolean).join('\n');
-  const foodHintText = extractFoodHintText(hintHtml, MAX_FOOD_HINT_CHARS);
+  const hintSample = [homeHtml.slice(0, 80000), menuHtml.slice(0, 40000), hoursHtml.slice(0, 20000)]
+    .filter(Boolean)
+    .join('\n');
+  const foodHintText = extractFoodHintText(hintSample, MAX_FOOD_HINT_CHARS);
   const menuText = menuCore.length === 0
     ? foodHintText
     : appendUniqueLines(menuCore, foodHintText, MAX_RELEVANT_TEXT_CHARS);
@@ -624,8 +646,12 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
     scoreHoursLine,
   );
 
-  if (!hasFoodWebsiteSignal(hintHtml || homeHtml, menuText, hoursText)) {
-    return { ...empty, deadWebsite: true };
+  // No food signal on a reachable page → soft-fail (retry later), not a permanent tombstone.
+  if (!hasFoodWebsiteSignal(hintSample || homeHtml, menuText, hoursText)) {
+    return empty;
+  }
+  if (!menuText.trim() && !hoursText.trim()) {
+    return empty;
   }
 
   return {

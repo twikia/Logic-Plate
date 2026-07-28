@@ -1,21 +1,22 @@
-import { getSearchCells, getCellCenter, getCellCentersMap } from './h3Utils';
-import { SEARCH_CONFIG } from './searchConfig';
-import { readCacheBulk, writeCache, type CachedPlace } from './cacheManager';
-import { supabase } from './supabaseClient';
-import { logEdgeFunctionFailureAsync } from './supabaseFunctionErrors';
-import { checkIsPopulatedArea } from './geoRestriction';
 import {
-  getCachedAiOverviewsForPlaces,
-  invokeGenerateAiOverviewsForPlaces,
-  mergeAiOverviewsOntoPlaces,
-  type PlaceSeed,
+    getCachedAiOverviewsForPlaces,
+    invokeGenerateAiOverviewsForPlaces,
+    mergeAiOverviewsOntoPlaces,
+    type PlaceSeed,
 } from './aiOverviewCache';
-import {
-  placesWithinRadius,
-  selectSpreadPlaces,
-} from './restaurantSpreadSelection';
+import { readCacheBulk, writeCache, type CachedPlace } from './cacheManager';
+import { checkIsPopulatedArea } from './geoRestriction';
+import { getCellCenter, getCellCentersMap, getSearchCells } from './h3Utils';
+import { enrichPlacesWithScrapeHours } from './hoursEnrichment';
 import { filterUsablePlaces } from './placeQuality';
 import { loadRejectedPlaceIds, markRejectedPlaceIds } from './rejectedPlaces';
+import {
+    placesWithinRadius,
+    selectSpreadPlaces,
+} from './restaurantSpreadSelection';
+import { SEARCH_CONFIG } from './searchConfig';
+import { supabase } from './supabaseClient';
+import { logEdgeFunctionFailureAsync } from './supabaseFunctionErrors';
 import { ensureWebsiteScrapes, raceWebsiteScrapesForAi } from './websiteScrapeCache';
 
 export type RestaurantLoadStage =
@@ -480,6 +481,7 @@ async function loadNearbyRestaurantsInternal(
   });
 
   let workingList = [...visibleList];
+  workingList = await enrichPlacesWithScrapeHours(workingList);
   const baseList = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
   console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${workingList.length} already enriched`);
 
@@ -495,52 +497,72 @@ async function loadNearbyRestaurantsInternal(
     workingList = filterUsablePlaces(workingList, rejectedIds);
   };
 
+  const refreshHoursAndEmit = async () => {
+    workingList = await enrichPlacesWithScrapeHours(workingList);
+    triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+  };
+
   const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
 
-  // Closest-first scrape pool: race first 120 for ~60 usable (8s cap), warm the rest async.
+  // Priority scrape race: homepage/display cards first, then closest fill → 120.
+  // Beyond 120: slower background warm only.
   const scrapePool = pickClosestPlaces(withinRadius, SEARCH_CONFIG.MAX_WEBSITE_SCRAPES)
     .filter((p) => !!p.id && !!p.website_url)
     .map((p) => ({ id: p.id!, website_url: p.website_url }));
-  const raceQueue = scrapePool.slice(0, SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE);
-  const restScrapes = scrapePool.slice(SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE);
+  const displayWithSites = pickClosestPlaces(
+    workingList.filter((p) => !!p.id && !!p.website_url),
+    SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE,
+  ).map((p) => ({ id: p.id!, website_url: p.website_url }));
+  const displayIds = new Set(displayWithSites.map((p) => p.id));
+  const raceQueue = [
+    ...displayWithSites,
+    ...scrapePool.filter((p) => !displayIds.has(p.id)),
+  ].slice(0, SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE);
+  const raceIdSet = new Set(raceQueue.map((p) => p.id));
+  const restScrapes = scrapePool.filter((p) => !raceIdSet.has(p.id));
   const placeById = new Map(
     withinRadius.filter((p) => !!p.id).map((p) => [p.id!, p]),
   );
 
   const warmRestScrapesInBackground = () => {
-    void ensureWebsiteScrapes(restScrapes).then(async (excluded) => {
-      if (jobSeq !== latestJobSeq || excluded.length === 0) return;
-      await applyExclusions(excluded);
-      triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+    void ensureWebsiteScrapes(restScrapes, {
+      maxParallel: Math.max(2, Math.floor(SEARCH_CONFIG.WEBSITE_SCRAPE_MAX_PARALLEL / 2)),
+    }).then(async (excluded) => {
+      if (jobSeq !== latestJobSeq) return;
+      if (excluded.length > 0) await applyExclusions(excluded);
+      await refreshHoursAndEmit();
     });
   };
 
-  const runScrapeRace = async (): Promise<string[]> => {
+  type RaceHandle = { readyIds: string[]; remaining: Promise<string[]> };
+
+  const runScrapeRace = async (): Promise<RaceHandle> => {
     onProgress?.({
       stage: 'loading-overviews',
       progress: PROGRESS.aiStart,
       detail: { done: 0, total: aiLimit, unit: 'overviews' },
     });
-    const { readyIds, excludedPlaceIds } = await raceWebsiteScrapesForAi(raceQueue, {
+    const { readyIds, excludedPlaceIds, remaining } = await raceWebsiteScrapesForAi(raceQueue, {
       queueSize: SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE,
       targetUsable: aiLimit,
       timeoutMs: SEARCH_CONFIG.AI_SCRAPE_WAIT_MS,
     });
-    if (jobSeq !== latestJobSeq) return [];
+    if (jobSeq !== latestJobSeq) return { readyIds: [], remaining: Promise.resolve([]) };
     await applyExclusions(excludedPlaceIds);
+    workingList = await enrichPlacesWithScrapeHours(workingList);
+    triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
     onProgress?.({
       stage: 'loading-overviews',
       progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, 0.15, 1),
       detail: { done: 0, total: Math.max(readyIds.length, 1), unit: 'overviews' },
     });
-    return readyIds;
+    return { readyIds, remaining };
   };
 
   // Show restaurants immediately; photos load async via RestaurantImage.
   options?.onPlacesUpdated?.(baseList);
 
   const emitAiProgress = (done: number, total: number) => {
-    // Scrape race used the first ~15% of the AI band; batches fill the rest.
     const t = total <= 0 ? 1 : 0.15 + 0.85 * Math.min(1, done / total);
     onProgress?.({
       stage: 'loading-overviews',
@@ -575,49 +597,81 @@ async function loadNearbyRestaurantsInternal(
     );
   };
 
+  /** After the wait budget: finish remaining of the 120, AI up to aiLimit, warm the rest slower. */
+  const continueDeferredAi = (alreadyReady: string[], remaining: Promise<string[]>) => {
+    void (async () => {
+      try {
+        const allReady = await remaining;
+        if (jobSeq !== latestJobSeq) return;
+        await refreshHoursAndEmit();
+        const already = new Set(alreadyReady);
+        const deferred = allReady.filter((id) => !already.has(id) && !cachedAi.has(id));
+        const room = Math.max(0, aiLimit - [...cachedAi.keys()].filter((id) => raceIdSet.has(id)).length);
+        const displaySet = new Set(workingList.map((p) => p.id).filter(Boolean) as string[]);
+        const prioritized = [
+          ...deferred.filter((id) => displaySet.has(id)),
+          ...deferred.filter((id) => !displaySet.has(id)),
+        ];
+        const toAi = prioritized.slice(0, Math.max(room, 0));
+        if (toAi.length > 0) {
+          console.log(`[Orchestrator] Deferred AI for ${toAi.length} late scrape finishes`);
+          await runAiForReadyIds(toAi);
+        }
+      } catch (err) {
+        console.warn('[Orchestrator] Deferred scrape/AI failed:', err);
+      } finally {
+        warmRestScrapesInBackground();
+      }
+    })();
+  };
+
   const runBackgroundAi = async () => {
     let readyIds: string[] = [];
+    let remaining: Promise<string[]> = Promise.resolve([]);
     try {
-      readyIds = await runScrapeRace();
-      warmRestScrapesInBackground();
+      const race = await runScrapeRace();
+      readyIds = race.readyIds;
+      remaining = race.remaining;
     } catch (err) {
       console.warn('[Orchestrator] Scrape race failed:', err);
       warmRestScrapesInBackground();
-      readyIds = pickClosestPlaces(workingList, aiLimit)
-        .map((p) => p.id!)
-        .filter(Boolean);
+      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
+      return;
     }
     try {
       await runAiForReadyIds(readyIds);
     } catch (err) {
       console.warn('[Orchestrator] Background AI overview generation failed:', err);
     } finally {
+      continueDeferredAi(readyIds, remaining);
       if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
     }
   };
 
   if (options?.deferAi) {
-    void runScrapeRace().then(() => warmRestScrapesInBackground());
+    void runScrapeRace().then((race) => {
+      continueDeferredAi(race.readyIds, race.remaining);
+    });
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return baseList;
   }
 
   if (options?.waitForAi) {
     let readyIds: string[] = [];
+    let remaining: Promise<string[]> = Promise.resolve([]);
     try {
-      readyIds = await runScrapeRace();
+      const race = await runScrapeRace();
+      readyIds = race.readyIds;
+      remaining = race.remaining;
     } catch (err) {
       console.warn('[Orchestrator] Scrape race failed:', err);
-      readyIds = pickClosestPlaces(workingList, aiLimit)
-        .map((p) => p.id!)
-        .filter(Boolean);
     }
-    warmRestScrapesInBackground();
     try {
       await runAiForReadyIds(readyIds);
     } catch (err) {
       console.warn('[Orchestrator] AI overview generation failed:', err);
     }
+    continueDeferredAi(readyIds, remaining);
     const enriched = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return enriched;

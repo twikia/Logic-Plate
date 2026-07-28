@@ -160,3 +160,57 @@ export function matchAtpOpeningHours(
 
   return best ? parseOsmOpeningHours(best.hours) : [];
 }
+
+export type AtpPlaceHoursRow = {
+  name: string;
+  brand?: string | null;
+  lat: number;
+  lng: number;
+  opening_hours: string;
+};
+
+/** Match against DB rows from v2_atp_place_hours (location-level ATP). */
+export function matchAtpPlaceHoursRows(
+  placeName: string,
+  lat: number,
+  lng: number,
+  rows: AtpPlaceHoursRow[],
+  maxDistanceMeters = 120,
+): string[] {
+  const features: AtpFeatureLike[] = rows.map((row) => ({
+    geometry: { coordinates: [row.lng, row.lat] },
+    properties: {
+      name: row.name,
+      brand: row.brand ?? undefined,
+      opening_hours: row.opening_hours,
+    },
+  }));
+  return matchAtpOpeningHours(placeName, lat, lng, features, maxDistanceMeters);
+}
+
+/** Degrees ≈ meters / 111_320 (coarse bbox for nearby ATP lookup). */
+export function atpBboxDeltaDegrees(meters: number): number {
+  return Math.max(0.0005, meters / 111320);
+}
+
+/**
+ * Resolve hours: location-level ATP rows first, then brand/chain defaults.
+ */
+export function resolveOpeningHours(input: {
+  name: string;
+  brand?: string | null;
+  lat: number;
+  lng: number;
+  atpRows?: AtpPlaceHoursRow[];
+}): string[] {
+  if (input.atpRows && input.atpRows.length > 0) {
+    const local = matchAtpPlaceHoursRows(
+      input.name,
+      input.lat,
+      input.lng,
+      input.atpRows,
+    );
+    if (local.length === 7) return local;
+  }
+  return lookupChainOpeningHours(input.name, input.brand);
+}

@@ -123,7 +123,8 @@ export type QualityRejectReason =
   | 'weak_existence'
   | 'bad_category'
   | 'non_food_name'
-  | 'meta_only_weak';
+  | 'meta_only_weak'
+  | 'bad_location';
 
 export type SourceRef = { property?: string; dataset?: string; record_id?: string };
 

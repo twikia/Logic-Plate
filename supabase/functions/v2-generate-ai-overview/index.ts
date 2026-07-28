@@ -1,12 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import {
-  hoursTextLooksParseable,
-  isDeadTransportError,
-  mapPool,
-  pingWebsite,
-  scrapeWebsite,
-  type ScrapeResult,
+    hoursTextLooksParseable,
+    isDeadTransportError,
+    mapPool,
+    pingWebsite,
+    scrapeWebsite,
+    type ScrapeResult,
 } from "../_shared/websiteScrape.ts";
 
 const corsHeaders = {
@@ -20,7 +20,8 @@ const BATCH_SIZE = 15;
 // Client fans out one edge invoke per Gemini batch; keep this aligned with BATCH_SIZE.
 const MAX_PLACES_PER_REQUEST = 15;
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
-const PING_CONCURRENCY = 40;
+const PING_CONCURRENCY = 15;
+const SCRAPE_CONCURRENCY = 4;
 const MAX_ATTR_CHARS = 700;
 const WEEKDAY_NAMES = [
   'Monday',
@@ -514,29 +515,28 @@ serve(async (req) => {
       else aliveToScrape.push(place);
     }
 
-    await Promise.all(
-      aliveToScrape.map(async (p) => {
-        if (!p.website_url) return;
-        try {
-          const result = await scrapeWebsite(p.website_url);
-          scrapeByGersId.set(p.gers_id, result);
-        } catch (err) {
-          const msg = String(err instanceof Error ? err.message : err);
-          if (isDeadTransportError(msg) || err instanceof TypeError) {
-            scrapeByGersId.set(p.gers_id, {
-              menuText: '',
-              hoursText: '',
-              jsonLdWeekdayDescriptions: [],
-              deadWebsite: true,
-            });
-          }
+    await mapPool(aliveToScrape, SCRAPE_CONCURRENCY, async (p) => {
+      if (!p.website_url) return;
+      try {
+        const result = await scrapeWebsite(p.website_url);
+        scrapeByGersId.set(p.gers_id, result);
+      } catch (err) {
+        const msg = String(err instanceof Error ? err.message : err);
+        if (isDeadTransportError(msg) || err instanceof TypeError) {
+          scrapeByGersId.set(p.gers_id, {
+            menuText: '',
+            hoursText: '',
+            jsonLdWeekdayDescriptions: [],
+            deadWebsite: true,
+          });
         }
-      })
-    );
+      }
+    });
 
     const scrapeUpserts: Record<string, unknown>[] = [];
     const geminiPlaces: InputPlace[] = [];
     const scrapeDeadIds: string[] = [];
+    const permanentlyClosedIds: string[] = [];
 
     for (const place of uncachedPlaces) {
       if (excludedPlaceIds.includes(place.gers_id) && !scrapeByGersId.has(place.gers_id)) {
@@ -547,6 +547,7 @@ serve(async (req) => {
       if (!scraped) continue;
       if (scraped.deadWebsite) {
         scrapeDeadIds.push(place.gers_id);
+        if (scraped.permanentlyClosed) permanentlyClosedIds.push(place.gers_id);
         if (!excludedPlaceIds.includes(place.gers_id)) excludedPlaceIds.push(place.gers_id);
         scrapeUpserts.push({
           gers_id: place.gers_id,
@@ -557,6 +558,10 @@ serve(async (req) => {
           is_dead: true,
           scraped_at: new Date().toISOString(),
         });
+        continue;
+      }
+      // Never send to Gemini without usable website background text.
+      if (!scraped.menuText?.trim() && !scraped.hoursText?.trim()) {
         continue;
       }
       geminiPlaces.push(place);
@@ -577,8 +582,12 @@ serve(async (req) => {
     }
 
     if (scrapeDeadIds.length > 0) {
+      const closedSet = new Set(permanentlyClosedIds);
       await supabase.from('v2_rejected_places').upsert(
-        [...new Set(scrapeDeadIds)].map((gers_id) => ({ gers_id, reason: 'dead_website' })),
+        [...new Set(scrapeDeadIds)].map((gers_id) => ({
+          gers_id,
+          reason: closedSet.has(gers_id) ? 'permanently_closed' : 'dead_website',
+        })),
         { onConflict: 'gers_id', ignoreDuplicates: true },
       );
     }
