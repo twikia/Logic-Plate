@@ -611,6 +611,8 @@ const pl: Translations = {
     "aiOverview": "Przegląd sztucznej inteligencji",
     "whoIsItFor": "Dla kogo to jest?",
     "aiScores": "Wyniki AI",
+    "loadMoreDetails": "Załaduj więcej szczegółów",
+    "loadingDetails": "Ładowanie szczegółów…",
     "overallScore": "Ogólnie Logic Plate",
     "overallShort": "Łącznie {{score}}",
     "distanceAway": "{{distance}} dalej",

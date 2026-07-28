@@ -611,6 +611,8 @@ const fr: Translations = {
     "aiOverview": "Aperçu IA",
     "whoIsItFor": "Pour qui ?",
     "aiScores": "Scores IA",
+    "loadMoreDetails": "Charger plus de détails",
+    "loadingDetails": "Chargement des détails…",
     "overallScore": "Logic Plate global",
     "overallShort": "{{score}} global",
     "distanceAway": "à {{distance}}",

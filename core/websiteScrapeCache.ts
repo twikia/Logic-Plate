@@ -68,7 +68,6 @@ async function invokeScrapeBatch(
   const scrapedIds = Array.isArray(data?.scrapedPlaceIds)
     ? (data.scrapedPlaceIds as unknown[]).filter((id): id is string => typeof id === 'string')
     : [];
-  // Backward compat if an older deploy omits scrapedPlaceIds.
   const finishedFallback =
     scrapedIds.length === 0 && !Array.isArray(data?.scrapedPlaceIds)
       ? payload.map((p) => p.gers_id).filter((id) => !excluded.includes(id))
@@ -82,7 +81,12 @@ async function invokeScrapeBatch(
  */
 export async function ensureWebsiteScrapes(
   places: ScrapeSeed[],
-  options?: { limit?: number; awaitBatches?: number; maxParallel?: number },
+  options?: {
+    limit?: number;
+    awaitBatches?: number;
+    maxParallel?: number;
+    delayMsBetweenBatches?: number;
+  },
 ): Promise<string[]> {
   const withSites = places.filter((p) => p.id && p.website_url);
   const capped = withSites.slice(0, options?.limit ?? SEARCH_CONFIG.MAX_WEBSITE_SCRAPES);
@@ -95,6 +99,7 @@ export async function ensureWebsiteScrapes(
   const batches = chunk(toScrape, SEARCH_CONFIG.WEBSITE_SCRAPE_BATCH_SIZE);
   const awaitCount = options?.awaitBatches ?? batches.length;
   const maxParallel = options?.maxParallel ?? SEARCH_CONFIG.WEBSITE_SCRAPE_MAX_PARALLEL;
+  const delayMs = options?.delayMsBetweenBatches ?? 0;
   const excludedAll: string[] = [];
 
   let next = 0;
@@ -102,6 +107,7 @@ export async function ensureWebsiteScrapes(
     while (true) {
       const i = next++;
       if (i >= batches.length) return;
+      if (delayMs > 0 && i > 0) await sleep(delayMs);
       const run = invokeScrapeBatch(batches[i]);
       if (i < awaitCount) {
         excludedAll.push(...(await run).excluded);
@@ -118,50 +124,65 @@ export async function ensureWebsiteScrapes(
   return excludedAll;
 }
 
-export type ScrapeRaceResult = {
-  /** Closest-first IDs that finished scrape (not dead), capped at targetUsable. */
-  readyIds: string[];
-  excludedPlaceIds: string[];
-  /** Await remaining race batches (after the wait budget). */
-  remaining: Promise<string[]>;
-};
-
 /**
- * Queue up to 120 priority sites, scrape via parallel small edge batches, stop when
- * we have ~60 usable or the wait budget expires. Remaining work continues in background.
+ * Scrape priority sites in parallel; call onReadyBatch whenever flushEvery new
+ * scrapes are ready (and once more for a leftover partial). Stops requesting
+ * new scrapes once targetUsable ready IDs exist. No hard wall-clock cutoff.
  */
-export async function raceWebsiteScrapesForAi(
+export async function streamWebsiteScrapesForAi(
   placesClosestFirst: ScrapeSeed[],
   options?: {
     queueSize?: number;
     targetUsable?: number;
-    timeoutMs?: number;
+    flushEvery?: number;
     maxParallel?: number;
+    onReadyBatch?: (ids: string[]) => void | Promise<void>;
+    onExcluded?: (ids: string[]) => void | Promise<void>;
   },
-): Promise<ScrapeRaceResult> {
+): Promise<{ readyIds: string[]; excludedPlaceIds: string[] }> {
   const queueSize = options?.queueSize ?? SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE;
   const targetUsable = options?.targetUsable ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
-  const timeoutMs = options?.timeoutMs ?? SEARCH_CONFIG.AI_SCRAPE_WAIT_MS;
+  const flushEvery = options?.flushEvery ?? SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE;
   const maxParallel = options?.maxParallel ?? SEARCH_CONFIG.WEBSITE_SCRAPE_MAX_PARALLEL;
 
   const queue = placesClosestFirst
     .filter((p) => p.id && p.website_url)
     .slice(0, queueSize);
   const order = queue.map((p) => p.id);
-  if (order.length === 0) {
-    return { readyIds: [], excludedPlaceIds: [], remaining: Promise.resolve([]) };
-  }
+  if (order.length === 0) return { readyIds: [], excludedPlaceIds: [] };
 
   const ready = new Set<string>();
   const dead = new Set<string>();
   const excludedAll: string[] = [];
+  const flushed = new Set<string>();
+  let flushQueue: Promise<void> = Promise.resolve();
+
+  const enqueueFlush = (ids: string[]) => {
+    if (ids.length === 0) return;
+    flushQueue = flushQueue.then(async () => {
+      await options?.onReadyBatch?.(ids);
+    });
+  };
+
+  const flushReady = (force = false) => {
+    const pending = order.filter((id) => ready.has(id) && !flushed.has(id));
+    while (pending.length >= flushEvery || (force && pending.length > 0)) {
+      const take = pending.splice(0, Math.min(flushEvery, pending.length));
+      if (flushed.size >= targetUsable) break;
+      const room = targetUsable - flushed.size;
+      const batch = take.slice(0, room);
+      for (const id of batch) flushed.add(id);
+      enqueueFlush(batch);
+      if (flushed.size >= targetUsable) break;
+    }
+  };
 
   const { data: cachedRows, error: cacheErr } = await supabase
     .from('v2_website_scrape_cache')
     .select('gers_id, is_dead, scraped_at, menu_text, hours_text')
     .in('gers_id', order);
   if (cacheErr) {
-    console.warn('[ScrapeCache] race cache read error:', cacheErr.message);
+    console.warn('[ScrapeCache] stream cache read error:', cacheErr.message);
   } else {
     const now = Date.now();
     for (const row of cachedRows ?? []) {
@@ -179,29 +200,37 @@ export async function raceWebsiteScrapesForAi(
     }
   }
 
+  flushReady(false);
+
   const needFetch = queue.filter((p) => !ready.has(p.id) && !dead.has(p.id));
   const batches = chunk(needFetch, SEARCH_CONFIG.WEBSITE_SCRAPE_BATCH_SIZE);
 
-  let settled = 0;
   let cursor = 0;
   const inflight = new Set<Promise<void>>();
 
   const launchNext = (): void => {
-    while (cursor < batches.length && inflight.size < maxParallel) {
+    while (
+      cursor < batches.length &&
+      inflight.size < maxParallel &&
+      flushed.size < targetUsable
+    ) {
       const batch = batches[cursor++];
       const p = invokeScrapeBatch(batch)
-        .then((result) => {
-          for (const id of result.excluded) {
-            dead.add(id);
-            ready.delete(id);
-            excludedAll.push(id);
+        .then(async (result) => {
+          if (result.excluded.length > 0) {
+            for (const id of result.excluded) {
+              dead.add(id);
+              ready.delete(id);
+              excludedAll.push(id);
+            }
+            await options?.onExcluded?.(result.excluded);
           }
           for (const id of result.scrapedIds) {
             if (!dead.has(id)) ready.add(id);
           }
+          flushReady(false);
         })
         .finally(() => {
-          settled += 1;
           inflight.delete(p);
         });
       inflight.add(p);
@@ -209,33 +238,14 @@ export async function raceWebsiteScrapesForAi(
   };
 
   launchNext();
-
-  const deadline = Date.now() + timeoutMs;
-  const usableCount = () => order.filter((id) => ready.has(id)).length;
-
-  while (Date.now() < deadline && usableCount() < targetUsable) {
-    if (settled >= batches.length && inflight.size === 0) break;
+  while (inflight.size > 0 || (cursor < batches.length && flushed.size < targetUsable)) {
     launchNext();
     if (inflight.size === 0) break;
-    await Promise.race([...inflight, sleep(300)]);
-    launchNext();
+    await Promise.race([...inflight, sleep(250)]);
   }
 
-  const remaining = (async () => {
-    while (cursor < batches.length || inflight.size > 0) {
-      launchNext();
-      if (inflight.size === 0) break;
-      await Promise.race([...inflight, sleep(400)]);
-    }
-    if (excludedAll.length > 0) {
-      await markRejectedPlaceIds([...new Set(excludedAll)]);
-    }
-    const allReady = order.filter((id) => ready.has(id));
-    console.log(
-      `[ScrapeCache] race background finished; ready=${allReady.length} dead=${dead.size}`,
-    );
-    return allReady;
-  })();
+  flushReady(true);
+  await flushQueue;
 
   if (excludedAll.length > 0) {
     await markRejectedPlaceIds([...new Set(excludedAll)]);
@@ -243,8 +253,8 @@ export async function raceWebsiteScrapesForAi(
 
   const readyIds = order.filter((id) => ready.has(id)).slice(0, targetUsable);
   console.log(
-    `[ScrapeCache] race: queued=${order.length} ready=${readyIds.length}/${targetUsable} ` +
-      `dead=${dead.size} waitedMs<=${timeoutMs} parallel<=${maxParallel}`,
+    `[ScrapeCache] stream: queued=${order.length} ready=${readyIds.length}/${targetUsable} ` +
+      `flushed=${flushed.size} dead=${dead.size} parallel<=${maxParallel}`,
   );
-  return { readyIds, excludedPlaceIds: [...new Set(excludedAll)], remaining };
+  return { readyIds, excludedPlaceIds: [...new Set(excludedAll)] };
 }

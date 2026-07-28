@@ -17,7 +17,7 @@ import {
 import { SEARCH_CONFIG } from './searchConfig';
 import { supabase } from './supabaseClient';
 import { logEdgeFunctionFailureAsync } from './supabaseFunctionErrors';
-import { ensureWebsiteScrapes, raceWebsiteScrapesForAi } from './websiteScrapeCache';
+import { ensureWebsiteScrapes, findMissingScrapeIds, streamWebsiteScrapesForAi } from './websiteScrapeCache';
 
 export type RestaurantLoadStage =
   | 'reading-cache'
@@ -504,66 +504,50 @@ async function loadNearbyRestaurantsInternal(
 
   const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
 
-  // Priority scrape race: homepage/display cards first, then closest fill → 120.
-  // Beyond 120: slower background warm only.
+  // Priority scrape+AI: display cards first, then closest fill.
+  // Stream AI in batches of 15 as scrapes complete (no wall-clock cutoff).
   const scrapePool = pickClosestPlaces(withinRadius, SEARCH_CONFIG.MAX_WEBSITE_SCRAPES)
     .filter((p) => !!p.id && !!p.website_url)
     .map((p) => ({ id: p.id!, website_url: p.website_url }));
   const displayWithSites = pickClosestPlaces(
     workingList.filter((p) => !!p.id && !!p.website_url),
-    SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE,
+    Math.max(SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE, aiLimit * 2),
   ).map((p) => ({ id: p.id!, website_url: p.website_url }));
   const displayIds = new Set(displayWithSites.map((p) => p.id));
+  const raceQueueSize = Math.max(SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE, aiLimit * 2);
   const raceQueue = [
     ...displayWithSites,
     ...scrapePool.filter((p) => !displayIds.has(p.id)),
-  ].slice(0, SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE);
-  const raceIdSet = new Set(raceQueue.map((p) => p.id));
-  const restScrapes = scrapePool.filter((p) => !raceIdSet.has(p.id));
+  ].slice(0, raceQueueSize);
   const placeById = new Map(
     withinRadius.filter((p) => !!p.id).map((p) => [p.id!, p]),
   );
 
-  const warmRestScrapesInBackground = () => {
-    void ensureWebsiteScrapes(restScrapes, {
-      maxParallel: Math.max(2, Math.floor(SEARCH_CONFIG.WEBSITE_SCRAPE_MAX_PARALLEL / 2)),
-    }).then(async (excluded) => {
-      if (jobSeq !== latestJobSeq) return;
-      if (excluded.length > 0) await applyExclusions(excluded);
-      await refreshHoursAndEmit();
-    });
-  };
-
-  type RaceHandle = { readyIds: string[]; remaining: Promise<string[]> };
-
-  const runScrapeRace = async (): Promise<RaceHandle> => {
-    onProgress?.({
-      stage: 'loading-overviews',
-      progress: PROGRESS.aiStart,
-      detail: { done: 0, total: aiLimit, unit: 'overviews' },
-    });
-    const { readyIds, excludedPlaceIds, remaining } = await raceWebsiteScrapesForAi(raceQueue, {
-      queueSize: SEARCH_CONFIG.AI_SCRAPE_QUEUE_SIZE,
-      targetUsable: aiLimit,
-      timeoutMs: SEARCH_CONFIG.AI_SCRAPE_WAIT_MS,
-    });
-    if (jobSeq !== latestJobSeq) return { readyIds: [], remaining: Promise.resolve([]) };
-    await applyExclusions(excludedPlaceIds);
-    workingList = await enrichPlacesWithScrapeHours(workingList);
-    triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
-    onProgress?.({
-      stage: 'loading-overviews',
-      progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, 0.15, 1),
-      detail: { done: 0, total: Math.max(readyIds.length, 1), unit: 'overviews' },
-    });
-    return { readyIds, remaining };
+  const warmSlowScrapesInBackground = () => {
+    void (async () => {
+      try {
+        const missing = await findMissingScrapeIds(scrapePool.map((p) => p.id));
+        const slowPool = scrapePool.filter((p) => missing.has(p.id));
+        if (slowPool.length === 0) return;
+        console.log(`[Orchestrator] Slow sequential scrape warm for ${slowPool.length} leftover sites`);
+        const excluded = await ensureWebsiteScrapes(slowPool, {
+          maxParallel: SEARCH_CONFIG.BACKGROUND_SCRAPE_MAX_PARALLEL,
+          delayMsBetweenBatches: SEARCH_CONFIG.BACKGROUND_SCRAPE_DELAY_MS,
+        });
+        if (jobSeq !== latestJobSeq) return;
+        if (excluded.length > 0) await applyExclusions(excluded);
+        await refreshHoursAndEmit();
+      } catch (err) {
+        console.warn('[Orchestrator] Slow scrape warm failed:', err);
+      }
+    })();
   };
 
   // Show restaurants immediately; photos load async via RestaurantImage.
   options?.onPlacesUpdated?.(baseList);
 
   const emitAiProgress = (done: number, total: number) => {
-    const t = total <= 0 ? 1 : 0.15 + 0.85 * Math.min(1, done / total);
+    const t = total <= 0 ? 1 : Math.min(1, done / total);
     onProgress?.({
       stage: 'loading-overviews',
       progress: lerpProgress(PROGRESS.aiStart, PROGRESS.aiEnd, t, 1),
@@ -578,106 +562,71 @@ async function loadNearbyRestaurantsInternal(
       .map((id) => placeById.get(id))
       .filter(Boolean)
       .map((p) => toPlaceSeed(p as CachedPlace));
-    emitAiProgress(0, missingAiIds.length);
     console.log(
-      `[Orchestrator] Generating AI for ${missingAiIds.length} scrape-ready places ` +
-        `(raced ${raceQueue.length}, cap ${aiLimit}) via ` +
-        `${Math.ceil(missingAiIds.length / SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE)} parallel edge calls of ${SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE}...`,
+      `[Orchestrator] Streaming AI batch of ${missingAiIds.length} (cap ${aiLimit})`,
     );
     await generateAiInBatches(
       aiSeeds,
       missingAiIds,
-      async ({ generatedSoFar, excludedPlaceIds, done, total }) => {
+      async ({ generatedSoFar, excludedPlaceIds }) => {
         if (jobSeq !== latestJobSeq) return;
         for (const [k, v] of generatedSoFar) cachedAi.set(k, v);
         await applyExclusions(excludedPlaceIds);
-        emitAiProgress(done, total);
+        const doneCount = raceQueue.filter((p) => cachedAi.has(p.id)).length;
+        emitAiProgress(Math.min(doneCount, aiLimit), aiLimit);
         triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
       },
     );
   };
 
-  /** After the wait budget: finish remaining of the 120, AI up to aiLimit, warm the rest slower. */
-  const continueDeferredAi = (alreadyReady: string[], remaining: Promise<string[]>) => {
-    void (async () => {
-      try {
-        const allReady = await remaining;
-        if (jobSeq !== latestJobSeq) return;
-        await refreshHoursAndEmit();
-        const already = new Set(alreadyReady);
-        const deferred = allReady.filter((id) => !already.has(id) && !cachedAi.has(id));
-        const room = Math.max(0, aiLimit - [...cachedAi.keys()].filter((id) => raceIdSet.has(id)).length);
-        const displaySet = new Set(workingList.map((p) => p.id).filter(Boolean) as string[]);
-        const prioritized = [
-          ...deferred.filter((id) => displaySet.has(id)),
-          ...deferred.filter((id) => !displaySet.has(id)),
-        ];
-        const toAi = prioritized.slice(0, Math.max(room, 0));
-        if (toAi.length > 0) {
-          console.log(`[Orchestrator] Deferred AI for ${toAi.length} late scrape finishes`);
-          await runAiForReadyIds(toAi);
-        }
-      } catch (err) {
-        console.warn('[Orchestrator] Deferred scrape/AI failed:', err);
-      } finally {
-        warmRestScrapesInBackground();
-      }
-    })();
-  };
-
-  const runBackgroundAi = async () => {
-    let readyIds: string[] = [];
-    let remaining: Promise<string[]> = Promise.resolve([]);
-    try {
-      const race = await runScrapeRace();
-      readyIds = race.readyIds;
-      remaining = race.remaining;
-    } catch (err) {
-      console.warn('[Orchestrator] Scrape race failed:', err);
-      warmRestScrapesInBackground();
-      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
-      return;
-    }
-    try {
-      await runAiForReadyIds(readyIds);
-    } catch (err) {
-      console.warn('[Orchestrator] Background AI overview generation failed:', err);
-    } finally {
-      continueDeferredAi(readyIds, remaining);
-      if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
-    }
-  };
-
-  if (options?.deferAi) {
-    void runScrapeRace().then((race) => {
-      continueDeferredAi(race.readyIds, race.remaining);
+  const runStreamingScrapeAi = async () => {
+    onProgress?.({
+      stage: 'loading-overviews',
+      progress: PROGRESS.aiStart,
+      detail: { done: 0, total: aiLimit, unit: 'overviews' },
     });
+    try {
+      await streamWebsiteScrapesForAi(raceQueue, {
+        queueSize: raceQueueSize,
+        targetUsable: aiLimit,
+        flushEvery: SEARCH_CONFIG.AI_GENERATION_BATCH_SIZE,
+        onExcluded: async (ids) => {
+          if (jobSeq !== latestJobSeq) return;
+          await applyExclusions(ids);
+          workingList = await enrichPlacesWithScrapeHours(workingList);
+          triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+        },
+        onReadyBatch: async (ids) => {
+          if (jobSeq !== latestJobSeq) return;
+          workingList = await enrichPlacesWithScrapeHours(workingList);
+          await runAiForReadyIds(ids);
+        },
+      });
+    } catch (err) {
+      console.warn('[Orchestrator] Streaming scrape/AI failed:', err);
+    }
+  };
+
+  // Map: markers only — scrape slowly in background, never auto-generate AI.
+  if (options?.deferAi) {
+    warmSlowScrapesInBackground();
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return baseList;
   }
 
   if (options?.waitForAi) {
-    let readyIds: string[] = [];
-    let remaining: Promise<string[]> = Promise.resolve([]);
-    try {
-      const race = await runScrapeRace();
-      readyIds = race.readyIds;
-      remaining = race.remaining;
-    } catch (err) {
-      console.warn('[Orchestrator] Scrape race failed:', err);
-    }
-    try {
-      await runAiForReadyIds(readyIds);
-    } catch (err) {
-      console.warn('[Orchestrator] AI overview generation failed:', err);
-    }
-    continueDeferredAi(readyIds, remaining);
+    await runStreamingScrapeAi();
+    warmSlowScrapesInBackground();
     const enriched = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return enriched;
   }
 
-  void runBackgroundAi();
+  void (async () => {
+    await runStreamingScrapeAi();
+    warmSlowScrapesInBackground();
+    if (jobSeq === latestJobSeq) onProgress?.({ stage: 'done', progress: PROGRESS.done });
+  })();
   return baseList;
 }
 

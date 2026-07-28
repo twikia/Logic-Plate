@@ -35,20 +35,23 @@ export const SEARCH_CONFIG = {
   MAX_RESULTS_PER_CELL: 1500,
   // Max restaurants shown on the map / returned from a search.
   MAX_DISPLAY_RESULTS: 150,
-  // Max restaurants that get AI overviews eagerly (closest first) on filtered pages.
+  // Max restaurants that get AI overviews eagerly (closest first) on home.
   MAX_AI_OVERVIEWS: 60,
-  // Gemini call size — map click prefetch and filtered-page generation use this.
+  // Filter / random pages can load home's 60 plus another 60.
+  FILTER_AI_OVERVIEWS: 120,
+  // Gemini call size — stream AI as soon as this many scrapes are ready.
   AI_GENERATION_BATCH_SIZE: 15,
-  // Race this many closest/display sites for scrape; take up to MAX_AI_OVERVIEWS usable.
+  // Race this many closest/display sites for scrape; take up to AI limit usable.
   AI_SCRAPE_QUEUE_SIZE: 120,
-  // Wait for the priority scrape race before AI; leftovers continue in background.
-  AI_SCRAPE_WAIT_MS: 12000,
-  // Background website scrape fan-out after cell fetch (closest first).
+  // Background website scrape fan-out after priority AI (closest first).
   MAX_WEBSITE_SCRAPES: 1500,
   // Smaller batches → more parallel edge invokes, lower per-invoke memory.
   WEBSITE_SCRAPE_BATCH_SIZE: 12,
   // Cap concurrent v2-scrape-websites invokes during the priority race.
-  WEBSITE_SCRAPE_MAX_PARALLEL: 8,
+  WEBSITE_SCRAPE_MAX_PARALLEL: 10,
+  // After priority AI is filled: one batch at a time, with delay between.
+  BACKGROUND_SCRAPE_MAX_PARALLEL: 1,
+  BACKGROUND_SCRAPE_DELAY_MS: 2500,
 
   // Overture existence confidence (0–1). Missing confidence is rejected.
   MIN_OVERTURE_CONFIDENCE: 0.9,

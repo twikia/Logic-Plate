@@ -611,6 +611,8 @@ const es: Translations = {
     "aiOverview": "Resumen de IA",
     "whoIsItFor": "¿Para quién es?",
     "aiScores": "Puntuaciones de IA",
+    "loadMoreDetails": "Cargar más detalles",
+    "loadingDetails": "Cargando detalles…",
     "overallScore": "Logic Plate general",
     "overallShort": "{{score}} en general",
     "distanceAway": "A {{distance}}",

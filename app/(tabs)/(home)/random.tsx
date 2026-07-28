@@ -47,6 +47,7 @@ import {
   isRestaurantLoadSupersededError,
   logRestaurantFetchError,
 } from '../../../core/restaurantOrchestrator';
+import { SEARCH_CONFIG } from '@/core/searchConfig';
 import {
   DEFAULT_SEARCH_RADIUS_METERS,
   MAX_SEARCH_RADIUS_METERS,
@@ -573,6 +574,9 @@ export default function RandomScreen() {
         searchRadius,
         onOrchestratorProgress,
         {
+          // Home already loads 60; filter page can fill up to 120 so cutoffs have enough AI.
+          aiLimit: SEARCH_CONFIG.FILTER_AI_OVERVIEWS,
+          waitForAi: true,
           onPlacesUpdated: (places) => {
             setAllResults(places);
           },
@@ -737,6 +741,8 @@ export default function RandomScreen() {
 
   const filtered = useMemo(() => {
     return allResults.filter(r => {
+      // Filters need AI scores — hide places that have not been enriched yet.
+      if (!r.aiOverview) return false;
       if (!((r.name || r.displayName?.text || '').toLowerCase().includes(filter.toLowerCase()))) return false;
       if (openOnly) {
         if (!isOpenNow(r)) return false;

@@ -643,6 +643,8 @@ const en = {
     aiOverview: 'AI overview',
     whoIsItFor: 'Who is it for?',
     aiScores: 'Scores',
+    loadMoreDetails: 'Load more details',
+    loadingDetails: 'Loading details…',
     overallScore: 'Overall Logic Plate',
     overallShort: '{{score}} overall',
     distanceAway: '{{distance}} away',

@@ -291,6 +291,7 @@ export default function MapScreen() {
 
   const [allRestaurants, setAllRestaurants] = useState<any[]>(mapSessionAllRestaurants);
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
+  const [aiDetailsLoading, setAiDetailsLoading] = useState(false);
   const [region, setRegion] = useState<Region | null>(mapSessionRegion);
   const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(mapSessionUserCoords);
   const [isLoading, setIsLoading] = useState(allRestaurants.length === 0);
@@ -585,6 +586,7 @@ export default function MapScreen() {
     const lngDelta = region?.longitudeDelta || 0.015 * (width / height);
 
     setSheetSnap('peek');
+    setAiDetailsLoading(false);
     selectedRestaurantRef.current = restaurant;
     setSelectedRestaurant(restaurant);
     mapRef.current?.animateToRegion({
@@ -600,23 +602,34 @@ export default function MapScreen() {
       tension: 120,
       friction: 10,
     }).start();
+  }, [region, sheetAnim]);
 
+  const loadAiDetailsForSelected = useCallback(async () => {
+    const restaurant = selectedRestaurantRef.current;
+    if (!restaurant?.id || restaurant.aiOverview || aiDetailsLoading) return;
     const targetId = restaurant.id;
-    void (async () => {
-      try {
-        const pool = restaurantsRef.current.length > 0 ? restaurantsRef.current : [restaurant];
-        const enriched = await ensureAiOverviewsAroundPlace(restaurant, pool);
-        commitAllRestaurants(enriched);
-        const next = enriched.find((x) => x.id === targetId);
-        if (next && selectedRestaurantRef.current?.id === targetId) {
-          selectedRestaurantRef.current = next;
-          setSelectedRestaurant(next);
-        }
-      } catch (err) {
-        console.warn('[map] On-demand AI overview failed:', err);
+    setAiDetailsLoading(true);
+    try {
+      const enriched = await ensureAiOverviewsAroundPlace(restaurant, [restaurant]);
+      commitAllRestaurants(
+        restaurantsRef.current.map((r) => {
+          const next = enriched.find((x) => x.id === r.id);
+          return next ?? r;
+        }),
+      );
+      const next = enriched.find((x) => x.id === targetId) ?? enriched[0];
+      if (next && selectedRestaurantRef.current?.id === targetId) {
+        selectedRestaurantRef.current = next;
+        setSelectedRestaurant(next);
       }
-    })();
-  }, [commitAllRestaurants, region, sheetAnim]);
+    } catch (err) {
+      console.warn('[map] On-demand AI overview failed:', err);
+    } finally {
+      if (selectedRestaurantRef.current?.id === targetId) {
+        setAiDetailsLoading(false);
+      }
+    }
+  }, [aiDetailsLoading, commitAllRestaurants]);
 
   const applyMapFocusRestaurant = useCallback((focus: any, list: any[]) => {
     if (!focus?.id || typeof focus?.location?.latitude !== 'number' || typeof focus?.location?.longitude !== 'number') {
@@ -1000,41 +1013,63 @@ export default function MapScreen() {
               </View>
             </View>
 
-            <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
-              <View style={styles.infoSectionHeader}>
-                <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
-                <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>{t('map.aiOverview')}</Text>
-              </View>
-              {selectedRestaurant.aiOverview ? (
-                <AiOverviewSummaryBody
-                  text={selectedRestaurant.aiOverview.summaryGoodBad}
-                  style={[styles.infoSectionBody, { color: theme.subtext }]}
+            {!selectedRestaurant.aiOverview ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={aiDetailsLoading}
+                onPress={() => { void loadAiDetailsForSelected(); }}
+                style={[
+                  styles.loadDetailsBtn,
+                  {
+                    backgroundColor: theme.accent,
+                    opacity: aiDetailsLoading ? 0.75 : 1,
+                  },
+                ]}
+              >
+                {aiDetailsLoading ? (
+                  <ActivityIndicator color="#111" />
+                ) : (
+                  <Ionicons name="sparkles" size={22} color="#111" />
+                )}
+                <Text style={styles.loadDetailsBtnText}>
+                  {aiDetailsLoading ? t('map.loadingDetails') : t('map.loadMoreDetails')}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <View style={[styles.infoSection, { borderColor: 'rgba(201,160,255,0.15)' }]}>
+                  <View style={styles.infoSectionHeader}>
+                    <Ionicons name="sparkles-outline" size={15} color="#C9A0FF" />
+                    <Text style={[styles.infoSectionTitle, { color: '#C9A0FF' }]}>{t('map.aiOverview')}</Text>
+                  </View>
+                  <AiOverviewSummaryBody
+                    text={selectedRestaurant.aiOverview.summaryGoodBad}
+                    style={[styles.infoSectionBody, { color: theme.subtext }]}
+                  />
+                </View>
+
+                <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
+                  <View style={styles.infoSectionHeader}>
+                    <Ionicons name="person-outline" size={15} color="#B8E0FF" />
+                    <Text style={[styles.infoSectionTitle, { color: '#B8E0FF' }]}>{t('map.whoIsItFor')}</Text>
+                  </View>
+                  {selectedRestaurant.aiOverview?.whoThisPlaceIsFor ? (
+                    <TranslatedText text={selectedRestaurant.aiOverview.whoThisPlaceIsFor} style={[styles.infoSectionBody, { color: theme.subtext }]} />
+                  ) : (
+                    <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
+                  )}
+                </View>
+
+                <MapSheetAiScores
+                  ai={selectedRestaurant.aiOverview}
+                  ph={false}
+                  isDark={isDarkTheme}
+                  theme={{ text: theme.text, subtext: theme.subtext, accent: theme.accent }}
+                  overallScore={sheetOverallScore}
+                  overallPh={false}
                 />
-              ) : (
-                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-              )}
-            </View>
-
-            <View style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]}>
-              <View style={styles.infoSectionHeader}>
-                <Ionicons name="person-outline" size={15} color="#B8E0FF" />
-                <Text style={[styles.infoSectionTitle, { color: '#B8E0FF' }]}>{t('map.whoIsItFor')}</Text>
-              </View>
-              {selectedRestaurant.aiOverview?.whoThisPlaceIsFor ? (
-                <TranslatedText text={selectedRestaurant.aiOverview.whoThisPlaceIsFor} style={[styles.infoSectionBody, { color: theme.subtext }]} />
-              ) : (
-                <Text style={[styles.infoSectionBody, { color: theme.subtext }]}>{AI_OVERVIEW_FIELD_PLACEHOLDER}</Text>
-              )}
-            </View>
-
-            <MapSheetAiScores
-              ai={selectedRestaurant.aiOverview}
-              ph={!selectedRestaurant.aiOverview}
-              isDark={isDarkTheme}
-              theme={{ text: theme.text, subtext: theme.subtext, accent: theme.accent }}
-              overallScore={sheetOverallScore}
-              overallPh={!selectedRestaurant.aiOverview}
-            />
+              </>
+            )}
 
             {sheetWebsite ? (
               <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(sheetWebsite)}>
@@ -1197,6 +1232,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
   },
   metaText: { fontSize: 14, fontWeight: '600' },
+  loadDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    marginBottom: 16,
+  },
+  loadDetailsBtnText: {
+    color: '#111',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
   imageContainer: {
     marginBottom: 25, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 15, shadowOffset: { width: 0, height: 8 },
   },
