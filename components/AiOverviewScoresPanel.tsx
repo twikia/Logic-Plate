@@ -16,9 +16,7 @@ type Props = {
   ai?: AiOverview | null;
   ph: boolean;
   theme: ThemeColors;
-  googleRating?: number;
   priceLevel?: string;
-  userRatingCount?: number | null;
 };
 
 function clamp01(v: number, max: number) {
@@ -208,11 +206,11 @@ function sectionPreview(values: (string | undefined)[], ph: boolean): string | u
   return parts.length ? parts.join(' · ') : undefined;
 }
 
-export function AiOverviewScoresPanel({ ai, ph, theme, googleRating, priceLevel, userRatingCount }: Props) {
+export function AiOverviewScoresPanel({ ai, ph, theme, priceLevel }: Props) {
   const { t } = useTranslation();
   const translatedMacros = useLiveTranslation(ai?.absoluteMacros);
   const translatedWho = useLiveTranslation(ai?.whoThisPlaceIsFor);
-  const overall = ph ? null : calculatePlateboundScore(ai, googleRating, priceLevel, userRatingCount);
+  const overall = ph ? null : calculatePlateboundScore(ai, priceLevel, ai?.priceTier);
   const border = theme.cardBorderColor;
 
   return (

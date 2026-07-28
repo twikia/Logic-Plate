@@ -10,7 +10,6 @@ export const SORT_OPTION_KEYS: RandomSortBy[] = [
   'matchScore',
   'distance',
   'price',
-  'rating',
   'overall',
   'health',
   'taste',
@@ -63,12 +62,10 @@ export function getOverviewMetric(
 
 export type RestaurantSortInput = {
   aiOverview?: AiOverview | null;
-  rating?: number;
   priceLevel?: string;
   priceTier?: number | null;
   distanceMeters?: number;
   matchScore?: number;
-  userRatingCount?: number | null;
 };
 
 function resolvePriceSortIndex(r: RestaurantSortInput): number {
@@ -97,17 +94,12 @@ export function getSortValue(r: RestaurantSortInput, sortBy: RandomSortBy): numb
   if (sortBy === 'overall') {
     return calculatePlateboundScore(
       ai,
-      r.rating,
       r.priceLevel,
-      r.userRatingCount,
       r.priceTier ?? ai?.priceTier
     );
   }
   if (sortBy === 'distance') {
     return r.distanceMeters ?? 0;
-  }
-  if (sortBy === 'rating') {
-    return r.rating ?? -1;
   }
   if (sortBy === 'price') {
     return resolvePriceSortIndex(r);
@@ -149,11 +141,6 @@ export function mapSortRawHigherIsGreener(
     if (v >= 999 || v < 0) return NaN;
     return 3 - v;
   }
-  if (sortBy === 'rating') {
-    const v = r.rating;
-    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return NaN;
-    return v;
-  }
   if (sortBy === 'overall') {
     if (!r.aiOverview) return NaN;
     return getSortValue(r, sortBy);
@@ -182,17 +169,10 @@ export function sortGoodness01(
     if (v >= 999 || v < 0) return 0;
     return Math.max(0, Math.min(1, (3 - v) / 3));
   }
-  if (sortBy === 'rating') {
-    const v = getSortValue(r, sortBy);
-    if (v < 0) return 0;
-    return Math.max(0, Math.min(1, v / 5));
-  }
   if (sortBy === 'overall') {
     const o = calculatePlateboundScore(
       r.aiOverview ?? null,
-      r.rating,
       r.priceLevel,
-      r.userRatingCount,
       r.priceTier ?? r.aiOverview?.priceTier
     );
     return Math.max(0, Math.min(1, o / 10));

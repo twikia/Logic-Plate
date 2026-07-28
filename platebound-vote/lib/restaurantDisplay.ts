@@ -11,7 +11,6 @@ type RestaurantPick = {
   category?: string;
   primaryType?: string;
   location?: { latitude?: number; longitude?: number };
-  rating?: number;
   distanceMeters?: number;
   priceLevel?: string | null;
   priceTier?: number | null;

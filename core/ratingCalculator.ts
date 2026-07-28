@@ -1,60 +1,26 @@
 import type { AiOverview } from './aiOverviewCache';
 
 /**
- * Calculates a unified "Platebound Score" from 0-10 based on AI ratings and Google data.
- * 
- * Weights:
- * - Google Rating (0-5 -> 0-10): 25% (Heavily weighted)
- * - Price Score (0-4 -> 0-10): 15% (Heavily weighted, favoring value)
- * - Health Score (0-10): 20%
- * - Workout Recovery (0-10): 15%
- * - Processed Score (0-10): 10%
- * - Protein Score (0-5 -> 0-10): 10%
- * - Speed Score (0-5 -> 0-10): 2.5%
- * - Noise Level (0-5 -> 0-10): 2.5% (Inverted)
+ * Calculates a unified "Platebound Score" from 0-10 based on AI overview data.
  */
-export function ratingConfidenceCurve(count?: number | null): number {
-  const n = Math.max(0, count ?? 0);
-  if (n <= 5) return 0;
-  const log5 = 1.6094379124341003;
-  const log1500 = 7.313220387090301;
-  return Math.max(0, Math.min(1, (Math.log(n) - log5) / (log1500 - log5)));
-}
-
 export function calculatePlateboundScore(
   overview: AiOverview | undefined | null,
-  googleRating?: number,
-  priceLevel?: string,       // v1: Google PRICE_LEVEL_* string
-  userRatingCount?: number | null,
-  priceTier?: number | null  // v2: Overture integer 1-4
+  priceLevel?: string,
+  priceTier?: number | null
 ): number {
   if (!overview) return 0;
 
   const weights = {
-    googleRating: 0.25,
-    price: 0.15,
-    health: 0.20,
-    workout: 0.15,
-    processed: 0.10,
-    protein: 0.10,
-    speed: 0.025,
-    noise: 0.025,
+    price: 0.2,
+    health: 0.267,
+    workout: 0.2,
+    processed: 0.133,
+    protein: 0.133,
+    speed: 0.033,
+    noise: 0.033,
   };
 
-  // Normalize Google Rating (0-5) with confidence weighting.
-  // When no rating exists at all (v2 Overture data has none), fall back to the
-  // same neutral baseline used for low-confidence ratings instead of zeroing
-  // out 25% of the score for every restaurant.
-  const rawNormGoogle = (googleRating || 0) * 2;
-  const conf = ratingConfidenceCurve(userRatingCount);
-  const baselineNormGoogle = 8.3; // 4.15 * 2
-  const normGoogle = googleRating
-    ? (conf * rawNormGoogle + (1 - conf) * baselineNormGoogle)
-    : baselineNormGoogle;
-
-  // Map Price Level to 0-10 score (Favoring value)
-  // Supports both v1 (Google priceLevel string) and v2 (Overture priceTier integer 1-4)
-  let priceScore = 7; // Default to moderate
+  let priceScore = 7;
   if (priceLevel) {
     switch (priceLevel) {
       case 'PRICE_LEVEL_FREE': priceScore = 10; break;
@@ -64,7 +30,6 @@ export function calculatePlateboundScore(
       case 'PRICE_LEVEL_VERY_EXPENSIVE': priceScore = 1; break;
     }
   } else if (priceTier != null) {
-    // v2: 1=budget, 2=moderate, 3=pricey, 4=fine dining
     switch (priceTier) {
       case 1: priceScore = 10; break;
       case 2: priceScore = 8; break;
@@ -73,15 +38,11 @@ export function calculatePlateboundScore(
     }
   }
 
-  // Normalize 0-5 scores from AI
   const normProtein = (overview.proteinScore || 0) * 2;
   const normSpeed = (overview.speedScore || 0) * 2;
-  
-  // Invert and normalize noise (0-5, where 5 is most noisy)
   const normNoise = (5 - (overview.noiseLevelEstimate || 0)) * 2;
 
-  const weightedScore = 
-    (normGoogle * weights.googleRating) +
+  const weightedScore =
     (priceScore * weights.price) +
     ((overview.healthScore || 0) * weights.health) +
     ((overview.workoutRecoveryScore || 0) * weights.workout) +

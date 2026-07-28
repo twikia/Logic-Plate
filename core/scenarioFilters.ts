@@ -62,13 +62,13 @@ export const SCENARIO_EMOJIS: Record<ScenarioKey, string> = {
 };
 
 export const SCENARIO_PREFERRED_SORT: Record<ScenarioKey, RandomSortBy> = {
-  top_rated: 'rating',
+  top_rated: 'taste',
   close_fast: 'speed',
   wallet_friendly: 'valueForMoney',
   health: 'health',
   light_coffee: 'energySustain',
   solo: 'soloDiner',
-  something_sweet: 'rating',
+  something_sweet: 'taste',
   drinks_out: 'distance',
   date: 'dateWorthiness',
   munchies: 'munchy',
@@ -103,8 +103,7 @@ export function restaurantMatchesScenario(place: any, key: ScenarioKey): boolean
   const ai = place?.aiOverview;
   switch (key) {
     case 'top_rated': {
-      const r = place?.rating;
-      return typeof r === 'number' && Number.isFinite(r) && r >= 4.0;
+      return aiIntAtLeast(ai, 'tasteScore', 3.5);
     }
     case 'health': {
       if (aiNumAtLeast(ai, 'healthScore', 5.5)) return true;

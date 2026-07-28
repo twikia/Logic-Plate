@@ -671,7 +671,7 @@ function SpotlightCard({
   const { formatDistance, formatWalkingTime, formatDrivingTime } = useDistanceFormatter();
   const ai = place.aiOverview as AiOverview | null | undefined;
   const overallScore = ai
-    ? calculatePlateboundScore(ai, place.rating, place.priceLevel, place.userRatingCount, place.priceTier ?? ai.priceTier)
+    ? calculatePlateboundScore(ai, place.priceLevel, place.priceTier ?? ai.priceTier)
     : null;
   const costLabel = formatRestaurantCostLabel(place);
   const neonUi = Boolean(theme.neonColors);

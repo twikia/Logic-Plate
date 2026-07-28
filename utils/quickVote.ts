@@ -23,7 +23,6 @@ export interface QuickVoteRestaurant {
   gemini_summary?: string;
   healthScore?: number;
   aiOverview?: { summaryGoodBad?: string; healthScore?: number; priceTier?: number };
-  rating?: number;
   address?: string;
   formattedAddress?: string;
   location?: { latitude?: number; longitude?: number };
