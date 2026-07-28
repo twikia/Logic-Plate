@@ -52,6 +52,8 @@ export const SEARCH_CONFIG = {
   // After priority AI is filled: one batch at a time, with delay between.
   BACKGROUND_SCRAPE_MAX_PARALLEL: 1,
   BACKGROUND_SCRAPE_DELAY_MS: 2500,
+  // After the center cell returns, fetch remaining ring cells one at a time.
+  BACKGROUND_CELL_FETCH_DELAY_MS: 750,
 
   // Overture existence confidence (0–1). Missing confidence is rejected.
   MIN_OVERTURE_CONFIDENCE: 0.9,
