@@ -628,6 +628,19 @@ function normalizeOvertureFeature(feature: OvertureFeature): NormalizeOutcome {
 
 // ─── Overture API Fetch ───────────────────────────────────────────────────────
 
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const PIN_DISTANCE_MAX_METERS = OVERTURE_SEARCH_RADIUS_METERS * 1.5;
+
 async function fetchOvertureNearby(
   lat: number,
   lng: number,
@@ -702,13 +715,23 @@ async function fetchOvertureNearby(
         return true;
       });
 
-      if (features.length > 0 && deduped.length === 0 && rejected.length === 0) {
+      const withinRadius: NormalizedPlace[] = [];
+      for (const p of deduped) {
+        const dist = haversineMeters(lat, lng, p.location.latitude, p.location.longitude);
+        if (dist > PIN_DISTANCE_MAX_METERS) {
+          rejected.push({ gers_id: p.id, reason: 'bad_location' });
+        } else {
+          withinRadius.push(p);
+        }
+      }
+
+      if (features.length > 0 && withinRadius.length === 0 && rejected.length === 0) {
         throw new Error(
           `Overture returned ${features.length} features but none normalized at (${lat.toFixed(4)}, ${lng.toFixed(4)})`
         );
       }
 
-      return { places: deduped, rejected };
+      return { places: withinRadius, rejected };
     } catch (err) {
       clearTimeout(timeout);
       if (err instanceof Error && err.name === 'AbortError') {

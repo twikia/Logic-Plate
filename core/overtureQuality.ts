@@ -2,7 +2,7 @@
 
 export const MIN_OVERTURE_CONFIDENCE = 0.9;
 export const MIN_OVERTURE_CONFIDENCE_META_ONLY = 0.95;
-export const MIN_EXISTENCE_SIGNALS = 3;
+export const MIN_EXISTENCE_SIGNALS = 5;
 export const CELL_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const FOOD_CATEGORIES = [
@@ -71,8 +71,6 @@ export const FOOD_CATEGORIES = [
   'acai_shop',
   'smoothie_bar',
   'food_and_drink',
-  'meal_takeaway',
-  'meal_delivery',
 ] as const;
 
 const FOOD_CATEGORY_SET = new Set<string>(FOOD_CATEGORIES);
@@ -195,7 +193,7 @@ export function isFoodCategoryLabel(label: string | null | undefined): boolean {
   if (FOOD_CATEGORY_SET.has(c) || FOOD_BASIC_EXTRA.has(c)) return true;
   if (c === 'food_and_drink' || c.startsWith('food_and_drink')) return true;
   if (
-    /restaurant|food_truck|food_court|meal_takeaway|meal_delivery|bakery|cafe|coffee|bistro|diner|pizzeria|steakhouse|barbecue|bbq|sushi|ramen|noodle|tavern|gastropub|brewery|winery|distillery|juice|smoothie|dessert|donut|bagel|deli|sandwich|burger|taco|ice_cream|gelato|pub|bar$|_bar$|^bar_|night_?club|lounge/.test(
+    /restaurant|food_truck|food_court|bakery|cafe|coffee|bistro|diner|pizzeria|steakhouse|barbecue|bbq|sushi|ramen|noodle|tavern|gastropub|brewery|winery|distillery|juice|smoothie|dessert|donut|bagel|deli|sandwich|burger|taco|ice_cream|gelato|pub|bar$|_bar$|^bar_|night_?club|lounge/.test(
       c,
     )
   ) {
@@ -272,11 +270,7 @@ export function evaluatePlaceQuality(
   }
 
   if (isMetaOnlySources(place.sources)) {
-    const phoneOk = !!(place.phone && String(place.phone).trim().length >= 7);
-    const addressOk = hasRealAddress(place.address);
-    if (!phoneOk || !addressOk || confidence < MIN_OVERTURE_CONFIDENCE_META_ONLY) {
-      return { ok: false, reason: 'meta_only_weak' };
-    }
+    return { ok: false, reason: 'meta_only_weak' };
   }
 
   if (countExistenceSignals(place) < MIN_EXISTENCE_SIGNALS) {
