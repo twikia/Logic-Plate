@@ -15,6 +15,7 @@ import {
     selectSpreadPlaces,
 } from './restaurantSpreadSelection';
 import { SEARCH_CONFIG } from './searchConfig';
+import { logAppIssue } from './issueLog';
 import { supabase } from './supabaseClient';
 import { logEdgeFunctionFailureAsync } from './supabaseFunctionErrors';
 import { ensureWebsiteScrapes, findMissingScrapeIds, streamWebsiteScrapesForAi } from './websiteScrapeCache';
@@ -62,7 +63,7 @@ export class RestaurantLoadSupersededError extends Error {
 }
 
 export const RESTAURANT_FETCH_USER_MESSAGE =
-  "Couldn't load nearby restaurants. Check your connection and try again.";
+  'Something went wrong, or there are no restaurants in this area.';
 
 export class RestaurantFetchError extends Error {
   readonly name = 'RestaurantFetchError';
@@ -77,6 +78,16 @@ export class RestaurantFetchError extends Error {
 
 export const logRestaurantFetchError = (e: RestaurantFetchError): void => {
   console.warn('[restaurants]', e.message, e.detail ?? e.cause);
+  logAppIssue({
+    kind: 'restaurant_fetch_error',
+    message: e.message,
+    severity: 'error',
+    source: 'client:orchestrator',
+    detail: {
+      detail: typeof e.detail === 'string' ? e.detail : undefined,
+      cause: e.cause instanceof Error ? e.cause.message : e.cause != null ? String(e.cause) : undefined,
+    },
+  });
 };
 
 export const isRestaurantLoadSupersededError = (e: unknown): boolean =>
@@ -188,6 +199,14 @@ async function fetchAndMergeCells(
 
     if (Array.isArray(data.failedCells) && data.failedCells.length > 0) {
       console.warn('[Orchestrator] Edge function reported failed cells:', data.failedCells);
+      logAppIssue({
+        kind: 'overture_cells_failed',
+        message: `${data.failedCells.length} overture cell(s) failed during fetch`,
+        severity: 'warn',
+        source: 'client:orchestrator',
+        detail: { failedCells: data.failedCells },
+        cellId: data.failedCells[0]?.cellId ?? null,
+      });
     }
 
     await applyFetchedCellResults(data, rejectedIds, allPlaces);
@@ -489,6 +508,14 @@ async function loadNearbyRestaurantsInternal(
       } else if (allPlaces.length === 0) {
         const detail = formatFetchResponseDetail(data, 'v2-fetch-restaurants returned zero places');
         console.warn(`[Orchestrator] ${detail}`);
+        logAppIssue({
+          kind: 'overture_cell_empty',
+          message: 'Key overture cell returned no usable restaurants',
+          severity: 'error',
+          source: 'client:orchestrator',
+          detail: { responseDetail: detail, failedCells: data?.failedCells ?? [] },
+          cellId: primaryPayload[0]?.cellId ?? null,
+        });
         throw new RestaurantFetchError(undefined, detail, detail);
       }
     } else {

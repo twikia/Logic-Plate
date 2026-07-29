@@ -18,6 +18,7 @@ import {
   type AtpPlaceHoursRow,
 } from "../_shared/allThePlacesHours.ts";
 import { secretsEqual } from "../_shared/security.ts";
+import { logIssue, pct } from "../_shared/issueLog.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -823,6 +824,10 @@ serve(async (req) => {
 
           newlyFetchedRestaurants.push({ cellId: cell.cellId, places: kept });
 
+          const inputCount = places.length + normalizeRejected.length;
+          const thrownOut = normalizeRejected.length + (places.length - freshPlaces.length) + qualityRejected.length;
+          const rejectPct = pct(thrownOut, inputCount);
+
           if (kept.length > 0) {
             const { error: upsertError } = await supabase
               .from('v2_restaurant_cell_cache')
@@ -832,27 +837,91 @@ serve(async (req) => {
               );
             if (upsertError) {
               console.error(`[v2-fetch-restaurants] Supabase upsert error for cell ${cell.cellId}: ${upsertError.message}`);
+              await logIssue(supabase, {
+                source: 'edge:v2-fetch-restaurants',
+                kind: 'cell_cache_upsert_failed',
+                message: `Failed to upsert cell cache for ${cell.cellId}`,
+                severity: 'error',
+                cellId: cell.cellId,
+                detail: { error: upsertError.message, kept: kept.length },
+              });
             } else {
               console.log(
                 `[v2-fetch-restaurants] Supabase upsert OK: cell ${cell.cellId} → ${kept.length} places ` +
                 `(${allRejected.length} rejected tombstones)`
               );
             }
+            if (rejectPct >= 80) {
+              await logIssue(supabase, {
+                source: 'edge:v2-fetch-restaurants',
+                kind: 'high_reject_rate',
+                message: `High reject rate for cell ${cell.cellId}: ${rejectPct}% thrown out`,
+                severity: 'warn',
+                cellId: cell.cellId,
+                detail: {
+                  inputCount,
+                  kept: kept.length,
+                  thrownOut,
+                  rejectPct,
+                  normalizeRejected: normalizeRejected.length,
+                  qualityRejected: qualityRejected.length,
+                  alreadyTombstoned: places.length - freshPlaces.length,
+                },
+              });
+            }
           } else {
             console.log(
               `[v2-fetch-restaurants] No usable places for cell ${cell.cellId} — ` +
               `skipping cell upsert (${allRejected.length} rejected)`
             );
+            await logIssue(supabase, {
+              source: 'edge:v2-fetch-restaurants',
+              kind: 'overture_cell_empty',
+              message: `Overture cell ${cell.cellId} found no usable restaurants (${rejectPct}% thrown out)`,
+              severity: 'error',
+              cellId: cell.cellId,
+              detail: {
+                lat: cell.lat,
+                lng: cell.lng,
+                inputCount,
+                kept: 0,
+                thrownOut,
+                rejectPct,
+                normalizeRejected: normalizeRejected.length,
+                qualityRejected: qualityRejected.length,
+                alreadyTombstoned: places.length - freshPlaces.length,
+                qualityReasons: qualityRejected.reduce((acc: Record<string, number>, r) => {
+                  acc[r.reason] = (acc[r.reason] ?? 0) + 1;
+                  return acc;
+                }, {}),
+              },
+            });
           }
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           console.error(`[v2-fetch-restaurants] Failed cell ${cell.cellId}: ${reason}`);
           failedCells.push({ cellId: cell.cellId, reason });
+          await logIssue(supabase, {
+            source: 'edge:v2-fetch-restaurants',
+            kind: 'overture_cell_failed',
+            message: `Overture cell ${cell.cellId} failed: ${reason}`,
+            severity: 'error',
+            cellId: cell.cellId,
+            detail: { reason, lat: cell.lat, lng: cell.lng },
+          });
         }
       })
     );
 
     if (newlyFetchedRestaurants.length === 0 && failedCells.length > 0) {
+      await logIssue(supabase, {
+        source: 'edge:v2-fetch-restaurants',
+        kind: 'all_cells_failed',
+        message: 'All overture cells failed to fetch',
+        severity: 'error',
+        detail: { failedCells },
+        cellId: failedCells[0]?.cellId ?? null,
+      });
       return jsonErrorResponse(500, 'ALL_CELLS_FAILED', 'All cells failed', { failedCells });
     }
 

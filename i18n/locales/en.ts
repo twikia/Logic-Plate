@@ -48,7 +48,7 @@ const en = {
       'RNG says eat',
     ],
     locationError: 'Turn on location to get your daily pick.',
-    loadError: 'Could not load restaurants nearby.',
+    loadError: 'Something went wrong, or there are no restaurants in this area.',
     noResults: 'No restaurants matched your filters nearby.',
     radarHealth: 'Health',
     radarTaste: 'Taste',
@@ -206,7 +206,7 @@ const en = {
     noResultsInRadius: 'No restaurants found within {{radius}}.',
     locationError:
       'Location access is needed to find nearby restaurants.\n\nEnable it in Settings \u2192 Privacy \u2192 Location.',
-    loadError: 'Something went wrong. Please try again.',
+    loadError: 'Something went wrong, or there are no restaurants in this area.',
     aiMetric: 'AI metric',
     none: 'None',
     metric: 'Metric',

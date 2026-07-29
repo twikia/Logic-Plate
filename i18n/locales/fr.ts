@@ -49,7 +49,7 @@ const fr: Translations = {
       "L'algo a parlé"
     ],
     "locationError": "Activez la localisation pour obtenir votre sélection du jour.",
-    "loadError": "Impossible de charger les restaurants à proximité.",
+    "loadError": "Un problème est survenu, ou il n'y a aucun restaurant dans cette zone.",
     "noResults": "Aucun restaurant ne correspond à vos filtres à proximité.",
     "radarHealth": "Santé",
     "radarTaste": "Goût",
@@ -203,7 +203,7 @@ const fr: Translations = {
     "pickOne": "Choisir un ({{count}})",
     "noResultsInRadius": "Aucun restaurant dans {{radius}}.",
     "locationError": "La localisation est nécessaire.\n\nActivez-la dans Réglages → Confidentialité → Localisation.",
-    "loadError": "Une erreur est survenue. Réessayez.",
+    "loadError": "Un problème est survenu, ou il n'y a aucun restaurant dans cette zone.",
     "aiMetric": "Métrique IA",
     "none": "Aucune",
     "metric": "Métrique",

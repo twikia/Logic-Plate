@@ -49,7 +49,7 @@ const pl: Translations = {
       "RNG mówi: jedz"
     ],
     "locationError": "Włącz lokalizację, aby otrzymać codzienny wybór.",
-    "loadError": "Nie udało się wczytać restauracji w pobliżu.",
+    "loadError": "Coś poszło nie tak, albo nie ma restauracji w tej okolicy.",
     "noResults": "W pobliżu nie ma restauracji spełniających kryteria filtrów.",
     "radarHealth": "Zdrowie",
     "radarTaste": "Smak",
@@ -203,7 +203,7 @@ const pl: Translations = {
     "pickOne": "Wybierz jeden ({{count}})",
     "noResultsInRadius": "Nie znaleziono restauracji w promieniu {{radius}}.",
     "locationError": "Aby znaleźć pobliskie restauracje, potrzebny jest dostęp do lokalizacji.\n\nWłącz tę opcję w Ustawieniach → Prywatność → Lokalizacja.",
-    "loadError": "Coś poszło nie tak. Spróbuj ponownie.",
+    "loadError": "Coś poszło nie tak, albo nie ma restauracji w tej okolicy.",
     "aiMetric": "Wskaźnik sztucznej inteligencji",
     "none": "Nic",
     "metric": "Metryczny",

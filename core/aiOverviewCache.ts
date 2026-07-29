@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabaseClient';
+import { logAppIssue } from './issueLog';
+import { logEdgeFunctionFailureAsync } from './supabaseFunctionErrors';
 import { getBypassLocalCache } from './userSettings';
 
 export const AI_OVERVIEW_FIELD_PLACEHOLDER = '-';
@@ -377,6 +379,24 @@ export const invokeGenerateAiOverviewsForPlaces = async (
 
   if (invokeError || !generatedData?.generatedOverviews) {
     console.warn('[AI] v2-generate-ai-overview invoke error:', invokeError?.message ?? 'no data');
+    if (invokeError) {
+      void logEdgeFunctionFailureAsync('v2-generate-ai-overview', {
+        data: generatedData,
+        error: invokeError,
+      });
+    } else {
+      logAppIssue({
+        kind: 'gemini_invoke_empty',
+        message: `AI overview invoke returned no overviews for ${payloadPlaces.length} places`,
+        severity: 'warn',
+        source: 'client:aiOverviewCache',
+        detail: {
+          requested: payloadPlaces.length,
+          thrownOutPct: 100,
+          responseKeys: generatedData && typeof generatedData === 'object' ? Object.keys(generatedData) : [],
+        },
+      });
+    }
     return { overviews: out, excludedPlaceIds: [] };
   }
 

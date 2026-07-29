@@ -1,3 +1,5 @@
+import { logAppIssue } from './issueLog';
+
 type InvokePayload = {
   data: unknown;
   error: { message?: string; name?: string; context?: unknown } | null;
@@ -69,6 +71,33 @@ export async function formatEdgeFunctionFailureAsync(
   return parts.join(' — ');
 }
 
+function reportEdgeIssue(fnName: string, msg: string, data: unknown): void {
+  try {
+    let dataPreview: unknown = null;
+    try {
+      dataPreview =
+        data == null
+          ? null
+          : JSON.parse(
+              JSON.stringify(data, (_k, v) =>
+                typeof v === 'string' && v.length > 500 ? `${v.slice(0, 500)}…` : v,
+              ),
+            );
+    } catch {
+      dataPreview = typeof data === 'string' ? data.slice(0, 500) : null;
+    }
+    logAppIssue({
+      kind: 'edge_function_failure',
+      message: msg,
+      severity: 'error',
+      source: `client:edge:${fnName}`,
+      detail: { fnName, dataPreview },
+    });
+  } catch {
+    // ignore telemetry failures
+  }
+}
+
 export function logEdgeFunctionFailure(fnName: string, payload: InvokePayload): void {
   const msg = formatEdgeFunctionFailure(fnName, payload);
   const extra =
@@ -76,6 +105,7 @@ export function logEdgeFunctionFailure(fnName: string, payload: InvokePayload): 
       ? { name: payload.error.name, context: payload.error.context }
       : null;
   console.warn(`[edge-function] ${msg}`, { data: payload.data, errorFields: extra });
+  reportEdgeIssue(fnName, msg, payload.data);
 }
 
 export async function logEdgeFunctionFailureAsync(
@@ -84,5 +114,6 @@ export async function logEdgeFunctionFailureAsync(
 ): Promise<string> {
   const msg = await formatEdgeFunctionFailureAsync(fnName, payload);
   console.warn(`[edge-function] ${msg}`, { data: payload.data });
+  reportEdgeIssue(fnName, msg, payload.data);
   return msg;
 }

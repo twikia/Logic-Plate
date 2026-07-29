@@ -49,7 +49,7 @@ const es: Translations = {
       "El algoritmo manda"
     ],
     "locationError": "Activa la ubicación para obtener tu recomendación del día.",
-    "loadError": "No se pudieron cargar restaurantes cercanos.",
+    "loadError": "Algo salió mal, o no hay restaurantes en esta zona.",
     "noResults": "Ningún restaurante coincide con tus filtros cerca de ti.",
     "radarHealth": "Salud",
     "radarTaste": "Sabor",
@@ -203,7 +203,7 @@ const es: Translations = {
     "pickOne": "Elige una opción ({{count}})",
     "noResultsInRadius": "No se han encontrado restaurantes en {{radius}}.",
     "locationError": "Se necesita acceso a la ubicación para encontrar restaurantes cercanos.\n\nHabilítelo en Configuración → Privacidad → Ubicación.",
-    "loadError": "Algo salió mal. Inténtalo de nuevo.",
+    "loadError": "Algo salió mal, o no hay restaurantes en esta zona.",
     "aiMetric": "Métrica de IA",
     "none": "Ninguno",
     "metric": "Medidas",

@@ -9,6 +9,7 @@ import {
     type ScrapeResult,
 } from "../_shared/websiteScrape.ts";
 import { assertAppSecret } from "../_shared/security.ts";
+import { logIssue, pct } from "../_shared/issueLog.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -326,7 +327,7 @@ async function runGeminiBatch(
   batch: InputPlace[],
   geminiUrl: string,
   scrapeByGersId: Map<string, ScrapeResult>,
-): Promise<{ overviews: { gersId: string; overview: AiOverview }[] }> {
+): Promise<{ overviews: { gersId: string; overview: AiOverview }[]; error?: string }> {
   const out: { gersId: string; overview: AiOverview }[] = [];
 
   const batchIds = new Set(batch.map(p => p.gers_id));
@@ -353,14 +354,14 @@ async function runGeminiBatch(
 
   if (!response.ok) {
     console.error(`[v2-generate-ai-overview] Gemini API error: ${response.status}`);
-    return { overviews: out };
+    return { overviews: out, error: `api_error_${response.status}` };
   }
 
   const modelData = await response.json();
   const rawText = modelData?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) {
     console.error('[v2-generate-ai-overview] Gemini returned empty response');
-    return { overviews: out };
+    return { overviews: out, error: 'empty_response' };
   }
 
   let parsed: any;
@@ -368,11 +369,11 @@ async function runGeminiBatch(
     parsed = JSON.parse(rawText);
   } catch {
     console.error('[v2-generate-ai-overview] Failed to parse Gemini JSON');
-    return { overviews: out };
+    return { overviews: out, error: 'parse_error' };
   }
 
   const items = parsed?.overviews;
-  if (!Array.isArray(items)) return { overviews: out };
+  if (!Array.isArray(items)) return { overviews: out, error: 'invalid_shape' };
 
   for (const item of items) {
     const gersId = String(item?.gersId ?? '').trim();
@@ -601,13 +602,80 @@ serve(async (req) => {
       batches.map(batch => runGeminiBatch(batch, geminiUrl, scrapeByGersId))
     );
     const generatedOverviews: { gersId: string; overview: AiOverview }[] = [];
-    for (const result of batchResultsAll) {
+    for (let i = 0; i < batchResultsAll.length; i++) {
+      const result = batchResultsAll[i];
       generatedOverviews.push(...result.overviews);
+      if (result.error) {
+        const batchSize = batches[i]?.length ?? 0;
+        await logIssue(supabase, {
+          source: 'edge:v2-generate-ai-overview',
+          kind: 'gemini_batch_failed',
+          message: `Gemini batch failed (${result.error}): ${batchSize} restaurants thrown out of AI`,
+          severity: 'error',
+          detail: {
+            reason: result.error,
+            batchSize,
+            thrownOutPct: 100,
+            gersIds: (batches[i] ?? []).map((p) => p.gers_id),
+          },
+        });
+      } else if (batches[i] && result.overviews.length < batches[i].length) {
+        const batchSize = batches[i].length;
+        const missed = batchSize - result.overviews.length;
+        await logIssue(supabase, {
+          source: 'edge:v2-generate-ai-overview',
+          kind: 'gemini_partial_miss',
+          message: `Gemini missed ${missed}/${batchSize} restaurants (${pct(missed, batchSize)}% thrown out)`,
+          severity: 'warn',
+          detail: {
+            batchSize,
+            generated: result.overviews.length,
+            missed,
+            thrownOutPct: pct(missed, batchSize),
+          },
+        });
+      }
     }
     console.log(
       `[v2-generate-ai-overview] Gemini generated ${generatedOverviews.length} overviews; ` +
       `excluded ${excludedPlaceIds.length} dead/no-website places`
     );
+
+    const geminiMissed = Math.max(0, geminiPlaces.length - generatedOverviews.length);
+    if (geminiPlaces.length > 0 && geminiMissed > 0) {
+      await logIssue(supabase, {
+        source: 'edge:v2-generate-ai-overview',
+        kind: 'gemini_throwout_summary',
+        message: `Gemini threw out ${geminiMissed}/${geminiPlaces.length} restaurants (${pct(geminiMissed, geminiPlaces.length)}%)`,
+        severity: geminiMissed === geminiPlaces.length ? 'error' : 'warn',
+        detail: {
+          uncachedCandidates: uncachedPlaces.length,
+          excludedDeadOrClosed: excludedPlaceIds.length,
+          excludePct: pct(excludedPlaceIds.length, uncachedPlaces.length),
+          geminiEligible: geminiPlaces.length,
+          generated: generatedOverviews.length,
+          geminiMissed,
+          geminiThrowOutPct: pct(geminiMissed, geminiPlaces.length),
+        },
+      });
+    } else if (excludedPlaceIds.length > 0 && uncachedPlaces.length > 0) {
+      const excludePct = pct(excludedPlaceIds.length, uncachedPlaces.length);
+      if (excludePct >= 50) {
+        await logIssue(supabase, {
+          source: 'edge:v2-generate-ai-overview',
+          kind: 'high_scrape_exclude_rate',
+          message: `${excludePct}% of places excluded before Gemini (${excludedPlaceIds.length}/${uncachedPlaces.length})`,
+          severity: 'warn',
+          detail: {
+            uncachedCandidates: uncachedPlaces.length,
+            excludedDeadOrClosed: excludedPlaceIds.length,
+            excludePct,
+            geminiEligible: geminiPlaces.length,
+            generated: generatedOverviews.length,
+          },
+        });
+      }
+    }
 
     // ── Step 4: Upsert to v2_ai_overview_cache + v2_ai_overview_details ───────
     const updatedAt = new Date().toISOString();
@@ -667,6 +735,21 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('[v2-generate-ai-overview] Unhandled error:', error);
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (supabaseUrl && supabaseServiceKey) {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        await logIssue(supabase, {
+          source: 'edge:v2-generate-ai-overview',
+          kind: 'ai_overview_unhandled',
+          message: error instanceof Error ? error.message : String(error),
+          severity: 'error',
+        });
+      }
+    } catch {
+      // ignore telemetry failures
+    }
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

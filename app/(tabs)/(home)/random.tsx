@@ -643,7 +643,7 @@ export default function RandomScreen() {
       }
       if (isRestaurantFetchError(e)) {
         logRestaurantFetchError(e);
-        setErrorMsg(e.message);
+        setErrorMsg(t('random.loadError'));
         return;
       }
       if (__DEV__) console.warn('[random load]', e);
