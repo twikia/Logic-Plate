@@ -104,6 +104,8 @@ export type GetNearbyRestaurantsOptions = {
   deferAi?: boolean;
   /** Cap eager AI generation to this many closest places. Defaults to MAX_AI_OVERVIEWS. */
   aiLimit?: number;
+  /** Cap places returned/shown (home uses aiLimit; map keeps MAX_DISPLAY_RESULTS). */
+  displayLimit?: number;
 };
 
 let latestJobSeq = 0;
@@ -300,9 +302,14 @@ async function generateAiInBatches(
   }
 
   let finishedCount = 0;
-  // One edge invoke per Gemini batch of 15 — each returns independently and streams into UI.
-  await Promise.all(
-    idChunks.map(async (chunkIds) => {
+  // Fan out Gemini batches (15 each), capped so we don't overload the edge.
+  const maxParallel = SEARCH_CONFIG.AI_GENERATION_MAX_PARALLEL;
+  let nextChunk = 0;
+  const workers = Array.from({ length: Math.min(maxParallel, idChunks.length) }, async () => {
+    while (true) {
+      const i = nextChunk++;
+      if (i >= idChunks.length) return;
+      const chunkIds = idChunks[i];
       try {
         const result = await invokeGenerateAiOverviewsForPlaces(seeds, chunkIds);
         for (const [k, v] of result.overviews) generated.set(k, v);
@@ -318,8 +325,9 @@ async function generateAiInBatches(
         done,
         total,
       });
-    }),
-  );
+    }
+  });
+  await Promise.all(workers);
 
   return { overviews: generated, excludedPlaceIds };
 }
@@ -547,12 +555,19 @@ async function loadNearbyRestaurantsInternal(
       unit: 'restaurants',
     },
   });
+  const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
+  // Home/filter wait for AI on a tight pool; map keeps the full spread set.
+  const displayLimit = Math.min(
+    SEARCH_CONFIG.MAX_DISPLAY_RESULTS,
+    options?.displayLimit ??
+      (options?.waitForAi && !options?.deferAi ? aiLimit : SEARCH_CONFIG.MAX_DISPLAY_RESULTS),
+  );
   const aiCachePromise = getCachedAiOverviewsForPlaces(withinRadius.map(toPlaceSeed));
   let visibleList = selectSpreadPlaces(
     withinRadius,
     cellIds,
     cellCenters,
-    SEARCH_CONFIG.MAX_DISPLAY_RESULTS
+    displayLimit
   );
   const cachedAi = await aiCachePromise;
   console.log(
@@ -573,9 +588,13 @@ async function loadNearbyRestaurantsInternal(
   let baseList = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
   console.log(`[Orchestrator] AI overview cache: ${cachedAi.size}/${workingList.length} already enriched`);
 
+  const placesForUi = (enriched: any[]) =>
+    options?.waitForAi ? enriched.filter((p) => !!p?.aiOverview) : enriched;
+
   const triggerUpdates = (enriched: any[]) => {
-    options?.onPlacesUpdated?.(enriched);
-    options?.onAiReady?.(enriched);
+    const ui = placesForUi(enriched);
+    options?.onPlacesUpdated?.(ui);
+    options?.onAiReady?.(ui);
   };
 
   const applyExclusions = async (excluded: string[]) => {
@@ -596,7 +615,7 @@ async function loadNearbyRestaurantsInternal(
       withinRadius,
       cellIds,
       cellCenters,
-      SEARCH_CONFIG.MAX_DISPLAY_RESULTS
+      displayLimit
     );
     workingList = await enrichPlacesWithScrapeHours([...visibleList]);
     baseList = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
@@ -654,10 +673,8 @@ async function loadNearbyRestaurantsInternal(
     })();
   };
 
-  const aiLimit = options?.aiLimit ?? SEARCH_CONFIG.MAX_AI_OVERVIEWS;
-
   // Priority scrape+AI: display cards first, then closest fill.
-  // Stream AI in batches of 15 as scrapes complete (no wall-clock cutoff).
+  // Stream AI in parallel batches of 15 as scrapes complete (no wall-clock cutoff).
   const scrapePool = pickClosestPlaces(withinRadius, SEARCH_CONFIG.MAX_WEBSITE_SCRAPES)
     .filter((p) => !!p.id && !!p.website_url)
     .map((p) => ({ id: p.id!, website_url: p.website_url }));
@@ -702,8 +719,11 @@ async function loadNearbyRestaurantsInternal(
     })();
   };
 
-  // Show restaurants immediately; photos load async via RestaurantImage.
-  options?.onPlacesUpdated?.(baseList);
+  // Map: show markers immediately. Home/filter (waitForAi): only emit AI-enriched.
+  const initialUi = placesForUi(baseList);
+  if (!options?.waitForAi || initialUi.length > 0) {
+    options?.onPlacesUpdated?.(initialUi);
+  }
   fetchSecondaryCellsInBackground();
 
   const emitAiProgress = (done: number, total: number) => {
@@ -753,12 +773,17 @@ async function loadNearbyRestaurantsInternal(
         onExcluded: async (ids) => {
           if (jobSeq !== latestJobSeq) return;
           await applyExclusions(ids);
-          workingList = await enrichPlacesWithScrapeHours(workingList);
+          workingList = filterUsablePlaces(workingList, rejectedIds);
           triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
         },
         onReadyBatch: async (ids) => {
           if (jobSeq !== latestJobSeq) return;
-          workingList = await enrichPlacesWithScrapeHours(workingList);
+          // Do not block Gemini on hours DB reads — enrich in parallel.
+          void enrichPlacesWithScrapeHours(workingList).then((list) => {
+            if (jobSeq !== latestJobSeq) return;
+            workingList = list;
+            triggerUpdates(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
+          });
           await runAiForReadyIds(ids);
         },
       });
@@ -777,7 +802,7 @@ async function loadNearbyRestaurantsInternal(
   if (options?.waitForAi) {
     await runStreamingScrapeAi();
     warmSlowScrapesInBackground();
-    const enriched = mergeAiOverviewsOntoPlaces(workingList, cachedAi);
+    const enriched = placesForUi(mergeAiOverviewsOntoPlaces(workingList, cachedAi));
     onProgress?.({ stage: 'done', progress: PROGRESS.done });
     return enriched;
   }

@@ -1313,8 +1313,11 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
   const recompute = useCallback(async () => {
     const coords = coordsRef.current;
     if (!prefs || !session || !coords || rawPlaces.length === 0) return;
+    // Homepage cards require AI enrichment — never score bare Overture rows.
+    const aiPlaces = rawPlaces.filter((p) => !!p?.aiOverview);
+    if (aiPlaces.length === 0) return;
     const rainy = await fetchIsLikelyRainNow(coords.latitude, coords.longitude);
-    const scored = scoreRestaurantPool(rawPlaces, {
+    const scored = scoreRestaurantPool(aiPlaces, {
       prefs,
       session,
       userLat: coords.latitude,
@@ -1399,8 +1402,11 @@ function applyHomeFeedRandomness(scored: any[]): any[] {
       const cacheKey = `${SPOTLIGHT_RESULTS_CACHE_PREFIX}_${Math.round(rad)}`;
       const cached = await getCachedResults(cacheKey);
       if (cached && cached.length > 0) {
-        hadCachedPlaces = true;
-        setRawPlaces(cached);
+        const cachedAi = cached.filter((p: any) => !!p?.aiOverview);
+        if (cachedAi.length > 0) {
+          hadCachedPlaces = true;
+          setRawPlaces(cachedAi);
+        }
       }
       startFetchPhase();
 

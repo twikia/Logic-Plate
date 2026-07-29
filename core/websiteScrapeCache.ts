@@ -126,8 +126,9 @@ export async function ensureWebsiteScrapes(
 
 /**
  * Scrape priority sites in parallel; call onReadyBatch whenever flushEvery new
- * scrapes are ready (and once more for a leftover partial). Stops requesting
- * new scrapes once targetUsable ready IDs exist. No hard wall-clock cutoff.
+ * scrapes are ready (and once more for a leftover partial). AI flushes run
+ * concurrently (up to AI_GENERATION_MAX_PARALLEL). Stops requesting new scrapes
+ * once targetUsable ready IDs exist. No hard wall-clock cutoff.
  */
 export async function streamWebsiteScrapesForAi(
   placesClosestFirst: ScrapeSeed[],
@@ -155,12 +156,40 @@ export async function streamWebsiteScrapesForAi(
   const dead = new Set<string>();
   const excludedAll: string[] = [];
   const flushed = new Set<string>();
-  let flushQueue: Promise<void> = Promise.resolve();
+  const flushInflight = new Set<Promise<void>>();
+  const maxAiParallel = SEARCH_CONFIG.AI_GENERATION_MAX_PARALLEL;
+  let aiSlots = maxAiParallel;
+  const aiWaiters: Array<() => void> = [];
+
+  const acquireAiSlot = async () => {
+    if (aiSlots > 0) {
+      aiSlots -= 1;
+      return;
+    }
+    await new Promise<void>((resolve) => aiWaiters.push(resolve));
+  };
+
+  const releaseAiSlot = () => {
+    const next = aiWaiters.shift();
+    if (next) next();
+    else aiSlots += 1;
+  };
 
   const enqueueFlush = (ids: string[]) => {
     if (ids.length === 0) return;
-    flushQueue = flushQueue.then(async () => {
-      await options?.onReadyBatch?.(ids);
+    const p = (async () => {
+      await acquireAiSlot();
+      try {
+        await options?.onReadyBatch?.(ids);
+      } catch (err) {
+        console.warn('[ScrapeCache] onReadyBatch failed:', err);
+      } finally {
+        releaseAiSlot();
+      }
+    })();
+    flushInflight.add(p);
+    void p.finally(() => {
+      flushInflight.delete(p);
     });
   };
 
@@ -238,14 +267,19 @@ export async function streamWebsiteScrapesForAi(
   };
 
   launchNext();
-  while (inflight.size > 0 || (cursor < batches.length && flushed.size < targetUsable)) {
+  while (flushed.size < targetUsable && (inflight.size > 0 || cursor < batches.length)) {
     launchNext();
     if (inflight.size === 0) break;
     await Promise.race([...inflight, sleep(250)]);
   }
 
   flushReady(true);
-  await flushQueue;
+  // AI flushes already in flight for the usable set — do not wait on leftover scrapes.
+  await Promise.all([...flushInflight]);
+  // Let any leftover scrape invokes finish in the background (tombstones / cache warm).
+  if (inflight.size > 0) {
+    void Promise.allSettled([...inflight]);
+  }
 
   if (excludedAll.length > 0) {
     await markRejectedPlaceIds([...new Set(excludedAll)]);

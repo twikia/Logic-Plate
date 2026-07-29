@@ -41,6 +41,8 @@ export const SEARCH_CONFIG = {
   FILTER_AI_OVERVIEWS: 120,
   // Gemini call size — stream AI as soon as this many scrapes are ready.
   AI_GENERATION_BATCH_SIZE: 15,
+  // Cap concurrent AI edge invokes (batches of 15) so 60 places fan out together.
+  AI_GENERATION_MAX_PARALLEL: 4,
   // Race this many closest/display sites for scrape; take up to AI limit usable.
   AI_SCRAPE_QUEUE_SIZE: 120,
   // Background website scrape fan-out after priority AI (closest first).

@@ -15,9 +15,10 @@ const corsHeaders = {
 };
 
 // Keep batches small: unbounded parallel HTML fetches were OOM'ing (~289MB heap).
+// HTML is capped at MAX_HTML_CHARS per page, so modest concurrency is safe.
 const MAX_PLACES_PER_REQUEST = 12;
 const PING_CONCURRENCY = 12;
-const SCRAPE_CONCURRENCY = 4;
+const SCRAPE_CONCURRENCY = 6;
 const SCRAPE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 type InputPlace = {
