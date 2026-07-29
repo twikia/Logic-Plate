@@ -39,7 +39,7 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
   {
     id: 'practical',
     title: 'Practical priorities',
-    subtitle: 'How much speed, cost, and rating matter to you.',
+    subtitle: 'How much speed and cost matter to you.',
     metrics: [
       {
         key: 'speed',
@@ -65,19 +65,6 @@ export const PRIORITY_METRIC_SCREENS: PriorityMetricScreen[] = [
           3: '💵',
           4: '🪙',
           5: '🏷️',
-        },
-      },
-      {
-        key: 'ratingAdherence',
-        label: 'Top rating importance',
-        hint: 'Favor higher ratings',
-        icon: '🏆',
-        customLevelEmojis: {
-          1: '🤷',
-          2: '⭐',
-          3: '🌟',
-          4: '🔥',
-          5: '🏆',
         },
       },
     ],

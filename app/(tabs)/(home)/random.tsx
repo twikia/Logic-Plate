@@ -296,9 +296,7 @@ const RestaurantRow = React.memo(function RestaurantRow({
   const price = formatRestaurantCostLabel(item);
   const overall = calculatePlateboundScore(
     ai,
-    item.rating ?? undefined,
     item.priceLevel,
-    item.userRatingCount,
     item.priceTier ?? item.aiOverview?.priceTier
   );
   const healthNum = typeof ai?.healthScore === 'number' ? ai.healthScore : null;
@@ -423,7 +421,6 @@ export default function RandomScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [openOnly, setOpenOnly] = useState(true);
   const [selectedPrices, setSelectedPrices] = useState<Set<string>>(new Set());
-  const [minRating, setMinRating] = useState(0);
   const [selectedCuisines, setSelectedCuisines] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<RandomSortBy>('distance');
   const [aiSlot1, setAiSlot1] = useState<AiMetricSlot>({ key: null, min: 0 });
@@ -465,7 +462,6 @@ export default function RandomScreen() {
     { key: 'PRICE_LEVEL_EXPENSIVE', label: '$$$' },
     { key: 'PRICE_LEVEL_VERY_EXPENSIVE', label: '$$$$' },
   ];
-  const RATING_OPTS = [0, 3.0, 3.5, 4.0, 4.5];
 
   const togglePrice = (key: string) => {
     const next = new Set(selectedPrices);
@@ -483,7 +479,6 @@ export default function RandomScreen() {
     setFilter('');
     setOpenOnly(true);
     setSelectedPrices(new Set());
-    setMinRating(0);
     setSelectedCuisines(paramCuisine ? new Set([paramCuisine]) : new Set());
     setSortBy(paramScenario ? getScenarioPreferredSort(paramScenario) : 'distance');
     setAiSlot1({ key: null, min: 0 });
@@ -550,7 +545,6 @@ export default function RandomScreen() {
   const activeFilterCount =
     (openOnly ? 1 : 0) +
     (selectedPrices.size > 0 ? 1 : 0) +
-    (minRating > 0 ? 1 : 0) +
     (selectedCuisines.size > 0 ? 1 : 0) +
     (scenarioFilterEnabled && scenarioKey ? 1 : 0) +
     (Object.values(minAiCutoffs).filter((v) => v > 0).length);
@@ -593,7 +587,6 @@ export default function RandomScreen() {
           setFilter(saved.filter);
           setOpenOnly(saved.openOnly);
           setSelectedPrices(new Set(saved.selectedPrices));
-          setMinRating(saved.minRating);
           setSelectedCuisines(
             paramCuisine ? new Set([paramCuisine]) : new Set(saved.selectedCuisines)
           );
@@ -710,7 +703,6 @@ export default function RandomScreen() {
         filter,
         openOnly,
         selectedPrices: Array.from(selectedPrices),
-        minRating,
         selectedCuisines: Array.from(selectedCuisines),
         sortBy,
         minAiCutoffs: minAiCutoffs,
@@ -720,7 +712,7 @@ export default function RandomScreen() {
       });
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [filter, openOnly, selectedPrices, minRating, selectedCuisines, sortBy, minAiCutoffs, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
+  }, [filter, openOnly, selectedPrices, selectedCuisines, sortBy, minAiCutoffs, selected, isLoading, errorMsg, scenarioKey, scenarioFilterEnabled]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -757,7 +749,6 @@ export default function RandomScreen() {
         const effectivePrice = v1Price || priceLabelFromTier;
         if (effectivePrice && !selectedPrices.has(effectivePrice)) return false;
       }
-      if (minRating > 0 && (!r.rating || r.rating < minRating)) return false;
       if (selectedCuisines.size > 0) {
         const hasMatch = Array.from(selectedCuisines).some(cuisineKey =>
           placeMatchesCuisineKey(r, cuisineKey)
@@ -770,7 +761,7 @@ export default function RandomScreen() {
       if (!passesAiCutoffs(r, minAiCutoffs)) return false;
       return true;
     }).sort((a, b) => compareRestaurantsBySort(a, b, sortBy));
-  }, [allResults, filter, openOnly, selectedPrices, minRating, selectedCuisines, scenarioFilterEnabled, scenarioKey, minAiCutoffs, sortBy]);
+  }, [allResults, filter, openOnly, selectedPrices, selectedCuisines, scenarioFilterEnabled, scenarioKey, minAiCutoffs, sortBy]);
 
   const allSelectedInView = filtered.length > 0 && filtered.every(r => selected.has(r.id));
 
@@ -1048,37 +1039,6 @@ export default function RandomScreen() {
                         ]}
                       >
                         {p.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={styles.quickFilterRow}>
-                <Text style={[styles.quickFilterRowLabel, { color: theme.subtext }]}>{t('random.rating')}</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.quickFilterPillsRow}
-                >
-                  {RATING_OPTS.map(r => (
-                    <TouchableOpacity
-                      key={r}
-                      style={[
-                        styles.quickFilterPill,
-                        { borderColor: tc.chipBorder, backgroundColor: tc.chipBg },
-                        minRating === r && { backgroundColor: tc.chipActiveBg, borderColor: tc.chipActiveBg },
-                      ]}
-                      onPress={() => setMinRating(r)}
-                    >
-                      <Text
-                        style={[
-                          styles.quickFilterPillText,
-                          { color: theme.subtext },
-                          minRating === r && { color: tc.chipActiveText },
-                        ]}
-                      >
-                        {r === 0 ? t('random.any') : `${r}+`}
                       </Text>
                     </TouchableOpacity>
                   ))}

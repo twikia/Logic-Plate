@@ -351,9 +351,7 @@ export default function RandomResultScreen() {
   const plateboundScore = !ph
     ? calculatePlateboundScore(
         aiOverview,
-        place.rating ?? undefined,
         place.priceLevel,
-        place.userRatingCount,
         place.priceTier ?? place.aiOverview?.priceTier
       )
     : null;

@@ -7,7 +7,6 @@ export const RANDOM_SORT_KEYS = [
   'distance',
   'price',
   'health',
-  'rating',
   'overall',
   'taste',
   'valueForMoney',
@@ -55,7 +54,6 @@ export type RandomPickerPersisted = {
   filter: string;
   openOnly: boolean;
   selectedPrices: string[];
-  minRating: number;
   selectedCuisines: string[];
   sortBy: RandomSortBy;
   selectedIds: string[];

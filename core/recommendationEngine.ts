@@ -1,5 +1,4 @@
 import type { AiOverview } from './aiOverviewCache';
-import { ratingConfidenceCurve } from './ratingCalculator';
 import { isOpenNow } from './isOpenNow';
 import { getPlacePrimaryType, getPlacePriceTier } from './placeFields';
 import {
@@ -128,11 +127,11 @@ function rawCheapnessScore(place: any): number {
   }
 }
 
-function rawPriceScore(place: any, ratingRaw: number, costPreference: ImportanceLevel): number {
+function rawPriceScore(place: any, qualityRaw: number, costPreference: ImportanceLevel): number {
   const cheap = rawCheapnessScore(place);
   const expensiveness = Math.max(0, Math.min(1, (100 - cheap) / 93));
-  const ratingGate = cheap + expensiveness * (ratingRaw - cheap) * 0.72;
-  const gated = Math.max(0, Math.min(100, ratingGate));
+  const qualityGate = cheap + expensiveness * (qualityRaw - cheap) * 0.72;
+  const gated = Math.max(0, Math.min(100, qualityGate));
 
   const cheapBias = importanceToStrength(costPreference);
   if (cheapBias <= 0) return gated;
@@ -147,7 +146,6 @@ const NORM_WEIGHT_KEYS = [
   'valueForMoney',
   'cuisine',
   'taste',
-  'ratingAdherence',
 ] as const satisfies readonly (keyof RecommendationWeights)[];
 
 const NEUTRAL_BLEND: Record<(typeof NORM_WEIGHT_KEYS)[number], number> = {
@@ -156,8 +154,7 @@ const NEUTRAL_BLEND: Record<(typeof NORM_WEIGHT_KEYS)[number], number> = {
   cost: 0.12,
   health: 0.12,
   valueForMoney: 0.02,
-  taste: 0.1,
-  ratingAdherence: 0.22,
+  taste: 0.32,
   cuisine: 0.1,
 };
 
@@ -260,23 +257,14 @@ function rawHealthScore(place: any): number {
   return Math.max(0, Math.min(100, score));
 }
 
-function rawRatingScore(place: any): number {
-  const r = typeof place?.rating === 'number' ? place.rating : 0;
-  if (r > 0) {
-    const rawScore = (r / 5) * 100;
-    const conf = ratingConfidenceCurve(place?.userRatingCount);
-    const baseline = 83;
-    return conf * rawScore + (1 - conf) * baseline;
-  }
-
+function rawValueForMoneyScore(place: any, qualityRaw: number): number {
   const ai = aiOf(place);
-  const taste = aiScore0to5(ai, 'tasteScore', NaN);
-  const value = aiScore0to5(ai, 'valueForMoneyScore', NaN);
-  if (Number.isFinite(taste) && Number.isFinite(value)) {
-    return taste * 0.62 + value * 0.38;
-  }
-  if (Number.isFinite(taste)) return taste;
-  return 42;
+  const fromAi = aiScore0to5(ai, 'valueForMoneyScore', NaN);
+  if (Number.isFinite(fromAi)) return fromAi;
+  const cheap = rawCheapnessScore(place);
+  const expensiveness = Math.max(0, Math.min(1, (100 - cheap) / 93));
+  const value = cheap + expensiveness * (qualityRaw - cheap) * 0.9;
+  return Math.max(0, Math.min(100, value));
 }
 
 function rawSpeedScore(place: any): number {
@@ -289,16 +277,6 @@ function rawSpeedScore(place: any): number {
   if (place?.takeout === true) score += 12;
   if (pt.includes('fine_dining')) score = 25;
   return Math.max(0, Math.min(100, score));
-}
-
-function rawValueForMoneyScore(place: any, ratingRaw: number): number {
-  const ai = aiOf(place);
-  const fromAi = aiScore0to5(ai, 'valueForMoneyScore', NaN);
-  if (Number.isFinite(fromAi)) return fromAi;
-  const cheap = rawCheapnessScore(place);
-  const expensiveness = Math.max(0, Math.min(1, (100 - cheap) / 93));
-  const value = cheap + expensiveness * (ratingRaw - cheap) * 0.9; // Better rating increases value of expensive places
-  return Math.max(0, Math.min(100, value));
 }
 
 function rawCalorieScore(place: any): number {
@@ -452,7 +430,7 @@ function buildMatchPills(sr: Omit<ScoredRestaurant, 'matchPills'>): ScoredRestau
     { kind: 'distance', emoji: '📍', label: 'Close by', score: sr.weightedParts.distance },
     { kind: 'health', emoji: '💚', label: 'Healthy pick', score: sr.weightedParts.health },
     { kind: 'value', emoji: '💸', label: 'Great value', score: sr.weightedParts.price },
-    { kind: 'rating', emoji: '⭐', label: 'Highly rated', score: sr.weightedParts.rating },
+    { kind: 'taste', emoji: '👅', label: 'Great taste', score: sr.weightedParts.taste },
     { kind: 'novelty', emoji: '🎲', label: 'Something new', score: sr.weightedParts.novelty },
   ];
 
@@ -538,12 +516,11 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     const dm = place.distanceMeters as number;
     const dRaw = rawDistanceScore(dm, radius);
     const hRaw = rawHealthScore(place);
-    const ratingRaw = rawRatingScore(place);
-    const pRaw = rawPriceScore(place, ratingRaw, w.cost);
-    const speedRaw = rawSpeedScore(place);
-    const valueRaw = rawValueForMoneyScore(place, ratingRaw);
-    const calorieRaw = rawCalorieScore(place);
     const tasteRaw = rawTasteScore(place);
+    const pRaw = rawPriceScore(place, tasteRaw, w.cost);
+    const speedRaw = rawSpeedScore(place);
+    const valueRaw = rawValueForMoneyScore(place, tasteRaw);
+    const calorieRaw = rawCalorieScore(place);
     const cuisineFitRaw = rawCuisineFitScore(place, prefs.favoriteCuisines);
     const calorieContrib = caloriePreferenceContribution(calorieRaw, prefs.weights.calories);
 
@@ -573,7 +550,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       distance: dRaw * nw.distance + speedRaw * nw.speed,
       health: hRaw * nw.health + calorieContrib,
       price: pRaw * nw.cost + valueRaw * nw.valueForMoney,
-      rating: tasteRaw * nw.taste + ratingRaw * nw.ratingAdherence,
+      taste: tasteRaw * nw.taste,
       novelty: cuisineFitRaw * nw.cuisine,
     };
 
@@ -584,7 +561,6 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       { strength: importanceToStrength(w.health), rawScore: hRaw },
       { strength: importanceToStrength(w.valueForMoney), rawScore: valueRaw },
       { strength: importanceToStrength(w.taste), rawScore: tasteRaw },
-      { strength: importanceToStrength(w.ratingAdherence), rawScore: ratingRaw },
       { strength: importanceToStrength(w.cuisine), rawScore: cuisineFitRaw },
       ...(w.calories !== 3
         ? [{ strength: calorieSynergyStrength(w.calories), rawScore: calorieSynergyFit(calorieRaw, w.calories) }]
@@ -603,14 +579,13 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
     checkMismatch(importanceToStrength(w.health), hRaw);
     checkMismatch(importanceToStrength(w.valueForMoney), valueRaw);
     checkMismatch(importanceToStrength(w.taste), tasteRaw);
-    checkMismatch(importanceToStrength(w.ratingAdherence), ratingRaw);
     checkMismatch(importanceToStrength(w.cuisine), cuisineFitRaw);
 
     const base =
       weightedParts.distance +
       weightedParts.health +
       weightedParts.price +
-      weightedParts.rating +
+      weightedParts.taste +
       weightedParts.novelty;
 
     let plateboundScore = Math.max(0, Math.min(100, base + synergy + modifiers.meal + modifiers.group + modifiers.mood + modifiers.time + (modifiers as any).intent - mismatchPenalty));
@@ -632,7 +607,7 @@ export function scoreRestaurantPool(places: any[], ctx: ScoreContextInput): Scor
       distance: dRaw,
       health: healthBlend,
       price: pRaw,
-      rating: ratingRaw,
+      taste: tasteRaw,
       novelty: cuisineFitRaw,
     };
     const baseSr: Omit<ScoredRestaurant, 'matchPills'> = {

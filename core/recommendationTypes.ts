@@ -13,7 +13,6 @@ export type RecommendationWeights = {
   calories: ImportanceLevel;
   cuisine: ImportanceLevel;
   taste: ImportanceLevel;
-  ratingAdherence: ImportanceLevel;
 };
 
 export type DietaryFilterId =
@@ -57,7 +56,7 @@ export type MatchPillKind =
   | 'distance'
   | 'health'
   | 'value'
-  | 'rating'
+  | 'taste'
   | 'novelty'
   | 'groups'
   | 'tonight'
@@ -70,14 +69,14 @@ export type ScoredRestaurant = {
     distance: number;
     health: number;
     price: number;
-    rating: number;
+    taste: number;
     novelty: number;
   };
   weightedParts: {
     distance: number;
     health: number;
     price: number;
-    rating: number;
+    taste: number;
     novelty: number;
   };
   modifiers: {
@@ -98,7 +97,6 @@ export const DEFAULT_WEIGHTS: RecommendationWeights = {
   calories: 3,
   cuisine: 1,
   taste: 1,
-  ratingAdherence: 1,
 };
 
 export const DEFAULT_PREFS_V1: RecommendationPrefsV1 = {

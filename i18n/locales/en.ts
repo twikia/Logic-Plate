@@ -105,7 +105,7 @@ const en = {
   },
 
   scenarios: {
-    top_rated: 'Top Rated',
+    top_rated: 'Top Picks',
     close_fast: 'Quick & Close',
     wallet_friendly: 'Wallet Wins',
     health: 'Eat Clean',
@@ -126,7 +126,6 @@ const en = {
     matchScore: 'Match Score',
     distance: 'Distance',
     price: 'Price',
-    rating: 'Rating',
     overall: 'Overall',
     health: 'Health',
     taste: 'Taste',
@@ -197,7 +196,6 @@ const en = {
     openNow: 'Open now',
     vibeFilter: 'Vibe \u00b7 {{scenario}}',
     price: 'Price',
-    rating: 'Rating',
     cuisines: 'Cuisines',
     sortBy: 'Sort By',
     extraCutoffs: 'Extra score cutoffs',
@@ -562,7 +560,7 @@ const en = {
 
   priorities: {
     practicalTitle: 'Practical priorities',
-    practicalSubtitle: 'How much speed, cost, and rating matter to you.',
+    practicalSubtitle: 'How much speed and cost matter to you.',
     healthTitle: 'Health & nutrition',
     healthSubtitle: 'What you want from meals for your body and goals.',
     speedLabel: 'Speed',
@@ -571,10 +569,6 @@ const en = {
     costHint: 'Favor cheaper restaurants',
     distanceLabel: 'Distance',
     distanceHint: 'How close the spot is',
-    ratingAdherenceLabel: 'Top rating importance',
-    ratingAdherenceHint: 'Favor higher ratings',
-    ratingLabel: 'Top rating importance',
-    ratingHint: 'Favor higher ratings',
     valueForMoneyLabel: 'Value for money',
     valueForMoneyHint: 'Great bang for your buck',
     healthLabel: 'Health',

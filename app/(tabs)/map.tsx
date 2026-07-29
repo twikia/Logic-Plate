@@ -65,26 +65,11 @@ function formatMarkerSortLabel(item: any, sortBy: RandomSortBy, formatDistance: 
     const label = formatRestaurantCostLabel(item);
     return label && label !== '-' ? label : '—';
   }
-  if (sortBy === 'rating') {
-    if (item.aiOverview) {
-      const s = calculatePlateboundScore(
-        item.aiOverview,
-        item.rating,
-        item.priceLevel,
-        item.userRatingCount,
-        item.priceTier ?? item.aiOverview?.priceTier,
-      );
-      return s.toFixed(1);
-    }
-    return typeof item.rating === 'number' && item.rating > 0 ? item.rating.toFixed(1) : '—';
-  }
   if (sortBy === 'overall') {
     if (!item.aiOverview) return '—';
     const s = calculatePlateboundScore(
       item.aiOverview,
-      item.rating,
       item.priceLevel,
-      item.userRatingCount,
       item.priceTier ?? item.aiOverview?.priceTier,
     );
     return s.toFixed(1);
@@ -693,9 +678,7 @@ export default function MapScreen() {
     selectedRestaurant?.aiOverview != null
       ? calculatePlateboundScore(
           selectedRestaurant.aiOverview,
-          selectedRestaurant.rating,
           selectedRestaurant.priceLevel,
-          selectedRestaurant.userRatingCount,
           selectedRestaurant.priceTier ?? selectedRestaurant.aiOverview?.priceTier
         )
       : null;
