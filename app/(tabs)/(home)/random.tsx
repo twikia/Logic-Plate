@@ -446,6 +446,8 @@ export default function RandomScreen() {
   const minAiCutoffs = useMemo(() => slotsToCutoffs(aiSlot1, aiSlot2), [aiSlot1, aiSlot2]);
   const hydratedRef = useRef(false);
   const isResettingRef = useRef(false);
+  const isLoadingRef = useRef(false);
+  const randomNavRef = useRef(false);
   const {
     loadingStage,
     loadingDetail,
@@ -550,6 +552,8 @@ export default function RandomScreen() {
     (Object.values(minAiCutoffs).filter((v) => v > 0).length);
 
   const loadResults = useCallback(async (r?: number, isRefresh = false) => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     const searchRadius = r ?? radiusRef.current;
     if (!isRefresh) setIsLoading(true);
     setErrorMsg(null);
@@ -645,6 +649,7 @@ export default function RandomScreen() {
       if (__DEV__) console.warn('[random load]', e);
       setErrorMsg(t('random.loadError'));
     } finally {
+      isLoadingRef.current = false;
       snapProgressComplete();
       setIsLoading(false);
       hydratedRef.current = true;
@@ -658,6 +663,7 @@ export default function RandomScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      randomNavRef.current = false;
       setRadius(DEFAULT_SEARCH_RADIUS_METERS);
       radiusRef.current = DEFAULT_SEARCH_RADIUS_METERS;
       pickBtnScale.value = 1;
@@ -788,6 +794,8 @@ export default function RandomScreen() {
 
   const handleOpenDetail = useCallback(
     (item: any) => {
+      if (randomNavRef.current) return;
+      randomNavRef.current = true;
       setCurrentRestaurant(item);
       setTimeout(() => {
         routerRef.current.push('/random-result');
@@ -797,6 +805,8 @@ export default function RandomScreen() {
   );
 
   const navigateToResult = useCallback(() => {
+    if (randomNavRef.current) return;
+    randomNavRef.current = true;
     routerRef.current.push('/random-result');
   }, []);
 

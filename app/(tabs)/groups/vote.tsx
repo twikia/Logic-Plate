@@ -45,6 +45,8 @@ export default function GroupVoteScreen() {
   const [sessionEnded, setSessionEnded] = useState(false);
   const hasAutoEnded = useRef(false);
   const normalExit = useRef(false);
+  const endingVote = useRef(false);
+  const votingInFlight = useRef(false);
 
   const goWinner = useCallback(() => {
     normalExit.current = true;
@@ -64,12 +66,14 @@ export default function GroupVoteScreen() {
   );
 
   const endVoting = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId || endingVote.current) return;
+    endingVote.current = true;
     const { error } = await supabase
       .from('group_sessions')
       .update({ status: 'complete' })
       .eq('id', sessionId);
     if (error) {
+      endingVote.current = false;
       Alert.alert(
         t('groups.vote.alerts.endVotingTitle'),
         `${error.message}${error.code ? ` (${error.code})` : ''}`
@@ -170,21 +174,24 @@ export default function GroupVoteScreen() {
   }, [isHost, sessionId]);
 
   const castVote = async (placeId: string) => {
-    if (!sessionId || hasVoted) return;
+    if (!sessionId || hasVoted || votingInFlight.current) return;
+    votingInFlight.current = true;
+    setHasVoted(true);
+    setVotedForId(placeId);
     const { error } = await supabase.from('group_votes').insert({
       session_id: sessionId,
       place_id: placeId,
       voter_response_id: responseId || null,
     });
+    votingInFlight.current = false;
     if (error) {
+      setHasVoted(false);
+      setVotedForId(null);
       Alert.alert(
         t('groups.vote.alerts.saveVoteTitle'),
         `${error.message}${error.code ? ` (${error.code})` : ''}\n\nIf the session is not in the voting phase yet, wait until the host starts voting.`
       );
-      return;
     }
-    setHasVoted(true);
-    setVotedForId(placeId);
   };
 
   if (!sessionId) return null;

@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useRef, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   Alert,
@@ -30,19 +31,32 @@ export default function GroupsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const [joinCode, setJoinCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  const navigatingRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      navigatingRef.current = false;
+      setJoining(false);
+    }, [])
+  );
 
   const goLobby = (mode: 'passphone' | 'qr') => {
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
     hapticMedium();
     router.push({ pathname: '/groups/lobby', params: { mode } });
   };
 
   const onJoin = async () => {
+    if (joining) return;
     const code = normalizeJoinCode(joinCode);
     if (code.length !== 6) {
       hapticError();
       Alert.alert(t('groups.alertEnterCodeTitle'), t('groups.alertEnterCodeMsg'));
       return;
     }
+    setJoining(true);
     hapticMedium();
     const { data, error } = await supabase
       .from('group_sessions')
@@ -51,17 +65,20 @@ export default function GroupsScreen() {
       .maybeSingle();
 
     if (error || !data) {
+      setJoining(false);
       hapticError();
       Alert.alert(t('groups.alertNotFoundTitle'), t('groups.alertNotFoundMsg'));
       return;
     }
     if (data.status === 'expired') {
+      setJoining(false);
       hapticError();
       Alert.alert(t('groups.alertExpiredTitle'), t('groups.alertExpiredMsg'));
       return;
     }
     const exp = new Date(data.expires_at).getTime();
     if (exp <= Date.now()) {
+      setJoining(false);
       hapticError();
       Alert.alert(t('groups.alertExpiredTitle'), t('groups.alertExpiredMsg'));
       return;
@@ -71,6 +88,7 @@ export default function GroupsScreen() {
       pathname: '/groups/vibe',
       params: { sessionId: data.id, flow: 'join' },
     });
+    setJoining(false);
   };
 
   return (
@@ -104,8 +122,9 @@ export default function GroupsScreen() {
               onChangeText={setJoinCode}
             />
             <TouchableOpacity
-              style={[styles.joinBtn, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
-              onPress={onJoin}>
+              style={[styles.joinBtn, { backgroundColor: theme.accent, shadowColor: theme.accent, opacity: joining ? 0.6 : 1 }]}
+              onPress={onJoin}
+              disabled={joining}>
               <Text style={[styles.joinBtnText, { color: theme.gradient[0] }]}>{t('groups.join')}</Text>
             </TouchableOpacity>
             </View>
@@ -135,7 +154,7 @@ export default function GroupsScreen() {
               styles.glowBtn,
               { borderColor: theme.accent + 'AA', backgroundColor: theme.cardBackground, shadowColor: theme.accent, marginTop: 14 },
             ]}
-            onPress={() => { hapticMedium(); router.push('/groups/quick'); }}>
+            onPress={() => { if (navigatingRef.current) return; navigatingRef.current = true; hapticMedium(); router.push('/groups/quick'); }}>
             <Text style={styles.glowBtnEmoji}>⚡</Text>
             <Text style={[styles.glowBtnText, { color: theme.text }]}>{t('groups.quickVote')}</Text>
           </TouchableOpacity>

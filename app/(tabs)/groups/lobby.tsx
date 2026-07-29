@@ -2,6 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
@@ -57,6 +58,13 @@ export default function GroupLobbyScreen() {
   const [session, setSession] = useState<SessionRow | null>(null);
   const [responses, setResponses] = useState<{ id: string; voter_name: string }[]>([]);
   const [reconciling, setReconciling] = useState(false);
+  const navigatingRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      navigatingRef.current = false;
+    }, [])
+  );
 
   const normalExit = useRef(false);
   const sessionRef = useRef<SessionRow | null>(null);
@@ -198,7 +206,8 @@ export default function GroupLobbyScreen() {
   };
 
   const addGuestHere = () => {
-    if (!sessionId) return;
+    if (!sessionId || navigatingRef.current) return;
+    navigatingRef.current = true;
     router.push({
       pathname: '/groups/vibe',
       params: { sessionId, flow: 'passphone' },
@@ -206,7 +215,8 @@ export default function GroupLobbyScreen() {
   };
 
   const answerForMyself = () => {
-    if (!sessionId) return;
+    if (!sessionId || navigatingRef.current) return;
+    navigatingRef.current = true;
     router.push({
       pathname: '/groups/vibe',
       params: { sessionId, flow: 'host' },
@@ -214,7 +224,7 @@ export default function GroupLobbyScreen() {
   };
 
   const everyoneIn = async () => {
-    if (!sessionId || responses.length < 2) return;
+    if (!sessionId || responses.length < 2 || reconciling) return;
     if (!appSecret) {
       setError(t('groups.lobby.errors.appSecretReconcile'));
       return;

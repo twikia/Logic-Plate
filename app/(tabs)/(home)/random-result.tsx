@@ -20,7 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
@@ -312,6 +312,7 @@ export default function RandomResultScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [heroPhotos, setHeroPhotos] = useState<any[]>(place.photos || []);
   const [favorited, setFavorited] = useState(false);
+  const favTogglingRef = useRef(false);
   useFocusEffect(useCallback(() => { setLiveOpenEpoch(e => e + 1); }, []));
 
   useEffect(() => {
@@ -397,9 +398,11 @@ export default function RandomResultScreen() {
   };
 
   const handleToggleFavorite = async () => {
-    if (!place?.id) return;
+    if (!place?.id || favTogglingRef.current) return;
+    favTogglingRef.current = true;
     hapticMedium();
     const next = await toggleFavorite(place);
+    favTogglingRef.current = false;
     setFavorited(next);
   };
 
