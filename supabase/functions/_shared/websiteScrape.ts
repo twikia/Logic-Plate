@@ -425,7 +425,58 @@ export function isDeadTransportError(msg: string): boolean {
   );
 }
 
+function isPrivateOrLocalHostname(host: string): boolean {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (
+    h === 'localhost' ||
+    h.endsWith('.localhost') ||
+    h === 'metadata.google.internal' ||
+    h === '::1' ||
+    h === '0.0.0.0'
+  ) {
+    return true;
+  }
+  if (h.includes(':')) {
+    return (
+      h === '::1' ||
+      h.startsWith('fc') ||
+      h.startsWith('fd') ||
+      h.startsWith('fe80') ||
+      h.startsWith('::ffff:127.') ||
+      h.startsWith('::ffff:10.') ||
+      h.startsWith('::ffff:192.168.')
+    );
+  }
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!ipv4) return false;
+  const parts = ipv4.slice(1).map(Number);
+  if (parts.some((p) => p > 255)) return true;
+  const [a, b] = parts;
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  return false;
+}
+
+/** Block SSRF to localhost / private / link-local / non-http(s) URLs. */
+export function isSafePublicHttpUrl(urlString: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  if (parsed.username || parsed.password) return false;
+  const host = parsed.hostname;
+  if (!host || isPrivateOrLocalHostname(host)) return false;
+  return true;
+}
+
 export async function pingWebsite(url: string): Promise<PingResult> {
+  if (!isSafePublicHttpUrl(url)) return 'dead';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
   const headers = { 'User-Agent': PING_UA, Accept: '*/*' };
@@ -434,9 +485,13 @@ export async function pingWebsite(url: string): Promise<PingResult> {
     if (res.status === 405 || res.status === 501) {
       res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal, headers });
     }
+    const finalUrl = typeof res.url === 'string' && res.url ? res.url : url;
+    if (!isSafePublicHttpUrl(finalUrl)) {
+      clearTimeout(timer);
+      return 'dead';
+    }
     clearTimeout(timer);
     if (DEAD_PING_STATUSES.has(res.status)) return 'dead';
-    const finalUrl = typeof res.url === 'string' && res.url ? res.url : url;
     const originalHost = hostnameOf(url);
     const finalHost = hostnameOf(finalUrl);
     if (
@@ -514,6 +569,9 @@ function hasFoodWebsiteSignal(html: string, menuText: string, hoursText: string)
 }
 
 async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<FetchHtmlResult> {
+  if (!isSafePublicHttpUrl(url)) {
+    return { html: '', status: null, deadTransport: true, finalUrl: null };
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -524,6 +582,9 @@ async function fetchHtmlWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): 
     });
     clearTimeout(timer);
     const finalUrl = typeof res.url === 'string' && res.url ? res.url : url;
+    if (!isSafePublicHttpUrl(finalUrl)) {
+      return { html: '', status: null, deadTransport: true, finalUrl: null };
+    }
     if (!res.ok) return { html: '', status: res.status, finalUrl };
     const buf = await res.arrayBuffer();
     const capped = buf.byteLength > MAX_HTML_CHARS * 2
@@ -555,7 +616,7 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
     jsonLdWeekdayDescriptions: [],
     deadWebsite: false,
   };
-  if (!websiteUrl) return empty;
+  if (!websiteUrl || !isSafePublicHttpUrl(websiteUrl)) return empty;
 
   const home = await fetchHtmlWithTimeout(websiteUrl);
   if (home.deadTransport || (home.status != null && DEAD_PING_STATUSES.has(home.status))) {

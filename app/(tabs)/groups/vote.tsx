@@ -4,7 +4,6 @@ import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
   Alert,
-  AppState,
   ScrollView,
   StyleSheet,
   Text,
@@ -163,25 +162,15 @@ export default function GroupVoteScreen() {
     return unsub;
   }, [isHost, navigation, sessionId]);
 
-  useEffect(() => {
-    if (!isHost) return;
-    const sub = AppState.addEventListener('change', (next) => {
-      if ((next === 'background' || next === 'inactive') && !normalExit.current && sessionId) {
-        void supabase.from('group_sessions').update({ status: 'expired' }).eq('id', sessionId);
-      }
-    });
-    return () => sub.remove();
-  }, [isHost, sessionId]);
-
   const castVote = async (placeId: string) => {
-    if (!sessionId || hasVoted || votingInFlight.current) return;
+    if (!sessionId || !responseId || hasVoted || votingInFlight.current) return;
     votingInFlight.current = true;
     setHasVoted(true);
     setVotedForId(placeId);
     const { error } = await supabase.from('group_votes').insert({
       session_id: sessionId,
       place_id: placeId,
-      voter_response_id: responseId || null,
+      voter_response_id: responseId,
     });
     votingInFlight.current = false;
     if (error) {

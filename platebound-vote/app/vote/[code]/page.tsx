@@ -296,7 +296,7 @@ export default function VoteByCodePage() {
   };
 
   const castVote = async (placeId: string) => {
-    if (!supabase || !session || hasVoted) return;
+    if (!supabase || !session || !responseId || hasVoted) return;
     const { error } = await supabase.from('group_votes').insert({
       session_id: session.id,
       place_id: placeId,

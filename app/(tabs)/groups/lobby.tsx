@@ -6,7 +6,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
-  AppState,
   LayoutAnimation,
   ScrollView,
   Share,
@@ -145,16 +144,6 @@ export default function GroupLobbyScreen() {
     }, ms);
     return () => clearTimeout(timer);
   }, [endSession, session?.expires_at, t]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => {
-      if ((next === 'background' || next === 'inactive') && !normalExit.current) {
-        const id = sessionRef.current?.id;
-        if (id) void endSession(id);
-      }
-    });
-    return () => sub.remove();
-  }, [endSession]);
 
   useEffect(() => {
     const unsub = navigation.addListener('beforeRemove', () => {

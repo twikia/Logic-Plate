@@ -17,6 +17,7 @@ import {
   resolveOpeningHours,
   type AtpPlaceHoursRow,
 } from "../_shared/allThePlacesHours.ts";
+import { secretsEqual } from "../_shared/security.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -728,7 +729,7 @@ serve(async (req) => {
 
   const expectedSecret = Deno.env.get('APP_SECRET');
   const incomingSecret = req.headers.get('x-app-secret');
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
+  if (!expectedSecret || !secretsEqual(incomingSecret, expectedSecret)) {
     return jsonErrorResponse(401, 'UNAUTHORIZED', 'Unauthorized');
   }
 

@@ -5,7 +5,6 @@
  *  - RestaurantImage         (component) — drop-in image with spinner + fallback
  *  - fetchRestaurantPhotoUrls (function)  — single-photo URL resolver
  *  - clearImageCache          (function)  — wipe memory + disk cache
- *  - clearRemotePhotoCache    (function)  — wipe the remote Supabase cache table
  */
 export { RestaurantImage } from './RestaurantImage';
-export { clearImageCache, clearRemotePhotoCache, fetchRestaurantPhotoUrls, resolvePhotoUri } from './imageCache';
+export { clearImageCache, fetchRestaurantPhotoUrls, resolvePhotoUri } from './imageCache';

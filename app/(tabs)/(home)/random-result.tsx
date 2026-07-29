@@ -37,6 +37,7 @@ import {
 import ReAnimated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { openExternalUrl, openTelUrl } from '@/utils/safeOpenUrl';
 import {
   getCurrentRestaurant,
   setMapFocusRestaurant,
@@ -731,7 +732,7 @@ export default function RandomResultScreen() {
                         value={phone}
                         hint={t('result.tapToCall')}
                         theme={theme}
-                        onPress={() => Linking.openURL(`tel:${phone}`)}
+                        onPress={() => void openTelUrl(phone)}
                         accentColor={theme.tint}
                       />
                     ) : null}
@@ -744,7 +745,7 @@ export default function RandomResultScreen() {
                         value={website}
                         hint={t('result.tapToOpen')}
                         theme={theme}
-                        onPress={() => Linking.openURL(website)}
+                        onPress={() => void openExternalUrl(website)}
                         accentColor={theme.tint}
                       />
                     ) : null}
@@ -817,7 +818,7 @@ export default function RandomResultScreen() {
                 styles.stickyMiddle,
                 { backgroundColor: theme.glassBackground, borderColor: theme.cardBorderColor },
               ]}
-              onPress={() => Linking.openURL(website)}
+              onPress={() => void openExternalUrl(website)}
               activeOpacity={0.8}
             >
               <Ionicons name="globe-outline" size={17} color={theme.text} />

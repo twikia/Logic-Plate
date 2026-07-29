@@ -30,6 +30,7 @@ import {
   radiusToSliderValue,
   sliderValueToRadius,
 } from '@/core/searchRadiusOptions';
+import { openExternalUrl, openTelUrl } from '@/utils/safeOpenUrl';
 import { RestaurantCarousel } from '@/components/RestaurantCarousel';
 import { TranslatedText } from '@/components/ui/TranslatedText';
 import { useDistanceFormatter } from '@/hooks/useDistanceFormatter';
@@ -1059,7 +1060,7 @@ export default function MapScreen() {
             )}
 
             {sheetWebsite ? (
-              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(sheetWebsite)}>
+              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => void openExternalUrl(sheetWebsite)}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="globe-outline" size={15} color="#F9A06F" />
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('result.viewWebsite', { defaultValue: 'Website' })}</Text>
@@ -1070,7 +1071,7 @@ export default function MapScreen() {
             ) : null}
 
             {sheetPhone ? (
-              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => Linking.openURL(`tel:${sheetPhone}`)}>
+              <TouchableOpacity style={[styles.infoSection, { borderColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)' }]} onPress={() => void openTelUrl(sheetPhone)}>
                 <View style={styles.infoSectionHeader}>
                   <Ionicons name="call-outline" size={15} color="#F9A06F" />
                   <Text style={[styles.infoSectionTitle, { color: theme.text }]}>{t('map.phone')}</Text>

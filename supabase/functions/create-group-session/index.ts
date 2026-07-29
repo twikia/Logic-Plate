@@ -1,11 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { assertAppSecret } from "../_shared/security.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-app-secret",
 };
+
+const MAX_CELL_IDS = 128;
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -45,35 +48,14 @@ serve(async (req) => {
       });
     }
 
-    const expectedSecret = Deno.env.get("APP_SECRET");
-    const incomingSecret = req.headers.get("x-app-secret");
-    if (!expectedSecret) {
-      console.error("[create-group-session] APP_SECRET env var is not set");
-      return new Response(
-        JSON.stringify({
-          error: "server_misconfigured",
-          detail:
-            "APP_SECRET is not set for Edge Functions. In Supabase: Project Settings → Edge Functions → add secret APP_SECRET to match EXPO_PUBLIC_APP_SECRET in the app.",
-        }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-    if (incomingSecret !== expectedSecret) {
-      console.error("[create-group-session] x-app-secret mismatch");
-      return new Response(
-        JSON.stringify({
-          error: "Unauthorized",
-          detail:
-            "x-app-secret header did not match server APP_SECRET. Check EXPO_PUBLIC_APP_SECRET in the app .env and APP_SECRET in Supabase.",
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    const secretErr = assertAppSecret(req, corsHeaders);
+    if (secretErr) {
+      if (secretErr.status === 401) {
+        console.error("[create-group-session] x-app-secret mismatch");
+      } else {
+        console.error("[create-group-session] APP_SECRET env var is not set");
+      }
+      return secretErr;
     }
 
     let body: { cellIds?: string[]; hostUserId?: string | null; mode?: string | null };
@@ -86,9 +68,17 @@ serve(async (req) => {
       });
     }
 
-    const cellIds = Array.isArray(body.cellIds) ? body.cellIds.filter((x) => typeof x === "string") : [];
+    const cellIds = Array.isArray(body.cellIds)
+      ? body.cellIds.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 32)
+      : [];
     if (cellIds.length === 0) {
       return new Response(JSON.stringify({ error: "cellIds required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (cellIds.length > MAX_CELL_IDS) {
+      return new Response(JSON.stringify({ error: "too_many_cellIds", max: MAX_CELL_IDS }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -129,8 +119,12 @@ serve(async (req) => {
 
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
     const hostUserId =
-      typeof body.hostUserId === "string" && body.hostUserId.length > 0 ? body.hostUserId : null;
-    const mode = typeof body.mode === "string" && body.mode.length > 0 ? body.mode : null;
+      typeof body.hostUserId === "string" && body.hostUserId.length > 0 && body.hostUserId.length <= 128
+        ? body.hostUserId
+        : null;
+    const mode = typeof body.mode === "string" && body.mode.length > 0 && body.mode.length <= 64
+      ? body.mode
+      : null;
 
     const { data, error } = await supabase
       .from("group_sessions")

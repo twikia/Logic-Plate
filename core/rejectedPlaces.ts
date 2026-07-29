@@ -54,7 +54,7 @@ export async function loadRejectedPlaceIds(): Promise<Set<string>> {
 
 export async function markRejectedPlaceIds(
   ids: string[],
-  reason: string = 'dead_website',
+  _reason: string = 'dead_website',
 ): Promise<void> {
   const valid = ids.filter((id) => typeof id === 'string' && id.length > 0);
   if (valid.length === 0) return;
@@ -67,13 +67,4 @@ export async function markRejectedPlaceIds(
     }
   }
   if (changed) await persist(current);
-
-  try {
-    await supabase.from('v2_rejected_places').upsert(
-      valid.map((gers_id) => ({ gers_id, reason })),
-      { onConflict: 'gers_id', ignoreDuplicates: true },
-    );
-  } catch {
-    /* best-effort */
-  }
 }

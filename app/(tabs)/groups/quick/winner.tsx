@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   BackHandler,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { openExternalUrl } from '@/utils/safeOpenUrl';
 
 import { QuickVoteRestaurantCard } from '@/components/QuickVoteRestaurantCard';
 import { BackButton } from '@/components/ui/BackButton';
@@ -97,7 +97,7 @@ export default function QuickVoteWinnerScreen() {
   const openMaps = () => {
     if (typeof lat === 'number' && typeof lng === 'number') {
       hapticSuccess();
-      Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
+      void openExternalUrl(`https://maps.google.com/?q=${lat},${lng}`);
     }
   };
 

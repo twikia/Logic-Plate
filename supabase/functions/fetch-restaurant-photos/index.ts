@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { assertAppSecret } from "../_shared/security.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -393,14 +394,10 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const expectedSecret = Deno.env.get('APP_SECRET');
-  const incomingSecret = req.headers.get('x-app-secret');
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
+  const secretErr = assertAppSecret(req, corsHeaders);
+  if (secretErr) {
     console.error('[Auth] Unauthorized access attempt.');
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return secretErr;
   }
 
   let requestPlaceId: string | null = null;

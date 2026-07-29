@@ -44,7 +44,10 @@ app-example
 logs/
 .expo-tmp-export
 
-# local env files
+# local env files (never commit secrets)
+.env
+.env.*
+!.env.example
 .env.local
 .env*.local
 platebound-2.0-v3.aab

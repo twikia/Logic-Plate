@@ -2,10 +2,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import {
     isDeadTransportError,
+    isSafePublicHttpUrl,
     mapPool,
     pingWebsite,
     scrapeWebsite,
 } from "../_shared/websiteScrape.ts";
+import { assertAppSecret } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,14 +30,8 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const expectedSecret = Deno.env.get("APP_SECRET");
-  const incomingSecret = req.headers.get("x-app-secret");
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  const secretErr = assertAppSecret(req, corsHeaders);
+  if (secretErr) return secretErr;
 
   try {
     const { places } = await req.json();
@@ -54,6 +50,7 @@ serve(async (req) => {
     const unique = new Map<string, InputPlace>();
     for (const p of places as InputPlace[]) {
       if (!p?.gers_id || !p?.website_url) continue;
+      if (!isSafePublicHttpUrl(p.website_url)) continue;
       if (!unique.has(p.gers_id)) unique.set(p.gers_id, p);
       if (unique.size >= MAX_PLACES_PER_REQUEST) break;
     }

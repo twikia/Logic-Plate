@@ -179,24 +179,6 @@ export const clearImageCache = async (): Promise<void> => {
   }
 };
 
-/**
- * Wipes the remote restaurant_photo_cache table (service_role required).
- * Useful for forcing a full re-fetch during development.
- */
-export const clearRemotePhotoCache = async (): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('restaurant_photo_cache')
-      .delete()
-      .neq('google_place_id', '_');
-
-    if (error) console.error('[ImageCache] Remote photo cache clear failed:', error);
-    else console.log('[ImageCache] Remote restaurant_photo_cache wiped.');
-  } catch (err) {
-    console.error('[ImageCache] Remote clear error:', err);
-  }
-};
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FetchRestaurantPhotosInput = {

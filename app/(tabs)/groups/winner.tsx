@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TouchableOpacity } from '@/components/ui/soundPressable';
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   Share,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { openExternalUrl } from '@/utils/safeOpenUrl';
 
 import { RestaurantImage } from '@/core/images';
 import { getPlaceAddress, getPlaceCuisineKey, getPlaceName, getPlaceWebsiteUrl } from '@/core/placeFields';
@@ -84,7 +84,7 @@ export default function GroupWinnerScreen() {
     const lng = winner?.location?.longitude;
     if (typeof lat === 'number' && typeof lng === 'number') {
       hapticSuccess();
-      Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
+      void openExternalUrl(`https://maps.google.com/?q=${lat},${lng}`);
     }
   };
 
