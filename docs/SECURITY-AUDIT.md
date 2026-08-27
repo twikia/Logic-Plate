@@ -7,7 +7,7 @@ Audit date: August 2026. Re-run `git log --all -- .env` and secret greps before 
 | Item | Status |
 |------|--------|
 | `.env` in working tree | Not tracked (gitignored) |
-| `.env` in git history | **Yes — must purge before going public** |
+| `.env` in git history | **Purged** (Aug 2026 — `git filter-repo` + force-push all branches) |
 | Hardcoded secrets in current code | None found |
 | Service role keys in client | None (edge functions + local scripts only) |
 | `.gitignore` for env files | OK |
@@ -22,11 +22,25 @@ Historical commits contain:
 - `EXPO_PUBLIC_APP_SECRET` (shared secret for edge function auth)
 - Google Maps API keys (Android + generic)
 
-**Current tree:** no matches for those values (`grep` clean).
+**Current tree:** no matches for those values (`grep` clean). History rewrite also removed `scratch/test_api.js`, `tools/platebound-2.1-v4.zip`, and `platebound-2.1-v4.apks`.
+
+## Automated scans (Aug 2026)
+
+| Tool | Result |
+|------|--------|
+| **TruffleHog** v3.97.1 (`trufflehog git file://.`) | 0 verified, 0 unverified secrets |
+| **Gitleaks** v8.30.1 (`gitleaks detect -v`) | Clean (1 false positive on AsyncStorage key name — allowlisted in `.gitleaks.toml`) |
+
+Re-run locally:
+
+```powershell
+gitleaks detect -v --config .gitleaks.toml
+trufflehog git file://.
+```
 
 ## Required actions before going public
 
-### 1. Rotate all exposed credentials
+### 1. Rotate all exposed credentials (still recommended)
 
 Even after history rewrite, assume these were compromised:
 

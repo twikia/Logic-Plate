@@ -1,0 +1,12 @@
+title = "Platebound gitleaks config"
+
+[allowlist]
+description = "AsyncStorage key names and other non-secret identifiers"
+paths = [
+  '''core/recommendationPrefs\.ts''',
+]
+regexes = [
+  '''recommendation_prefs_v1''',
+  '''app_intro_seen_v1''',
+  '''recommendation_onboarding_done_v1''',
+]
