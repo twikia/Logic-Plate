@@ -33,11 +33,11 @@
 
 | Home | Map | Groups |
 |:----:|:---:|:------:|
-| ![Home](docs/assets/home.png) | ![Map](docs/assets/map.png) | ![Groups](docs/assets/groups.png) |
+| <img src="docs/assets/home.png" alt="Home" width="260" /> | <img src="docs/assets/map.png" alt="Map" width="260" /> | <img src="docs/assets/groups.png" alt="Groups" width="260" /> |
 
 | Profile | Detail page |
 |:-------:|:-----------:|
-| ![Profile](docs/assets/profile.png) | ![Detail page](docs/assets/detail.png) |
+| <img src="docs/assets/profile.png" alt="Profile" width="260" /> | <img src="docs/assets/detail.png" alt="Detail page" width="260" /> |
 
 ---
 
