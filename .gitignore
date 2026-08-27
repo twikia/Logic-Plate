@@ -44,6 +44,12 @@ app-example
 logs/
 .expo-tmp-export
 
+# local IDE / agent config
+.agents/
+
+# README capture temp frames
+docs/assets/.gif-frames/
+
 # local env files (never commit secrets)
 .env
 .env.*

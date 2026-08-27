@@ -18,7 +18,7 @@
     "deploy:supabase": "npx supabase db push && npx supabase functions deploy --no-verify-jwt",
     "android:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Action all",
     "android:logcat": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Action logcat",
-    "android:build-apk": "powershell -ExecutionPolicy Bypass -File ./scripts/android-debug.ps1 -Build -Action install"
+    "capture:readme-assets": "node scripts/capture-readme-assets.mjs",
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -73,7 +73,10 @@
     "@types/react": "~19.1.0",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~10.0.0",
+    "gifenc": "^1.0.3",
     "patch-package": "^8.0.1",
+    "playwright": "^1.62.1",
+    "pngjs": "^7.0.0",
     "postinstall-postinstall": "^2.1.0",
     "typescript": "~5.9.2"
   },
