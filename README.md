@@ -35,17 +35,9 @@
 |:----:|:---:|:------:|
 | ![Home](docs/assets/home.png) | ![Map](docs/assets/map.png) | ![Groups](docs/assets/groups.png) |
 
-| Profile | Random picker |
-|:-------:|:-------------:|
-| ![Profile](docs/assets/profile.png) | ![Random](docs/assets/random.png) |
-
-### In action
-
-| Home carousel | Group voting |
-|:-------------:|:------------:|
-| ![Home carousel](docs/assets/home-carousel.gif) | ![Group vote](docs/assets/group-vote.gif) |
-
-<p align="center"><em>Captured from the Expo web dev build. Full map experience is native (iOS/Android).</em></p>
+| Profile | Detail page |
+|:-------:|:-----------:|
+| ![Profile](docs/assets/profile.png) | ![Detail page](docs/assets/detail.png) |
 
 ---
 
