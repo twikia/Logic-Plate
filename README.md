@@ -20,7 +20,7 @@
 
 ## What it does
 
-**Logic Plate** (package: Platebound) helps you find restaurants nearby, understand them at a glance, and agree on a place with a group.
+**Logic Plate** helps you find restaurants nearby, understand them at a glance, and agree on a place with a group.
 
 | Feature | Description |
 |---------|-------------|
